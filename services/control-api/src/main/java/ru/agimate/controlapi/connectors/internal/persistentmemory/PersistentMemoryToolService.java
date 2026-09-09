@@ -35,7 +35,7 @@ import java.util.UUID;
  * <p>Hidden {@code @Job}s (per connection, {@code connection_id = connections.id}): {@code daily}
  * walks the agent's sessions of the past day and addresses a {@code notes_by_session} to it for each;
  * {@code consolidation} claims the accumulated notes single-flight once an hour and sends a
- * {@code consolidate}.
+ * {@code consolidate} — hourly by cadence, not by the clock, see the declaration.
  */
 @Component
 @RequiredArgsConstructor
@@ -50,6 +50,8 @@ public class PersistentMemoryToolService {
     private static final long CONSOLIDATION_LEASE_SECONDS = 1_800;
     /** Window of the daily note collection. */
     private static final int NOTES_LOOKBACK_HOURS = 24;
+    /** Cadence of the consolidation sweep. */
+    private static final long CONSOLIDATION_INTERVAL_SECONDS = 3_600;
     /** Firing the job is only a database read plus publishing triggers; the iteration is short. */
     private static final int JOB_TIMEOUT_SECONDS = 120;
 
@@ -149,8 +151,12 @@ public class PersistentMemoryToolService {
         }
     }
 
+    // PERIODIC rather than CRON on purpose. Nothing about consolidation is tied to the wall clock — only
+    // the cadence matters — while a cron pins every row of every installation to the same second, so the
+    // whole install woke up at :00 and spiked. A periodic row counts from its own completion, so the rows
+    // stay as spread as they happen to start.
     @Tool(name = CONSOLIDATION_JOB, description = "Internal: claim pending notes and request consolidation")
-    @Job(type = ConnectorJobType.CRON, cron = "0 0 * * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
+    @Job(intervalSeconds = CONSOLIDATION_INTERVAL_SECONDS, timeoutSeconds = JOB_TIMEOUT_SECONDS)
     public void consolidation() {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID connectionId = requireConnectionId(ctx);

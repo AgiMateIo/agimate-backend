@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      The consolidation job switches from CRON to PERIODIC (see PersistentMemoryToolService). The
+      declaration is re-synced into the rows on application-ready, but that sync deliberately leaves
+      next_run_at alone — scheduling fields belong to the scheduler and the manage API. So without
+      this changeset every existing row would still come due at the same :00, finish within the same
+      second, and a periodic row counts its next run from its own completion: the whole installation
+      would stay in lockstep forever, only now without a cron to blame.
+
+      One-off spread over the following hour. The offset is added to the stored next_run_at rather
+      than to CURRENT_TIMESTAMP: the column is written by the application in the JVM's zone, and the
+      database runs in UTC, so arithmetic on the existing value is the only zone-safe form here.
+      Liquibase runs before the bootstrap, so at this point the rows are still CRON — a fresh
+      installation has no rows and this is a no-op.
+    -->
+    <changeSet id="spread-persist-memory-consolidation-next-run" author="agimate">
+        <sql>
+            UPDATE connector_jobs
+            SET next_run_at = next_run_at + (random() * 3600) * interval '1 second',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE connector_code = 'persist-memory'
+              AND name = 'consolidation'
+              AND kind = 'SYSTEM'
+              AND next_run_at IS NOT NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
