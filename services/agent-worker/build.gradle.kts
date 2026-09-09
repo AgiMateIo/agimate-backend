@@ -4,7 +4,7 @@ plugins {
     id("io.spring.dependency-management")
 }
 
-val springAiVersion = "2.0.0"
+val springAiVersion = "2.0.1"
 
 group = "ru.agimate.agentworker"
 

@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Offline-проверка: как agent-worker строит {@link Media} для inbound-изображения (см.
- * {@code LlmMessageMapper}), реально ли Spring AI 2.0.0 сериализует его в {@code image_url}
+ * {@code LlmMessageMapper}), реально ли Spring AI 2.0 сериализует его в {@code image_url}
  * запроса OpenAI. Тест в пакете {@code org.springframework.ai.openai} ради доступа к
  * package-private {@code OpenAiChatModel.createRequest}. Сети не требует.
  */
@@ -57,7 +57,7 @@ class OpenAiMediaSerializationTest {
         UserMessage user = UserMessage.builder()
                 .text("что на фото?")
                 .media(List.of(Media.builder()
-                        .mimeType(MimeTypeUtils.parseMimeType("image/jpeg")).data((Object) jpeg).build()))
+                        .mimeType(MimeTypeUtils.parseMimeType("image/jpeg")).data(jpeg).build()))
                 .build();
 
         ChatCompletionCreateParams params = model().createRequest(new Prompt(List.of(user), options()), false);
