@@ -40,6 +40,12 @@ class LlmMessageMapperThinkingTest {
         return new ChatResponse(List.of(new Generation(assistant)));
     }
 
+    private AgentChatMessage turn(ChatResponse response, String callId) {
+        StreamAssembler assembler = new StreamAssembler(mapper);
+        assembler.accept(response);
+        return assembler.message(callId);
+    }
+
     private static Map<String, Object> metadata(String key, Object value) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("finishReason", "stop");
@@ -52,7 +58,7 @@ class LlmMessageMapperThinkingTest {
     @Test
     @DisplayName("непустой reasoningContent → текст рассуждения на сообщении, thinking = true")
     void reasoningContentKeptOnTheMessage() {
-        AgentChatMessage msg = mapper.fromResponse(response(metadata("reasoningContent", "сначала подумаю")), CALL_ID);
+        AgentChatMessage msg = turn(response(metadata("reasoningContent", "сначала подумаю")), CALL_ID);
 
         // Не флаг: этот текст DeepSeek требует обратно в следующем запросе с tools.
         assertEquals("сначала подумаю", msg.reasoning());
@@ -63,26 +69,26 @@ class LlmMessageMapperThinkingTest {
     @Test
     @DisplayName("пустой reasoningContent (модель не рассуждала) → thinking = false")
     void blankReasoningContentLeavesFlagOff() {
-        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", "")), CALL_ID).thinking());
-        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", "   ")), CALL_ID).thinking());
+        assertFalse(turn(response(metadata("reasoningContent", "")), CALL_ID).thinking());
+        assertFalse(turn(response(metadata("reasoningContent", "   ")), CALL_ID).thinking());
     }
 
     @Test
     @DisplayName("не-строка под ключом не считается рассуждением")
     void nonStringReasoningIgnored() {
-        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", 42)), CALL_ID).thinking());
+        assertFalse(turn(response(metadata("reasoningContent", 42)), CALL_ID).thinking());
     }
 
     @Test
     @DisplayName("ключа нет вовсе → фолбэк на любой reasoning-ключ (переименование в Spring AI)")
     void fallsBackToAnyReasoningKey() {
-        assertTrue(mapper.fromResponse(response(metadata("reasoning_content", "подумал")), CALL_ID).thinking());
-        assertTrue(mapper.fromResponse(response(metadata("reasoning", "подумал")), CALL_ID).thinking());
+        assertTrue(turn(response(metadata("reasoning_content", "подумал")), CALL_ID).thinking());
+        assertTrue(turn(response(metadata("reasoning", "подумал")), CALL_ID).thinking());
     }
 
     @Test
     @DisplayName("метаданных о рассуждении нет — thinking = false, а не исключение")
     void noReasoningMetadataAtAll() {
-        assertFalse(mapper.fromResponse(response(metadata(null, null)), CALL_ID).thinking());
+        assertFalse(turn(response(metadata(null, null)), CALL_ID).thinking());
     }
 }

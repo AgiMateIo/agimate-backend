@@ -5,8 +5,10 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("текст отказа: message — модели, detail — в лог и в ошибку рана")
@@ -28,6 +30,17 @@ class FailuresTest {
         Throwable copied = new IllegalStateException("boom", new IOException("boom"));
 
         assertEquals("boom", Failures.detail(copied));
+    }
+
+    @Test
+    @DisplayName("обёртка вида new X(cause) — сообщение равно cause.toString() — не печатается дважды")
+    void dropsAToStringWrapper() {
+        // Reactor's blockLast wraps a checked TimeoutException this way.
+        Throwable wrapped = new RuntimeException(new TimeoutException("no first chunk within 90 s"));
+
+        assertEquals("no first chunk within 90 s", Failures.detail(wrapped));
+        assertEquals("Request failed: SocketTimeoutException: timeout", Failures.detail(
+                new RuntimeException(new RuntimeException("Request failed", new SocketTimeoutException("timeout")))));
     }
 
     @Test
@@ -57,7 +70,7 @@ class FailuresTest {
 
         assertTrue(detail.startsWith("l0: RuntimeException: l1"), detail);
         assertTrue(detail.contains("l3"), detail);
-        assertTrue(!detail.contains("l5"), () -> "цепочка не обрезана: " + detail);
+        assertFalse(detail.contains("l5"), () -> "цепочка не обрезана: " + detail);
     }
 
     @Test

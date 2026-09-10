@@ -26,10 +26,17 @@ final class Failures {
      * model, and our exception plumbing is not something it should be reasoning about.
      */
     static String detail(Throwable t) {
+        int hops = 0;
+        // A wrapper built as new X(cause) carries cause.toString() as its message and adds nothing
+        // (Reactor's blockLast wraps a checked exception exactly so) — start from what it wraps.
+        while (t.getCause() != null && t.getCause() != t && hops < MAX_HOPS
+                && t.getCause().toString().equals(t.getMessage())) {
+            t = t.getCause();
+            hops++;
+        }
         StringBuilder out = new StringBuilder(message(t));
         String previous = t.getMessage();
         int links = 0;
-        int hops = 0;
         for (Throwable cause = t.getCause();
              cause != null && links < MAX_CAUSE_LINKS && hops < MAX_HOPS;
              cause = cause.getCause(), hops++) {

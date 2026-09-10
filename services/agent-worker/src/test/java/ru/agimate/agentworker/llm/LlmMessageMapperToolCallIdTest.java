@@ -40,7 +40,9 @@ class LlmMessageMapperToolCallIdTest {
     }
 
     private List<String> ids(ChatResponse response, String callId) {
-        return mapper.fromResponse(response, callId).toolCalls().stream()
+        StreamAssembler turn = new StreamAssembler(mapper);
+        turn.accept(response);
+        return turn.message(callId).toolCalls().stream()
                 .map(AgentChatMessage.ToolCall::id)
                 .toList();
     }

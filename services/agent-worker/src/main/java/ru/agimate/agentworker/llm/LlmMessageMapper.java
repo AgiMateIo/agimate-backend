@@ -190,23 +190,6 @@ public class LlmMessageMapper {
     }
 
     /**
-     * Convert a non-streaming chat response to an assistant message (text + tool calls + thinking).
-     *
-     * @param callId the LLM call's workflow id — the seed the tool call ids are minted from
-     */
-    public AgentChatMessage fromResponse(ChatResponse response, String callId) {
-        AssistantMessage out = response.getResult().getOutput();
-        List<AgentChatMessage.ToolCall> toolCalls = new ArrayList<>();
-        for (AssistantMessage.ToolCall tc : out.getToolCalls()) {
-            toolCalls.add(new AgentChatMessage.ToolCall(
-                    mintToolCallId(callId, toolCalls.size()), tc.name(), tc.arguments()));
-        }
-        // The reasoning stays on the message: it drives the 💭 marker and goes back to the provider
-        // on the next request — see assistantMessage(AgentChatMessage).
-        return AgentChatMessage.assistant(out.getText(), reasoning(response), toolCalls);
-    }
-
-    /**
      * Our own tool call id, minted in place of the one the provider sent: an id coming back from a
      * model is data, not a key. Several OpenAI-compatible servers number tool calls positionally
      * ({@code call_0}, {@code call_1}) and restart the counter every response, so the same id

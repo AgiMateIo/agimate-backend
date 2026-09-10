@@ -28,6 +28,9 @@ logging:
     # INFO = the clean per-run story (start → context → turns → answer → finish).
     # Flip to DEBUG for the full trace: credentials/model, tool names, per-progress sends, gRPC retries.
     ru.agimate.agentworker: INFO
+    # Spring AI's stream aggregator logs every broken stream at ERROR with a stack trace; LlmCall
+    # logs the same failure a line later with its cause and classification.
+    org.springframework.ai.chat.model.MessageAggregator: off
 
 # Worker configuration. Values here are defaults; override any of them via
 # environment variables (relaxed binding), e.g. AGENT_GRPC_TARGET, AGENT_DBOS_DATABASE_URL.
@@ -45,10 +48,8 @@ agent:
     # (wrap-up-нотис + финальный ход без тулов), а не жёсткий обрыв.
     max-turns: 30
   llm:
-    # Бюджеты вокруг одного вызова модели. Первые два меряют ожидание — это единственное, что
-    # отличает «модель думает» от «соединение умерло»; третий ограничивает весь ответ и уезжает
-    # в HTTP-клиент. Инвариант: (MAX_ATTEMPTS − 1) × first-chunk-timeout + call-timeout должно
-    # оставаться меньше STALE_AFTER control-api (15 мин).
+    # Бюджеты вокруг одного вызова модели: до первого чанка, между чанками, потолок всего вызова.
+    # Что они значат и какой инвариант связывает их с control-api — javadoc AgentProperties.Llm.
     first-chunk-timeout: 90s
     idle-timeout: 60s
     call-timeout: 5m

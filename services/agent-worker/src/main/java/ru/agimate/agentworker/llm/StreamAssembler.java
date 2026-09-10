@@ -11,9 +11,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Collects a streamed chat response into the single turn the loop expects — the same shape
- * {@link LlmMessageMapper#fromResponse} builds from a whole response, so nothing above the
- * transport can tell which way the answer arrived.
+ * Collects a streamed chat response into the single turn the loop expects, so nothing above the
+ * transport can tell the answer arrived in pieces.
  *
  * <p>Stateful and single-threaded by construction: one instance per streaming attempt, fed from the
  * subscriber. Text arrives as deltas and is concatenated here. Reasoning does not: Spring AI's

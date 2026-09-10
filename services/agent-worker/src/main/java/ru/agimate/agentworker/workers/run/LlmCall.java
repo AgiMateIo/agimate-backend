@@ -274,6 +274,10 @@ public class LlmCall {
                             .cancelOn(Schedulers.boundedElastic())
                             .filter(turn::accept)
                             .timeout(Mono.delay(firstChunkTimeout), chunk -> Mono.delay(idleTimeout))
+                            // Reactor's own text names neither the budget nor its length — ours does.
+                            .onErrorMap(TimeoutException.class, e -> new TimeoutException(turn.started()
+                                    ? "stream idle for " + human(idleTimeout)
+                                    : "no first chunk within " + human(firstChunkTimeout)))
                             .doOnNext(chunk -> {
                                 long now = System.nanoTime();
                                 if (now >= nextProgressAt.get()) {
@@ -309,6 +313,10 @@ public class LlmCall {
 
     private static long elapsedMs(long startedAt) {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private static String human(Duration budget) {
+        return budget.toMillis() < 1_000 ? budget.toMillis() + " ms" : budget.toSeconds() + " s";
     }
 
     /**
