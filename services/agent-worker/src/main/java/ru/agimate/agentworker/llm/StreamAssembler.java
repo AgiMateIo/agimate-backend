@@ -31,6 +31,7 @@ public final class StreamAssembler {
 
     private final long startedAt = System.nanoTime();
     private int chunks;
+    private int empty;
     private long firstChunkAt;
 
     private final StringBuilder text = new StringBuilder();
@@ -43,40 +44,61 @@ public final class StreamAssembler {
         this.mapper = mapper;
     }
 
-    /** Fold one chunk in. Chunks carrying nothing but metadata (the usage-only tail) are normal. */
-    public void accept(ChatResponse chunk) {
-        if (chunks++ == 0) {
-            firstChunkAt = System.nanoTime();
-        }
+    /**
+     * Fold one chunk in and say whether it carried anything: text, reasoning beyond what was already
+     * there, a tool call, a finish reason or usage. An element that carries nothing — the role
+     * prelude OpenAI-style providers open with, a gateway's empty keepalive delta — is a chunk on the
+     * wire but not the model producing, and the waiting budgets are reset by the latter only:
+     * counted as progress, a prelude sent at once would hand «the model is still thinking» to the
+     * idle budget instead of the first-chunk one, and a keepalive every half minute would carry a
+     * silent attempt all the way to the call ceiling.
+     *
+     * @return whether the chunk carried anything of the answer or its metadata
+     */
+    public boolean accept(ChatResponse chunk) {
+        chunks++;
+        boolean carried = false;
         Generation result = chunk.getResult();
         if (result != null && result.getOutput() != null) {
             AssistantMessage delta = result.getOutput();
-            if (delta.getText() != null) {
+            if (delta.getText() != null && !delta.getText().isEmpty()) {
                 text.append(delta.getText());
+                carried = true;
             }
             String thought = mapper.reasoning(chunk);
-            if (thought != null) {
-                // The running total, not a delta (see the class javadoc): the latest chunk supersedes.
+            if (thought != null && !thought.equals(reasoning)) {
+                // The running total, not a delta (see the class javadoc): the latest chunk supersedes,
+                // and a repeat of the total on a later chunk is nothing new.
                 reasoning = thought;
+                carried = true;
             }
             for (AssistantMessage.ToolCall call : delta.getToolCalls()) {
                 // A merged tool-call chunk repeats nothing, but a stray nameless delta would produce a
                 // call the backend cannot dispatch — the name is what the tool is addressed by.
                 if (call.name() != null && !call.name().isBlank()) {
                     toolCalls.add(call);
+                    carried = true;
                 }
             }
         }
         String reason = mapper.finishReason(chunk);
         if (reason != null && !reason.isBlank()) {
             finishReason = reason;
+            carried = true;
         }
         Usage counted = chunk.getMetadata() != null ? chunk.getMetadata().getUsage() : null;
         if (counted != null && counted.getTotalTokens() != null && counted.getTotalTokens() > 0) {
             // Last non-empty wins: with include_usage the counts ride the tail chunk, but a gateway
             // that repeats a running total on every chunk must not leave us with the first one.
             usage = counted;
+            carried = true;
         }
+        if (carried && firstChunkAt == 0) {
+            firstChunkAt = System.nanoTime();
+        } else if (!carried) {
+            empty++;
+        }
+        return carried;
     }
 
     /**
@@ -98,23 +120,28 @@ public final class StreamAssembler {
         return usage;
     }
 
-    /** Elements received so far, metadata-only ones included. */
+    /** Elements received so far, empty and metadata-only ones included. */
     public int chunks() {
         return chunks;
     }
 
     /**
-     * What has arrived, for the log: how many chunks and how long the first took, and how much of the
-     * turn they add up to. The first-chunk figure is the number the waiting budgets are tuned by —
-     * it is the model's thinking time on a provider that streams, and the whole generation on one
-     * that buffers.
+     * What has arrived, for the log: how many chunks, how many of them carried nothing, how long the
+     * first one that did took, and how much of the turn they add up to. The first-chunk figure is
+     * the number the waiting budgets are tuned by — it is the model's thinking time on a provider
+     * that streams, and the whole generation on one that buffers.
      */
     public String summary() {
-        String first = chunks == 0 ? "none"
-                : "first after " + TimeUnit.NANOSECONDS.toMillis(firstChunkAt - startedAt) + " ms";
-        return chunks + " chunks (" + first + "), " + text.length() + " chars text, "
-                + (reasoning == null ? 0 : reasoning.length()) + " chars reasoning, "
-                + toolCalls.size() + " tool calls";
+        StringBuilder out = new StringBuilder().append(chunks).append(" chunks (");
+        if (empty > 0) {
+            out.append(empty).append(" empty, ");
+        }
+        out.append(firstChunkAt == 0 ? "none"
+                        : "first after " + TimeUnit.NANOSECONDS.toMillis(firstChunkAt - startedAt) + " ms")
+                .append("), ").append(text.length()).append(" chars text, ")
+                .append(reasoning == null ? 0 : reasoning.length()).append(" chars reasoning, ")
+                .append(toolCalls.size()).append(" tool calls");
+        return out.toString();
     }
 
     /**

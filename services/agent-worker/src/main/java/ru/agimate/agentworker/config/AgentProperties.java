@@ -86,15 +86,18 @@ public class AgentProperties {
     @Setter
     public static class Llm {
         /**
-         * How long the model may think before the first chunk. A legitimate pause on a reasoning
-         * model, so it is the most generous of the waiting budgets; nothing has been paid for yet
-         * when it expires, which is why an attempt that hits it is the one that may be retried.
+         * How long the model may think before the first chunk that carries anything — an empty role
+         * prelude or a keepalive delta does not count. A legitimate pause on a reasoning model, so it
+         * is the most generous of the waiting budgets; nothing has been paid for yet when it expires,
+         * which is why an attempt that hits it is the one that may be retried. Doubles as the HTTP
+         * read timeout ({@code ModelFactory}): the longest silence on the wire any budget tolerates,
+         * and the one timer that actually closes the socket.
          */
         private Duration firstChunkTimeout = Duration.ofSeconds(90);
         /**
-         * Silence between chunks that counts as a dead stream. Gateway keepalives are SSE comments
-         * and never become elements, so this timer is not reset by «the gateway is alive» — only by
-         * the model actually producing.
+         * Silence between chunks that counts as a dead stream. Gateway keepalives — SSE comments,
+         * which never become elements, or empty deltas, which are filtered before the timer — do
+         * not reset it: «the gateway is alive» is not «the model is producing».
          */
         private Duration idleTimeout = Duration.ofSeconds(60);
         /**

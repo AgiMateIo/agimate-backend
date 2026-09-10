@@ -2,6 +2,8 @@ package ru.agimate.agentworker.llm;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import okhttp3.Interceptor;
+import okhttp3.Response;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -16,11 +18,13 @@ import ru.agimate.common.util.JsonUtils;
 
 import javax.net.ssl.SSLContext;
 import java.security.NoSuchAlgorithmException;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Builds a Spring AI {@link OpenAiChatModel} from backend-provided {@link LlmCredentials}.
@@ -68,6 +72,17 @@ public class ModelFactory {
     private final Duration callTimeout;
 
     /**
+     * The longest silence on the wire any waiting budget tolerates, handed to OkHttp as the read
+     * timeout — see {@link AgentProperties.Llm#getFirstChunkTimeout()}. Needed next to the stream-level
+     * budgets because they alone do not free the socket: cancelling the subscription asks the SDK to
+     * close the stream, and the SDK's close waits for the reader thread, which is blocked in
+     * {@code readLine} until the provider sends something or the socket dies. Only a timeout inside
+     * the read itself ends that wait, so a silent attempt returns at this budget instead of lingering
+     * to the call ceiling with the provider still generating.
+     */
+    private final Duration readTimeout;
+
+    /**
      * The base url belongs to whoever created the provider, so the call is a request forgery target:
      * it leaves our network with an api key on it, and its answer lands in the agent's history where
      * whoever wrote the prompt can read it. Both halves of the guard are needed — the url is vetted
@@ -91,6 +106,7 @@ public class ModelFactory {
     public ModelFactory(AgentProperties props) {
         this.app = props.getApp();
         this.callTimeout = props.getLlm().getCallTimeout();
+        this.readTimeout = props.getLlm().getFirstChunkTimeout();
         this.targets = new PublicTargets(props.getNet().isAllowPrivateTargets());
     }
 
@@ -123,6 +139,15 @@ public class ModelFactory {
                 .model(creds.getModel())
                 .toolCallbacks(toolCallbacks)
                 .extraBody(extraBody.isEmpty() ? null : extraBody)
+                // The ceiling has to ride the per-call options: Spring AI builds the SDK's request
+                // options from the prompt's options alone, and its builder fills an unset timeout with
+                // AbstractOpenAiOptions.DEFAULT_TIMEOUT — 60 s. A ceiling set only on the client's
+                // default options never reaches the wire; every call was cut at the minute until
+                // this line (the 2026-09-09 incident). It lands on OkHttp's callTimeout — the whole
+                // call, wall clock. The two budgets that measure waiting live on the stream
+                // ({@code LlmCall}), because a pause between chunks is not expressible here; the read
+                // timeout that frees the socket under them is set by the interceptor below.
+                .timeout(callTimeout)
                 .build();
     }
 
@@ -132,10 +157,6 @@ public class ModelFactory {
                 .baseUrl(baseUrl)
                 .apiKey(creds.getApiKey())
                 .model(creds.getModel())
-                // One Duration is all Spring AI takes, and it lands on OkHttp's callTimeout — the whole
-                // call, wall clock. The two budgets that measure waiting live on the stream instead
-                // ({@code LlmCall}), because a pause between chunks is not expressible here.
-                .timeout(callTimeout)
                 .maxRetries(PROVIDER_RETRIES)
                 .customHeaders(requestHeaders(baseUrl))
                 .build();
@@ -143,8 +164,20 @@ public class ModelFactory {
                 .options(options)
                 .httpClientBuilderCustomizer(builder -> builder
                         .sslSocketFactory(publicOnlySslSocketFactory())
-                        .trustManager(PublicOnlySslSocketFactory.defaultTrustManager()))
+                        .trustManager(PublicOnlySslSocketFactory.defaultTrustManager())
+                        .interceptor(this::withReadTimeout))
                 .build();
+    }
+
+    /**
+     * Sets the read timeout per call. An application interceptor, because the client copy Spring AI
+     * makes for each call overwrites the builder's timeouts from the SDK's single {@code Timeout}
+     * (read falls back to the call ceiling there); the interceptor runs after that and wins. Pinned
+     * against a live socket in {@code LlmCallTest}.
+     */
+    private Response withReadTimeout(Interceptor.Chain chain) throws IOException {
+        return chain.withReadTimeout((int) readTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                .proceed(chain.request());
     }
 
     /**

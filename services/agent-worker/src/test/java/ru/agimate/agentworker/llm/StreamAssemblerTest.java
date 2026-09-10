@@ -134,6 +134,24 @@ class StreamAssemblerTest {
     }
 
     @Test
+    @DisplayName("«принёс что-то» — то, что сбрасывает бюджет: пустая дельта и повтор рассуждения не считаются")
+    void tellsACarryingChunkFromAnEmptyOne() {
+        StreamAssembler assembler = new StreamAssembler(mapper);
+
+        assertFalse(assembler.accept(chunk(text(""), null)), "role-прелюдия");
+        assertTrue(assembler.accept(chunk(thought("сна"), null)), "рассуждение");
+        assertFalse(assembler.accept(chunk(thought("сна"), null)), "тот же накопленный итог");
+        assertTrue(assembler.accept(chunk(thought("снача"), null)), "итог подрос");
+        assertTrue(assembler.accept(chunk(text("п"), null)), "текст");
+        assertTrue(assembler.accept(chunk(text(""), "stop")), "finish_reason");
+        assertTrue(assembler.accept(new ChatResponse(List.of(),
+                ChatResponseMetadata.builder().usage(new DefaultUsage(100, 20)).build())), "usage");
+        assertFalse(assembler.accept(new ChatResponse(List.of())), "чанк без generation");
+
+        assertTrue(assembler.summary().startsWith("8 chunks (3 empty, first after "), assembler.summary());
+    }
+
+    @Test
     @DisplayName("сводка пустого потока: «none» вместо времени до первого чанка")
     void summarisesAnEmptyStream() {
         assertEquals("0 chunks (none), 0 chars text, 0 chars reasoning, 0 tool calls",

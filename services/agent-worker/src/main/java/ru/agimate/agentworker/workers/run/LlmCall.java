@@ -11,6 +11,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
@@ -45,10 +46,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>The answer is read as it is generated ({@code stream: true}). Not for the partial text — the
  * loop still gets one whole turn — but because a request that puts nothing on the wire for minutes
- * is indistinguishable from a dead connection, and everything between us and the model treats it
- * accordingly: an edge or a NAT closes it, and the retry buys the same generation again. Streaming
- * also lets waiting be measured where it means something: the pause between chunks is «stuck», the
- * length of the answer is not.
+ * is indistinguishable from a dead connection: any timeout on the way, ours included, cuts it, and
+ * the retry buys the same generation again. Streaming lets waiting be measured where it means
+ * something: the pause between chunks is «stuck», the length of the answer is not.
  *
  * <p>A failure is a {@link Reply} value, never an exception: DBOS would log a thrown one at ERROR
  * with a stack trace, and the dispatcher turns it back into an exception in plain context.
@@ -256,18 +256,25 @@ public class LlmCall {
                 StreamAssembler turn = new StreamAssembler(mapper);
                 long startedAt = System.nanoTime();
                 try {
-                    // The two waiting budgets live here rather than on the HTTP client: OkHttp's read
-                    // timeout is not reachable through Spring AI's single Duration, and a cancelled
-                    // subscription closes the response anyway (Flux.create + sink.onDispose upstream),
-                    // so the socket is released with the timer, not at the call ceiling.
+                    // The two waiting budgets live here rather than on the HTTP client, where a pause
+                    // between chunks is not expressible; the socket under them is freed by OkHttp's read
+                    // timeout (ModelFactory) — cancelling the subscription alone does not do it, the
+                    // SDK's close waits for its reader. The timers sit behind the assembler on purpose:
+                    // only a chunk that carried something passes, so an empty prelude or keepalive
+                    // does not count as the model producing.
                     // Progress goes to the log while the answer is long: a generation that runs into
                     // the call ceiling looks exactly like a dead connection until the numbers say
                     // otherwise, and «chunks are arriving» is the one thing nobody can tell from outside.
                     AtomicLong nextProgressAt = new AtomicLong(startedAt + PROGRESS_EVERY_NANOS);
                     model.stream(prompt)
+                            // The cancel a timeout sends upstream ends in the SDK's close(), which waits
+                            // for its reader — up to the read timeout under full silence. Off the timer
+                            // thread, so the error reaches blockLast at the budget and the Reactor
+                            // scheduler shared by every stream in the process is not parked meanwhile.
+                            .cancelOn(Schedulers.boundedElastic())
+                            .filter(turn::accept)
                             .timeout(Mono.delay(firstChunkTimeout), chunk -> Mono.delay(idleTimeout))
                             .doOnNext(chunk -> {
-                                turn.accept(chunk);
                                 long now = System.nanoTime();
                                 if (now >= nextProgressAt.get()) {
                                     nextProgressAt.set(now + PROGRESS_EVERY_NANOS);

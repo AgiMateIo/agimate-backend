@@ -68,9 +68,18 @@ class LlmCallTest {
 
     /** Waiting budgets for a test: short enough that a stalled provider does not stall the suite. */
     private static AgentProperties.Llm budgets(Duration firstChunk) {
+        return budgets(firstChunk, firstChunk);
+    }
+
+    private static AgentProperties.Llm budgets(Duration firstChunk, Duration idle) {
+        return budgets(firstChunk, idle, Duration.ofMinutes(5));
+    }
+
+    private static AgentProperties.Llm budgets(Duration firstChunk, Duration idle, Duration call) {
         AgentProperties.Llm llm = new AgentProperties.Llm();
         llm.setFirstChunkTimeout(firstChunk);
-        llm.setIdleTimeout(firstChunk);
+        llm.setIdleTimeout(idle);
+        llm.setCallTimeout(call);
         return llm;
     }
 
@@ -322,9 +331,9 @@ class LlmCallTest {
         @DisplayName("оборванный после контента стрим не повторяется: собранное — ходом, причина BROKEN")
         void keepsPartialTurnInsteadOfPayingTwice() throws Exception {
             AtomicInteger requests = new AtomicInteger();
-            HttpServer server = sseServer(exchange -> {
+            HttpServer server = sseServer((exchange, out) -> {
                 requests.incrementAndGet();
-                return BROKEN_AFTER_CONTENT;
+                body(BROKEN_AFTER_CONTENT).respond(exchange, out);
             });
             try {
                 LlmCall.Reply result = callAgainst(server, Duration.ofSeconds(5));
@@ -339,24 +348,129 @@ class LlmCallTest {
             }
         }
 
+        /**
+         * Молчание стаба намного длиннее бюджета и тест меряет время: снятая по таймауту попытка
+         * должна вернуться по бюджету, а не когда провайдер наконец что-то пришлёт. Закрытие потока в
+         * SDK ждёт свой поток чтения, и без read-таймаута OkHttp повтор начался бы только с байтами.
+         */
         @Test
-        @DisplayName("молчание до первого чанка снимает подписку и повторяется — платить не за что")
+        @DisplayName("молчание до первого чанка снимает подписку и повторяется по бюджету — платить не за что")
         void retriesWhileNothingHasArrived() throws Exception {
             AtomicInteger requests = new AtomicInteger();
-            HttpServer server = sseServer(exchange -> {
+            HttpServer server = sseServer((exchange, out) -> {
                 if (requests.incrementAndGet() == 1) {
-                    // Провайдер, который «думает» дольше бюджета: ни байта, пока клиент не уйдёт.
-                    Thread.sleep(1_500);
+                    // Провайдер, который «думает» дольше бюджета: заголовки ушли, событий нет.
+                    Thread.sleep(4_000);
                 }
-                return WHOLE_ANSWER;
+                body(WHOLE_ANSWER).respond(exchange, out);
             });
             try {
+                long startedAt = System.nanoTime();
                 LlmCall.Reply result = callAgainst(server, Duration.ofMillis(200));
+                long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
 
                 assertFalse(result.failed(), () -> "вторая попытка должна дойти: " + result.message());
                 assertEquals("половина", result.assistant().text());
                 assertNull(result.incomplete());
                 assertEquals(2, requests.get());
+                // Бюджет 200 мс + бэкофф 1 с + быстрый повтор; 4 с — это «ждали байтов провайдера».
+                assertTrue(elapsedMs < 3_000, () -> "попытка вернулась не по бюджету: " + elapsedMs + " ms");
+            } finally {
+                server.stop(0);
+            }
+        }
+
+        /** Первый чанк у OpenAI-стиля: роль и пустое содержимое — на проводе он есть, в ответе его нет. */
+        private static final String ROLE_PRELUDE = """
+                data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"m",\
+                "choices":[{"index":0,"delta":{"role":"assistant","content":""}}]}
+
+                """;
+
+        /**
+         * Прелюдия уходит сразу, содержимое — позже бюджета «до первого чанка», но раньше idle. Если бы
+         * пустой элемент считался первым чанком, таймер перешёл бы на idle и первая попытка дождалась
+         * бы ответа; повтор показывает, что ждали именно содержимого.
+         */
+        @Test
+        @DisplayName("пустая прелюдия не сбрасывает бюджет до первого чанка: ждём содержимого, а не элементов")
+        void emptyPreludeDoesNotResetTheFirstChunkBudget() throws Exception {
+            AtomicInteger requests = new AtomicInteger();
+            HttpServer server = sseServer((exchange, out) -> {
+                out.write(ROLE_PRELUDE.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                if (requests.incrementAndGet() == 1) {
+                    Thread.sleep(1_500);
+                }
+                body(WHOLE_ANSWER).respond(exchange, out);
+            });
+            try {
+                LlmCall.Reply result = callAgainst(server,
+                        budgets(Duration.ofMillis(300), Duration.ofSeconds(5)), List.of());
+
+                assertFalse(result.failed(), () -> "вторая попытка должна дойти: " + result.message());
+                assertEquals("половина", result.assistant().text());
+                assertEquals(2, requests.get());
+            } finally {
+                server.stop(0);
+            }
+        }
+
+        /**
+         * Потолок должен быть нашим, а не Spring AI: его билдер опций подставляет
+         * {@code DEFAULT_TIMEOUT = 60s} во всё, где таймаут не задан, и читает его с опций промпта,
+         * так что значение на дефолтных опциях клиента до провода не доезжает. Стаб говорит дольше
+         * потолка в полсекунды; с минутой Spring AI ход дошёл бы целым.
+         */
+        @Test
+        @DisplayName("потолок вызова — из конфига: говорливый стрим режется по нему, а не по 60 с Spring AI")
+        void callCeilingComesFromConfig() throws Exception {
+            HttpServer server = sseServer((exchange, out) -> {
+                for (int i = 0; i < 30; i++) {
+                    out.write(CONTENT_CHUNK.getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                    Thread.sleep(100);
+                }
+                body(WHOLE_ANSWER).respond(exchange, out);
+            });
+            try {
+                long startedAt = System.nanoTime();
+                LlmCall.Reply result = callAgainst(server,
+                        budgets(Duration.ofSeconds(5), Duration.ofSeconds(5), Duration.ofMillis(500)), List.of());
+                long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+
+                assertFalse(result.failed(), () -> "ход должен уцелеть: " + result.message());
+                assertEquals(LlmResponseIncomplete.Reason.BROKEN, result.incomplete());
+                assertTrue(result.assistant().text().startsWith("половина"), result.assistant().text());
+                assertTrue(elapsedMs < 2_000, () -> "потолок не сработал: " + elapsedMs + " ms");
+            } finally {
+                server.stop(0);
+            }
+        }
+
+        /**
+         * После первого чанка ждёт idle, а сокет держит read-таймаут длиннее его. Отмена подписки
+         * упирается в {@code close()} SDK, который ждёт свой поток чтения до read-таймаута; без
+         * {@code cancelOn} ход возвращался бы по нему, а не по idle, и держал бы таймерный поток Reactor.
+         */
+        @Test
+        @DisplayName("тишина после контента: ход возвращается по idle, а не по read-таймауту сокета")
+        void idleReturnsAtItsOwnBudget() throws Exception {
+            HttpServer server = sseServer((exchange, out) -> {
+                out.write(CONTENT_CHUNK.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                Thread.sleep(8_000);
+            });
+            try {
+                long startedAt = System.nanoTime();
+                LlmCall.Reply result = callAgainst(server,
+                        budgets(Duration.ofSeconds(5), Duration.ofMillis(300)), List.of());
+                long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
+
+                assertFalse(result.failed(), () -> "ход должен уцелеть: " + result.message());
+                assertEquals(LlmResponseIncomplete.Reason.BROKEN, result.incomplete());
+                assertEquals("половина", result.assistant().text());
+                assertTrue(elapsedMs < 2_500, () -> "вернулись не по idle: " + elapsedMs + " ms");
             } finally {
                 server.stop(0);
             }
@@ -385,9 +499,9 @@ class LlmCallTest {
         @Test
         @DisplayName("тул-вызов приезжает собранным, со своим id, и Spring AI его не исполняет")
         void assemblesToolCallsWithoutRunningThem() throws Exception {
-            HttpServer server = sseServer(exchange -> TOOL_CALL_STREAM);
+            HttpServer server = sseServer(body(TOOL_CALL_STREAM));
             try {
-                LlmCall.Reply result = callAgainst(server, Duration.ofSeconds(5),
+                LlmCall.Reply result = callAgainst(server, budgets(Duration.ofSeconds(5)),
                         List.of(new ToolDef("time_now", "current time", "{\"type\":\"object\"}")));
 
                 assertFalse(result.failed(), () -> "вызов не дошёл: " + result.message());
@@ -436,7 +550,7 @@ class LlmCallTest {
         @Test
         @DisplayName("рассуждение доезжает целиком и один раз: Spring AI отдаёт накопленный итог, не дельты")
         void assemblesReasoningOnce() throws Exception {
-            HttpServer server = sseServer(exchange -> REASONING_STREAM);
+            HttpServer server = sseServer(body(REASONING_STREAM));
             try {
                 LlmCall.Reply result = callAgainst(server, Duration.ofSeconds(5));
 
@@ -449,26 +563,23 @@ class LlmCallTest {
             }
         }
 
-        /** Стаб провайдера на loopback; несколько потоков — иначе повтор ждал бы «думающий» обработчик. */
+        /**
+         * Стаб провайдера на loopback; несколько потоков — иначе повтор ждал бы «думающий» обработчик.
+         * Ответ чанкованный: обработчик сам решает, когда байты уходят, — так стаб умеет прислать
+         * прелюдию и замолчать.
+         */
         private HttpServer sseServer(SseHandler handler) throws IOException {
             HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
             server.setExecutor(Executors.newFixedThreadPool(4));
             server.createContext("/", exchange -> {
-                String body;
                 try (InputStream in = exchange.getRequestBody()) {
                     in.readAllBytes();
-                    body = handler.respond(exchange);
-                } catch (Exception e) {
-                    exchange.sendResponseHeaders(500, -1);
-                    exchange.close();
-                    return;
                 }
-                byte[] out = body.getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
-                exchange.sendResponseHeaders(200, out.length);
+                exchange.sendResponseHeaders(200, 0);
                 try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(out);
-                } catch (IOException alreadyGone) {
+                    handler.respond(exchange, os);
+                } catch (Exception alreadyGone) {
                     // Клиент снял подписку по таймауту и ушёл — ответ уже некому читать.
                 }
             });
@@ -476,11 +587,15 @@ class LlmCallTest {
             return server;
         }
 
-        private LlmCall.Reply callAgainst(HttpServer server, Duration firstChunk) {
-            return callAgainst(server, firstChunk, List.of());
+        private static SseHandler body(String sse) {
+            return (exchange, out) -> out.write(sse.getBytes(StandardCharsets.UTF_8));
         }
 
-        private LlmCall.Reply callAgainst(HttpServer server, Duration firstChunk, List<ToolDef> toolDefs) {
+        private LlmCall.Reply callAgainst(HttpServer server, Duration firstChunk) {
+            return callAgainst(server, budgets(firstChunk), List.of());
+        }
+
+        private LlmCall.Reply callAgainst(HttpServer server, AgentProperties.Llm budgets, List<ToolDef> toolDefs) {
             LlmCredentials creds = LlmCredentials.newBuilder()
                     .setProviderType("openai_compatible")
                     .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/v1")
@@ -492,15 +607,16 @@ class LlmCallTest {
             when(client.getLlmCredentials("agent-1")).thenReturn(creds);
             AgentProperties props = new AgentProperties();
             props.getNet().setAllowPrivateTargets(true);
+            // The factory reads the budgets too: the read timeout under the stream and the call ceiling.
+            props.setLlm(budgets);
             LlmCall llmCall = new LlmCall(client, new ModelFactory(props),
-                    new LlmMessageMapper(TestTemplates.of("ru")), mock(ResponseTemplates.class), 1,
-                    budgets(firstChunk));
+                    new LlmMessageMapper(TestTemplates.of("ru")), mock(ResponseTemplates.class), 1, budgets);
             return llmCall.call(List.of(AgentChatMessage.user("привет")), toolDefs, "agent-1", "run-1-0");
         }
 
         @FunctionalInterface
         private interface SseHandler {
-            String respond(com.sun.net.httpserver.HttpExchange exchange) throws Exception;
+            void respond(com.sun.net.httpserver.HttpExchange exchange, OutputStream out) throws Exception;
         }
     }
 

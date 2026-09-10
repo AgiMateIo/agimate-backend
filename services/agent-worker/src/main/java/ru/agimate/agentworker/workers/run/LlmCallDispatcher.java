@@ -84,7 +84,9 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
 
         // A failure (HTTP/API) is terminal and carries no usage, so we throw straight away. Incomplete
         // (truncation) we do NOT throw here: its tokens are already spent — we return the usage plus the reason
-        // on the reply, so the loop first accounts for the spending and only then breaks off.
+        // on the reply, so the loop first accounts for the spending and only then breaks off. A BROKEN
+        // stream is the exception: the counts ride the tail chunk that never came, so its usage is null
+        // and the provider's bill for the partial generation goes unrecorded.
         if (checkpoint.failed()) {
             throw new LlmCallError(checkpoint.statusCode(), checkpoint.message(), checkpoint.userFacing());
         }
