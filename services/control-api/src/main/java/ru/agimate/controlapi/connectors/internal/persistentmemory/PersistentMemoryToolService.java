@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.connectors.internal.persistentmemory;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
@@ -11,8 +12,8 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
-import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.projections.SessionNoteLineProjection;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
@@ -20,6 +21,8 @@ import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +53,14 @@ public class PersistentMemoryToolService {
     private static final long CONSOLIDATION_LEASE_SECONDS = 1_800;
     /** Window of the daily note collection. */
     private static final int NOTES_LOOKBACK_HOURS = 24;
+    /** Ceiling on the lines of one session in a note request — a guard against a runaway chat, not a target. */
+    private static final int NOTES_MAX_LINES = 500;
+    /**
+     * Ceiling on the text of one note request: the payload lands in {@code trigger_logs.input}, the
+     * workflow's arguments and the model's prompt, and the line cap bounds none of those — one pasted
+     * document is a single line. Counted from the newest line back.
+     */
+    private static final int NOTES_MAX_CHARS = 60_000;
     /** Cadence of the consolidation sweep. */
     private static final long CONSOLIDATION_INTERVAL_SECONDS = 3_600;
     /** Firing the job is only a database read plus publishing triggers; the iteration is short. */
@@ -131,17 +142,9 @@ public class PersistentMemoryToolService {
         // that agent's personal space (save_memory_note resolves the scope from the env).
         for (UUID agentId : memoryService.boundAgents(connectionId)) {
             for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
-                // Only the dialogue: PROGRESS is the channel's own markup (💭, «🔧 name»), useless for a
-                // note and a template the model would learn to write calls out as text from.
-                List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
-                        .filter(m -> m.getKind() != ChannelSessionMessageKind.PROGRESS)
-                        .map(m -> {
-                            Map<String, Object> view = new LinkedHashMap<>();
-                            view.put("kind", m.getKind().name());
-                            view.put("text", m.getMessage());
-                            return view;
-                        })
-                        .toList();
+                List<SessionNoteLineProjection> lines = messageRepository.findNoteLinesBySessionSince(
+                        sessionId, since, PageRequest.of(0, NOTES_MAX_LINES));
+                List<Map<String, Object>> messages = toChronologicalView(lines);
                 if (messages.isEmpty()) {
                     continue;
                 }
@@ -185,6 +188,29 @@ public class PersistentMemoryToolService {
     }
 
     // ===== helpers =====
+
+    /**
+     * Newest-first rows into the chronological view the request carries, keeping what fits into
+     * {@link #NOTES_MAX_CHARS}. The newest line survives the budget always: one long message should
+     * shorten the request, not empty it.
+     */
+    private static List<Map<String, Object>> toChronologicalView(List<SessionNoteLineProjection> newestFirst) {
+        List<Map<String, Object>> view = new ArrayList<>(newestFirst.size());
+        int chars = 0;
+        for (SessionNoteLineProjection line : newestFirst) {
+            String text = line.getMessage();
+            chars += text == null ? 0 : text.length();
+            if (chars > NOTES_MAX_CHARS && !view.isEmpty()) {
+                break;
+            }
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("kind", line.getKind().name());
+            item.put("text", text);
+            view.add(item);
+        }
+        Collections.reverse(view);
+        return view;
+    }
 
     /** Addresses a directed trigger to the bound agents (audience, with no channel — it is a background job). */
     private void routeToAgents(ConnectorEnv ctx, List<UUID> agentIds, String triggerName,
