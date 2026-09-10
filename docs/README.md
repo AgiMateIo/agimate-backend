@@ -101,6 +101,8 @@
 | [email-password-auth.md](decisions/email-password-auth.md) | Пароль рядом с четырьмя OAuth-провайдерами: чужая установка не должна зависеть от регистрации приложения в Google |
 | [platform-admin-mcp.md](decisions/platform-admin-mcp.md) | Мета-агент и MCP-клиент умеют всё, что веб-панель: коннектор `platform` покрывает `/manage/**` целиком |
 | [dbos-ids-only.md](decisions/dbos-ids-only.md) | Чекпоинт DBOS хранит ссылку, переписка — у control-api: вызов модели и тулы становятся шагами рана, реплей перечитывает по id |
+| [connector-job-concurrency.md](decisions/connector-job-concurrency.md) | Сколько джоб узел берёт разом: потолок на узле, а не на установке, и почему непрерывный опрос его не касается |
+| [run-fairness.md](decisions/run-fairness.md) | Шумный пользователь занимает слоты модели: квота — бюджет, лимитер — поток, а доли в моменте не считает никто |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md) |
 
 ## Как ведётся документация
