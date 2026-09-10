@@ -131,7 +131,7 @@ class ToolRegistryTest {
         @DisplayName("display names project an assistant's tool calls back to backend names")
         void displayNames() {
             ToolRegistry reg = ToolRegistry.build(List.of(spec("get_tasks", "board", "board", "c", null)));
-            AgentChatMessage assistant = AgentChatMessage.assistant(null, false,
+            AgentChatMessage assistant = AgentChatMessage.assistant(null, null,
                     List.of(new AgentChatMessage.ToolCall("id1", "board__get_tasks", "{}")));
             assertEquals(List.of("get_tasks"), reg.displayNames(assistant));
         }

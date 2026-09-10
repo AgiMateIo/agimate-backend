@@ -23,13 +23,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MessageLogGrpcServiceTest {
 
     @Test
-    @DisplayName("assistant-ход: текст, thinking и вызовы тулов с аргументами без обрезки")
+    @DisplayName("assistant-ход: текст, рассуждение целиком и вызовы тулов с аргументами без обрезки")
     void assistantTurnVerbatim() {
         String longArgs = "{\"q\":\"" + "x".repeat(10_000) + "\"}";
         AgentRunTurn turn = AgentRunTurn.builder()
                 .role(AgentTurnRole.ASSISTANT)
                 .text("looking it up")
-                .thinkingText("…")
+                .thinkingText("сначала посчитаю")
                 .toolCalls(List.of(Map.of("id", "c1", "name", "web.search", "argumentsJson", longArgs)))
                 .build();
 
@@ -37,6 +37,10 @@ class MessageLogGrpcServiceTest {
 
         assertEquals(TurnRole.TURN_ROLE_ASSISTANT, response.getRole());
         assertEquals("looking it up", response.getText());
+        // Не флаг: реплей пересобирает из этого хода то же сообщение, что ушло провайдеру, а
+        // провайдер в режиме размышления требует своё рассуждение обратно.
+        assertEquals("сначала посчитаю", response.getThinkingText());
+        // Флаг всё ещё выставляется — его читает воркер прошлого релиза, пока идёт выкатка.
         assertTrue(response.getThinking());
         assertEquals(1, response.getToolCallsCount());
         assertEquals("c1", response.getToolCalls(0).getId());
@@ -45,13 +49,14 @@ class MessageLogGrpcServiceTest {
     }
 
     @Test
-    @DisplayName("ход без рассуждения и без вызовов: thinking=false, пустые списки, текст пустой")
+    @DisplayName("ход без рассуждения и без вызовов: thinking_text пуст, пустые списки, текст пустой")
     void plainTurn() {
         AgentRunTurn turn = AgentRunTurn.builder().role(AgentTurnRole.USER).build();
 
         GetTurnResponse response = MessageLogGrpcService.toProto(turn);
 
         assertEquals(TurnRole.TURN_ROLE_USER, response.getRole());
+        assertEquals("", response.getThinkingText());
         assertFalse(response.getThinking());
         assertEquals("", response.getText());
         assertEquals(0, response.getToolCallsCount());

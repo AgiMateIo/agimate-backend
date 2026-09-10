@@ -51,7 +51,7 @@ class AgiMateAgentVerdictTest {
     void classify(AgiMateAgent.Completion completion, boolean hasCalls, String text,
                   AgiMateAgent.Verdict expected) {
         AgentChatMessage assistant =
-                AgentChatMessage.assistant(text, false, hasCalls ? CALLS : List.of());
+                AgentChatMessage.assistant(text, null, hasCalls ? CALLS : List.of());
         AgiMateAgent.LlmReply reply =
                 new AgiMateAgent.LlmReply(assistant, null, null, null, completion);
 

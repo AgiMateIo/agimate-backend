@@ -16,6 +16,7 @@ import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -181,18 +182,34 @@ class RunHistoryAssemblerTest {
         }
 
         @Test
-        @DisplayName("рассуждения не уезжают в контекст ни при каком наборе частей")
-        void reasoningNeverTravels() {
+        @DisplayName("REASONING выбран → рассуждение едет отдельным полем, не подмешиваясь в текст")
+        void reasoningTravelsUnderItsOwnPart() {
+            List<RunHistoryMessage> history = assembleWithReasoning(
+                    Set.of(ContextSpec.HistoryPart.DIALOG, ContextSpec.HistoryPart.TOOLS,
+                            ContextSpec.HistoryPart.REASONING));
+
+            // Провайдер в режиме размышления требует своё рассуждение обратно, когда в запросе есть
+            // tools, — но читает его как отдельное поле, а не как часть ответа пользователю.
+            assertEquals("длинная цепочка рассуждений",
+                    history.stream().map(RunHistoryMessage::thinkingText).filter(Objects::nonNull).findFirst().orElse(null));
+            assertTrue(history.stream().noneMatch(m -> m.text().contains("рассуждений")));
+        }
+
+        @Test
+        @DisplayName("REASONING не выбран → рассуждения в контексте нет вовсе")
+        void reasoningWithheldWithoutThePart() {
+            List<RunHistoryMessage> history = assembleWithReasoning(
+                    Set.of(ContextSpec.HistoryPart.DIALOG, ContextSpec.HistoryPart.TOOLS));
+
+            assertTrue(history.stream().allMatch(m -> m.thinkingText() == null));
+        }
+
+        private List<RunHistoryMessage> assembleWithReasoning(Set<ContextSpec.HistoryPart> parts) {
             UUID runId = UUID.randomUUID();
             AgentRunTurn thinking = turn(runId, 1, AgentTurnRole.ASSISTANT, "ответ");
             thinking.setThinkingText("длинная цепочка рассуждений");
             stubRuns(List.of(runId), List.of(turn(runId, 0, AgentTurnRole.USER, "вопрос"), thinking));
-
-            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20,
-                    Set.of(ContextSpec.HistoryPart.DIALOG, ContextSpec.HistoryPart.TOOLS,
-                            ContextSpec.HistoryPart.REASONING)).messages();
-
-            assertTrue(history.stream().noneMatch(m -> m.text().contains("рассуждений")));
+            return assembler.assemble(SESSION_ID, 20, parts).messages();
         }
     }
 

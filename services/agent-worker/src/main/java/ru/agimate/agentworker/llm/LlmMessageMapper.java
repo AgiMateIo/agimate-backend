@@ -74,15 +74,7 @@ public class LlmMessageMapper {
             switch (m.role()) {
                 case SYSTEM -> out.add(new SystemMessage(nullToEmpty(m.text())));
                 case USER -> out.add(userMessage(m, mediaBytes, imageInputSupported));
-                case ASSISTANT -> out.add(
-                        AssistantMessage.builder()
-                                .content(nullToEmpty(m.text()))
-                                .toolCalls(m.toolCalls().stream()
-                                        .map(tc -> new AssistantMessage.ToolCall(tc.id(), "function", tc.name(), tc.argumentsJson()))
-                                        .toList()
-                                )
-                                .build()
-                );
+                case ASSISTANT -> out.add(assistantMessage(m));
                 case TOOL -> out.add(
                         ToolResponseMessage.builder()
                                 .responses(m.toolResults().stream()
@@ -99,6 +91,26 @@ public class LlmMessageMapper {
                     new SystemMessage(imageInputSupported ? templates.imageVisible() : templates.imageNotVisible()));
         }
         return out;
+    }
+
+    /**
+     * An assistant turn on the way back to the provider. The reasoning it emitted rides in the
+     * message metadata under {@link #REASONING_CONTENT_KEY}, which is where Spring AI's OpenAI
+     * module looks before putting {@code reasoning_content} on the assistant object of the request:
+     * a provider in thinking mode wants its own reasoning back when the request carries tools, and
+     * DeepSeek answers 400 to a history it has been stripped from. Echoed exactly as it arrived and
+     * for every provider — the request repeats what that provider said over the same wire, so there
+     * is nothing to decide per model.
+     */
+    private static Message assistantMessage(AgentChatMessage m) {
+        return AssistantMessage.builder()
+                .content(nullToEmpty(m.text()))
+                .toolCalls(m.toolCalls().stream()
+                        .map(tc -> new AssistantMessage.ToolCall(tc.id(), "function", tc.name(), tc.argumentsJson()))
+                        .toList()
+                )
+                .properties(m.thinking() ? Map.of(REASONING_CONTENT_KEY, m.reasoning()) : Map.of())
+                .build();
     }
 
     private static boolean hasImageParts(List<AgentChatMessage> messages) {
@@ -155,10 +167,13 @@ public class LlmMessageMapper {
     }
 
     /**
-     * Metadata key Spring AI's OpenAI module stores the provider's reasoning content under. Its own
-     * constant is private, so this is a copy of a contract nothing checks at compile time — hence the
-     * fallback in {@link #reasoning}: a rename on a Spring AI upgrade degrades to «found it under
-     * another reasoning-named key» instead of silently declaring that no model ever reasons.
+     * Metadata key Spring AI's OpenAI module reads and writes the provider's reasoning content
+     * under — on the way in from the response, and on the way back out into the request's
+     * {@code reasoning_content}. Its own constant is private, so this is a copy of a contract
+     * nothing checks at compile time — hence the fallback in {@link #reasoning}: a rename on a
+     * Spring AI upgrade degrades to «found it under another reasoning-named key» instead of
+     * silently declaring that no model ever reasons. Outbound there is no such fallback, so
+     * {@code OpenAiMessageReasoningSerializationTest} pins the key against the real request builder.
      */
     private static final String REASONING_CONTENT_KEY = "reasoningContent";
 
@@ -186,9 +201,9 @@ public class LlmMessageMapper {
             toolCalls.add(new AgentChatMessage.ToolCall(
                     mintToolCallId(callId, toolCalls.size()), tc.name(), tc.arguments()));
         }
-        // Only the flag lives on the message (it drives the 💭 progress marker); the reasoning text
-        // itself travels on LlmMeta — see reasoning(ChatResponse).
-        return AgentChatMessage.assistant(out.getText(), reasoning(response) != null, toolCalls);
+        // The reasoning stays on the message: it drives the 💭 marker and goes back to the provider
+        // on the next request — see assistantMessage(AgentChatMessage).
+        return AgentChatMessage.assistant(out.getText(), reasoning(response), toolCalls);
     }
 
     /**

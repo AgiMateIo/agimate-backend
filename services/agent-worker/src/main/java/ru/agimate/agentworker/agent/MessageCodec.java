@@ -83,7 +83,7 @@ public final class MessageCodec {
     /** A ledger turn read back ({@code GetTurn}) as the message the loop would have built from the provider's reply. */
     public static AgentChatMessage fromTurn(GetTurnResponse turn) {
         return switch (turn.getRole()) {
-            case TURN_ROLE_ASSISTANT -> AgentChatMessage.assistant(turn.getText(), turn.getThinking(),
+            case TURN_ROLE_ASSISTANT -> AgentChatMessage.assistant(turn.getText(), turn.getThinkingText(),
                     turn.getToolCallsList().stream()
                             .map(c -> new AgentChatMessage.ToolCall(c.getId(), c.getName(), c.getArgumentsJson()))
                             .toList());

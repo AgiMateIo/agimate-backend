@@ -92,9 +92,9 @@ class LlmCallDispatcherTest {
         private final TurnLog turnLog = new TurnLog(client, "agent-1", "run-1");
         private final LlmCallDispatcher dispatcher = new LlmCallDispatcher(dbos, llmCall, turnLog, client, "agent-1", "run-1");
 
-        private static final AgentChatMessage ASSISTANT = AgentChatMessage.assistant("looking it up", true,
+        private static final AgentChatMessage ASSISTANT = AgentChatMessage.assistant("looking it up", "прикинул, что делать",
                 List.of(new AgentChatMessage.ToolCall("c1", "wx__get_weather", "{\"city\":\"Berlin\"}")));
-        private static final LlmMeta META = new LlmMeta("tool_calls", "gpt-5-mini", "run-1-0", "hmm");
+        private static final LlmMeta META = new LlmMeta("tool_calls", "gpt-5-mini", "run-1-0");
         private static final LlmUsage USAGE = new LlmUsage("run-1-0", "prov-1", "gpt-5-mini", 10, 5, 0, 0);
 
         @SuppressWarnings("unchecked")
@@ -119,10 +119,10 @@ class LlmCallDispatcherTest {
             AgiMateAgent.LlmReply reply = dispatcher.call(List.of(AgentChatMessage.user("hi")), List.of());
 
             assertSame(ASSISTANT, reply.message());
-            assertEquals("hmm", reply.meta().reasoning());
             assertEquals(AgiMateAgent.Completion.TOOL_CALLS, reply.completion());
             verify(client).saveTurn(eq("agent-1"), eq("run-1"), eq(0), eq(TurnRole.TURN_ROLE_ASSISTANT),
-                    eq("looking it up"), eq("hmm"), any(), any(), eq("tool_calls"), eq("gpt-5-mini"), eq("run-1-0"));
+                    eq("looking it up"), eq("прикинул, что делать"), any(), any(),
+                    eq("tool_calls"), eq("gpt-5-mini"), eq("run-1-0"));
             verify(client, never()).getTurn(any(), any(), anyInt());
 
             ArgumentCaptor<ThrowingSupplier<?, ?>> step = ArgumentCaptor.forClass(ThrowingSupplier.class);
@@ -131,7 +131,7 @@ class LlmCallDispatcherTest {
             String json = DBOSJavaSerializer.INSTANCE.serialize(checkpoint);
             assertFalse(json.contains("looking it up"));
             assertFalse(json.contains("Berlin"));
-            assertFalse(json.contains("hmm"));
+            assertFalse(json.contains("прикинул"));
             assertEquals(checkpoint, DBOSJavaSerializer.INSTANCE.deserialize(json));
         }
 
@@ -140,7 +140,8 @@ class LlmCallDispatcherTest {
         void replayReadsTheTurnBack() throws Exception {
             stepReplays(LlmCallDispatcher.Checkpoint.ok("run-1-0", 4, META, USAGE));
             when(client.getTurn("agent-1", "run-1", 4)).thenReturn(GetTurnResponse.newBuilder()
-                    .setRole(TurnRole.TURN_ROLE_ASSISTANT).setText("looking it up").setThinking(true)
+                    .setRole(TurnRole.TURN_ROLE_ASSISTANT).setText("looking it up")
+                    .setThinkingText("прикинул, что делать")
                     .addToolCalls(ToolCallRec.newBuilder().setId("c1").setName("wx__get_weather")
                             .setArgumentsJson("{\"city\":\"Berlin\"}"))
                     .build());
@@ -149,9 +150,11 @@ class LlmCallDispatcherTest {
 
             AgiMateAgent.LlmReply reply = dispatcher.call(List.of(AgentChatMessage.user("hi")), List.of());
 
+            // The whole point of reading the turn back: a replayed assistant message must carry the
+            // reasoning too, or the next request loses it and a thinking provider answers 400.
             assertEquals(ASSISTANT, reply.message());
+            assertEquals("прикинул, что делать", reply.message().reasoning());
             assertEquals("run-1-0", reply.meta().callId());
-            assertNull(reply.meta().reasoning());
             assertEquals(USAGE, reply.usage());
             verifyNoInteractions(llmCall);
             assertEquals(5, turnLog.record(AgentChatMessage.toolResults(List.of()), null));

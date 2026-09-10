@@ -16,7 +16,7 @@ class MessageCodecTest {
     @Test
     @DisplayName("thinking + текст + тулы → типизированные строки в порядке thinking/text/tools")
     void fullProgress() {
-        AgentChatMessage assistant = AgentChatMessage.assistant("let me check", true,
+        AgentChatMessage assistant = AgentChatMessage.assistant("let me check", "прикинул, что делать",
                 List.of(new AgentChatMessage.ToolCall("id1", "board__get_tasks", "{}"),
                         new AgentChatMessage.ToolCall("id2", "time__schedule", "{}")));
 
@@ -35,7 +35,7 @@ class MessageCodecTest {
     @Test
     @DisplayName("TOOL_CALL-строка несёт calls-половину ToolTurn: преамбула + вызовы, без результатов")
     void callsTurnAttached() {
-        AgentChatMessage assistant = AgentChatMessage.assistant("let me check", false,
+        AgentChatMessage assistant = AgentChatMessage.assistant("let me check", null,
                 List.of(new AgentChatMessage.ToolCall("id1", "board.get_tasks", "{\"boardId\":1}")));
 
         List<MessageCodec.ProgressLine> lines =
@@ -86,7 +86,7 @@ class MessageCodecTest {
     @Test
     @DisplayName("финальный ответ без тулов не эхоится progress-строками (уйдёт как ANSWER)")
     void finalAnswerNotEchoed() {
-        AgentChatMessage assistant = AgentChatMessage.assistant("the answer", false, List.of());
+        AgentChatMessage assistant = AgentChatMessage.assistant("the answer", null, List.of());
 
         assertTrue(MessageCodec.progressLines(assistant, List.of()).isEmpty());
     }
@@ -94,7 +94,7 @@ class MessageCodecTest {
     @Test
     @DisplayName("thinking без тулов даёт только thinking-строку")
     void thinkingOnly() {
-        AgentChatMessage assistant = AgentChatMessage.assistant(null, true, List.of());
+        AgentChatMessage assistant = AgentChatMessage.assistant(null, "прикинул, что делать", List.of());
 
         List<MessageCodec.ProgressLine> lines = MessageCodec.progressLines(assistant, List.of());
 

@@ -95,7 +95,8 @@ public class RunContextMapper {
     public static HistoryMessage toProto(RunHistoryMessage message) {
         HistoryMessage.Builder builder = HistoryMessage.newBuilder()
                 .setKind(MessageKindMapper.toProto(message.kind()))
-                .setText(nullToEmpty(message.text()));
+                .setText(nullToEmpty(message.text()))
+                .setThinkingText(nullToEmpty(message.thinkingText()));
         if (message.toolTurn() != null) {
             builder.setToolTurn(toProto(message.toolTurn()));
         }

@@ -85,7 +85,7 @@
 | [media-transport.md](decisions/media-transport.md) | Как выбирается диалект провайдера при генерации изображений |
 | [acp-comparison.md](decisions/acp-comparison.md) | Agent Communication Protocol против нашей архитектуры |
 | [mcp-oauth.md](decisions/mcp-oauth.md) | OAuth в MCP-коннекторе: discovery по 401, CIMD вместо DCR, состояние на коннекции |
-| [reasoning-content.md](decisions/reasoning-content.md) | Где живёт рассуждение модели: `LlmMeta` и `thinking_text`, а не текст сообщения |
+| [reasoning-content.md](decisions/reasoning-content.md) | Где живёт рассуждение модели: поле сообщения и `thinking_text`, потому что провайдер требует его назад |
 | [run-cancellation.md](decisions/run-cancellation.md) | Остановка рана: кооперативная отмена на шве, drain тул-хода, точка невозврата по `openWorldHint` |
 | [history-from-turn-ledger.md](decisions/history-from-turn-ledger.md) | История сессии из журнала ходов `agent_run_turns`, а не из проекции канала |
 | [steering.md](decisions/steering.md) | Сообщение в занятую сессию подхватывает бегущий ран, а не следующий из очереди |

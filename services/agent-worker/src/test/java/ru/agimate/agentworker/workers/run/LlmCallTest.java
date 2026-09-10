@@ -86,7 +86,7 @@ class LlmCallTest {
                     ChatResponseMetadata.builder().usage(new DefaultUsage(100, 20)).build());
             when(model.call(any(Prompt.class))).thenReturn(response);
             when(mapper.fromResponse(eq(response), any())).thenReturn(
-                    AgentChatMessage.assistant("ok", false, List.of()));
+                    AgentChatMessage.assistant("ok", null, List.of()));
         }
 
         @Test

@@ -86,6 +86,10 @@ public final class ContextBuilder {
      * {@code tool(results)} — the model sees past calls through the same channel it is required to
      * call through, rather than as imitated text.
      *
+     * <p>The reasoning of a past assistant turn is carried over with it: a provider in thinking mode
+     * requires its own reasoning back when the request carries tools, and the rule covers the turns
+     * that called nothing too — an answer row brings its {@code thinking_text} along the same way.
+     *
      * <p>A turn arrives as two adjacent records: first calls (tool_use), then results (tool_result);
      * the calls record consumes the following results record by look-ahead. An orphaned results
      * record (its calls half was cut off by the history window) is dropped — a {@code tool} with no
@@ -107,7 +111,7 @@ public final class ContextBuilder {
                         i++;
                     }
                 }
-                mapToolTurn(turn.getText(), turn.getCallsList(), results, mapped);
+                mapToolTurn(turn.getText(), m.getThinkingText(), turn.getCallsList(), results, mapped);
                 continue;
             }
             if (turn != null && turn.getResultsCount() > 0) {
@@ -118,7 +122,7 @@ public final class ContextBuilder {
             }
             mapped.add(m.getKind() == MessageKind.MESSAGE_KIND_INBOUND
                     ? AgentChatMessage.user(m.getText())
-                    : AgentChatMessage.assistant(m.getText(), false, List.of()));
+                    : AgentChatMessage.assistant(m.getText(), emptyToNull(m.getThinkingText()), List.of()));
         }
         return mapped;
     }
@@ -128,7 +132,7 @@ public final class ContextBuilder {
      * tool_use with no answer) — when a record is missing, an {@code {"error": ...}} stub is put in
      * its place.
      */
-    private static void mapToolTurn(String text, List<ToolCallRec> callRecs,
+    private static void mapToolTurn(String text, String thinkingText, List<ToolCallRec> callRecs,
                                     List<ToolResultRec> resultRecs, List<AgentChatMessage> mapped) {
         List<AgentChatMessage.ToolCall> calls = callRecs.stream()
                 .map(c -> new AgentChatMessage.ToolCall(c.getId(), c.getName(), c.getArgumentsJson()))
@@ -141,7 +145,7 @@ public final class ContextBuilder {
                 .map(c -> byId.getOrDefault(c.id(), new AgentChatMessage.ToolResult(
                         c.id(), c.name(), "{\"error\": \"result not recorded\"}", true)))
                 .toList();
-        mapped.add(AgentChatMessage.assistant(text.isBlank() ? null : text, false, calls));
+        mapped.add(AgentChatMessage.assistant(text.isBlank() ? null : text, emptyToNull(thinkingText), calls));
         mapped.add(AgentChatMessage.toolResults(results));
     }
 
@@ -179,6 +183,11 @@ public final class ContextBuilder {
         return Pattern.compile("(?i)</\\s*" + Pattern.quote(tag) + "\\s*>")
                 .matcher(content)
                 .replaceAll(Matcher.quoteReplacement("</ " + tag + ">"));
+    }
+
+    /** Proto strings are never null: an empty reasoning is «the model did not reason». */
+    private static String emptyToNull(String value) {
+        return value == null || value.isEmpty() ? null : value;
     }
 
     private static String openTag(PromptBlock block) {

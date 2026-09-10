@@ -233,7 +233,6 @@ public class RunHistoryAssembler {
     /**
      * A turn as a history record. {@code kind} survives only because the worker reads it to tell the
      * user's turn from everything else; the structure travels in {@code toolTurn}.
-     * {@code thinking_text} is never selected — see {@link ContextSpec.HistoryPart#REASONING}.
      */
     private static RunHistoryMessage toHistoryMessage(AgentRunTurn turn, Set<ContextSpec.HistoryPart> parts,
                                                       Set<String> keptBodies) {
@@ -243,7 +242,8 @@ public class RunHistoryAssembler {
             case USER -> dialog && hasText(turn)
                     ? new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, turn.getText())
                     : null;
-            case ASSISTANT -> assistantMessage(turn, dialog, tools);
+            case ASSISTANT -> assistantMessage(turn, dialog, tools,
+                    parts.contains(ContextSpec.HistoryPart.REASONING));
             case TOOL -> tools && !isEmpty(turn.getToolResults())
                     ? new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "",
                             new ToolTurnRecord(null, List.of(), results(turn, keptBodies)))
@@ -256,17 +256,27 @@ public class RunHistoryAssembler {
      * An assistant turn is one of two things. With tool calls it is the calls half of a tool turn —
      * without {@code TOOLS} it is dropped whole, together with its preamble, so that no dangling
      * results record is left behind. Without calls it is the answer.
+     *
+     * <p>Either shape carries its {@code thinking_text} under {@code REASONING}: the provider that
+     * produced the reasoning wants it back on the next request, and the rule does not stop at the
+     * turns that called something. Uncapped, unlike a tool JSON — it goes back verbatim or not at all.
      */
-    private static RunHistoryMessage assistantMessage(AgentRunTurn turn, boolean dialog, boolean tools) {
+    private static RunHistoryMessage assistantMessage(AgentRunTurn turn, boolean dialog, boolean tools,
+                                                      boolean reasoning) {
+        String thinkingText = reasoning ? emptyToNull(turn.getThinkingText()) : null;
         if (!isEmpty(turn.getToolCalls())) {
             return tools
                     ? new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, turn.getText(),
-                            new ToolTurnRecord(turn.getText(), calls(turn), List.of()))
+                            new ToolTurnRecord(turn.getText(), calls(turn), List.of()), thinkingText)
                     : null;
         }
         return dialog && hasText(turn)
-                ? new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, turn.getText())
+                ? new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, turn.getText(), null, thinkingText)
                 : null;
+    }
+
+    private static String emptyToNull(String value) {
+        return value == null || value.isEmpty() ? null : value;
     }
 
     private static List<ToolTurnRecord.Call> calls(AgentRunTurn turn) {

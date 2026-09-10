@@ -58,10 +58,10 @@ public class TurnLog {
      */
     public int record(AgentChatMessage m, LlmMeta meta) {
         return switch (m.role()) {
-            case USER -> send(TurnRole.TURN_ROLE_USER, m.text(), List.of(), List.of(), null);
-            case ASSISTANT -> send(TurnRole.TURN_ROLE_ASSISTANT, m.text(),
+            case USER -> send(TurnRole.TURN_ROLE_USER, m.text(), null, List.of(), List.of(), null);
+            case ASSISTANT -> send(TurnRole.TURN_ROLE_ASSISTANT, m.text(), m.reasoning(),
                     MessageCodec.toolCallRecs(m.toolCalls()), List.of(), meta);
-            case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null,
+            case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null, null,
                     List.of(), MessageCodec.toolResultRecs(m.toolResults()), null);
             case SYSTEM -> -1; // the system prompt lives in the run's prompt snapshot, not per turn
         };
@@ -75,15 +75,12 @@ public class TurnLog {
         this.turnIndex = turnIndex + 1;
     }
 
-    private int send(TurnRole role, String text,
+    private int send(TurnRole role, String text, String thinkingText,
                      List<ToolCallRec> calls, List<ToolResultRec> results, LlmMeta meta) {
         int n = turnIndex++;
         String finishReason = meta != null ? meta.finishReason() : null;
         String model = meta != null ? meta.model() : null;
         String callId = meta != null ? meta.callId() : null;
-        // The reasoning rides on meta, not on the message: the channel projection gets only the 💭
-        // marker (from AgentChatMessage.thinking), the text goes to the ledger alone.
-        String thinkingText = meta != null ? meta.reasoning() : null;
         try {
             boolean duplicate = client.saveTurn(agentId, runId, n, role, text, thinkingText,
                     calls, results, finishReason, model, callId).getDuplicate();

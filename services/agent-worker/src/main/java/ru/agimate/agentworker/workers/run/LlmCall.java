@@ -125,8 +125,7 @@ public class LlmCall {
             Map<String, byte[]> mediaBytes = imageInput ? fetchImageBytes(messages, agentId) : Map.of();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
-            LlmMeta meta = new LlmMeta(mapper.finishReason(response), creds.getModel(), callId,
-                    mapper.reasoning(response));
+            LlmMeta meta = new LlmMeta(mapper.finishReason(response), creds.getModel(), callId);
             return Reply.ok(mapper.fromResponse(response, callId), meta, buildUsage(response, creds, callId));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

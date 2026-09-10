@@ -43,7 +43,7 @@ class AgiMateAgentTest {
         AtomicInteger calls = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             calls.incrementAndGet();
-            return reply(AgentChatMessage.assistant("не должно случиться", false, List.of()));
+            return reply(AgentChatMessage.assistant("не должно случиться", null, List.of()));
         };
         RunRecorder cancelled = new RunRecorder() {
             @Override
@@ -62,7 +62,7 @@ class AgiMateAgentTest {
     void toolTurnDrainsBeforeStopping() {
         AtomicInteger turn = new AtomicInteger();
         AtomicBoolean cancelled = new AtomicBoolean();
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("вызываю", false,
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("вызываю", null,
                 List.of(new AgentChatMessage.ToolCall("id" + turn.incrementAndGet(), "board.create_task", "{}"))));
         // Отмена «нажата», пока тул исполняется.
         AgiMateAgent.ToolDispatcher dispatcher = c -> {
@@ -96,7 +96,7 @@ class AgiMateAgentTest {
     @DisplayName("отмена до диспатча: тулы не вызываются вовсе, но пара tool_use/tool_result закрыта")
     void cancelledBeforeDispatchSkipsTheCalls() {
         AtomicBoolean dispatched = new AtomicBoolean();
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("сейчас отправлю", false,
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("сейчас отправлю", null,
                 List.of(new AgentChatMessage.ToolCall("c1", "telegram.send_message", "{}"))));
         AgiMateAgent.ToolDispatcher dispatcher = c -> {
             dispatched.set(true);
@@ -128,7 +128,7 @@ class AgiMateAgentTest {
     @DisplayName("квитанция: провалившийся тул в отчёт не идёт, повторы схлопываются")
     void receiptListsOnlySuccessfulToolsOnce() {
         AtomicBoolean cancelled = new AtomicBoolean();
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, false,
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, null,
                 List.of(new AgentChatMessage.ToolCall("c1", "t", "{}"))));
         AgiMateAgent.ToolDispatcher dispatcher = c -> {
             cancelled.set(true);
@@ -154,7 +154,7 @@ class AgiMateAgentTest {
     @Test
     @DisplayName("квитанция не тянет тулы из истории прошлых ранов")
     void receiptIgnoresHistory() {
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("ответ", false, List.of()));
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("ответ", null, List.of()));
         RunRecorder recorder = new RunRecorder() {
             @Override
             public boolean cancelRequested() {
@@ -177,7 +177,7 @@ class AgiMateAgentTest {
     @Test
     @DisplayName("returns the final text when the model emits no tool calls")
     void finalAnswer() {
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("done", false, List.of()));
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("done", null, List.of()));
         AgiMateAgent agent = agent(llm, calls -> List.of(), null, 10);
         assertEquals("done", agent.run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
     }
@@ -187,9 +187,9 @@ class AgiMateAgentTest {
     void toolThenAnswer() {
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? reply(AgentChatMessage.assistant(null, false,
+                ? reply(AgentChatMessage.assistant(null, null,
                         List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))))
-                : reply(AgentChatMessage.assistant("final", false, List.of()));
+                : reply(AgentChatMessage.assistant("final", null, List.of()));
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{\"ok\":true}", false));
 
@@ -213,14 +213,14 @@ class AgiMateAgentTest {
     @Test
     @DisplayName("meta вызова прокидывается в recorder на assistant-ход; на tool-ход meta null")
     void metaReachesRecorderForAssistantOnly() {
-        LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-1", null);
+        LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-1");
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant(null, false,
+                ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant(null, null,
                         List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))), meta, null, null,
                         AgiMateAgent.Completion.TOOL_CALLS)
-                : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("final", false, List.of()),
-                        new LlmMeta("stop", "gpt-5-mini", "wf-llm-2", null), null, null,
+                : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("final", null, List.of()),
+                        new LlmMeta("stop", "gpt-5-mini", "wf-llm-2"), null, null,
                         AgiMateAgent.Completion.STOP);
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
@@ -251,7 +251,7 @@ class AgiMateAgentTest {
     void usageSurfacedToRecorder() {
         LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> new AgiMateAgent.LlmReply(
-                AgentChatMessage.assistant("done", false, List.of()), null, usage, null,
+                AgentChatMessage.assistant("done", null, List.of()), null, usage, null,
                 AgiMateAgent.Completion.STOP);
         List<LlmUsage> got = new ArrayList<>();
         RunRecorder recorder = new RunRecorder() {
@@ -272,7 +272,7 @@ class AgiMateAgentTest {
     void incompleteSurfacesUsageThenThrows() {
         LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> new AgiMateAgent.LlmReply(
-                AgentChatMessage.assistant("обрезано", false, List.of()), null, usage,
+                AgentChatMessage.assistant("обрезано", null, List.of()), null, usage,
                 LlmResponseIncomplete.Reason.LENGTH, AgiMateAgent.Completion.UNKNOWN);
         List<LlmUsage> got = new ArrayList<>();
         RunRecorder recorder = new RunRecorder() {
@@ -293,7 +293,7 @@ class AgiMateAgentTest {
         AtomicInteger calls = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             calls.incrementAndGet();
-            return reply(AgentChatMessage.assistant("done", false, List.of()));
+            return reply(AgentChatMessage.assistant("done", null, List.of()));
         };
         List<List<AgentChatMessage>> snapshots = new ArrayList<>();
         RunRecorder recorder = new RunRecorder() {
@@ -319,7 +319,7 @@ class AgiMateAgentTest {
     @Test
     @DisplayName("throws MaxTurnsExceeded when the loop never produces a final reply")
     void maxTurns() {
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, false,
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, null,
                 List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
@@ -335,8 +335,8 @@ class AgiMateAgentTest {
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             defsPerTurn.add(defs);
             return defs.isEmpty()
-                    ? reply(AgentChatMessage.assistant("вот что успел", false, List.of()))
-                    : reply(AgentChatMessage.assistant(null, false,
+                    ? reply(AgentChatMessage.assistant("вот что успел", null, List.of()))
+                    : reply(AgentChatMessage.assistant(null, null,
                             List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
@@ -363,7 +363,7 @@ class AgiMateAgentTest {
         List<List<ToolDef>> defsPerTurn = new ArrayList<>();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             defsPerTurn.add(defs);
-            return reply(AgentChatMessage.assistant(null, false,
+            return reply(AgentChatMessage.assistant(null, null,
                     List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
@@ -386,8 +386,8 @@ class AgiMateAgentTest {
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             sent.add(List.copyOf(msgs));
             return turn.getAndIncrement() == 0
-                    ? reply(AgentChatMessage.assistant("   ", false, List.of()))
-                    : reply(AgentChatMessage.assistant("готово", false, List.of()));
+                    ? reply(AgentChatMessage.assistant("   ", null, List.of()))
+                    : reply(AgentChatMessage.assistant("готово", null, List.of()));
         };
         AgiMateAgent agent = agent(llm, calls -> List.of(), null, 10);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
@@ -404,7 +404,7 @@ class AgiMateAgentTest {
     @Test
     @DisplayName("guard: пустой ход после переспроса — EmptyAnswerExhausted, а не пустой финал")
     void emptyReplyAbortsAfterRetries() {
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, false, List.of()));
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, null, List.of()));
         AgiMateAgent agent = agent(llm, calls -> List.of(), null, 10);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
@@ -421,9 +421,9 @@ class AgiMateAgentTest {
     void emptyTextWithToolCallsIsNotAffected() {
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? reply(AgentChatMessage.assistant(null, false,
+                ? reply(AgentChatMessage.assistant(null, null,
                         List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))))
-                : reply(AgentChatMessage.assistant("final", false, List.of()));
+                : reply(AgentChatMessage.assistant("final", null, List.of()));
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
         AgiMateAgent agent = agent(llm, dispatcher, null, 10);
@@ -440,8 +440,8 @@ class AgiMateAgentTest {
     void emptyTurnNotProjected() {
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? reply(AgentChatMessage.assistant("   ", false, List.of()))
-                : reply(AgentChatMessage.assistant("готово", false, List.of()));
+                ? reply(AgentChatMessage.assistant("   ", null, List.of()))
+                : reply(AgentChatMessage.assistant("готово", null, List.of()));
         List<AgentChatMessage> projected = new ArrayList<>();
         RunRecorder recorder = new RunRecorder() {
             @Override
@@ -460,10 +460,10 @@ class AgiMateAgentTest {
     void completionDrivesTheLoop() {
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant("сейчас гляну", false,
+                ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant("сейчас гляну", null,
                         List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))), null, null, null,
                         AgiMateAgent.Completion.TOOL_CALLS)
-                : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("готово", false, List.of()),
+                : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("готово", null, List.of()),
                         null, null, null, AgiMateAgent.Completion.STOP);
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
@@ -478,9 +478,9 @@ class AgiMateAgentTest {
     void toolCallsWithoutCallsIsNotFinal() {
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant("сейчас вызову", false, List.of()),
+                ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant("сейчас вызову", null, List.of()),
                         null, null, null, AgiMateAgent.Completion.TOOL_CALLS)
-                : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("готово", false, List.of()),
+                : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("готово", null, List.of()),
                         null, null, null, AgiMateAgent.Completion.STOP);
 
         assertEquals("готово", agent(llm, calls -> List.of(), null, 10)
@@ -496,9 +496,9 @@ class AgiMateAgentTest {
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             sent.add(List.copyOf(msgs));
             return turn.getAndIncrement() == 0
-                    ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant("  ", false, List.of()),
+                    ? new AgiMateAgent.LlmReply(AgentChatMessage.assistant("  ", null, List.of()),
                             null, null, null, AgiMateAgent.Completion.TOOL_CALLS)
-                    : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("готово", false, List.of()),
+                    : new AgiMateAgent.LlmReply(AgentChatMessage.assistant("готово", null, List.of()),
                             null, null, null, AgiMateAgent.Completion.STOP);
         };
 
@@ -515,9 +515,9 @@ class AgiMateAgentTest {
     void unknownFallsBackToMessageShape() {
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? reply(AgentChatMessage.assistant(null, false,
+                ? reply(AgentChatMessage.assistant(null, null,
                         List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))))
-                : reply(AgentChatMessage.assistant("final", false, List.of()));
+                : reply(AgentChatMessage.assistant("final", null, List.of()));
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
@@ -537,9 +537,9 @@ class AgiMateAgentTest {
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             sent.add(List.copyOf(msgs));
             return turn.getAndIncrement() == 0
-                    ? reply(AgentChatMessage.assistant(null, false,
+                    ? reply(AgentChatMessage.assistant(null, null,
                             List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))))
-                    : reply(AgentChatMessage.assistant("учёл", false, List.of()));
+                    : reply(AgentChatMessage.assistant("учёл", null, List.of()));
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
@@ -567,8 +567,8 @@ class AgiMateAgentTest {
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             sent.add(List.copyOf(msgs));
             return defs.isEmpty()
-                    ? reply(AgentChatMessage.assistant("вот что успел", false, List.of()))
-                    : reply(AgentChatMessage.assistant(null, false,
+                    ? reply(AgentChatMessage.assistant("вот что успел", null, List.of()))
+                    : reply(AgentChatMessage.assistant(null, null,
                             List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
@@ -605,7 +605,7 @@ class AgiMateAgentTest {
         AtomicInteger llmCalls = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
             llmCalls.incrementAndGet();
-            return reply(AgentChatMessage.assistant(null, false,
+            return reply(AgentChatMessage.assistant(null, null,
                     List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
@@ -647,7 +647,7 @@ class AgiMateAgentTest {
         };
 
         assertThrows(RunCancelled.class,
-                () -> agent((msgs, defs) -> reply(AgentChatMessage.assistant("нет", false, List.of())),
+                () -> agent((msgs, defs) -> reply(AgentChatMessage.assistant("нет", null, List.of())),
                         c -> List.of(), recorder, 10)
                         .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
         assertFalse(polled.get());
@@ -671,7 +671,7 @@ class AgiMateAgentTest {
             }
         };
         AgiMateAgent.LlmCaller llm = (msgs, defs) ->
-                reply(AgentChatMessage.assistant("готово", false, List.of()));
+                reply(AgentChatMessage.assistant("готово", null, List.of()));
 
         assertEquals("готово", agent(llm, c -> List.of(), recorder, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));

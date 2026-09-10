@@ -15,14 +15,16 @@ public enum ContextSpec {
      * behaviour in a dialogue too (media iteration discipline, memory note rules), not only in
      * trigger runs; the bodies are stable and friendly to the prompt cache.
      */
-    DIALOGUE(SkillBodies.ALL, false, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS), false),
+    DIALOGUE(SkillBodies.ALL, false,
+            Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS, HistoryPart.REASONING), false),
 
     /**
      * Autonomous handling of an event: bodies only of the skills that matched the trigger (they are
      * the instruction for handling the event), tools from every skill, plus the trigger-guidance
      * block.
      */
-    SYSTEM_TRIGGER(SkillBodies.MATCHED, true, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS), true);
+    SYSTEM_TRIGGER(SkillBodies.MATCHED, true,
+            Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS, HistoryPart.REASONING), true);
 
     /** Which skill bodies are injected into the system prompt. */
     public enum SkillBodies {
@@ -42,8 +44,11 @@ public enum ContextSpec {
         /** Tool calls and their results — handed over structurally, as a native tool_use/tool_result pair. */
         TOOLS,
         /**
-         * The model's reasoning. No preset selects it: a provider will not accept replayed reasoning
-         * without the signatures it issued, and we do not keep those.
+         * The model's reasoning, handed back to the provider that produced it. Selected by both
+         * presets: in thinking mode with a tools parameter DeepSeek requires the reasoning of every
+         * past turn in the request and answers 400 to a history stripped of it. The earlier reading —
+         * that a provider rejects replayed reasoning without the signatures it issued — is about the
+         * Anthropic-style block, not the OpenAI-compatible wire every provider here is called over.
          */
         REASONING
     }

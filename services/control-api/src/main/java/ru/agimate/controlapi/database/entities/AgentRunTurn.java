@@ -65,9 +65,11 @@ public class AgentRunTurn extends BaseEntity {
     private String text;
 
     /**
-     * The model's reasoning, uncapped; null when it did not reason. Kept here only: the channel
-     * projection carries the 💭 marker, never the text — and no flag rides along, because «did it
-     * reason» is this column being non-null.
+     * The model's reasoning, uncapped; null when it did not reason. The channel projection carries
+     * the 💭 marker, never the text, and no flag rides along — «did it reason» is this column being
+     * non-null. Read back on two paths besides observability: a replay rebuilds the assistant
+     * message from it, and the history assembler hands it to the next run, because a provider in
+     * thinking mode requires its own reasoning back when the request carries tools.
      */
     @Column(name = "thinking_text", columnDefinition = "TEXT")
     private String thinkingText;

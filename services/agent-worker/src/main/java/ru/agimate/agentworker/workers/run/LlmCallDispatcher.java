@@ -94,10 +94,11 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
             meta = reply.meta();
         } else {
             log.info("llm_call {} replayed: reading turn {} back from the ledger", callId, checkpoint.turnIndex());
+            // The reasoning comes back with the turn: the next request has to carry it, so a replayed
+            // message must be the same message the original call produced.
             assistant = MessageCodec.fromTurn(client.getTurn(agentId, runId, checkpoint.turnIndex()));
             turnLog.resumeAfter(checkpoint.turnIndex());
-            // The reasoning is not re-read: the loop never uses it and the ledger already has it.
-            meta = new LlmMeta(checkpoint.finishReason(), checkpoint.model(), callId, null);
+            meta = new LlmMeta(checkpoint.finishReason(), checkpoint.model(), callId);
         }
         return new AgiMateAgent.LlmReply(assistant, meta, checkpoint.usage(),
                 incompleteReason(checkpoint.finishReason()), completion(checkpoint.finishReason()));

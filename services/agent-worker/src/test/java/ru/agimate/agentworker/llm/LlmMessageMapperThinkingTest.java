@@ -17,12 +17,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The {@code thinking} flag of an assistant turn — the value that drives the 💭 progress marker.
- * Only the flag lives on the message; the reasoning text itself travels on {@code LlmMeta} and is
- * persisted as {@code agent_run_turns.thinking_text}. It is read out of Spring AI's assistant
- * metadata by a key whose constant is private upstream, so this locks our half of that contract.
+ * Чтение рассуждения из ответа провайдера. Текст живёт на самом сообщении: он и питает 💭-маркер
+ * ({@code thinking()} выводится из него), и уезжает обратно провайдеру следующим запросом —
+ * {@code OpenAiMessageReasoningSerializationTest} проверяет вторую половину пути. Ключ метаданных,
+ * из-под которого он читается, — приватная константа Spring AI, так что здесь заперта наша половина
+ * этого договора.
  */
-@DisplayName("LlmMessageMapper — флаг thinking из reasoning-метаданных")
+@DisplayName("LlmMessageMapper — рассуждение из reasoning-метаданных ответа")
 class LlmMessageMapperThinkingTest {
 
     private static final String CALL_ID = "wf-llm-1";
@@ -49,10 +50,12 @@ class LlmMessageMapperThinkingTest {
     }
 
     @Test
-    @DisplayName("непустой reasoningContent → thinking = true, текст и тулы не затронуты")
-    void reasoningContentSetsFlag() {
+    @DisplayName("непустой reasoningContent → текст рассуждения на сообщении, thinking = true")
+    void reasoningContentKeptOnTheMessage() {
         AgentChatMessage msg = mapper.fromResponse(response(metadata("reasoningContent", "сначала подумаю")), CALL_ID);
 
+        // Не флаг: этот текст DeepSeek требует обратно в следующем запросе с tools.
+        assertEquals("сначала подумаю", msg.reasoning());
         assertTrue(msg.thinking());
         assertEquals("готово", msg.text());
     }

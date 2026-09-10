@@ -114,15 +114,21 @@ message GetTurnRequest {
   int32 turn_index = 3;
 }
 
-// Mirrors SaveTurnRequest minus the LLM telemetry and minus thinking_text: the loop never reads the
-// reasoning, and it is the largest field. `thinking` stays — the channel's 💭 line is a durable step of
-// its own, so a replay must derive the same progress lines from this turn as the original run did.
+// Mirrors SaveTurnRequest minus the LLM telemetry. thinking_text travels in full, not as a flag:
+// a provider in thinking mode requires the reasoning of past turns back in the request when the
+// request carries tools (DeepSeek answers 400 without it), so a replayed turn has to be able to
+// rebuild the assistant message the original run sent, not just its 💭 line.
 message GetTurnResponse {
   TurnRole role = 1;
   string text = 2;
+  // Deprecated, still written: a worker of the previous release reads this field, and the 💭 line it
+  // drives is a durable step of its own. Dropping it while such a worker replays an in-flight run
+  // would cost that run a progress step and break the replay. Reserve it a release after the
+  // workers stop reading it — until then control-api sets both this and thinking_text.
   bool thinking = 3;                   // thinking_text was non-empty
   repeated ToolCallRec tool_calls = 4;
   repeated ToolResultRec tool_results = 5;
+  string thinking_text = 6;            // empty = the model did not reason
 }
 
 message SavePromptRequest {
@@ -181,4 +187,8 @@ message HistoryMessage {
   // (tool_use), then with results (tool_result) — the worker stitches them into a pair by order.
   // Empty — an ordinary text row.
   ToolTurn tool_turn = 3;
+  // The reasoning of an assistant row, echoed back to the provider on the next request. It sits on
+  // the message rather than on tool_turn because the rule covers turns that called nothing: with a
+  // tools parameter DeepSeek wants the reasoning of every past turn, an answer row included.
+  string thinking_text = 4;
 }

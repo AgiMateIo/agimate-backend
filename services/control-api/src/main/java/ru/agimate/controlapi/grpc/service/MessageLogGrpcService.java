@@ -154,9 +154,13 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
 
     /** Verbatim, no caps: a replay re-issues {@code ExecuteToolAsync} with these arguments, and the backend compares them. */
     static GetTurnResponse toProto(AgentRunTurn turn) {
+        String thinkingText = nullToEmpty(turn.getThinkingText());
         GetTurnResponse.Builder b = GetTurnResponse.newBuilder()
                 .setRole(toProto(turn.getRole()))
-                .setThinking(turn.getThinkingText() != null && !turn.getThinkingText().isEmpty());
+                .setThinkingText(thinkingText)
+                // Deprecated but still written: a worker of the previous release reads the flag, and
+                // the 💭 line it drives is a durable step — a replay that loses it loses a step.
+                .setThinking(!thinkingText.isEmpty());
         if (turn.getText() != null) {
             b.setText(turn.getText());
         }

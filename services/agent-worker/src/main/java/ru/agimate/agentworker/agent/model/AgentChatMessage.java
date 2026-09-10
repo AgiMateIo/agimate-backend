@@ -14,7 +14,10 @@ import java.util.List;
  *
  * @param role        who produced the message
  * @param text        user/assistant text ({@code null} for a tool-result message)
- * @param thinking    the assistant emitted reasoning this turn (drives the 💭 progress marker)
+ * @param reasoning   the reasoning the assistant emitted this turn, {@code null} when it did not
+ *                    reason. Kept whole rather than as a flag because it goes back to the provider:
+ *                    in thinking mode with a tools parameter DeepSeek requires the reasoning of
+ *                    every past turn in the request and answers 400 without it
  * @param toolCalls   tool calls requested by an assistant message (empty otherwise)
  * @param toolResults results carried by a tool message (empty otherwise)
  * @param parts       inbound file refs on a user message (empty otherwise); bytes fetched at
@@ -24,7 +27,7 @@ import java.util.List;
 public record AgentChatMessage(
         Role role,
         String text,
-        boolean thinking,
+        String reasoning,
         List<ToolCall> toolCalls,
         List<ToolResult> toolResults,
         List<FilePartRef> parts
@@ -36,6 +39,11 @@ public record AgentChatMessage(
     }
 
     public enum Role {SYSTEM, USER, ASSISTANT, TOOL}
+
+    /** Drives the 💭 progress marker — derived, so the marker and what goes on the wire cannot disagree. */
+    public boolean thinking() {
+        return reasoning != null && !reasoning.isBlank();
+    }
 
     /** An LLM-requested tool call. {@code argumentsJson} is the raw JSON arguments string. */
     public record ToolCall(String id, String name, String argumentsJson) {}
@@ -58,23 +66,23 @@ public record AgentChatMessage(
     }
 
     public static AgentChatMessage system(String text) {
-        return new AgentChatMessage(Role.SYSTEM, text, false, List.of(), List.of(), List.of());
+        return new AgentChatMessage(Role.SYSTEM, text, null, List.of(), List.of(), List.of());
     }
 
     public static AgentChatMessage user(String text) {
-        return new AgentChatMessage(Role.USER, text, false, List.of(), List.of(), List.of());
+        return new AgentChatMessage(Role.USER, text, null, List.of(), List.of(), List.of());
     }
 
     public static AgentChatMessage user(String text, List<FilePartRef> parts) {
-        return new AgentChatMessage(Role.USER, text, false, List.of(), List.of(), parts);
+        return new AgentChatMessage(Role.USER, text, null, List.of(), List.of(), parts);
     }
 
-    public static AgentChatMessage assistant(String text, boolean thinking, List<ToolCall> toolCalls) {
-        return new AgentChatMessage(Role.ASSISTANT, text, thinking, toolCalls, List.of(), List.of());
+    public static AgentChatMessage assistant(String text, String reasoning, List<ToolCall> toolCalls) {
+        return new AgentChatMessage(Role.ASSISTANT, text, reasoning, toolCalls, List.of(), List.of());
     }
 
     public static AgentChatMessage toolResults(List<ToolResult> results) {
-        return new AgentChatMessage(Role.TOOL, null, false, List.of(), results, List.of());
+        return new AgentChatMessage(Role.TOOL, null, null, List.of(), results, List.of());
     }
 
     public boolean hasToolCalls() {

@@ -73,7 +73,7 @@ class RunRecorderTest {
     }
 
     private static AgentChatMessage assistantCalling() {
-        return AgentChatMessage.assistant("looking it up", false,
+        return AgentChatMessage.assistant("looking it up", null,
                 List.of(new AgentChatMessage.ToolCall("c1", "wx__get_weather", "{\"city\":\"Berlin\"}")));
     }
 
@@ -85,7 +85,7 @@ class RunRecorderTest {
     @Test
     @DisplayName("тул-ход: ассистент → TOOL_CALL-строка (его ход в журнал пишет шаг llm_call), результаты → журнал + TOOL_RESULT-строка")
     void toolTurnIsTwoLedgerRecordsAndTwoProgressLines() {
-        LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "call-9", null);
+        LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "call-9");
         channelLog.inbound();
         turnLog.record(AgentChatMessage.user("weather in Berlin?"), null);
         // What the llm_call step does before the recorder sees the turn.

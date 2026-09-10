@@ -46,7 +46,7 @@ class TurnLogTest {
     }
 
     private static AgentChatMessage assistant() {
-        return AgentChatMessage.assistant("preamble", true,
+        return AgentChatMessage.assistant("preamble", "прикинул, что делать",
                 List.of(new AgentChatMessage.ToolCall("c1", "weather", "{\"city\":\"Berlin\"}")));
     }
 
@@ -55,7 +55,7 @@ class TurnLogTest {
                 List.of(new AgentChatMessage.ToolResult("c1", "weather", "{\"sky\":\"sunny\"}", false)));
     }
 
-    private static final LlmMeta META = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-9", "сначала посчитаю");
+    private static final LlmMeta META = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-9");
 
     @Test
     @DisplayName("assistant → TOOL_CALL-запись с вызовами + meta (finish/model/call); tool → TOOL_RESULT без meta")
@@ -134,8 +134,8 @@ class TurnLogTest {
     }
 
     @Test
-    @DisplayName("текст рассуждения берётся из meta, а не из сообщения; на tool-ходе его нет")
-    void passesThinkingTextFromMeta() {
+    @DisplayName("текст рассуждения берётся из сообщения, а не из meta; на tool-ходе его нет")
+    void passesThinkingTextFromTheMessage() {
         stubOk();
         TurnLog turnLog = newTurnLog();
 
@@ -145,7 +145,9 @@ class TurnLogTest {
         ArgumentCaptor<String> thinkingText = ArgumentCaptor.forClass(String.class);
         verify(client, times(2)).saveTurn(anyString(), anyString(), anyInt(), any(), any(),
                 thinkingText.capture(), any(), any(), any(), any(), any());
-        assertEquals("сначала посчитаю", thinkingText.getAllValues().get(0));
+        // Одно место хранения: то же значение уезжает и в журнал, и обратно провайдеру следующим
+        // запросом — копия в meta разъехалась бы с сообщением на реплее.
+        assertEquals("прикинул, что делать", thinkingText.getAllValues().get(0));
         assertNull(thinkingText.getAllValues().get(1));   // tool-ход не порождён LLM-вызовом
     }
 

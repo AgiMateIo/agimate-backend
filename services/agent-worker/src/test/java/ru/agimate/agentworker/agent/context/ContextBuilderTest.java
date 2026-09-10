@@ -309,6 +309,40 @@ class ContextBuilderTest {
             assertEquals(AgentChatMessage.Role.USER, mapped.get(0).role());
             assertEquals(AgentChatMessage.Role.ASSISTANT, mapped.get(1).role());
         }
+
+        @Test
+        @DisplayName("рассуждение прошлого прогона переносится и на ход с вызовами, и на простой ответ")
+        void reasoningCarriedOverFromPastRuns() {
+            HistoryMessage calls = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
+                    .setThinkingText("надо посмотреть погоду")
+                    .setToolTurn(ToolTurn.newBuilder().setText("сейчас гляну")
+                            .addCalls(ToolCallRec.newBuilder().setId("c1").setName("wx__get_weather")
+                                    .setArgumentsJson("{}")))
+                    .build();
+            HistoryMessage answer = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_ANSWER).setText("в Берлине ясно")
+                    .setThinkingText("ответ короткий, хватит одной строки")
+                    .build();
+
+            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(calls, answer));
+
+            // Правило провайдера покрывает оба вида хода: с запросом, несущим tools, DeepSeek требует
+            // рассуждение всех прошлых ходов, а не только тех, что что-то вызывали.
+            assertEquals("надо посмотреть погоду", mapped.get(0).reasoning());
+            assertEquals("ответ короткий, хватит одной строки", mapped.get(2).reasoning());
+        }
+
+        @Test
+        @DisplayName("пустой thinking_text — это «модель не рассуждала», а не пустое рассуждение")
+        void emptyThinkingTextBecomesNull() {
+            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(
+                    HistoryMessage.newBuilder()
+                            .setKind(MessageKind.MESSAGE_KIND_ANSWER).setText("готово").build()));
+
+            assertNull(mapped.get(0).reasoning());
+            assertFalse(mapped.get(0).thinking());
+        }
     }
 
     @Nested
