@@ -101,6 +101,7 @@
 | [email-password-auth.md](decisions/email-password-auth.md) | Пароль рядом с четырьмя OAuth-провайдерами: чужая установка не должна зависеть от регистрации приложения в Google |
 | [platform-admin-mcp.md](decisions/platform-admin-mcp.md) | Мета-агент и MCP-клиент умеют всё, что веб-панель: коннектор `platform` покрывает `/manage/**` целиком |
 | [dbos-ids-only.md](decisions/dbos-ids-only.md) | Чекпоинт DBOS хранит ссылку, переписка — у control-api: вызов модели и тулы становятся шагами рана, реплей перечитывает по id |
+| [llm-streaming.md](decisions/llm-streaming.md) | Ответ модели читается по мере генерации: пауза между чанками отличает «завис» от «думает», ретраи — в один слой |
 | [provider-turn-envelope.md](decisions/provider-turn-envelope.md) | Что уезжает обратно провайдеру в assistant-ходе: происхождение решает содержимое, провайдер — чего стоит отсутствие |
 | [connector-job-concurrency.md](decisions/connector-job-concurrency.md) | Сколько джоб узел берёт разом: потолок на узле, а не на установке, и почему непрерывный опрос его не касается |
 | [run-fairness.md](decisions/run-fairness.md) | Шумный пользователь занимает слоты модели: квота — бюджет, лимитер — поток, а доли в моменте не считает никто |

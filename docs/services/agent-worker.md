@@ -48,7 +48,7 @@ else is a durable step of that workflow, and every checkpoint holds identifiers,
 | Step | Body | Checkpoint |
 |---|---|---|
 | `save_message` | `ChannelMessageLog` — one per dialogue event | `duplicate`/`cancelled`/`steered` flags |
-| `llm_call` | `LlmCall` — credentials inline, the provider request under a per-worker semaphore (`concurrency.llm`), retries on 429/5xx; then `SaveTurn` of the assistant turn | `call_id` (`runId-n`), `turn_index`, `finish_reason`, model, token counts, or the provider's failure |
+| `llm_call` | `LlmCall` — credentials inline, the provider request under a per-worker semaphore (`concurrency.llm`), streamed (`stream: true`) and assembled into one turn, retries on 429/5xx and on a waiting budget while nothing has arrived; then `SaveTurn` of the assistant turn | `call_id` (`runId-n`), `turn_index`, `finish_reason`, model, token counts, or the provider's failure |
 | `tool_calls` | `ToolCallStep` — `ExecuteToolAsync` for every call of the turn, then a round-robin poll of `GetToolResult` (50 → 100 → 200 → 500 ms, 2 s after the first minute); a call still pending at `detach-after` is detached (`DetachTool`), the model gets an interim task handle and the result returns later as a `tool_completed` trigger | id + status per call (SUCCESS/ERROR/DETACHED/TIMEOUT/ABANDONED/FAILED) |
 | `report_failure` | `SendMessage` with the run's outcome | `true` |
 
@@ -139,7 +139,13 @@ single-writer'а и контрактное требование к трансп�
 ## Configuration
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
 binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example`. Key sections:
-`grpc` (target/tls/auth-token), `agent` (id/max-turns), `concurrency` (`llm` — the per-worker semaphore around provider requests),
+`grpc` (target/tls/auth-token), `agent` (id/max-turns), `llm` (три бюджета вокруг вызова модели:
+`first-chunk-timeout` — сколько модели позволено думать до первой дельты, `idle-timeout` — пауза
+между дельтами, после которой стрим считается мёртвым, `call-timeout` — потолок всего вызова,
+уезжает в HTTP-клиент; первые два меряют ожидание и живут на потоке чанков. Инвариант:
+`(MAX_ATTEMPTS − 1) × first-chunk-timeout + call-timeout` меньше `STALE_AFTER` control-api — вызов
+модели единственная долгая операция рана без RPC, и только на ней ран выглядит молчащим),
+`concurrency` (`llm` — the per-worker semaphore around provider requests),
 `session` (run-ttl-seconds), `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
 спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
 не отменяет джобу на бэке, модель получает явное «could still complete»; detach-after — grace

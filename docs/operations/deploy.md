@@ -120,6 +120,9 @@ Full list with defaults: `services/agent-worker/.env.example`.
 | `AGENT_GRPC_AUTH_TOKEN`           | Worker-pool authkey (Bearer), must match a control-api pool key    |
 | `AGENT_AGENT_ID`                  | Worker/agent deployment id                                         |
 | `AGENT_CONCURRENCY_LLM`           | Concurrent model requests per worker (default 3)                   |
+| `AGENT_LLM_FIRST_CHUNK_TIMEOUT`   | Wait for the model's first chunk (default 90s)                     |
+| `AGENT_LLM_IDLE_TIMEOUT`          | Silence between chunks that counts as a dead stream (default 60s)  |
+| `AGENT_LLM_CALL_TIMEOUT`          | Ceiling on one model call (default 5m)                             |
 | `AGENT_SESSION_ON_ACTIVE_MESSAGE` | Policy on a message into an active session: `queue`/`steer`/`interrupt` |
 | `AGENT_DBOS_DATABASE_URL`         | JDBC URL of the DBOS system Postgres (same as control-api's)       |
 | `AGENT_DBOS_USERNAME`             | DBOS Postgres user                                                 |
