@@ -112,7 +112,7 @@ class LlmCallDispatcherTest {
         @DisplayName("обычный путь: ход ассистента в журнал внутри шага, чекпоинт — id и числа, ответ из памяти")
         void normalPathWritesTurnInsideTheStep() throws Exception {
             stepRuns();
-            when(llmCall.call(any(), any(), eq("agent-1"), eq("run-1-0"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, USAGE));
+            when(llmCall.call(any(), any(), eq("agent-1"), eq("run-1-0"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, USAGE, null));
             when(client.saveTurn(any(), any(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(SaveTurnResponse.newBuilder().build());
 
@@ -138,7 +138,7 @@ class LlmCallDispatcherTest {
         @Test
         @DisplayName("реплей: supplier не зовётся, ход читается GetTurn по индексу из чекпоинта, счётчик журнала продолжает за ним")
         void replayReadsTheTurnBack() throws Exception {
-            stepReplays(LlmCallDispatcher.Checkpoint.ok("run-1-0", 4, META, USAGE));
+            stepReplays(LlmCallDispatcher.Checkpoint.ok("run-1-0", 4, META, USAGE, null));
             when(client.getTurn("agent-1", "run-1", 4)).thenReturn(GetTurnResponse.newBuilder()
                     .setRole(TurnRole.TURN_ROLE_ASSISTANT).setText("looking it up")
                     .setThinkingText("прикинул, что делать")
@@ -177,13 +177,13 @@ class LlmCallDispatcherTest {
         @Test
         @DisplayName("callId = runId-порядковый номер, считая и реплеенные вызовы")
         void callIdsAreOrdinal() throws Exception {
-            stepReplays(LlmCallDispatcher.Checkpoint.ok("run-1-0", 1, META, null));
+            stepReplays(LlmCallDispatcher.Checkpoint.ok("run-1-0", 1, META, null, null));
             when(client.getTurn(any(), any(), anyInt())).thenReturn(GetTurnResponse.newBuilder()
                     .setRole(TurnRole.TURN_ROLE_ASSISTANT).setText("ok").build());
             dispatcher.call(List.of(), List.of());
 
             stepRuns();
-            when(llmCall.call(any(), any(), eq("agent-1"), eq("run-1-1"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, null));
+            when(llmCall.call(any(), any(), eq("agent-1"), eq("run-1-1"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, null, null));
             when(client.saveTurn(any(), any(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(SaveTurnResponse.newBuilder().build());
             dispatcher.call(List.of(), List.of());

@@ -72,7 +72,8 @@ public class DbosRuntime implements SmartLifecycle {
                 .withConcurrency(1));
 
         AgentRunner runner = new AgentRunner(dbos, client,
-                new LlmCall(client, modelFactory, mapper, templates, props.getConcurrency().getLlm()),
+                new LlmCall(client, modelFactory, mapper, templates, props.getConcurrency().getLlm(),
+                        props.getLlm()),
                 new ToolCallStep(client, props.getTool()), templates, props.getAgent().getMaxTurns());
         dbos.registerProxy(AgentRunWorkflow.class, runner, Queues.INSTANCE);
     }

@@ -41,6 +41,10 @@ dependencies {
     // from dynamic per-agent credentials, so we avoid the autoconfigured bean).
     implementation("org.springframework.ai:spring-ai-openai")
 
+    // Reactor — declared because we use it directly, not only through Spring AI: the model
+    // response is consumed as a Flux, and the two waiting budgets are its timeout operator.
+    implementation("io.projectreactor:reactor-core")
+
     // DBOS durable workflows / queues (same lib the control-api producer uses).
     implementation("dev.dbos:transact:1.0.0")
 

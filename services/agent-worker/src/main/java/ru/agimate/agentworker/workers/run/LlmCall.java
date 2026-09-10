@@ -1,38 +1,54 @@
 package ru.agimate.agentworker.workers.run;
 
+import com.openai.errors.OpenAIInvalidDataException;
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.OpenAIRetryableException;
 import com.openai.errors.OpenAIServiceException;
 import io.grpc.Status;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.metadata.Usage;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import reactor.core.publisher.Mono;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.ResponseTemplates;
+import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.model.ToolDef;
+import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
+import ru.agimate.agentworker.llm.StreamAssembler;
 
+import java.io.IOException;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * One model request, end to end: credentials fetched inline, attachment bytes inline, the
+ * One model request, end to end: credentials fetched inline, attachment bytes inline, the streamed
  * provider call with transient-error retries, and error classification. Runs inside the run
  * workflow's {@code llm_call} step ({@link LlmCallDispatcher}); shared across runs, so the
  * {@link Semaphore} bounds concurrent provider requests per worker the way the dedicated LLM queue
  * used to.
+ *
+ * <p>The answer is read as it is generated ({@code stream: true}). Not for the partial text — the
+ * loop still gets one whole turn — but because a request that puts nothing on the wire for minutes
+ * is indistinguishable from a dead connection, and everything between us and the model treats it
+ * accordingly: an edge or a NAT closes it, and the retry buys the same generation again. Streaming
+ * also lets waiting be measured where it means something: the pause between chunks is «stuck», the
+ * length of the answer is not.
  *
  * <p>A failure is a {@link Reply} value, never an exception: DBOS would log a thrown one at ERROR
  * with a stack trace, and the dispatcher turns it back into an exception in plain context.
@@ -42,26 +58,31 @@ public class LlmCall {
 
     /**
      * @param assistant  the parsed reply; {@code null} on failure
-     * @param meta       provenance for the ledger (finish reason, model, call id, reasoning); {@code null} on failure
+     * @param meta       provenance for the ledger (finish reason, model, call id); {@code null} on failure
      * @param usage      token counts for accounting; {@code null} when there is nothing to account
+     * @param incomplete why the turn is only part of an answer, {@code null} when it is whole. Set
+     *                   here only for a stream that broke after content had arrived — the reasons a
+     *                   {@code finish_reason} carries are derived by the dispatcher instead
      * @param statusCode HTTP status of a failed call; {@code null} for a non-HTTP failure
      * @param message    the failure text
      * @param userFacing {@code message} is already a notice for the user (a quota text, «no model
      *                   configured») and must be surfaced verbatim
      */
     public record Reply(AgentChatMessage assistant, LlmMeta meta, LlmUsage usage,
+                        LlmResponseIncomplete.Reason incomplete,
                         boolean failed, Integer statusCode, String message, boolean userFacing) {
 
-        static Reply ok(AgentChatMessage assistant, LlmMeta meta, LlmUsage usage) {
-            return new Reply(assistant, meta, usage, false, null, null, false);
+        static Reply ok(AgentChatMessage assistant, LlmMeta meta, LlmUsage usage,
+                        LlmResponseIncomplete.Reason incomplete) {
+            return new Reply(assistant, meta, usage, incomplete, false, null, null, false);
         }
 
         static Reply failure(Integer statusCode, String message) {
-            return new Reply(null, null, null, true, statusCode, message, false);
+            return new Reply(null, null, null, null, true, statusCode, message, false);
         }
 
         static Reply userError(String message) {
-            return new Reply(null, null, null, true, null, message, true);
+            return new Reply(null, null, null, null, true, null, message, true);
         }
     }
 
@@ -70,14 +91,18 @@ public class LlmCall {
     private final LlmMessageMapper mapper;
     private final ResponseTemplates templates;
     private final Semaphore slots;
+    private final Duration firstChunkTimeout;
+    private final Duration idleTimeout;
 
     public LlmCall(AgentWorkerClient client, ModelFactory modelFactory, LlmMessageMapper mapper,
-                   ResponseTemplates templates, int concurrency) {
+                   ResponseTemplates templates, int concurrency, AgentProperties.Llm budgets) {
         this.client = client;
         this.modelFactory = modelFactory;
         this.mapper = mapper;
         this.templates = templates;
         this.slots = new Semaphore(concurrency);
+        this.firstChunkTimeout = budgets.getFirstChunkTimeout();
+        this.idleTimeout = budgets.getIdleTimeout();
     }
 
     /** @param callId minted by the caller, stable across replays — seeds the tool call ids and keys the usage row */
@@ -124,9 +149,11 @@ public class LlmCall {
             // Attachment bytes are pulled inline (like the credentials) — they never enter a checkpoint.
             Map<String, byte[]> mediaBytes = imageInput ? fetchImageBytes(messages, agentId) : Map.of();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
-            ChatResponse response = callWithRetry(model, prompt);
-            LlmMeta meta = new LlmMeta(mapper.finishReason(response), creds.getModel(), callId);
-            return Reply.ok(mapper.fromResponse(response, callId), meta, buildUsage(response, creds, callId));
+            Streamed streamed = streamWithRetry(model, prompt);
+            StreamAssembler turn = streamed.turn();
+            LlmMeta meta = new LlmMeta(turn.finishReason(), creds.getModel(), callId);
+            return Reply.ok(turn.message(callId), meta, buildUsage(turn.usage(), creds, callId),
+                    streamed.incomplete());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return Reply.failure(null, "interrupted while waiting for the model");
@@ -136,8 +163,8 @@ public class LlmCall {
                 log.warn("LLM HTTP error (status={}): {}", svc.statusCode(), svc.getMessage());
                 return Reply.failure(svc.statusCode(), Failures.message(svc));
             }
-            log.warn("LLM API error: {}", e.getMessage());
-            return Reply.failure(null, Failures.message(e));
+            log.warn("LLM API error: {}", Failures.detail(e));
+            return Reply.failure(null, Failures.detail(e));
         }
     }
 
@@ -146,11 +173,10 @@ public class LlmCall {
      * {@code null} when there is nothing to account for: no usage metadata, or an empty
      * {@code provider_id} (an older control-api during a rolling deploy).
      */
-    private static LlmUsage buildUsage(ChatResponse response, LlmCredentials creds, String callId) {
+    private static LlmUsage buildUsage(Usage usage, LlmCredentials creds, String callId) {
         if (creds.getProviderId().isBlank()) {
             return null;
         }
-        Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
         if (usage == null) {
             log.warn("LLM response has no usage metadata — skipping usage report");
             return null;
@@ -198,27 +224,73 @@ public class LlmCall {
     private static final int MAX_ATTEMPTS = 4;
     private static final long INITIAL_BACKOFF_MS = 1_000;
     private static final long MAX_RETRY_AFTER_MS = 30_000;
+    /** How often a running stream reports what has arrived — a handful of lines per long answer. */
+    private static final long PROGRESS_EVERY_NANOS = TimeUnit.SECONDS.toNanos(30);
+
+    /** What one streaming attempt produced: the assembled turn, and why it is only part of an answer. */
+    private record Streamed(StreamAssembler turn, LlmResponseIncomplete.Reason incomplete) {}
 
     /**
-     * Transient provider errors (429/5xx/408, SDK network failures) are retried here — otherwise a
-     * single provider blip kills the whole run along with the tool work accumulated in it. Other 4xx
-     * (401/403/400) are terminal and go straight to error mapping. The concurrency slot is held
-     * across the retries: worst case {@value #MAX_ATTEMPTS} × request-timeout — a deliberate price.
+     * The streamed request, retried while nothing has been produced yet. A single provider blip must
+     * not kill a run along with the tool work accumulated in it; 4xx other than 429/408 are terminal
+     * and go straight to error mapping.
+     *
+     * <p>Where a break lands decides everything. <b>Before</b> the first content nothing was
+     * generated, so repeating costs nothing but time. <b>After</b> it the tokens are spent and the
+     * provider will bill them again for the same prompt, so the attempt is kept as it is and the turn
+     * is marked incomplete: the text goes into the ledger, and the run ends with the same «the answer
+     * was cut off» notice a token-limit truncation produces. A break inside a tool-call sequence
+     * lands in the first case by construction — Spring AI holds those deltas until they merge, so a
+     * half-written call never reaches us.
+     *
+     * <p>The concurrency slot is held across the retries: worst case {@value #MAX_ATTEMPTS} attempts,
+     * each bounded by the first-chunk budget or by the call ceiling — a deliberate price, and the
+     * arithmetic that keeps a run from looking silent to control-api's sweeper (see
+     * {@link AgentProperties.Llm}).
      */
-    private ChatResponse callWithRetry(OpenAiChatModel model, Prompt prompt) throws InterruptedException {
+    private Streamed streamWithRetry(OpenAiChatModel model, Prompt prompt) throws InterruptedException {
         slots.acquire();
         try {
             long backoffMs = INITIAL_BACKOFF_MS;
             for (int attempt = 1; ; attempt++) {
+                StreamAssembler turn = new StreamAssembler(mapper);
+                long startedAt = System.nanoTime();
                 try {
-                    return model.call(prompt);
+                    // The two waiting budgets live here rather than on the HTTP client: OkHttp's read
+                    // timeout is not reachable through Spring AI's single Duration, and a cancelled
+                    // subscription closes the response anyway (Flux.create + sink.onDispose upstream),
+                    // so the socket is released with the timer, not at the call ceiling.
+                    // Progress goes to the log while the answer is long: a generation that runs into
+                    // the call ceiling looks exactly like a dead connection until the numbers say
+                    // otherwise, and «chunks are arriving» is the one thing nobody can tell from outside.
+                    AtomicLong nextProgressAt = new AtomicLong(startedAt + PROGRESS_EVERY_NANOS);
+                    model.stream(prompt)
+                            .timeout(Mono.delay(firstChunkTimeout), chunk -> Mono.delay(idleTimeout))
+                            .doOnNext(chunk -> {
+                                turn.accept(chunk);
+                                long now = System.nanoTime();
+                                if (now >= nextProgressAt.get()) {
+                                    nextProgressAt.set(now + PROGRESS_EVERY_NANOS);
+                                    log.info("LLM stream in progress after {} ms: {}",
+                                            elapsedMs(startedAt), turn.summary());
+                                }
+                            })
+                            .blockLast();
+                    log.info("LLM stream done after {} ms: {}", elapsedMs(startedAt), turn.summary());
+                    return new Streamed(turn, null);
                 } catch (Exception e) {
-                    if (attempt >= MAX_ATTEMPTS || !transientProviderError(e)) {
+                    long elapsedMs = elapsedMs(startedAt);
+                    if (turn.started()) {
+                        log.warn("LLM stream broke after {} ms ({}) — keeping the partial turn: {}",
+                                elapsedMs, turn.summary(), Failures.detail(e));
+                        return new Streamed(turn, LlmResponseIncomplete.Reason.BROKEN);
+                    }
+                    if (attempt >= MAX_ATTEMPTS || !retryable(e)) {
                         throw e;
                     }
                     long delayMs = Math.max(backoffMs, retryAfterMs(e));
-                    log.info("LLM transient error (attempt {}/{}), retrying in {} ms: {}",
-                            attempt, MAX_ATTEMPTS, delayMs, e.getMessage());
+                    log.info("LLM transient error (attempt {}/{}) after {} ms ({}), retrying in {} ms: {}",
+                            attempt, MAX_ATTEMPTS, elapsedMs, turn.summary(), delayMs, Failures.detail(e));
                     Thread.sleep(delayMs);
                     backoffMs *= 2;
                 }
@@ -228,7 +300,33 @@ public class LlmCall {
         }
     }
 
-    /** 429/408/5xx and SDK network exceptions; every other 4xx is terminal. */
+    private static long elapsedMs(long startedAt) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    /**
+     * Worth another attempt: the provider faltered, or our own waiting budget expired. The second
+     * half is ours and not the provider's fault, which is why it is not folded into
+     * {@link #transientProviderError} — a timeout says «nothing arrived», not «the provider is
+     * broken», and only the first of those is a reason to look at the provider.
+     */
+    static boolean retryable(Throwable t) {
+        if (transientProviderError(t)) {
+            return true;
+        }
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof TimeoutException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 429/408/5xx and network failures; every other 4xx is terminal. Network covers the SDK's own
+     * wrappers and the exceptions of the SSE layer, which reports a body that ended mid-stream as
+     * invalid data rather than as an IO failure.
+     */
     static boolean transientProviderError(Throwable t) {
         OpenAIServiceException svc = findServiceException(t);
         if (svc != null) {
@@ -236,7 +334,8 @@ public class LlmCall {
             return status == 429 || status == 408 || status >= 500;
         }
         for (Throwable c = t; c != null; c = c.getCause()) {
-            if (c instanceof OpenAIIoException || c instanceof OpenAIRetryableException) {
+            if (c instanceof OpenAIIoException || c instanceof OpenAIRetryableException
+                    || c instanceof OpenAIInvalidDataException || c instanceof IOException) {
                 return true;
             }
         }

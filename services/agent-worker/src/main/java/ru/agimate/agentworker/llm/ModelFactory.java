@@ -39,9 +39,9 @@ import java.util.Set;
  * dispatcher) and exposes no way to close them, so building per call would leak a client pair
  * per LLM request and never reuse connections. Credentials are dynamic per agent, hence a
  * bounded cache rather than a singleton; evicted idle clients self-reap (OkHttp evicts idle
- * connections after ~5 min and dispatcher threads after 60 s). The request timeout is capped at
- * {@link #REQUEST_TIMEOUT} (the SDK default is 10 minutes, which would pin an {@code LlmCall}
- * semaphore slot for that long on a hung provider).
+ * connections after ~5 min and dispatcher threads after 60 s). The call is capped at
+ * {@code agent.llm.call-timeout} (the SDK default is 10 minutes, which would pin an
+ * {@code LlmCall} semaphore slot for that long on a hung provider).
  */
 @Component
 @Slf4j
@@ -53,10 +53,19 @@ public class ModelFactory {
     /** OpenRouter base URLs contain this host; app-attribution headers are sent only to it. */
     private static final String OPENROUTER_HOST = "openrouter.ai";
 
-    /** Per-request LLM timeout (parity with the Python worker's httpx.Timeout(120)). */
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(120);
+    /**
+     * Provider-side retries, off. The SDK's own retry loop ({@code RetryingHttpClient}: 408/409/429/5xx
+     * and {@code IOException}) nests inside {@link ru.agimate.agentworker.workers.run.LlmCall}'s, and
+     * Spring AI defaults it to 3 — four attempts of ours became sixteen paid requests, each of which
+     * the model finished and billed. Everything the second layer did we do ourselves and can see:
+     * classification, {@code Retry-After}, backoff, the log line.
+     */
+    private static final int PROVIDER_RETRIES = 0;
 
     private final AgentProperties.App app;
+
+    /** Ceiling on the whole call — see {@link AgentProperties.Llm#getCallTimeout()}. */
+    private final Duration callTimeout;
 
     /**
      * The base url belongs to whoever created the provider, so the call is a request forgery target:
@@ -81,6 +90,7 @@ public class ModelFactory {
 
     public ModelFactory(AgentProperties props) {
         this.app = props.getApp();
+        this.callTimeout = props.getLlm().getCallTimeout();
         this.targets = new PublicTargets(props.getNet().isAllowPrivateTargets());
     }
 
@@ -122,7 +132,11 @@ public class ModelFactory {
                 .baseUrl(baseUrl)
                 .apiKey(creds.getApiKey())
                 .model(creds.getModel())
-                .timeout(REQUEST_TIMEOUT)
+                // One Duration is all Spring AI takes, and it lands on OkHttp's callTimeout — the whole
+                // call, wall clock. The two budgets that measure waiting live on the stream instead
+                // ({@code LlmCall}), because a pause between chunks is not expressible here.
+                .timeout(callTimeout)
+                .maxRetries(PROVIDER_RETRIES)
                 .customHeaders(requestHeaders(baseUrl))
                 .build();
         return OpenAiChatModel.builder()

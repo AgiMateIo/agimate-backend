@@ -34,16 +34,18 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
      * {@code turnIndex} says where the ledger holds the assistant turn; {@code -1} on failure.
      */
     record Checkpoint(boolean failed, Integer statusCode, String message, boolean userFacing,
-                      String callId, int turnIndex, String finishReason, String model, LlmUsage usage) {
+                      String callId, int turnIndex, String finishReason, String model, LlmUsage usage,
+                      LlmResponseIncomplete.Reason incomplete) {
 
-        static Checkpoint ok(String callId, int turnIndex, LlmMeta meta, LlmUsage usage) {
+        static Checkpoint ok(String callId, int turnIndex, LlmMeta meta, LlmUsage usage,
+                             LlmResponseIncomplete.Reason incomplete) {
             return new Checkpoint(false, null, null, false, callId, turnIndex,
-                    meta.finishReason(), meta.model(), usage);
+                    meta.finishReason(), meta.model(), usage, incomplete);
         }
 
         static Checkpoint failure(LlmCall.Reply reply, String callId) {
             return new Checkpoint(true, reply.statusCode(), reply.message(), reply.userFacing(),
-                    callId, -1, null, null, null);
+                    callId, -1, null, null, null, null);
         }
     }
 
@@ -77,7 +79,7 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
             }
             int turnIndex = turnLog.record(reply.assistant(), reply.meta());
             held.set(reply);
-            return Checkpoint.ok(callId, turnIndex, reply.meta(), reply.usage());
+            return Checkpoint.ok(callId, turnIndex, reply.meta(), reply.usage(), reply.incomplete());
         }, "llm_call");
 
         // A failure (HTTP/API) is terminal and carries no usage, so we throw straight away. Incomplete
@@ -100,8 +102,13 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
             turnLog.resumeAfter(checkpoint.turnIndex());
             meta = new LlmMeta(checkpoint.finishReason(), checkpoint.model(), callId);
         }
+        // A broken stream is settled by the call itself (there is no finish_reason to read it off);
+        // everything else the provider states in one.
+        LlmResponseIncomplete.Reason incomplete = checkpoint.incomplete() != null
+                ? checkpoint.incomplete()
+                : incompleteReason(checkpoint.finishReason());
         return new AgiMateAgent.LlmReply(assistant, meta, checkpoint.usage(),
-                incompleteReason(checkpoint.finishReason()), completion(checkpoint.finishReason()));
+                incomplete, completion(checkpoint.finishReason()));
     }
 
     /**

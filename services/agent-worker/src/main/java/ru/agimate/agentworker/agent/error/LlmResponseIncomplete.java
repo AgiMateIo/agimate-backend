@@ -2,14 +2,15 @@ package ru.agimate.agentworker.agent.error;
 
 /**
  * The model returned an unusable response: the provider's {@code finish_reason} says the output was
- * cut off ({@code length} — truncated by the token limit) or blocked ({@code content_filter}).
- * Raised by the LLM dispatcher; {@link ru.agimate.agentworker.workers.run.AgentRunner} maps it to a
- * per-reason user notice. Not
- * retryable — the same prompt reproduces it.
+ * cut off ({@code length} — truncated by the token limit) or blocked ({@code content_filter}), or
+ * the stream carrying it broke once the answer had started ({@code BROKEN}). Raised by the LLM
+ * dispatcher; {@link ru.agimate.agentworker.workers.run.AgentRunner} maps it to a per-reason user
+ * notice. Not retryable — the same prompt reproduces the first two, and the third has already been
+ * paid for.
  */
 public class LlmResponseIncomplete extends RuntimeException {
 
-    public enum Reason {LENGTH, CONTENT_FILTER}
+    public enum Reason {LENGTH, CONTENT_FILTER, BROKEN}
 
     private final Reason reason;
 

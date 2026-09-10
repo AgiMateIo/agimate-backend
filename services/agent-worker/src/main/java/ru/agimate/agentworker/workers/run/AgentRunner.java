@@ -188,7 +188,10 @@ public class AgentRunner implements AgentRunWorkflow {
                     "model returned an empty answer " + context + ": " + ex.getMessage());
             case LlmResponseIncomplete ex -> new AgentRunAborted(
                     switch (ex.reason()) {
-                        case LENGTH -> templates.truncated();
+                        // BROKEN shares the notice with LENGTH on purpose: to the user both are one
+                        // thing — the answer stops mid-sentence — and only the log needs to know
+                        // whether the model ran out of tokens or the stream died under it.
+                        case LENGTH, BROKEN -> templates.truncated();
                         case CONTENT_FILTER -> templates.filtered();
                     },
                     "llm response incomplete (" + ex.reason() + ") " + context + ": " + ex.getMessage());

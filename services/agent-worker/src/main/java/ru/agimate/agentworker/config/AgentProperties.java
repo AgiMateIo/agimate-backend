@@ -21,6 +21,7 @@ public class AgentProperties {
 
     private Grpc grpc = new Grpc();
     private Agent agent = new Agent();
+    private Llm llm = new Llm();
     private Concurrency concurrency = new Concurrency();
     private App app = new App();
     private Tool tool = new Tool();
@@ -65,6 +66,43 @@ public class AgentProperties {
          * run ends with a degraded answer instead of a hard failure.
          */
         private int maxTurns = 30;
+    }
+
+    /**
+     * Budgets around one model request. Three, because they answer different questions: the first
+     * two measure <b>waiting</b> and are the only thing that tells «the model is thinking» apart
+     * from «the connection is dead», the third bounds the whole answer. Configurable rather than
+     * constant because the right values are a property of the provider in front of us — the first
+     * chunk arrives after a very different pause on a reasoning model than on a flash one, and a
+     * gateway that buffers changes both.
+     *
+     * <p>Whatever they are set to, the arithmetic must hold:
+     * {@code (LlmCall.MAX_ATTEMPTS − 1) × firstChunkTimeout + callTimeout} has to stay below
+     * control-api's {@code RunActivityService.STALE_AFTER} (15 min) — the model call is the one
+     * long operation of a run that makes no RPC, so it is the only stretch where the run looks
+     * silent to the sweeper.
+     */
+    @Getter
+    @Setter
+    public static class Llm {
+        /**
+         * How long the model may think before the first chunk. A legitimate pause on a reasoning
+         * model, so it is the most generous of the waiting budgets; nothing has been paid for yet
+         * when it expires, which is why an attempt that hits it is the one that may be retried.
+         */
+        private Duration firstChunkTimeout = Duration.ofSeconds(90);
+        /**
+         * Silence between chunks that counts as a dead stream. Gateway keepalives are SSE comments
+         * and never become elements, so this timer is not reset by «the gateway is alive» — only by
+         * the model actually producing.
+         */
+        private Duration idleTimeout = Duration.ofSeconds(60);
+        /**
+         * Ceiling on the whole call, handed to the HTTP client ({@code callTimeout} in OkHttp), so
+         * it counts wall clock and is not reset by arriving bytes. Not a diagnostic — a stop for a
+         * generation that streams forever.
+         */
+        private Duration callTimeout = Duration.ofMinutes(5);
     }
 
     /**
