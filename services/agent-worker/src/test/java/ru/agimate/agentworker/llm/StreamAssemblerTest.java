@@ -110,6 +110,8 @@ class StreamAssemblerTest {
                 ChatResponseMetadata.builder().usage(new DefaultUsage(0, 0)).build()));
         assembler.accept(new ChatResponse(List.of(),
                 ChatResponseMetadata.builder().usage(new DefaultUsage(100, 20)).build()));
+        assembler.accept(new ChatResponse(List.of(),
+                ChatResponseMetadata.builder().usage(new DefaultUsage(0, 0)).build()));
 
         assertEquals(100, assembler.usage().getPromptTokens());
         assertEquals(20, assembler.usage().getCompletionTokens());

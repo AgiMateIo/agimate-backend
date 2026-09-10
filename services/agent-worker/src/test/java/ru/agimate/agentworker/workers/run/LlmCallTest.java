@@ -2,6 +2,7 @@ package ru.agimate.agentworker.workers.run;
 
 import com.openai.core.http.Headers;
 import com.openai.errors.InternalServerException;
+import com.openai.errors.OpenAIInvalidDataException;
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.RateLimitException;
 import com.openai.errors.UnauthorizedException;
@@ -10,7 +11,6 @@ import io.grpc.Status;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import com.openai.errors.OpenAIInvalidDataException;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.metadata.DefaultUsage;
