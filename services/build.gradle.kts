@@ -11,7 +11,7 @@ plugins {
  * and has to be moved with the tag. CI may override it with `-PbuildVersion=`.
  */
 allprojects {
-    version = findProperty("buildVersion") ?: "0.4.0"
+    version = findProperty("buildVersion") ?: "0.5.0"
 }
 
 allprojects {
