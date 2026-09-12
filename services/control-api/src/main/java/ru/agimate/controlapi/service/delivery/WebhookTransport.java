@@ -8,6 +8,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.common.net.PublicOnlyDns;
 import ru.agimate.common.net.PublicTargets;
 import ru.agimate.common.util.JsonUtils;
@@ -51,13 +52,18 @@ public class WebhookTransport implements AgentTransport {
      * <p>A refusal reaches the owner through the delivery log, which is why it says only that the
      * target was refused: naming the address a host resolved to would answer the very question an
      * internal-network probe is asking.
+     *
+     * <p>Trust is the shared {@link OutboundTrust}, both halves from the one instance. Without it a
+     * webhook to a host behind a root the JDK does not ship dies on the handshake, and the owner
+     * sees an unexplained I/O error.
      */
     private final OkHttpClient httpClient;
 
     public WebhookTransport(WebhookDeliveryLogRepository webhookDeliveryLogRepository,
                             SecretRepository secretRepository,
                             SecretService secretService,
-                            PublicOnlyHttp publicOnlyHttp) {
+                            PublicOnlyHttp publicOnlyHttp,
+                            OutboundTrust trust) {
         this.webhookDeliveryLogRepository = webhookDeliveryLogRepository;
         this.secretRepository = secretRepository;
         this.secretService = secretService;
@@ -65,6 +71,7 @@ public class WebhookTransport implements AgentTransport {
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
+                .sslSocketFactory(trust.socketFactory(), trust.manager())
                 .dns(new PublicOnlyDns(publicOnlyHttp.targets()))
                 .followRedirects(false)
                 .followSslRedirects(false)

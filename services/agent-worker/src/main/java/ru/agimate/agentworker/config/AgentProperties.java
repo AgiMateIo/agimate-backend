@@ -39,6 +39,9 @@ public class AgentProperties {
     public static class Net {
         /** Private, loopback and link-local providers allowed. Local development only. */
         private boolean allowPrivateTargets = false;
+
+        /** Extra root certificates for outbound TLS: Spring resource locations, comma-separated. */
+        private String trustedCa = "";
     }
 
     /** gRPC channel to control-api's worker protocol (:9091, TLS). */

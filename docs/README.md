@@ -106,6 +106,7 @@
 | [connector-job-concurrency.md](decisions/connector-job-concurrency.md) | Сколько джоб узел берёт разом: потолок на узле, а не на установке, и почему непрерывный опрос его не касается |
 | [run-fairness.md](decisions/run-fairness.md) | Шумный пользователь занимает слоты модели: квота — бюджет, лимитер — поток, а доли в моменте не считает никто |
 | [skill-connector-requirements.md](decisions/skill-connector-requirements.md) | Навык объявляет экземпляр, а не код: ключ требования, параметры MCP и правила доступа; мастер подключения получает план, а не догадки |
+| [outbound-tls-trust.md](decisions/outbound-tls-trust.md) | Корень, которого нет в `cacerts`: штатный набор якорей плюс наш, по умолчанию выключенный, и почему доверие живёт у установки, а не у подключения |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md) |
 
 ## Как ведётся документация

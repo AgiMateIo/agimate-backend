@@ -11,13 +11,12 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.config.AgentProperties;
+import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.common.net.PublicOnlySslSocketFactory;
 import ru.agimate.common.net.PublicTargets;
 import ru.agimate.common.util.CryptoUtils;
 import ru.agimate.common.util.JsonUtils;
 
-import javax.net.ssl.SSLContext;
-import java.security.NoSuchAlgorithmException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
@@ -91,6 +90,9 @@ public class ModelFactory {
      */
     private final PublicTargets targets;
 
+    /** Whose signature is accepted. Both halves go to OkHttp from one instance — see {@link OutboundTrust}. */
+    private final OutboundTrust trust;
+
     private final Cache<ModelKey, OpenAiChatModel> models = Caffeine.newBuilder()
             .maximumSize(64)
             .expireAfterAccess(Duration.ofMinutes(30))
@@ -103,11 +105,12 @@ public class ModelFactory {
      * serves any of them. */
     private record ModelKey(String baseUrl, String apiKeyHash, String model) {}
 
-    public ModelFactory(AgentProperties props) {
+    public ModelFactory(AgentProperties props, OutboundTrust trust) {
         this.app = props.getApp();
         this.callTimeout = props.getLlm().getCallTimeout();
         this.readTimeout = props.getLlm().getFirstChunkTimeout();
         this.targets = new PublicTargets(props.getNet().isAllowPrivateTargets());
+        this.trust = trust;
     }
 
     public OpenAiChatModel build(LlmCredentials creds) {
@@ -164,7 +167,7 @@ public class ModelFactory {
                 .options(options)
                 .httpClientBuilderCustomizer(builder -> builder
                         .sslSocketFactory(publicOnlySslSocketFactory())
-                        .trustManager(PublicOnlySslSocketFactory.defaultTrustManager())
+                        .trustManager(trust.manager())
                         .interceptor(this::withReadTimeout))
                 .build();
     }
@@ -186,11 +189,7 @@ public class ModelFactory {
      * therefore before the api key or the prompt go anywhere.
      */
     private PublicOnlySslSocketFactory publicOnlySslSocketFactory() {
-        try {
-            return new PublicOnlySslSocketFactory(SSLContext.getDefault().getSocketFactory(), targets);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("No default SSL context available", e);
-        }
+        return new PublicOnlySslSocketFactory(trust.socketFactory(), targets);
     }
 
     /**

@@ -144,6 +144,9 @@ services:
       DBOS_SYSTEM_DATABASE_USERNAME: agimate
       DBOS_SYSTEM_DATABASE_PASSWORD: agimate_dev_password
       GRPC_SERVER_ENABLED: "true"
+      # Корень Минцифры к якорям JDK: без него нет ни MCP-сервера T-Invest, ни половины
+      # российских API. В application.yaml пусто намеренно — якорь действует на весь трафик.
+      APP_NET_TRUSTED_CA: classpath:certs/russian-trusted-root.pem
     # 8180 matches the port the Caddyfile proxies /control/* to, so one Caddyfile serves both
     # the `infra` (bootRun on the host) and `full` (container) layouts.
     ports:
@@ -173,6 +176,8 @@ services:
       AGENT_DBOS_DATABASE_URL: jdbc:postgresql://postgres:5432/dbos
       AGENT_DBOS_USERNAME: agimate
       AGENT_DBOS_PASSWORD: agimate_dev_password
+      # Тот же набор якорей, что у control-api.
+      AGENT_NET_TRUSTED_CA: classpath:certs/russian-trusted-root.pem
     network_mode: "service:control-api"
     restart: unless-stopped
 

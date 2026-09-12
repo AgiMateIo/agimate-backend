@@ -7,12 +7,15 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.util.Timeout;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.common.net.PublicTargets;
 
 import java.net.InetAddress;
@@ -29,6 +32,9 @@ import java.time.Duration;
  * request to an address nothing vetted), and name resolution done by {@link PublicTargets}, so the
  * connection can reach only the addresses that were vetted. A URL checked before the request and a
  * name resolved by the client are two separate lookups, and a name may answer differently to each.
+ *
+ * <p>Whose signature is accepted is a separate layer — {@link OutboundTrust}; the strategy keeps its
+ * default hostname verifier.
  *
  * <p>The connection pool is shared across callers; only the response timeout differs between them,
  * which is why {@link #requestFactory} takes it and the connect timeout is fixed.
@@ -50,9 +56,16 @@ public class PublicOnlyHttp {
     private final PublicTargets targets;
     private final CloseableHttpClient httpClient;
 
-    public PublicOnlyHttp(@Value("${app.net.allow-private-targets:false}") boolean allowPrivateTargets) {
+    @Autowired
+    public PublicOnlyHttp(@Value("${app.net.allow-private-targets:false}") boolean allowPrivateTargets,
+                          OutboundTrust trust) {
         this.targets = new PublicTargets(allowPrivateTargets);
-        this.httpClient = buildClient(this.targets);
+        this.httpClient = buildClient(this.targets, trust);
+    }
+
+    /** Constructor for tests and for callers that build their own: the platform trust set as-is. */
+    public PublicOnlyHttp(boolean allowPrivateTargets) {
+        this(allowPrivateTargets, OutboundTrust.systemDefault());
     }
 
     public PublicTargets targets() {
@@ -83,9 +96,10 @@ public class PublicOnlyHttp {
         return RestClient.builder().requestFactory(requestFactory(readTimeout));
     }
 
-    private static CloseableHttpClient buildClient(PublicTargets targets) {
+    private static CloseableHttpClient buildClient(PublicTargets targets, OutboundTrust trust) {
         PoolingHttpClientConnectionManager connections = PoolingHttpClientConnectionManagerBuilder.create()
                 .setDnsResolver(publicOnlyDns(targets))
+                .setTlsSocketStrategy(new DefaultClientTlsStrategy(trust.context()))
                 .setMaxConnTotal(MAX_CONNECTIONS)
                 .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
                 .setDefaultConnectionConfig(ConnectionConfig.custom()

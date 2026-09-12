@@ -15,3 +15,5 @@ agent:
     # Локальная модель живёт на loopback (и по plain http), а прод-гард требует публичный
     # адрес и https.
     allow-private-targets: true
+    # Тот же набор якорей, что у control-api.
+    trusted-ca: "classpath:certs/russian-trusted-root.pem"

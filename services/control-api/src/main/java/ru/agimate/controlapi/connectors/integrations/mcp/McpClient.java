@@ -18,6 +18,7 @@ import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedEx
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
 import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
+import java.security.cert.CertPathBuilderException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -138,7 +139,7 @@ public class McpClient {
         } catch (ConnectorException e) {
             throw e;
         } catch (Exception e) {
-            throw new ConnectorException("MCP initialize failed: " + e.getMessage());
+            throw new ConnectorException("MCP initialize failed: " + describe(e));
         }
 
         String sessionId = response.getHeaders().getFirst(HEADER_SESSION_ID);
@@ -181,9 +182,24 @@ public class McpClient {
         } catch (ConnectorException e) {
             throw e;
         } catch (Exception e) {
-            throw new ConnectorException("MCP " + method + " failed: " + e.getMessage());
+            throw new ConnectorException("MCP " + method + " failed: " + describe(e));
         }
         return extractResult(response.getBody(), response.getHeaders().getContentType(), id);
+    }
+
+    /**
+     * {@code PKIX path building failed: …SunCertPathBuilderException} is the one failure whose JDK
+     * wording says nothing a user can act on while having exactly one cure. Only the failure to
+     * <i>build</i> a path: one built and then rejected — expired, revoked, wrong name — no root cures.
+     */
+    private static String describe(Exception failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof CertPathBuilderException) {
+                return "the server's certificate is issued by an authority this installation does not "
+                        + "trust — add its root certificate to the trusted CA bundle";
+            }
+        }
+        return failure.getMessage();
     }
 
     private void applyHeaders(HttpHeaders headers, ServerConfig config, String sessionId) {

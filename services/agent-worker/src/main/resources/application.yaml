@@ -73,6 +73,9 @@ agent:
     # В проде false — тогда же требуется https, потому что проверка адреса у этого клиента
     # висит на TLS-сокете и по plain http не срабатывает. true — для локальных моделей.
     allow-private-targets: false
+    # Дополнительные корни доверия для исходящего TLS (см. app.net.trusted-ca в control-api):
+    # набор обязан совпадать, иначе провайдер перечислит модели и не ответит на сам вызов.
+    trusted-ca: ""
   dbos:
     app-name: "agent-worker"
     # Must address the same database as control-api's dbos.system-database.

@@ -23,6 +23,8 @@ app:
     # Локальные цели живут на loopback, который прод-гард отвергает: MCP-серверы, локальные
     # LLM-провайдеры, приёмник вебхука.
     allow-private-targets: true
+    # Корень Минцифры к штатным якорям JDK — без него MCP-сервер T-Invest не подключается.
+    trusted-ca: "classpath:certs/russian-trusted-root.pem"
   user-api:
     # Notifications go to user-api, which owns the devices and the transport. The key is the same
     # value as user-api's app.s2s.key — one secret, both sides, from the same ./dev-init.sh run.

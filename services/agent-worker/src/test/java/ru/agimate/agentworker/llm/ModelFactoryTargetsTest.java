@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.config.AgentProperties;
+import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.common.net.TargetNotAllowedException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -12,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @DisplayName("ModelFactory — base_url провайдера как недоверенный адрес")
 class ModelFactoryTargetsTest {
 
-    private final ModelFactory factory = new ModelFactory(new AgentProperties());
+    private final ModelFactory factory = new ModelFactory(new AgentProperties(), OutboundTrust.systemDefault());
 
     private static LlmCredentials creds(String baseUrl) {
         return LlmCredentials.newBuilder()
@@ -45,6 +46,7 @@ class ModelFactoryTargetsTest {
     void permissiveAllowsLocalModels() {
         AgentProperties props = new AgentProperties();
         props.getNet().setAllowPrivateTargets(true);
-        assertDoesNotThrow(() -> new ModelFactory(props).build(creds("http://127.0.0.1:11434/v1")));
+        assertDoesNotThrow(() -> new ModelFactory(props, OutboundTrust.systemDefault())
+                .build(creds("http://127.0.0.1:11434/v1")));
     }
 }
