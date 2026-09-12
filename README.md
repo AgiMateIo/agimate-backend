@@ -1,5 +1,7 @@
 # AgiMate Backend
 
+[![License: FSL-1.1-ALv2](https://img.shields.io/badge/license-FSL--1.1--ALv2-blue)](LICENSE)
+
 Backend services for [AgiMate](https://agimate.io) — a platform where specialized AI agents work
 together, on your own server and your own keys.
 
