@@ -13,10 +13,12 @@ import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -27,7 +29,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("ConnectorIdentityListener")
 class ConnectorIdentityListenerTest {
 
-    private static final String IDENTITY = "integration-1";
+    private static final String IDENTITY = UUID.randomUUID().toString();
     private static final UUID USER_ID = UUID.randomUUID();
 
     private static final JobSpec SPEC_A = new JobSpec(
@@ -54,25 +56,36 @@ class ConnectorIdentityListenerTest {
     }
 
     @Test
-    @DisplayName("created: upsert всех задач из getJobs()")
+    @DisplayName("created: синхронизация задач инстанса")
     void onCreated() {
-        when(handler.getJobs()).thenReturn(Map.of("test.task_a", SPEC_A, "test.task_b", SPEC_B));
+        when(handler.getJobs(any())).thenReturn(Map.of("test.task_a", SPEC_A, "test.task_b", SPEC_B));
 
         listener.onCreated(new ConnectorCreatedEvent("test", IDENTITY, USER_ID));
 
-        verify(jobService).upsert("test", IDENTITY, USER_ID, SPEC_A);
-        verify(jobService).upsert("test", IDENTITY, USER_ID, SPEC_B);
+        verify(jobService).syncConnectionJobs(eq("test"), eq(IDENTITY), eq(USER_ID),
+                argThat(specs -> specs.size() == 2 && specs.containsAll(List.of(SPEC_A, SPEC_B))));
     }
 
     @Test
-    @DisplayName("modified: пересинхронизация задач connectionId")
+    @DisplayName("modified: синхронизация задач инстанса")
     void onModified() {
-        when(handler.getJobs()).thenReturn(Map.of("test.task_a", SPEC_A));
+        when(handler.getJobs(any())).thenReturn(Map.of("test.task_a", SPEC_A));
 
         listener.onModified(new ConnectorModifiedEvent("test", IDENTITY, USER_ID));
 
         verify(jobService).syncConnectionJobs(eq("test"), eq(IDENTITY), eq(USER_ID),
                 argThat(specs -> specs.size() == 1 && specs.contains(SPEC_A)));
+    }
+
+    @Test
+    @DisplayName("created с сузившейся декларацией (переавторизация) — синхронизация пустым набором, а не молчание")
+    void createdWithShrunkDeclaration() {
+        when(handler.getJobs(any())).thenReturn(Map.of());
+
+        listener.onCreated(new ConnectorCreatedEvent("test", IDENTITY, USER_ID));
+
+        verify(jobService).syncConnectionJobs(eq("test"), eq(IDENTITY), eq(USER_ID),
+                argThat(Collection::isEmpty));
     }
 
     @Test

@@ -124,6 +124,21 @@ public class McpOAuthService {
         return store.storeRefreshed(connectionId, refreshToken, tokens);
     }
 
+    /**
+     * Whether the refresh job has anything to watch. The exchange is the only writer of the expiry,
+     * so a static-token connection never has one — and neither does a grant issued without
+     * {@code expires_in}, which the job could not act on anyway.
+     *
+     * <p>A deleted connection answers {@code false} rather than throwing: the answer feeds the startup
+     * re-sync, where an exception out of this transactional store would mark the whole pass
+     * rollback-only, and «declares nothing» is what removes the orphan row.
+     */
+    public boolean tracksExpiry(UUID connectionId) {
+        return store.findConnection(connectionId)
+                .map(connection -> connection.getOauthExpiresAt() != null)
+                .orElse(false);
+    }
+
     /** A 401 in the middle of a tool call: mark it and let the job try to repair on its next tick. */
     public void markExpired(UUID connectionId) {
         store.markExpired(connectionId);

@@ -5,17 +5,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 
-import java.util.Map;
+import java.util.UUID;
 
 /**
  * Turns lifecycle events of connector instances into {@code connector_jobs} rows (the declaration is
- * {@link JobProvider#getJobs()}; a connector without {@link JobProvider} has no jobs).
+ * {@link JobProvider#getJobs(ConnectorEnv)} for the instance at hand; a connector without
+ * {@link JobProvider} has no jobs).
  *
  * <p>The pull model needs no notification to the scheduler — it will read the new or deleted row on
  * its next tick (≤1s). So the listener only writes to the database and publishes nothing back.
@@ -34,33 +34,25 @@ public class ConnectorIdentityListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onCreated(ConnectorCreatedEvent event) {
-        ConnectorHandler handler = connectorRegistry.findHandler(event.connectorCode()).orElse(null);
-        if (handler == null) {
-            log.warn("ConnectorCreatedEvent({}, {}): no handler in registry — skipping",
-                    event.connectorCode(), event.connectionId());
-            return;
-        }
-        for (JobSpec spec : declaredJobs(handler).values()) {
-            jobService.upsert(event.connectorCode(), event.connectionId(), event.userId(), spec);
-            log.info("Registered task {}/{}/{}", event.connectorCode(), event.connectionId(), spec.name());
-        }
+        sync(event.connectorCode(), event.connectionId(), event.userId());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onModified(ConnectorModifiedEvent event) {
-        ConnectorHandler handler = connectorRegistry.findHandler(event.connectorCode()).orElse(null);
-        if (handler == null) {
-            log.warn("ConnectorModifiedEvent({}, {}): no handler in registry — skipping",
-                    event.connectorCode(), event.connectionId());
-            return;
-        }
-        jobService.syncConnectionJobs(event.connectorCode(), event.connectionId(), event.userId(),
-                declaredJobs(handler).values());
-        log.info("Synced tasks for {}/{}", event.connectorCode(), event.connectionId());
+        sync(event.connectorCode(), event.connectionId(), event.userId());
     }
 
-    private static Map<String, JobSpec> declaredJobs(ConnectorHandler handler) {
-        return handler instanceof JobProvider jobProvider ? jobProvider.getJobs() : Map.of();
+    /**
+     * Both events sync rather than «created» only adding: a re-authorisation publishes «created» for an
+     * instance that already has rows, and its declaration may have shrunk since.
+     */
+    private void sync(String connectorCode, String connectionId, UUID userId) {
+        connectorRegistry.declaredJobs(connectorCode, connectionId).ifPresentOrElse(
+                declared -> {
+                    jobService.syncConnectionJobs(connectorCode, connectionId, userId, declared.values());
+                    log.info("Synced tasks for {}/{}: {}", connectorCode, connectionId, declared.keySet());
+                },
+                () -> log.warn("{}/{}: no handler in registry — skipping", connectorCode, connectionId));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)

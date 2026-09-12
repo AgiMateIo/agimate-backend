@@ -167,7 +167,7 @@ ConnectorHandler                — identity: connectorCode/Name, capabilities
 Capability-интерфейсы (реализуются по необходимости):
 ToolProvider     — getTools, getTools(ctx), executeTool, sessionScopedTools
 TriggerProvider  — getTriggers
-JobProvider      — getJobs, executeJob
+JobProvider      — getJobs, getJobs(ctx), executeJob
 PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 ```
 
@@ -396,7 +396,7 @@ Crash recovery — по истечении `lease_until` строку подхв
 
 | `kind` | `connection_id` | `agent_id` | уникальность | пишется | живёт |
 |---|---|---|---|---|---|
-| **SYSTEM** — декларативная (интеграция) | id credentials | `null` | бизнес-ключ `(connector_code, connection_id, name)`, partial unique `WHERE kind = 'SYSTEM'` | listener upsert/sync из `getJobs()` | до удаления интеграции |
+| **SYSTEM** — декларативная (интеграция) | id credentials | `null` | бизнес-ключ `(connector_code, connection_id, name)`, partial unique `WHERE kind = 'SYSTEM'` | listener sync из `getJobs(ctx)` | до удаления интеграции |
 | **AGENT** — динамическая | connection_id tool-вызова (может быть `null`) | id агента-инициатора | нет — идентифицируется `id`, дубли легитимны | тула коннектора (напр. `time.schedule`) → `ConnectorJobService.schedule(...)` | до срабатывания (`ONETIME`→`COMPLETED`) / отмены |
 | **USER** — пользовательская | — | целевой агент (если адресная) | нет | manage-API (зарезервировано, ещё не реализовано) | — |
 
@@ -446,8 +446,16 @@ binding на time-коннектор (его заводит сам time-скил
   `ConnectorDeletedEvent (connectorCode, connection_id)` публикует `IntegrationService`
   (create/enable, updateCredentials, delete/disable). `userId` → `connector_jobs.user_id`.
 - `ConnectorIdentityListener` (AFTER_COMMIT) превращает их в **декларативные** строки `connector_jobs`
-  из `JobProvider.getJobs()` (коннектор без `JobProvider` тасок не имеет): created → upsert, modified → sync (upsert + удаление stale), deleted →
-  delete by connection_id. Касается только интеграций; динамические задачи агента сюда не попадают.
+  из `JobProvider.getJobs(ctx)` (коннектор без `JobProvider` тасок не имеет): created и modified →
+  sync (upsert + удаление stale), deleted → delete by connection_id. Created тоже синхронизирует, а не
+  только добавляет: переавторизация публикует его для инстанса, у которого строки уже есть, и
+  декларация могла сузиться. Касается только интеграций; динамические задачи агента сюда не попадают.
+  `getJobs(ctx)` — поэкземплярная декларация (по умолчанию равна `getJobs()`), достаётся через
+  `ConnectorRegistry.declaredJobs`; её же спрашивает стартовый ресинк (`resyncSystemJobs`) по каждой
+  SYSTEM-строке и сносит те, что инстанс больше не объявляет. Так MCP заводит `oauth_refresh` только
+  коннекциям с записанным сроком гранта, а строки статических коннекций, заведённые до этого правила,
+  и строки удалённых коннекций уходят на первом старте. Декларация в ресинке не должна бросать: он
+  идёт одной транзакцией, и исключение из транзакционного бина пометит её rollback-only целиком.
 - `ConnectorBootstrap` (ApplicationReadyEvent) — upsert каталога `connectors` из registry
   (код — источник истины для name/description/traits/credential_fields), плюс upsert строк без
   handler'а (`app`, `claude-code`). Задачи на старте не регистрируются:

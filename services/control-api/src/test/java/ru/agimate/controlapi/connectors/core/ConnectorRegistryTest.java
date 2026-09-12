@@ -3,9 +3,13 @@ package ru.agimate.controlapi.connectors.core;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -41,8 +45,33 @@ class ConnectorRegistryTest {
         }
     }
 
+    /** Джобы зависят от инстанса: имя джобы — connectionId, пришедший в env. */
+    static class InstanceJobHandler implements ConnectorHandler, JobProvider {
+        @Override
+        public String connectorCode() {
+            return "jobs";
+        }
+
+        @Override
+        public Map<String, JobSpec> getJobs() {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, JobSpec> getJobs(ConnectorEnv env) {
+            return Map.of(env.connectionId(), new JobSpec(
+                    env.connectionId(), ConnectorJobType.PERIODIC, Map.of(), Map.of(), 60));
+        }
+
+        @Override
+        public Map<String, Object> executeJob(ConnectorEnv env, String name, Map<String, Object> args) {
+            return Map.of();
+        }
+    }
+
     private final ToolOnlyHandler toolOnly = new ToolOnlyHandler();
-    private final ConnectorRegistry registry = new ConnectorRegistry(List.of(toolOnly, new BareHandler()));
+    private final ConnectorRegistry registry = new ConnectorRegistry(
+            List.of(toolOnly, new BareHandler(), new InstanceJobHandler()));
 
     @Test
     @DisplayName("capability(): каст готового handler'а к его capability")
@@ -71,5 +100,15 @@ class ConnectorRegistryTest {
         assertTrue(registry.findCapability("bare", ToolProvider.class).isEmpty());
         assertTrue(registry.findCapability("tool-only", JobProvider.class).isEmpty());
         assertTrue(registry.findCapability("unknown", ToolProvider.class).isEmpty());
+    }
+
+    @Test
+    @DisplayName("declaredJobs: декларация инстанса; пустая карта без JobProvider, empty без коннектора")
+    void declaredJobs() {
+        String connectionId = UUID.randomUUID().toString();
+
+        assertEquals(Set.of(connectionId), registry.declaredJobs("jobs", connectionId).orElseThrow().keySet());
+        assertTrue(registry.declaredJobs("tool-only", connectionId).orElseThrow().isEmpty());
+        assertTrue(registry.declaredJobs("unknown", connectionId).isEmpty());
     }
 }

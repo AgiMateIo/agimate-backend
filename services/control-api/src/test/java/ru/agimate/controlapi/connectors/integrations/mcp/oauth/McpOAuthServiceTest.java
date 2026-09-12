@@ -13,6 +13,7 @@ import ru.agimate.controlapi.database.entities.Connection;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -61,6 +62,36 @@ class McpOAuthServiceTest {
 
     private OAuthTokens tokens() {
         return new OAuthTokens("access-2", "refresh-2", LocalDateTime.now().plusHours(1), "read");
+    }
+
+    @Nested
+    @DisplayName("tracksExpiry")
+    class TracksExpiry {
+
+        @Test
+        @DisplayName("срок записан — есть за чем следить")
+        void withExpiry() {
+            connection.setOauthExpiresAt(LocalDateTime.now().plusHours(1));
+            when(store.findConnection(CONNECTION_ID)).thenReturn(Optional.of(connection));
+
+            assertTrue(service.tracksExpiry(CONNECTION_ID));
+        }
+
+        @Test
+        @DisplayName("срока нет — статический токен или AS без expires_in")
+        void withoutExpiry() {
+            when(store.findConnection(CONNECTION_ID)).thenReturn(Optional.of(connection));
+
+            assertFalse(service.tracksExpiry(CONNECTION_ID));
+        }
+
+        @Test
+        @DisplayName("коннекции нет — false, а не исключение: ресинк на старте удалит осиротевшую строку")
+        void connectionGone() {
+            when(store.findConnection(CONNECTION_ID)).thenReturn(Optional.empty());
+
+            assertFalse(service.tracksExpiry(CONNECTION_ID));
+        }
     }
 
     @Nested

@@ -7,14 +7,12 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
-import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.seed.ConnectorTexts;
 
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -26,8 +24,9 @@ import java.util.Map;
  *       of truth for name/description/credential_fields/capabilities; name and description pass
  *       through {@link ConnectorTexts} on the way (translating the catalogue under
  *       {@code app.content.language});</li>
- *   <li>re-sync of the existing SYSTEM {@code connector_jobs} rows against {@code getJobs()} — changes
- *       to {@code @Job} (interval, timeout) reach the database without recreating connections.</li>
+ *   <li>re-sync of the existing SYSTEM {@code connector_jobs} rows against what each instance
+ *       declares ({@link JobProvider#getJobs(ConnectorEnv)}) — changes to {@code @Job} (interval,
+ *       timeout) reach the database without recreating connections.</li>
  * </ol>
  *
  * <p>New jobs are not registered at startup: declarative integration jobs are created on a
@@ -59,17 +58,8 @@ public class ConnectorBootstrap {
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
             upsertConnector(handler);
         }
-        resyncSystemJobs();
+        jobService.resyncSystemJobs(connectorRegistry);
         log.info("Connectors bootstrapped: {}", connectorRegistry.getHandlers().size());
-    }
-
-    private void resyncSystemJobs() {
-        Map<String, Map<String, JobSpec>> declared = new HashMap<>();
-        for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
-            declared.put(handler.connectorCode(),
-                    handler instanceof JobProvider jobProvider ? jobProvider.getJobs() : Map.of());
-        }
-        jobService.resyncSystemJobs(declared);
     }
 
     private void upsertConnector(ConnectorHandler handler) {

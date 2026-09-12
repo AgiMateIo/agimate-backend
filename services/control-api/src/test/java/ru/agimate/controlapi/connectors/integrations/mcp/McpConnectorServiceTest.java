@@ -248,9 +248,32 @@ class McpConnectorServiceTest {
     class Jobs {
 
         @Test
-        @DisplayName("объявлена одна периодическая джоба на инстанс")
+        @DisplayName("объявлена одна периодическая джоба")
         void declaresRefreshJob() {
             assertTrue(service.getJobs().containsKey(McpConnectorService.JOB_OAUTH_REFRESH));
+        }
+
+        @Test
+        @DisplayName("инстанс со сроком гранта получает строку")
+        void instanceWithExpiryGetsJob() {
+            when(oauthService.tracksExpiry(IDENTITY)).thenReturn(true);
+
+            assertTrue(service.getJobs(ctx(IDENTITY.toString(), Map.of()))
+                    .containsKey(McpConnectorService.JOB_OAUTH_REFRESH));
+        }
+
+        @Test
+        @DisplayName("инстанс без срока (статический токен) строки не получает")
+        void instanceWithoutExpiryGetsNothing() {
+            when(oauthService.tracksExpiry(IDENTITY)).thenReturn(false);
+
+            assertTrue(service.getJobs(ctx(IDENTITY.toString(), Map.of())).isEmpty());
+        }
+
+        @Test
+        @DisplayName("без connectionId джоб нет")
+        void noInstanceNoJobs() {
+            assertTrue(service.getJobs(ctx(null, Map.of())).isEmpty());
         }
 
         @Test

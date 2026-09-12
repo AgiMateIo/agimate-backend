@@ -239,11 +239,7 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         }
     }
 
-    /**
-     * One periodic job per instance. It degenerates into a no-op for static-token connections and for
-     * those that were never given a refresh token — cheaper than teaching {@code getJobs()} to read
-     * credentials, and the decision costs one column read.
-     */
+    /** The connector's one job by name; whether an instance gets a row is decided in {@link #getJobs(ConnectorEnv)}. */
     @Override
     public Map<String, JobSpec> getJobs() {
         return Map.of(JOB_OAUTH_REFRESH, new JobSpec(
@@ -252,6 +248,17 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
                 JobSchedule.periodicConfig(REFRESH_INTERVAL_SECONDS),
                 Map.of(),
                 60));
+    }
+
+    /**
+     * A row only for instances with a recorded expiry: a static token has nothing to renew, and a row
+     * that can never do anything would still show up in the connection's job listing. The same column
+     * is what {@link McpOAuthService#refreshIfNeeded} decides by, so declaration and execution agree.
+     */
+    @Override
+    public Map<String, JobSpec> getJobs(ConnectorEnv env) {
+        UUID connectionId = connectionId(env);
+        return connectionId != null && oauthService.tracksExpiry(connectionId) ? getJobs() : Map.of();
     }
 
     @Override

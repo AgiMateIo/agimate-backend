@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -39,8 +40,12 @@ public class McpOAuthStore {
     private final SecretService secretService;
 
     public Connection connection(UUID connectionId) {
-        return connectionRepository.findByIdNotDeleted(connectionId)
+        return findConnection(connectionId)
                 .orElseThrow(() -> new ConnectorException("Connection not found: " + connectionId));
+    }
+
+    public Optional<Connection> findConnection(UUID connectionId) {
+        return connectionRepository.findByIdNotDeleted(connectionId);
     }
 
     public Map<String, String> credentials(Connection connection) {

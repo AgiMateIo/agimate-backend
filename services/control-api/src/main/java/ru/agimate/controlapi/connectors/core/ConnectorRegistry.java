@@ -3,10 +3,12 @@ package ru.agimate.controlapi.connectors.core;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -96,6 +98,17 @@ public class ConnectorRegistry {
         return findHandler(connectorCode)
                 .filter(capability::isInstance)
                 .map(capability::cast);
+    }
+
+    /**
+     * The jobs a connector declares for one of its instances.
+     *
+     * @return empty when the connector has no handler; an empty map when it has no {@link JobProvider}
+     */
+    public Optional<Map<String, JobSpec>> declaredJobs(String connectorCode, String connectionId) {
+        return findHandler(connectorCode).map(handler -> handler instanceof JobProvider jobProvider
+                ? jobProvider.getJobs(ConnectorEnvFactory.listing(UUID.fromString(connectionId)))
+                : Map.of());
     }
 
     public Collection<ConnectorHandler> getHandlers() {

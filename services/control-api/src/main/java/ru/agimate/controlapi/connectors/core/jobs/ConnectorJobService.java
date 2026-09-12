@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobKind;
@@ -45,26 +46,15 @@ public class ConnectorJobService {
     }
 
     /**
-     * Creates or updates a row by the business key {@code (connectorCode, connectionId, name)}. A new
-     * row gets {@code status=PENDING}, {@code next_run_at=now()} — the scheduler picks it up on the
-     * next tick. A COMPLETED row (a finished ONETIME) is armed again.
+     * Brings the set of SYSTEM jobs of a connectionId in line with what the instance declares: an
+     * upsert of every spec by the business key {@code (connectorCode, connectionId, name)} plus deletion
+     * of the rows no longer declared. A new row is {@code PENDING} with {@code next_run_at=now()}, a
+     * COMPLETED one (a finished ONETIME) is armed again. Dynamic jobs (USER/AGENT) on that connectionId
+     * are left untouched.
      *
-     * <p>{@code REQUIRES_NEW} is needed because the method is called from a
-     * {@code @TransactionalEventListener(AFTER_COMMIT)} — there the outer transaction is already
-     * committed, but its EntityManagerHolder is still bound to the thread. REQUIRED would participate
-     * in a dead transaction and fail with «No active transaction». REQUIRES_NEW suspends the stale
-     * holder and starts a clean tx.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public ConnectorJob upsert(String connectorCode, String connectionId, UUID userId, JobSpec spec) {
-        return doUpsert(connectorCode, connectionId, userId, spec);
-    }
-
-    /**
-     * Brings the set of SYSTEM jobs of a connectionId in line with the connector's declaration: an
-     * upsert of every current one plus deletion of rows whose {@code name} is no longer returned by
-     * {@code getJobs()}. Dynamic jobs (USER/AGENT) on that connectionId are left untouched by the
-     * re-sync. {@code REQUIRES_NEW} for the same reason as in {@link #upsert}.
+     * <p>{@code REQUIRES_NEW} because the call comes from a {@code @TransactionalEventListener(AFTER_COMMIT)}:
+     * the outer transaction is already committed, but its EntityManagerHolder is still bound to the
+     * thread, so REQUIRED would participate in a dead transaction and fail with «No active transaction».
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void syncConnectionJobs(String connectorCode, String connectionId, UUID userId,
@@ -83,7 +73,7 @@ public class ConnectorJobService {
     /**
      * Deletes every row of a connectionId, dynamic ones (USER/AGENT) included — called when an
      * integration is deleted, at which point they are unexecutable without credentials anyway.
-     * {@code REQUIRES_NEW} for the same reason as in {@link #upsert}: the call comes from an
+     * {@code REQUIRES_NEW} for the same reason as in {@link #syncConnectionJobs}: the call comes from an
      * AFTER_COMMIT listener.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -101,17 +91,20 @@ public class ConnectorJobService {
     }
 
     /**
-     * Startup re-sync of the existing SYSTEM rows against the connectors' declarations
-     * ({@code getJobs()}): a change to {@code @Job} (interval, timeout, config) reaches the database
-     * without recreating the connection, and rows whose names are no longer declared (a telegram mode
-     * switch polling→webhook, say) are deleted. It creates no new rows — those are created by
-     * connection lifecycle events. The spec is updated by a targeted UPDATE, because status and lease
-     * are written concurrently by the scheduler (this node's and the neighbouring ones').
+     * Startup re-sync of the existing SYSTEM rows against what each row's instance declares
+     * ({@link ConnectorRegistry#declaredJobs}): a change to {@code @Job} (interval, timeout, config)
+     * reaches the database without recreating the connection, and rows the instance no longer declares
+     * (a telegram mode switch polling→webhook, an MCP row that predates the per-instance rule) are
+     * deleted. It creates no new rows — those are created by connection lifecycle events. The spec is
+     * updated by a targeted UPDATE, because status and lease are written concurrently by the scheduler
+     * (this node's and the neighbouring ones'). The registry is an argument: its one caller is the
+     * bootstrap that already holds it, and the rest of this write API has no business with handlers.
      */
     @Transactional
-    public void resyncSystemJobs(Map<String, Map<String, JobSpec>> declaredByConnector) {
+    public void resyncSystemJobs(ConnectorRegistry registry) {
         for (ConnectorJob row : connectorJobRepository.findByKind(ConnectorJobKind.SYSTEM)) {
-            Map<String, JobSpec> declared = declaredByConnector.get(row.getConnectorCode());
+            Map<String, JobSpec> declared =
+                    registry.declaredJobs(row.getConnectorCode(), row.getConnectionId()).orElse(null);
             if (declared == null) {
                 log.warn("System job {}/{}/{}: no handler in registry — left as is",
                         row.getConnectorCode(), row.getConnectionId(), row.getName());
