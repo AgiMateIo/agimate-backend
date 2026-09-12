@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
@@ -38,11 +39,15 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ConnectorBootstrap {
 
+    /** The catalogue comes first: the skill seeder validates its declarations against it. */
+    public static final int BOOTSTRAP_ORDER = 0;
+
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorJobService jobService;
     private final ConnectorTexts connectorTexts;
 
+    @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         upsertStatic("app", "App", ConnectorTraits.app(),

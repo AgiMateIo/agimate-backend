@@ -2,13 +2,13 @@ package ru.agimate.controlapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.Length;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.Disclosure;
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -52,17 +52,14 @@ public class Skill extends BaseEntity {
     private String mdContent;
 
     /**
-     * Connectors the skill requires (Postgres {@code text[]}).
-     * <p>
-     * {@code length} is what makes the element {@code text} rather than {@code varchar}: without it
-     * Hibernate renders array literals as {@code cast(array[?] as varchar array)}, and Postgres has no
-     * {@code text[] @> varchar[]} operator — see
-     * {@link ru.agimate.controlapi.database.repositories.SkillSpecs#hasConnector(String)}.
+     * The connectors the skill requires, one {@link ConnectorRequirement} per declared key — JSONB, as
+     * the declaration is a document: it arrives whole from the frontmatter and is versioned with
+     * {@link #version}. Filtered by code in {@link ru.agimate.controlapi.database.repositories.SkillSpecs#hasConnector(String)}.
      */
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "connector_codes", nullable = false, columnDefinition = "text[]", length = Length.LONG32)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "connectors", nullable = false, columnDefinition = "JSONB")
     @Builder.Default
-    private List<String> connectorCodes = new ArrayList<>();
+    private List<ConnectorRequirement> connectors = new ArrayList<>();
 
     @Column(name = "version", nullable = false)
     @Builder.Default
@@ -80,5 +77,14 @@ public class Skill extends BaseEntity {
 
     public boolean isDeleted() {
         return deletedAt != null;
+    }
+
+    /** Distinct connector codes in declaration order — the view of the readers that work by code. */
+    public List<String> getConnectorCodes() {
+        return ConnectorRequirement.codes(connectors);
+    }
+
+    public ConnectorRequirement requirement(String key) {
+        return connectors.stream().filter(r -> r.key().equals(key)).findFirst().orElse(null);
     }
 }

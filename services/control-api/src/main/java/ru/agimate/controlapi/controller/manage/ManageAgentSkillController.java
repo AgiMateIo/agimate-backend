@@ -10,6 +10,7 @@ import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
+import ru.agimate.controlapi.controller.manage.dto.SkillBindingPlanResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentSkillRequest;
 import ru.agimate.controlapi.service.AgentSkillService;
@@ -39,7 +40,19 @@ public class ManageAgentSkillController {
         return SuccessResponse.ok(PageResponse.from(agentSkillService.getAgentSkills(agentId, userId, page, size)));
     }
 
-    @Operation(summary = "Bind a skill to an agent, declaring which instance it works with per connector")
+    @Operation(summary = "Plan binding a skill: per requirement, the fitting connections, the form to create one, the rules")
+    @GetMapping("/plan")
+    public SuccessResponse<SkillBindingPlanResponse> planAgentSkill(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID agentId,
+            @RequestParam UUID skillId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentSkillService.plan(agentId, skillId, userId));
+    }
+
+    @Operation(summary = "Bind a skill to an agent, declaring which instance it works with per requirement key; "
+            + "writes the skill's access rules onto the bindings it can reach")
     @PostMapping("/")
     public SuccessResponse<AgentSkillResponse> createAgentSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -64,7 +77,7 @@ public class ManageAgentSkillController {
                 agentId, skillId, userId, request.disclosure().toOverride()));
     }
 
-    @Operation(summary = "Replace the instances the skill works with (connector code → connection id)")
+    @Operation(summary = "Replace the instances the skill works with (requirement key → connection id); re-applies the rules")
     @PutMapping("/{skillId}/connections")
     public SuccessResponse<AgentSkillResponse> replaceSkillConnections(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -89,7 +102,8 @@ public class ManageAgentSkillController {
         return SuccessResponse.empty();
     }
 
-    @Operation(summary = "Accept the current version of every skill on the agent (clears needsReinstall)")
+    @Operation(summary = "Accept the current version of every skill on the agent (clears needsReinstall, "
+            + "resets the skills' access rules to what their authors declare)")
     @PostMapping("/refresh")
     public SuccessResponse<Void> refreshSkillVersions(
             @AuthenticationPrincipal AgimateUserPrincipal principal,

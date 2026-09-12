@@ -3,6 +3,11 @@ package ru.agimate.controlapi.service;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
+import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -21,15 +26,20 @@ import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.abac.SkillPolicySync;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -54,6 +64,10 @@ class SkillServiceTest {
     private AgentPresetRepository agentPresetRepository;
     @Mock
     private ConnectorRepository connectorRepository;
+    @Mock
+    private ConnectorRegistry connectorRegistry;
+    @Mock
+    private SkillPolicySync skillPolicySync;
 
     @InjectMocks
     private SkillService service;
@@ -156,7 +170,7 @@ class SkillServiceTest {
 
         private Skill systemSkill() {
             return Skill.builder().id(SKILL_ID).userId(SYSTEM_USER_ID).name("board")
-                    .isPublic(true).version(1).connectorCodes(new java.util.ArrayList<>(List.of("board")))
+                    .isPublic(true).version(1).connectors(ConnectorRequirement.ofCodes(List.of("board")))
                     .mdContent("body").description("d").build();
         }
 
@@ -253,6 +267,57 @@ class SkillServiceTest {
                     ---
                     Body.
                     """.formatted(name);
+        }
+    }
+
+    @Nested
+    @DisplayName("validateConnectors — params требования против формы коннектора")
+    class Params {
+
+        private ConnectorRequirement mcp(Map<String, String> params) {
+            return new ConnectorRequirement("mcp", "mcp", null, params, null, null);
+        }
+
+        @BeforeEach
+        void known() {
+            // Each test walks a different branch of the check, so not every stub is hit in every test.
+            lenient().when(connectorRepository.existsById("mcp")).thenReturn(true);
+            lenient().when(connectorRepository.existsById("board")).thenReturn(true);
+            IntegrationConnectorHandler handler = mock(IntegrationConnectorHandler.class);
+            Map<String, CredentialField> fields = new LinkedHashMap<>();
+            fields.put("url", CredentialField.required("URL", CredentialField.Type.URL));
+            fields.put("auth_token", CredentialField.optional("Token", CredentialField.Type.SECRET));
+            lenient().when(handler.getCredentialFields()).thenReturn(fields);
+            lenient().when(connectorRegistry.findIntegrationHandler("mcp")).thenReturn(Optional.of(handler));
+            lenient().when(connectorRegistry.findIntegrationHandler("board")).thenReturn(Optional.empty());
+        }
+
+        @Test
+        @DisplayName("несекретное объявленное поле — принимается")
+        void nonSecretDeclaredField() {
+            assertDoesNotThrow(() -> service.validateConnectors(List.of(mcp(Map.of("url", "https://x")))));
+        }
+
+        @Test
+        @DisplayName("SECRET-поле в params → 400: навык читают все, кому он предложен")
+        void secretRejected() {
+            BadRequestStatusException ex = assertThrows(BadRequestStatusException.class,
+                    () -> service.validateConnectors(List.of(mcp(Map.of("auth_token", "t")))));
+            assertTrue(ex.getMessage().contains("auth_token"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("поле, которого нет в форме → 400")
+        void unknownFieldRejected() {
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.validateConnectors(List.of(mcp(Map.of("host", "x")))));
+        }
+
+        @Test
+        @DisplayName("params у коннектора без формы (внутреннего) → 400")
+        void paramsOnInternalRejected() {
+            assertThrows(BadRequestStatusException.class, () -> service.validateConnectors(
+                    List.of(new ConnectorRequirement("board", "board", null, Map.of("x", "y"), null, null))));
         }
     }
 }

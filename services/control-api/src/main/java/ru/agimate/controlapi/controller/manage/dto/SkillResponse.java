@@ -3,6 +3,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 
 import java.time.LocalDateTime;
@@ -23,8 +24,10 @@ public record SkillResponse(
         @Schema(description = "Skill description")
         String description,
 
-        @Schema(description = "Connectors required by the skill")
+        @Schema(description = "Distinct connector codes the skill requires (derived from connectors)")
         List<String> connectorCodes,
+        @Schema(description = "Connector requirements: key, code, params to pre-fill, access rules")
+        List<ConnectorRequirement> connectors,
 
         @Schema(description = "Skill version")
         int version,
@@ -53,6 +56,7 @@ public record SkillResponse(
                 skill.getTitle() != null ? skill.getTitle() : skill.getName(),
                 skill.getDescription(),
                 skill.getConnectorCodes(),
+                skill.getConnectors(),
                 skill.getVersion(),
                 skill.getIsPublic(),
                 skill.getUserId(),

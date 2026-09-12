@@ -106,6 +106,16 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         return true;
     }
 
+    /** The same normalisation as {@link #validateCredentials}, so a declared URL meets {@code sub_code} as written there. */
+    @Override
+    public Optional<String> identifierOf(Map<String, String> credentials) {
+        try {
+            return Optional.of(McpUtils.toServerConfig(credentials).url());
+        } catch (ConnectorException e) {
+            return Optional.empty();
+        }
+    }
+
     /**
      * Validation = the {@code initialize} handshake: it confirms the server is reachable and the auth
      * works. Tools are not persisted here — the instance's id is not assigned yet; they are synced by

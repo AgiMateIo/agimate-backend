@@ -4,6 +4,7 @@ import lombok.experimental.UtilityClass;
 import org.yaml.snakeyaml.Yaml;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.enums.Disclosure;
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,10 +18,11 @@ public class SkillFrontmatterParser {
     /**
      * A parsed SKILL.md: {@code name}/{@code description}/{@code connectors}/{@code disclosure} from
      * the frontmatter, and {@code body} — the body without the headers (everything after the closing
-     * {@code ---}). {@code disclosure} defaults to EAGER: a body the author did not mark is shown.
+     * {@code ---}). {@code disclosure} defaults to EAGER: a body the author did not mark is shown;
+     * {@code connectors} is normalised (see {@link ConnectorRequirements#fromYaml}).
      */
     public record ParsedSkill(String name, String title, String description,
-                              List<String> connectors, Disclosure disclosure, String body) {}
+                              List<ConnectorRequirement> connectors, Disclosure disclosure, String body) {}
 
     /** A raw parse of a markdown document with YAML frontmatter: the fields plus the body after the closing {@code ---}. */
     public record RawFrontmatter(Map<String, Object> fields, String body) {}
@@ -41,7 +43,7 @@ public class SkillFrontmatterParser {
         String description = frontmatter.containsKey("description")
                 ? String.valueOf(frontmatter.get("description")).strip()
                 : null;
-        List<String> connectors = parseStringList(frontmatter.get("connectors"));
+        List<ConnectorRequirement> connectors = ConnectorRequirements.fromYaml(frontmatter.get("connectors"));
         Disclosure disclosure = parseDisclosure(frontmatter.get("disclosure"));
 
         return new ParsedSkill(name, title, description, connectors, disclosure, raw.body());

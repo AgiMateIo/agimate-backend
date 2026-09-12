@@ -9,8 +9,9 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 /**
- * Which instance a skill means — one row per connector code the skill declares, inside one
- * {@link AgentSkill} binding. It is <b>not</b> an access grant: access stays
+ * Which instance a skill means — one row per requirement key the skill declares
+ * ({@code ConnectorRequirement.key}, the code itself unless the skill needs two instances of one
+ * connector), inside one {@link AgentSkill} binding. It is <b>not</b> an access grant: access stays
  * {@link AgentConnection}, and this only answers «which of the user's two telegrams is the one this
  * skill talks about».
  *
@@ -19,12 +20,12 @@ import java.util.UUID;
  * is filled in by the server; the row exists all the same, so «satisfied» is decided by one rule for
  * both kinds.
  *
- * <p>Uniqueness: {@code (agent_skill_id, connector_code)} — there cannot be a second answer.
+ * <p>Uniqueness: {@code (agent_skill_id, connector_key)} — there cannot be a second answer.
  */
 @Entity
 @Table(name = "agent_skill_connections",
-        uniqueConstraints = @UniqueConstraint(name = "uq_agent_skill_connections_agent_skill_id_connector_code",
-                columnNames = {"agent_skill_id", "connector_code"}))
+        uniqueConstraints = @UniqueConstraint(name = "uq_agent_skill_connections_agent_skill_id_connector_key",
+                columnNames = {"agent_skill_id", "connector_key"}))
 @Getter
 @Setter
 @Builder
@@ -41,8 +42,8 @@ public class AgentSkillConnection extends BaseEntity {
     @Column(name = "agent_skill_id", nullable = false)
     private UUID agentSkillId;
 
-    @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
-    private String connectorCode;
+    @Column(name = "connector_key", nullable = false, columnDefinition = "TEXT")
+    private String connectorKey;
 
     @Column(name = "connection_id", nullable = false)
     private UUID connectionId;

@@ -13,9 +13,10 @@ public record CreateAgentSkillRequest(
         @Schema(description = "Skill public ID to bind")
         UUID skillId,
 
-        @Schema(description = "Which instance the skill means, per connector code. Required for every external "
-                + "connector the skill declares; for internal ones the instance is forced and resolved by the server",
-                example = "{\"telegram\": \"0198f2c1-...\"}")
+        @Schema(description = "Which instance the skill means, per requirement key (the connector code unless the "
+                + "skill declares a key). An external requirement left out is bound unsatisfied until the wizard "
+                + "chooses it; for internal ones the instance is forced and resolved by the server",
+                example = "{\"telegram\": \"0198f2c1-...\", \"context7\": \"0198f2c2-...\"}")
         Map<String, UUID> connections,
 
         @Schema(nullable = true, description = "Override of the skill's disclosure axis for this agent; "

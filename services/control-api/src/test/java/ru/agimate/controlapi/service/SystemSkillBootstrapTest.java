@@ -41,7 +41,7 @@ class SystemSkillBootstrapTest {
         assertFalse(parsed.body().isBlank(), "body");
         assertFalse(parsed.connectors().isEmpty(),
                 "connectors: список требуемых коннекторов, пустой — опечатка");
-        assertTrue(parsed.connectors().stream().noneMatch(String::isBlank), "blank connector code");
+        assertTrue(parsed.connectors().stream().noneMatch(r -> r.code().isBlank()), "blank connector code");
     }
 
     @ParameterizedTest(name = "{0}/{1}")

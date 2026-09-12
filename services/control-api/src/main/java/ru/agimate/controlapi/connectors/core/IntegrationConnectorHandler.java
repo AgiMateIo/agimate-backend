@@ -6,6 +6,7 @@ import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A connector to an external platform: it acts on the user's behalf using their credentials (the
@@ -17,6 +18,15 @@ public interface IntegrationConnectorHandler extends ConnectorHandler {
     Map<String, CredentialField> getCredentialFields();
 
     IntegrationValidationResult validateCredentials(Map<String, String> credentials);
+
+    /**
+     * The {@code sub_code} these credentials would get, when it can be told without touching the
+     * platform — an MCP server is its URL; a telegram bot's username is known only to Telegram. This is
+     * how a skill's declared params are matched against the user's existing connections.
+     */
+    default Optional<String> identifierOf(Map<String, String> credentials) {
+        return Optional.empty();
+    }
 
     /**
      * Whether one user may hold several connections to the same platform instance. False by default,

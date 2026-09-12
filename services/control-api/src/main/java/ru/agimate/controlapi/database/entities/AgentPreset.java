@@ -63,7 +63,9 @@ public class AgentPreset extends BaseEntity {
 
     /**
      * Names of the preset's system skills; resolved by (SYSTEM_USER_ID, name) when listing.
-     * {@code length} keeps the element type {@code text} — see {@link Skill#getConnectorCodes()}.
+     * {@code length} is what makes the element {@code text} rather than {@code varchar}: without it
+     * Hibernate renders array literals as {@code cast(array[?] as varchar array)}, and Postgres has no
+     * {@code text[] @> varchar[]} operator.
      */
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "skill_names", nullable = false, columnDefinition = "text[]", length = Length.LONG32)

@@ -13,6 +13,10 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.abac.SkillPolicySync;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.controller.manage.dto.AgentSummaryResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
@@ -21,17 +25,19 @@ import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillSpecs;
+import ru.agimate.controlapi.util.ConnectorRequirements;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -51,6 +57,8 @@ public class SkillService {
     private final AgentSkillRepository agentSkillRepository;
     private final AgentPresetRepository agentPresetRepository;
     private final ConnectorRepository connectorRepository;
+    private final ConnectorRegistry connectorRegistry;
+    private final SkillPolicySync skillPolicySync;
 
     public Page<SkillResponse> getSkills(UUID userId, SkillListScope scope, String search, String connectorCode,
                                          int page, int size) {
@@ -97,7 +105,7 @@ public class SkillService {
     private Skill doCreate(UUID ownerId, boolean isPublic, String skillMd) {
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
         validateName(parsed.name());
-        validateConnectorCodes(parsed.connectors());
+        validateConnectors(parsed.connectors());
 
         if (skillRepository.existsByUserIdAndNameNotDeleted(ownerId, parsed.name())) {
             throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
@@ -108,7 +116,7 @@ public class SkillService {
                 .title(parsed.title())
                 .description(parsed.description())
                 .mdContent(parsed.body())
-                .connectorCodes(new ArrayList<>(parsed.connectors()))
+                .connectors(parsed.connectors())
                 .disclosure(parsed.disclosure())
                 .userId(ownerId)
                 .isPublic(isPublic)
@@ -142,7 +150,7 @@ public class SkillService {
 
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
         validateName(parsed.name());
-        validateConnectorCodes(parsed.connectors());
+        validateConnectors(parsed.connectors());
 
         if (!skill.getName().equals(parsed.name())) {
             if (system) {
@@ -159,7 +167,7 @@ public class SkillService {
         skill.setTitle(parsed.title());
         skill.setDescription(parsed.description());
         skill.setMdContent(parsed.body());
-        skill.setConnectorCodes(new ArrayList<>(parsed.connectors()));
+        skill.setConnectors(parsed.connectors());
         skill.setDisclosure(parsed.disclosure());
         if (isPublic != null) {
             skill.setIsPublic(isPublic);
@@ -177,18 +185,19 @@ public class SkillService {
     }
 
     /**
-     * Replace a skill's connector list in place (without touching the body or the name). The rights are
-     * the same as for a full {@link #update}: one's own skill, or a system one for ADMIN. A skill only
-     * declares what it needs and never binds anything, so a new connector reaches no already-bound
-     * agent by itself — the version bump is what surfaces the drift, against
+     * Replace a skill's connector requirements in place (without touching the body or the name). The
+     * rights are the same as for a full {@link #update}: one's own skill, or a system one for ADMIN. A
+     * skill only declares what it needs and never binds anything, so a new connector reaches no
+     * already-bound agent by itself — the version bump is what surfaces the drift, against
      * {@code AgentSkill.installedSkillVersion}.
      */
     @Transactional
     public SkillResponse updateConnectors(UUID id, UUID userId, boolean admin, UpdateSkillConnectorsRequest request) {
         Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
-        validateConnectorCodes(request.connectorCodes());
+        List<ConnectorRequirement> connectors = ConnectorRequirements.normalize(request.resolveConnectors());
+        validateConnectors(connectors);
 
-        skill.setConnectorCodes(new ArrayList<>(request.connectorCodes()));
+        skill.setConnectors(connectors);
         skill.setVersion(skill.getVersion() + 1);
         skill = skillRepository.save(skill);
 
@@ -216,6 +225,7 @@ public class SkillService {
         // The bindings (other people's included — the skill may have been installed while public) are deleted
         // right away: a skill grants no access of its own, so there is nothing per-agent to recompute.
         int unbound = agentSkillRepository.deleteBySkillId(skill.getId());
+        skillPolicySync.removeEverywhere(skill.getId());
         log.info("Soft-deleted skill '{}' id={} by user={}, unbound from {} agent(s)",
                 skill.getName(), id, userId, unbound);
     }
@@ -271,14 +281,6 @@ public class SkillService {
         return skillRepository.findAll(spec, pageRequest).map(SkillResponse::from);
     }
 
-    /**
-     * A skill's connector codes must exist in the connector catalogue (the {@code connectors} table) —
-     * that is the same source of truth binding uses
-     * ({@link ru.agimate.controlapi.service.connection.ConnectionBindingService}). The catalogue is
-     * wider than the SPI registry: besides the code handlers it holds static connectors with no handler
-     * ({@code app}, {@code claude-code}) — a skill may declare those too (an INSTANCE connector is bound
-     * later, by hand, using a connectionId). An empty list (a skill with no connectors) is acceptable.
-     */
     private void validateName(String name) {
         if (!NAME_SLUG.matcher(name).matches()) {
             throw new BadRequestStatusException("Skill name must be a kebab-case code "
@@ -286,16 +288,46 @@ public class SkillService {
         }
     }
 
-    private void validateConnectorCodes(List<String> codes) {
-        if (codes.isEmpty()) {
+    /**
+     * What a declaration cannot check about itself. Codes must exist in the connector catalogue (the
+     * {@code connectors} table) — the same source of truth binding uses
+     * ({@link ru.agimate.controlapi.service.connection.ConnectionBindingService}). The catalogue is
+     * wider than the SPI registry: besides the code handlers it holds static connectors with no handler
+     * ({@code app}, {@code claude-code}) — a skill may declare those too (an INSTANCE connector is bound
+     * later, by hand, using a connectionId). {@code params} pre-fill an integration's credentials form,
+     * so they are accepted only for a connector that has one, only for its declared fields, and never
+     * for a SECRET field: a skill is readable by everyone it is offered to. Public because the system
+     * skill seeder goes through it too — a seed file is not trusted more than an upload.
+     */
+    public void validateConnectors(List<ConnectorRequirement> requirements) {
+        if (requirements.isEmpty()) {
             return;
         }
-        List<String> unknown = codes.stream()
-                .distinct()
+        List<String> unknown = ConnectorRequirement.codes(requirements).stream()
                 .filter(code -> !connectorRepository.existsById(code))
                 .toList();
         if (!unknown.isEmpty()) {
             throw new BadRequestStatusException("Unknown connector code(s): " + String.join(", ", unknown));
+        }
+        for (ConnectorRequirement requirement : requirements) {
+            if (requirement.params() == null) {
+                continue;
+            }
+            Map<String, CredentialField> fields = connectorRegistry.findIntegrationHandler(requirement.code())
+                    .map(IntegrationConnectorHandler::getCredentialFields)
+                    .orElseThrow(() -> new BadRequestStatusException("Requirement '" + requirement.key()
+                            + "': connector " + requirement.code() + " has no credentials form, params are not applicable"));
+            for (String field : requirement.params().keySet()) {
+                CredentialField declared = fields.get(field);
+                if (declared == null) {
+                    throw new BadRequestStatusException("Requirement '" + requirement.key() + "': connector "
+                            + requirement.code() + " has no field '" + field + "'");
+                }
+                if (declared.type() == CredentialField.Type.SECRET) {
+                    throw new BadRequestStatusException("Requirement '" + requirement.key() + "': field '" + field
+                            + "' is a secret and cannot be declared in a skill");
+                }
+            }
         }
     }
 }

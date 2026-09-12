@@ -51,6 +51,18 @@ public interface AgentConnectionPolicyRepository extends JpaRepository<AgentConn
                                                @Param("kind") PolicyKind kind,
                                                @Param("name") String name);
 
+    /** The rows a skill wrote on the agent's bindings ({@code source = skill:<id>}). */
+    @Query("""
+            SELECT p FROM AgentConnectionPolicy p
+            WHERE p.source = :source AND p.deletedAt IS NULL
+              AND p.agentConnectionId IN (SELECT ac.id FROM AgentConnection ac WHERE ac.agentId = :agentId)
+            """)
+    List<AgentConnectionPolicy> findActiveBySourceAndAgent(@Param("source") String source,
+                                                           @Param("agentId") UUID agentId);
+
+    @Query("SELECT p FROM AgentConnectionPolicy p WHERE p.source = :source AND p.deletedAt IS NULL")
+    List<AgentConnectionPolicy> findActiveBySource(@Param("source") String source);
+
     @Modifying
     @Query("UPDATE AgentConnectionPolicy p SET p.deletedAt = :now WHERE p.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);

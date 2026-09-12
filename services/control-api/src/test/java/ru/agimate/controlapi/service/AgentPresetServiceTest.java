@@ -19,6 +19,7 @@ import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -65,7 +66,7 @@ class AgentPresetServiceTest {
                 .name(name)
                 .description(name + " desc")
                 .mdContent("body")
-                .connectorCodes(connectors)
+                .connectors(ConnectorRequirement.ofCodes(connectors))
                 .userId(SYSTEM_USER_ID)
                 .isPublic(true)
                 .build();

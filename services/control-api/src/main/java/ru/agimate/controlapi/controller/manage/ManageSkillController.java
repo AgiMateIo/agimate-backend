@@ -122,7 +122,7 @@ public class ManageSkillController {
         return SuccessResponse.ok(skillService.update(id, userId, principal.isAdmin(), request));
     }
 
-    @Operation(summary = "Replace the skill's required connector codes (does not touch the body; "
+    @Operation(summary = "Replace the skill's connector requirements (does not touch the body; "
             + "bound agents are not auto-resynced)")
     @PutMapping("/{id}/connectors")
     public SuccessResponse<SkillResponse> updateSkillConnectors(

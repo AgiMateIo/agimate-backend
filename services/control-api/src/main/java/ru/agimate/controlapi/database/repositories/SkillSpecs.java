@@ -22,13 +22,15 @@ public class SkillSpecs {
     }
 
     /**
-     * The skill requires the connector {@code connectorCode}: containment
-     * {@code connector_codes @> ARRAY[code]}. Via {@code @>} rather than {@code array_position} so
-     * the GIN index idx_skills_connector_codes is used.
+     * The skill requires the connector {@code connectorCode}: JSONB containment
+     * {@code connectors @> '[{"code": ?}]'}, spelled as the operator's function so the criteria API
+     * can call it. No index behind it — the table is small and the filter is a listing's.
      */
     public static Specification<Skill> hasConnector(String connectorCode) {
-        return (root, query, cb) -> cb.isTrue(
-                cb.function("array_contains", Boolean.class, root.get("connectorCodes"), cb.literal(connectorCode)));
+        return (root, query, cb) -> cb.isTrue(cb.function("jsonb_contains", Boolean.class,
+                root.get("connectors"),
+                cb.function("jsonb_build_array", String.class,
+                        cb.function("jsonb_build_object", String.class, cb.literal("code"), cb.literal(connectorCode)))));
     }
 
     public static Specification<Skill> searchByNameOrDescription(String search) {

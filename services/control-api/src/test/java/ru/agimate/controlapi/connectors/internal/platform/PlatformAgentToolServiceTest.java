@@ -32,6 +32,7 @@ import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
 import ru.agimate.controlapi.service.file.UserFileService;
 import ru.agimate.controlapi.storage.FileIds;
 
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -284,7 +285,7 @@ class PlatformAgentToolServiceTest {
             when(agentService.create(eq(USER_ID), any(AgentCreateCommand.class)))
                     .thenReturn(new AgentCreateResult(agent, null, "key"));
             when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(
-                    Skill.builder().id(skillId).name("platform").connectorCodes(List.of("platform")).build()));
+                    Skill.builder().id(skillId).name("platform").connectors(ConnectorRequirement.ofCodes(List.of("platform"))).build()));
             when(connectionBindingService.kindOf("platform"))
                     .thenReturn(ConnectionBindingService.ConnectorKind.INTERNAL);
 
@@ -305,7 +306,7 @@ class PlatformAgentToolServiceTest {
                     .thenReturn(new AgentCreateResult(agent, null, "key"));
             when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(
                     Skill.builder().id(skillId).name("with-telegram")
-                            .connectorCodes(List.of("telegram")).build()));
+                            .connectors(ConnectorRequirement.ofCodes(List.of("telegram"))).build()));
             when(connectionBindingService.kindOf("telegram"))
                     .thenReturn(ConnectionBindingService.ConnectorKind.EXTERNAL);
 
@@ -326,7 +327,7 @@ class PlatformAgentToolServiceTest {
             UUID agentId = UUID.randomUUID();
             UUID skillId = UUID.randomUUID();
             Skill skill = Skill.builder().id(skillId).name("meta")
-                    .connectorCodes(List.of("platform", "telegram")).build();
+                    .connectors(ConnectorRequirement.ofCodes(List.of("platform", "telegram"))).build();
             when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(skill));
             when(connectionBindingService.kindOf("platform"))
                     .thenReturn(ConnectionBindingService.ConnectorKind.INTERNAL);
@@ -348,7 +349,7 @@ class PlatformAgentToolServiceTest {
             UUID agentId = UUID.randomUUID();
             UUID skillId = UUID.randomUUID();
             Skill skill = Skill.builder().id(skillId).name("legacy")
-                    .connectorCodes(List.of("gone-connector")).build();
+                    .connectors(ConnectorRequirement.ofCodes(List.of("gone-connector"))).build();
             when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(skill));
             when(connectionBindingService.kindOf("gone-connector"))
                     .thenReturn(ConnectionBindingService.ConnectorKind.UNKNOWN);
@@ -498,8 +499,8 @@ class PlatformAgentToolServiceTest {
                             AgentSkill.builder().id(UUID.randomUUID()).agentId(agentId).skillId(skillA).build(),
                             AgentSkill.builder().id(UUID.randomUUID()).agentId(agentId).skillId(skillB).build())));
             when(skillRepository.findByIdInNotDeleted(anyCollection())).thenReturn(List.of(
-                    Skill.builder().id(skillA).name("Alpha").connectorCodes(List.of("telegram")).build(),
-                    Skill.builder().id(skillB).name("Beta").connectorCodes(List.of("gmail")).build()));
+                    Skill.builder().id(skillA).name("Alpha").connectors(ConnectorRequirement.ofCodes(List.of("telegram"))).build(),
+                    Skill.builder().id(skillB).name("Beta").connectors(ConnectorRequirement.ofCodes(List.of("gmail"))).build()));
             when(agentSkillService.satisfiedSkillInstances(agentId))
                     .thenReturn(Map.of(skillA, Set.of(UUID.randomUUID())));
 

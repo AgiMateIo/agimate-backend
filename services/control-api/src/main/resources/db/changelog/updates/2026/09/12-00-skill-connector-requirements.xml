@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Skill connector requirements (docs/decisions/skill-connector-requirements.md): a skill declares
+      instances, not codes — a requirement key, the instance's non-secret params (an MCP server's URL)
+      and access rules over its tools. The list of codes becomes a JSONB array of requirement objects;
+      the short form {code, key = code} is what every existing row backfills to, so nothing that
+      referenced a skill by code changes meaning.
+    -->
+    <changeSet id="skills-connectors-jsonb" author="agimate">
+        <addColumn tableName="skills">
+            <column name="connectors" type="JSONB" defaultValueComputed="'[]'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            UPDATE skills
+            SET connectors = COALESCE(
+                    (SELECT jsonb_agg(jsonb_build_object('code', c, 'key', c)) FROM unnest(connector_codes) AS c),
+                    '[]'::jsonb)
+        </sql>
+        <dropIndex tableName="skills" indexName="idx_skills_connector_codes"/>
+        <dropColumn tableName="skills" columnName="connector_codes"/>
+    </changeSet>
+
+    <!-- The reference now names the requirement key; the key of every existing row is its code. -->
+    <changeSet id="agent-skill-connections-connector-key" author="agimate">
+        <renameColumn tableName="agent_skill_connections" oldColumnName="connector_code" newColumnName="connector_key"/>
+        <sql>
+            ALTER TABLE agent_skill_connections
+                RENAME CONSTRAINT uq_agent_skill_connections_agent_skill_id_connector_code
+                    TO uq_agent_skill_connections_agent_skill_id_connector_key
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

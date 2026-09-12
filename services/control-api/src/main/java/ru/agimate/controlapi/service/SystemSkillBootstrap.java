@@ -7,12 +7,12 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
+import ru.agimate.controlapi.connectors.core.ConnectorBootstrap;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,8 +40,12 @@ public class SystemSkillBootstrap {
     /** The synthetic owner of the system skills (there is no real user in control-api). */
     public static final java.util.UUID SYSTEM_USER_ID = new java.util.UUID(0L, 0L);
 
-    /** Skills are seeded before presets ({@link SystemPresetBootstrap}) — those reference them by name. */
-    static final int BOOTSTRAP_ORDER = 0;
+    /**
+     * After the connector catalogue ({@link ru.agimate.controlapi.connectors.core.ConnectorBootstrap}),
+     * which the declarations are validated against, and before presets ({@link SystemPresetBootstrap}),
+     * which reference skills by name.
+     */
+    static final int BOOTSTRAP_ORDER = ConnectorBootstrap.BOOTSTRAP_ORDER + 1;
 
     /** Codes of the system skills — the folders in {@code seed/skills/<lang>/}. */
     static final List<String> SYSTEM_SKILL_CODES = List.of(
@@ -59,6 +63,7 @@ public class SystemSkillBootstrap {
 
     private final SkillRepository skillRepository;
     private final SeedContentLocator seedContentLocator;
+    private final SkillService skillService;
 
     @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
@@ -77,11 +82,11 @@ public class SystemSkillBootstrap {
     private void seedSkill(String code) {
         String content = seedContentLocator.read(SeedContentLocator.Kind.SKILL, code);
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(content);
-        List<String> connectors = new ArrayList<>(parsed.connectors());
-
         if (skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name()).isPresent()) {
             return;
         }
+        // The same check an upload gets: a seed file with a secret in params or a dead code is a bug to log, not to seed.
+        skillService.validateConnectors(parsed.connectors());
 
         try {
             Skill skill = skillRepository.save(Skill.builder()
@@ -89,12 +94,12 @@ public class SystemSkillBootstrap {
                     .title(parsed.title())
                     .description(parsed.description())
                     .mdContent(parsed.body())
-                    .connectorCodes(connectors)
+                    .connectors(parsed.connectors())
                     .disclosure(parsed.disclosure())
                     .userId(SYSTEM_USER_ID)
                     .isPublic(true)
                     .build());
-            log.info("Seeded system skill '{}' id={} connectors={}", skill.getName(), skill.getId(), connectors);
+            log.info("Seeded system skill '{}' id={} connectors={}", skill.getName(), skill.getId(), skill.getConnectorCodes());
         } catch (DataIntegrityViolationException e) {
             // A concurrent node inserted the same (user_id, name) on a cold start — it is seeded already.
             log.debug("System skill '{}' already seeded by a concurrent node", parsed.name());

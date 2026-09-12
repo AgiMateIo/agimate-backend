@@ -14,6 +14,8 @@ import org.mockito.quality.Strictness;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorStatus;
+import ru.agimate.controlapi.controller.manage.dto.SkillBindingPlanResponse;
+import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgentSkillConnection;
@@ -28,6 +30,10 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService.ConnectorKind;
 
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
+import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.abac.SkillPolicySync;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,6 +75,12 @@ class AgentSkillServiceTest {
     private AgentSkillConnectionRepository agentSkillConnectionRepository;
     @Mock
     private ConnectionBindingService connectionBindingService;
+    @Mock
+    private ConnectorRepository connectorRepository;
+    @Mock
+    private ConnectorRegistry connectorRegistry;
+    @Mock
+    private SkillPolicySync policySync;
 
     @InjectMocks
     private AgentSkillService service;
@@ -96,12 +110,21 @@ class AgentSkillServiceTest {
                 .thenReturn(Optional.of(telegram));
         when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of());
         when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+        when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of());
+        when(connectorRepository.findAll()).thenReturn(List.of());
+        when(connectorRegistry.findIntegrationHandler(any())).thenReturn(Optional.empty());
+        when(policySync.apply(any(), any(), any(), any())).thenReturn(List.of());
+        when(policySync.conflicts(any(), any(), any(), any())).thenReturn(List.of());
     }
 
     private void skill(String... connectorCodes) {
+        skill(ConnectorRequirement.ofCodes(List.of(connectorCodes)));
+    }
+
+    private void skill(List<ConnectorRequirement> connectors) {
         Skill skill = Skill.builder()
                 .id(SKILL_ID).userId(USER_ID).name("skill").version(1)
-                .connectorCodes(List.of(connectorCodes))
+                .connectors(connectors)
                 .build();
         when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(skill));
         // The status is read back through the same resolution the run context uses, and that one starts
@@ -110,6 +133,10 @@ class AgentSkillServiceTest {
                 AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
                         .userId(USER_ID).skillId(SKILL_ID).build()));
         when(skillRepository.findByIdInNotDeleted(any())).thenReturn(List.of(skill));
+    }
+
+    private static ConnectorRequirement requirement(String code, String key) {
+        return new ConnectorRequirement(code, key, null, null, null, null);
     }
 
     private List<AgentSkillConnection> savedLinks() {
@@ -124,12 +151,15 @@ class AgentSkillServiceTest {
     class Binding {
 
         @Test
-        @DisplayName("внешний коннектор без ссылки → 400, выбирать инстанс обязан пользователь")
-        void externalRequiresChoice() {
+        @DisplayName("внешний коннектор без ссылки → привязан неудовлетворённым, строки нет (агент из пресета)")
+        void externalWithoutChoiceIsBoundUnsatisfied() {
             skill("telegram");
 
-            assertThrows(BadRequestStatusException.class,
-                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null));
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
+
+            assertTrue(savedLinks().isEmpty());
+            assertFalse(response.satisfied());
+            assertNull(response.connectors().get(0).connectionId());
         }
 
         @Test
@@ -161,7 +191,7 @@ class AgentSkillServiceTest {
 
             List<AgentSkillConnection> links = savedLinks();
             assertEquals(1, links.size());
-            assertEquals("persist-memory", links.get(0).getConnectorCode());
+            assertEquals("persist-memory", links.get(0).getConnectorKey());
             assertEquals(MEMORY_MODE_ID, links.get(0).getConnectionId());
         }
 
@@ -174,13 +204,30 @@ class AgentSkillServiceTest {
         }
 
         @Test
-        @DisplayName("код, объявленный навыком дважды → одна строка, а не нарушение уникальности")
-        void duplicateCodeIsStoredOnce() {
-            skill("telegram", "telegram");
+        @DisplayName("два требования одного кода под разными ключами → две ссылки, каждая по своему ключу")
+        void twoKeysOfOneCode() {
+            UUID secondId = UUID.randomUUID();
+            when(connectionRepository.findByIdAndUserIdNotDeleted(secondId, USER_ID))
+                    .thenReturn(Optional.of(connection(secondId, "telegram", "Личный")));
+            skill(List.of(requirement("telegram", "work"), requirement("telegram", "personal")));
 
-            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("work", TELEGRAM_ID, "personal", secondId), null);
 
-            assertEquals(1, savedLinks().size(), "один инстанс — один ответ, второй ряд лёг бы на тот же ключ");
+            List<AgentSkillConnection> links = savedLinks();
+            assertEquals(2, links.size());
+            assertEquals("work", links.get(0).getConnectorKey());
+            assertEquals(TELEGRAM_ID, links.get(0).getConnectionId());
+            assertEquals("personal", links.get(1).getConnectorKey());
+            assertEquals(secondId, links.get(1).getConnectionId());
+        }
+
+        @Test
+        @DisplayName("ключ нужен и в запросе: код вместо ключа — это необъявленное имя → 400")
+        void requestIsKeyedByKey() {
+            skill(List.of(requirement("telegram", "work")));
+
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null));
         }
 
         @Test
@@ -207,7 +254,7 @@ class AgentSkillServiceTest {
         private void referenced(String code, UUID connectionId) {
             when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of(
                     AgentSkillConnection.builder()
-                            .agentSkillId(AGENT_SKILL_ID).connectorCode(code).connectionId(connectionId).build()));
+                            .agentSkillId(AGENT_SKILL_ID).connectorKey(code).connectionId(connectionId).build()));
         }
 
         @Test
@@ -276,7 +323,7 @@ class AgentSkillServiceTest {
         private void referenced(String code, UUID connectionId) {
             when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of(
                     AgentSkillConnection.builder()
-                            .agentSkillId(AGENT_SKILL_ID).connectorCode(code).connectionId(connectionId).build()));
+                            .agentSkillId(AGENT_SKILL_ID).connectorKey(code).connectionId(connectionId).build()));
         }
 
         @Test
@@ -358,7 +405,7 @@ class AgentSkillServiceTest {
         private Skill lazySkill() {
             Skill skill = Skill.builder()
                     .id(SKILL_ID).userId(USER_ID).name("skill").version(1)
-                    .connectorCodes(List.of("persist-memory")).disclosure(Disclosure.LAZY)
+                    .connectors(ConnectorRequirement.ofCodes(List.of("persist-memory"))).disclosure(Disclosure.LAZY)
                     .build();
             when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(skill));
             when(skillRepository.findByIdInNotDeleted(any())).thenReturn(List.of(skill));
@@ -409,6 +456,155 @@ class AgentSkillServiceTest {
             assertNull(binding.getDisclosure());
             assertEquals(Disclosure.LAZY, response.disclosure());
             assertNull(response.disclosureOverride());
+        }
+    }
+
+    @Nested
+    @DisplayName("требование с идентичностью — адрес сервера решает, какой экземпляр")
+    class Identity {
+
+        private final UUID context7Id = UUID.randomUUID();
+        private final UUID githubId = UUID.randomUUID();
+        private final Connection context7 = mcp(context7Id, "https://mcp.context7.com/mcp", "Context7");
+        private final Connection github = mcp(githubId, "https://api.githubcopilot.com/mcp/", "GitHub");
+
+        private static Connection mcp(UUID id, String url, String name) {
+            return Connection.builder().id(id).userId(USER_ID).connectorCode("mcp").subCode(url)
+                    .fullCode("mcp_" + name).name(name).enabled(true).build();
+        }
+
+        private static ConnectorRequirement docs() {
+            return new ConnectorRequirement("mcp", "docs", null, Map.of("url", "https://mcp.context7.com/mcp"), null, null);
+        }
+
+        @BeforeEach
+        void mcpHandler() {
+            IntegrationConnectorHandler handler = mock(IntegrationConnectorHandler.class);
+            when(handler.identifierOf(any())).thenAnswer(inv -> Optional.ofNullable(inv.<Map<String, String>>getArgument(0).get("url")));
+            when(handler.getCredentialFields()).thenReturn(Map.of());
+            when(connectorRegistry.findIntegrationHandler("mcp")).thenReturn(Optional.of(handler));
+            when(connectionBindingService.kindOf("mcp")).thenReturn(ConnectorKind.EXTERNAL);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(context7, github));
+            when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of(context7, github));
+        }
+
+        @Test
+        @DisplayName("без ссылки в гейт уходит только сервер с объявленным адресом, а не оба MCP")
+        void fallbackNarrowsByIdentity() {
+            skill(List.of(docs()));
+
+            assertEquals(Map.of(SKILL_ID, java.util.Set.of(context7Id)), service.satisfiedSkillInstances(AGENT_ID));
+        }
+
+        @Test
+        @DisplayName("объявлен адрес, которого у агента нет → навык не удовлетворён, хоть другой MCP и привязан")
+        void unknownIdentityIsNotSatisfiedByAnotherServer() {
+            skill(List.of(new ConnectorRequirement("mcp", "docs", null, Map.of("url", "https://other/mcp"), null, null)));
+
+            assertTrue(service.satisfiedSkillInstances(AGENT_ID).isEmpty());
+        }
+
+        @Test
+        @DisplayName("план: подходит только коннекция с тем же sub_code, у неё видно, что она уже привязана")
+        void planMatchesByIdentity() {
+            skill(List.of(docs()));
+
+            SkillBindingPlanResponse plan = service.plan(AGENT_ID, SKILL_ID, USER_ID);
+
+            SkillConnectorStatus status = plan.connectors().get(0);
+            assertEquals("docs", status.key());
+            assertEquals("docs", status.title(), "ключ говорит больше кода — он и подпись");
+            assertEquals("https://mcp.context7.com/mcp", status.identity());
+            assertEquals(1, status.matches().size());
+            assertEquals(context7Id, status.matches().get(0).connectionId());
+            assertTrue(status.matches().get(0).boundToAgent());
+            assertTrue(status.satisfied());
+            assertTrue(plan.satisfied());
+        }
+
+        @Test
+        @DisplayName("план без идентичности предлагает все экземпляры кода, непривязанные — как есть")
+        void planWithoutIdentityOffersEveryInstance() {
+            skill("mcp");
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            SkillBindingPlanResponse plan = service.plan(AGENT_ID, SKILL_ID, USER_ID);
+
+            SkillConnectorStatus status = plan.connectors().get(0);
+            assertNull(status.identity());
+            assertEquals(2, status.matches().size());
+            assertFalse(status.matches().get(0).boundToAgent());
+            assertFalse(status.satisfied());
+            assertNull(status.connectionId());
+        }
+    }
+
+    @Nested
+    @DisplayName("правила навыка")
+    class Policies {
+
+        private final ConnectorRequirement withRules = new ConnectorRequirement("telegram", "telegram", null, null,
+                new ConnectorRequirement.Rules(null, List.of("send_photo")), null);
+
+        @Test
+        @DisplayName("привязка с выбранным экземпляром пишет правила на его binding")
+        void bindingAppliesRules() {
+            skill(List.of(withRules));
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
+
+            verify(policySync).apply(AGENT_ID, TELEGRAM_ID, SKILL_ID, withRules);
+        }
+
+        @Test
+        @DisplayName("без правил в объявлении sync не зовётся")
+        void noRulesNoSync() {
+            skill("telegram");
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
+
+            verify(policySync, never()).apply(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("конфликты попадают в статус требования")
+        void conflictsSurfaceInStatus() {
+            skill(List.of(withRules));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(telegram));
+            when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of(
+                    AgentSkillConnection.builder().agentSkillId(AGENT_SKILL_ID).connectorKey("telegram")
+                            .connectionId(TELEGRAM_ID).build()));
+            when(policySync.conflicts(AGENT_ID, TELEGRAM_ID, SKILL_ID, withRules)).thenReturn(List.of("TOOL/send_photo"));
+
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
+
+            assertEquals(List.of("TOOL/send_photo"), response.connectors().get(0).policyConflicts());
+            assertEquals(1, response.connectors().get(0).policies().size());
+        }
+
+        @Test
+        @DisplayName("отвязка навыка уносит его правила с этого агента")
+        void unbindRemovesRules() {
+            skill("telegram");
+            when(agentSkillRepository.findByAgentIdAndSkillId(AGENT_ID, SKILL_ID)).thenReturn(Optional.of(
+                    AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID).userId(USER_ID).skillId(SKILL_ID).build()));
+
+            service.delete(AGENT_ID, SKILL_ID, USER_ID);
+
+            verify(policySync).remove(AGENT_ID, SKILL_ID);
+        }
+
+        @Test
+        @DisplayName("refresh переприменяет правила по сохранённым ссылкам")
+        void refreshReapplies() {
+            skill(List.of(withRules));
+            when(agentSkillConnectionRepository.findByAgentSkillId(AGENT_SKILL_ID)).thenReturn(List.of(
+                    AgentSkillConnection.builder().agentSkillId(AGENT_SKILL_ID).connectorKey("telegram")
+                            .connectionId(TELEGRAM_ID).build()));
+
+            service.markSkillsInstalled(AGENT_ID, USER_ID);
+
+            verify(policySync).apply(AGENT_ID, TELEGRAM_ID, SKILL_ID, withRules);
         }
     }
 }

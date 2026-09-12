@@ -77,6 +77,8 @@ public class AgentConnectionPolicyService {
             policy.setEffect(effect);
         }
         policy.setParamsFilter(paramsFilter);
+        // An edited rule is the user's: the skill that wrote it must not reset it on its next refresh.
+        policy.setSource(null);
         if (description != null) {
             // The documented /manage PATCH convention: an empty string clears. Storing it literally
             // would make "clear" indistinguishable from "set to empty" and violate docs/services/control-api.md.
