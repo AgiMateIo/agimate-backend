@@ -8,10 +8,11 @@ Every contributor signs the [CLA](CLA.md) once, on their first pull request. A b
 with instructions; you reply in the pull request and it records the signature. Nothing to
 print, sign or email.
 
-The CLA lets the project be distributed under terms other than Apache-2.0 in the future
-(a commercial licence alongside the open one). Without it that door closes permanently the
-moment the first outside change lands, because reopening it would need every contributor's
-consent. You keep full ownership of your contribution either way.
+The CLA lets the project be distributed under more than one set of terms — the public
+[FSL-1.1-ALv2](LICENSE) and a commercial licence alongside it. Without it that door closes
+permanently the moment the first outside change lands, because reopening it would need every
+contributor's consent. You keep full ownership of your contribution either way; what the
+boundary between free and commercial use is, is in [LICENSING.md](LICENSING.md).
 
 ## Reporting a security issue
 

@@ -40,7 +40,8 @@ derivative works of, publicly display, publicly perform, sublicense, and distrib
 Contributions and such derivative works.
 
 The right to sublicense means the Project Owner may distribute Your Contribution under the
-Apache License 2.0 and under other license terms, including commercial ones.
+license the project currently uses — the Functional Source License 1.1 with an Apache-2.0
+future license — and under other license terms, including commercial ones.
 
 ## 3. Grant of Patent License
 
