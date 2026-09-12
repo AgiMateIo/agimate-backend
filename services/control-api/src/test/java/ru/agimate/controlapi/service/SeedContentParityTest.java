@@ -9,13 +9,16 @@ import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
 import java.util.stream.Stream;
+import java.util.List;
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 /**
- * Паритет языковых наборов сид-контента. Переводу подлежат только {@code title}, {@code description}
- * и тело; остальной frontmatter — машинные ключи, и переведённый ключ ломает связь молча:
+ * Паритет языковых наборов сид-контента. Переводу подлежат только {@code title}, {@code description},
+ * тело и подпись требования ({@code connectors[].title} — текст мастера подключения); остальной
+ * frontmatter — машинные ключи, и переведённый ключ ломает связь молча:
  * {@code skills:} — привязку пресета к скилу, {@code connectors:} — привязку скила к коннектору,
  * {@code sortOrder} — порядок галереи мастера.
  *
@@ -51,11 +54,18 @@ class SeedContentParityTest {
         SkillFrontmatterParser.ParsedSkill translated = parseSkill(code, language);
 
         assertEquals(base.name(), translated.name(), "name");
-        assertEquals(base.connectors(), translated.connectors(), "connectors (порядок тоже)");
+        assertEquals(withoutTitles(base.connectors()), withoutTitles(translated.connectors()),
+                "connectors (порядок тоже; подпись требования переводится и не сравнивается)");
         assertNotEquals(base.description(), translated.description(),
                 "description совпал с " + BASE + " — файл скопирован, а не переведён");
         assertNotEquals(base.body(), translated.body(),
                 "тело совпало с " + BASE + " — файл скопирован, а не переведён");
+    }
+
+    private static List<ConnectorRequirement> withoutTitles(List<ConnectorRequirement> requirements) {
+        return requirements.stream()
+                .map(r -> new ConnectorRequirement(r.code(), r.key(), null, r.params(), r.tools(), r.triggers()))
+                .toList();
     }
 
     @ParameterizedTest(name = "{0}/{1}")

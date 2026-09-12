@@ -55,6 +55,7 @@ public class SystemPresetBootstrap {
             "health-diary",
             "language-tutor",
             "coder",
+            "investment-advisor",
             "external-agent");
 
     private final AgentPresetRepository agentPresetRepository;

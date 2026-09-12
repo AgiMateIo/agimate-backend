@@ -223,7 +223,9 @@ URL — нормализация (сейчас это `trim()`) живёт в о
       `SkillConnectorStatus`
 - [x] `AgentConnectionPolicyService.update` стирает `source`
 - [x] `GET /manage/agents/{agentId}/skills/plan`
-- [ ] Первый потребитель формата — системный навык, объявляющий MCP-сервер: какие серверы предлагать
-      всем пользователям, решение продуктовое
+- [x] Первый потребитель формата — системный навык `tinvest` (официальный MCP-сервер T-Invest,
+      `params.url`, без правил: имена тулов сервер отдаёт только с токеном) и пресет
+      `investment-advisor`; навык с двумя MCP-требованиями — когда появится второй сервер, который
+      стоит предлагать всем
 - [x] Документация: `architecture/connectors.md` («Ссылка навыка»), раздел Skills в `CLAUDE.md`,
       `tmpspec/skill-wizard-frontend.md`

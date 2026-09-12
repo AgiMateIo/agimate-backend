@@ -59,7 +59,8 @@ public class SystemSkillBootstrap {
             "sheets",
             "acp",
             "skill-loader",
-            "tool-loader");
+            "tool-loader",
+            "tinvest");
 
     private final SkillRepository skillRepository;
     private final SeedContentLocator seedContentLocator;
