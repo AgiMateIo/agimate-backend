@@ -4,6 +4,8 @@ title: Астрология
 description: Настоящие астрономические расчёты для астрологии — натальная карта, транзиты и синастрия. Позиции планет, дома и аспекты считает движок эфемерид, а не модель.
 disclosure: lazy
 connectors: [astro]
+category: leisure
+tags: [advice]
 ---
 
 # Skill: AgiMate Astro

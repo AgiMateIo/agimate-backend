@@ -4,6 +4,8 @@ title: Работа из IDE
 description: Работа в проекте пользователя из его IDE — чтение и запись файлов, команды в терминале и MCP-серверы, подключённые в IDE. Состав инструментов известен только внутри живой IDE-сессии.
 disclosure: lazy
 connectors: [acp]
+category: development
+tags: [developer]
 ---
 
 # Skill: работа из IDE

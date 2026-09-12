@@ -4,6 +4,8 @@ title: Working from the IDE
 description: Working inside the user's project from their IDE — reading and writing files, running terminal commands and using MCP servers connected in the IDE. The tool set is only known inside a live IDE session.
 disclosure: lazy
 connectors: [acp]
+category: development
+tags: [developer]
 ---
 
 # Skill: working from the IDE

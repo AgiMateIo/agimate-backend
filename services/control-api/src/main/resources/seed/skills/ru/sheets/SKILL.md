@@ -4,6 +4,8 @@ title: Таблицы и графики
 description: Ведение табличных данных пользователя — таблицы с объявленной схемой, фильтры и сводки по любой колонке, графики PNG, импорт и выгрузка xlsx/csv.
 disclosure: lazy
 connectors: [sheets]
+category: platform
+tags: [tracking]
 ---
 
 # Skill: таблицы

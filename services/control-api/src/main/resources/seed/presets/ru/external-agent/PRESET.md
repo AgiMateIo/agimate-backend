@@ -5,6 +5,8 @@ description: Ваш собственный ИИ — Claude Code, Cursor, сво�
 skills: [persist-memory]
 agentType: MCP
 sortOrder: 13
+category: development
+tags: [developer]
 ---
 
 Ты работаешь через AgiMate: память пользователя, таблицы, доска и подключённые сервисы доступны тебе как инструменты.

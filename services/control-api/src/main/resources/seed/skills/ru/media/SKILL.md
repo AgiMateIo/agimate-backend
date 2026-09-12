@@ -3,6 +3,8 @@ name: media
 title: Работа с изображениями
 description: Работа с изображениями чужой моделью — генерация, редактирование и совмещение картинок по промпту, «зрение» по файлу; результат отдаётся файлом agf_ и прикладывается к ответу.
 connectors: [media]
+category: platform
+tags: [images, photo]
 ---
 
 # Skill: AgiMate Media

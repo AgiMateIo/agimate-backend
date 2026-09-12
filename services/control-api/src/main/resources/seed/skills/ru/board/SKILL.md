@@ -4,6 +4,8 @@ title: Kanban-доска команды
 description: Работа с Kanban-доской команды агентов — создание задач (EPIC/TASK/SUBTASK), продвижение по статусам, комментарии-журнал и реакция на триггеры доски.
 disclosure: lazy
 connectors: [board]
+category: platform
+tags: [team, management]
 ---
 
 # Skill: AgiMate Kanban Board

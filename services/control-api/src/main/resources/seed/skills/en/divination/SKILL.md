@@ -4,6 +4,8 @@ title: Divination and numerology
 description: Destiny Matrix, numerology and Tarot. Every number and drawn card comes from a deterministic engine — the model only interprets.
 disclosure: lazy
 connectors: [divination]
+category: leisure
+tags: [advice]
 ---
 
 # Skill: AgiMate Divination

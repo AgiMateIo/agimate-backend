@@ -3,6 +3,8 @@ name: time
 title: Время и планировщик
 description: Текущее время в UTC и планирование отложенных задач самому себе — одноразовые напоминания, периодические запуски и cron-расписания.
 connectors: [time]
+category: platform
+tags: [reminders, schedule]
 ---
 
 # Skill: AgiMate Time

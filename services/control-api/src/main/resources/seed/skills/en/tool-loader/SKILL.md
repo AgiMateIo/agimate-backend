@@ -4,6 +4,7 @@ title: Deferred tools
 description: Loading the full definitions of deferred tools on demand — the agent sees them listed with short summaries and loads the ones the current task needs.
 disclosure: eager
 connectors: [tool-loader]
+category: platform
 ---
 
 # Skill: deferred tools

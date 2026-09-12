@@ -9,6 +9,8 @@ connectors:
     title: T-Invest MCP (read-only token)
     params:
       url: https://invest-public-api.tbank.ru/mcp
+category: finance
+tags: [own-token, read-only]
 ---
 
 # Skill: T-Invest

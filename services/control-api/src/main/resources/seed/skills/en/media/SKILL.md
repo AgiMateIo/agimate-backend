@@ -3,6 +3,8 @@ name: media
 title: Working with images
 description: Working with images through another model — generating, editing and combining pictures from a prompt, plus "vision" over a file; the result comes back as an agf_ file and is attached to the reply.
 connectors: [media]
+category: platform
+tags: [images, photo]
 ---
 
 # Skill: AgiMate Media

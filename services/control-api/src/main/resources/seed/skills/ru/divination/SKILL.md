@@ -4,6 +4,8 @@ title: Гадания и нумерология
 description: Матрица судьбы, нумерология и Таро. Все числа и выпавшие карты считает детерминированный движок — модель только интерпретирует.
 disclosure: lazy
 connectors: [divination]
+category: leisure
+tags: [advice]
 ---
 
 # Skill: AgiMate Divination

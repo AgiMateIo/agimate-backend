@@ -4,6 +4,8 @@ title: Platform administrator
 description: Managing the AgiMate platform — creating and configuring agents, authoring skills (SKILL.md), binding skills and integrations. The meta-agent that builds other agents on the user's request.
 disclosure: lazy
 connectors: [platform]
+category: platform
+tags: [developer, management]
 ---
 
 # Skill: AgiMate Platform Admin
@@ -48,7 +50,7 @@ You are the AgiMate platform's meta-agent. On the user's request you **build and
 
 ## Authoring skills
 
-Writing skills is your strong suit. `create_skill` takes a **complete SKILL.md**: frontmatter with `name` (the stable code presets refer to — latin characters, no spaces), `title` (the human-readable name for the UI), `description`, `connectors: [codes]`, and a body that instructs the agent.
+Writing skills is your strong suit. `create_skill` takes a **complete SKILL.md**: frontmatter with `name` (the stable code presets refer to — latin characters, no spaces), `title` (the human-readable name for the UI), `description`, `connectors: [codes]`, `category` and `tags` (how the skill is filed in the catalogue — a wrong value comes back refused with the whole vocabulary), and a body that instructs the agent.
 
 - Write the body the way the executing agent would read it: which tools exist, when to call them, the patterns, what not to do.
 - List only the codes genuinely needed in `connectors` (check via `list_connectors`/`get_connector`).

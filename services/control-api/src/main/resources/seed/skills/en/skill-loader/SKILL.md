@@ -4,6 +4,7 @@ title: Deferred skills
 description: Loading the full instructions of deferred skills on demand — the agent sees them in the skills listing and loads the ones the current task needs.
 disclosure: eager
 connectors: [skill-loader]
+category: platform
 ---
 
 # Skill: deferred skills

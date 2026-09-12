@@ -4,6 +4,8 @@ title: Sheets and charts
 description: Keeping the user's tabular data — sheets with a declared schema, filters and summaries over any column, PNG charts, import and export as xlsx/csv.
 disclosure: lazy
 connectors: [sheets]
+category: platform
+tags: [tracking]
 ---
 
 # Skill: sheets

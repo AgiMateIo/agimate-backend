@@ -5,6 +5,8 @@ description: Your own AI — Claude Code, Cursor, a script of yours — working 
 skills: [persist-memory]
 agentType: MCP
 sortOrder: 13
+category: development
+tags: [developer]
 ---
 
 You are working through AgiMate: the user's memory, tables, board and connected services are available to you as tools.

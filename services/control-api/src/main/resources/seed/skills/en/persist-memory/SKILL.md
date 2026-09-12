@@ -3,6 +3,7 @@ name: persist-memory
 title: Long-term memory
 description: The agent's long-term memory — saving facts as notes during a conversation and consolidating them into folded memory on triggers.
 connectors: [persist-memory]
+category: platform
 ---
 
 # Skill: AgiMate Memory
