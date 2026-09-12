@@ -3,6 +3,7 @@ package ru.agimate.controlapi.database.repositories;
 import lombok.experimental.UtilityClass;
 import org.springframework.data.jpa.domain.Specification;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.enums.ContentCategory;
 
 import java.util.UUID;
 
@@ -31,6 +32,22 @@ public class SkillSpecs {
                 root.get("connectors"),
                 cb.function("jsonb_build_array", String.class,
                         cb.function("jsonb_build_object", String.class, cb.literal("code"), cb.literal(connectorCode)))));
+    }
+
+    public static Specification<Skill> hasCategory(ContentCategory category) {
+        return (root, query, cb) -> cb.equal(root.get("category"), category);
+    }
+
+    /**
+     * The skill carries the tag: {@code array_position(tags, ?) > 0}. Not containment — there is no
+     * {@code text[] @> varchar[]} operator, and an operator is not callable from the criteria API — and
+     * not a null check on the position either: Hibernate renders an array function wrapped in
+     * {@code coalesce(..., 0)}, so {@code IS NOT NULL} is true for every row and the filter silently
+     * lets everything through. No index — as with {@link #hasConnector(String)}, the table is small.
+     */
+    public static Specification<Skill> hasTag(String tag) {
+        return (root, query, cb) -> cb.greaterThan(
+                cb.function("array_position", Integer.class, root.get("tags"), cb.literal(tag)), 0);
     }
 
     public static Specification<Skill> searchByNameOrDescription(String search) {

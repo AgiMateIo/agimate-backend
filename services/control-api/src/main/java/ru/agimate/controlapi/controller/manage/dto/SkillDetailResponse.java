@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
+import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 
@@ -29,6 +30,12 @@ public record SkillDetailResponse(
         List<String> connectorCodes,
         @Schema(description = "Connector requirements: key, code, params to pre-fill, access rules")
         List<ConnectorRequirement> connectors,
+
+        @Schema(description = "What the skill is about — the catalogue's navigation axis; "
+                + "labels and the whole vocabulary: GET /manage/taxonomy/")
+        ContentCategory category,
+        @Schema(description = "Facets the category cannot carry (ContentTag names)")
+        List<String> tags,
 
         @Schema(description = "Skill version")
         int version,
@@ -65,6 +72,8 @@ public record SkillDetailResponse(
                 skill.getDescription(),
                 skill.getConnectorCodes(),
                 skill.getConnectors(),
+                skill.getCategory(),
+                skill.getTags(),
                 skill.getVersion(),
                 skill.getIsPublic(),
                 skill.getUserId(),

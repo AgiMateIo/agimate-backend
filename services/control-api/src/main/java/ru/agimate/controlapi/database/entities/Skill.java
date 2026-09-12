@@ -2,11 +2,13 @@ package ru.agimate.controlapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.Length;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
 
@@ -60,6 +62,25 @@ public class Skill extends BaseEntity {
     @Column(name = "connectors", nullable = false, columnDefinition = "JSONB")
     @Builder.Default
     private List<ConnectorRequirement> connectors = new ArrayList<>();
+
+    /**
+     * What the skill is about — the catalogue's one navigation axis, shared with presets. Everything
+     * that is not the subject lives in {@link #tags}; see {@code docs/decisions/content-taxonomy.md}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private ContentCategory category = ContentCategory.OTHER;
+
+    /**
+     * Facets a category cannot carry — names of {@code ContentTag}. Strings rather than an array of
+     * enums: {@code length} is what keeps the element {@code text} rather than {@code varchar} (see
+     * {@link AgentPreset#getSkillNames()}), and the vocabulary is checked where the document is parsed.
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "tags", nullable = false, columnDefinition = "text[]", length = Length.LONG32)
+    @Builder.Default
+    private List<String> tags = new ArrayList<>();
 
     @Column(name = "version", nullable = false)
     @Builder.Default

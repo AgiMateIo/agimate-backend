@@ -25,6 +25,8 @@ import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentTag;
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
@@ -36,6 +38,7 @@ import ru.agimate.controlapi.util.ConnectorRequirements;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -61,11 +64,11 @@ public class SkillService {
     private final SkillPolicySync skillPolicySync;
 
     public Page<SkillResponse> getSkills(UUID userId, SkillListScope scope, String search, String connectorCode,
-                                         int page, int size) {
+                                         ContentCategory category, ContentTag tag, int page, int size) {
         Specification<Skill> base = scope == SkillListScope.PUBLIC
                 ? SkillSpecs.isPublic()
                 : SkillSpecs.ownedBy(userId);
-        return findSkills(base, search, connectorCode, page, size);
+        return findSkills(base, search, connectorCode, category, tag, page, size);
     }
 
     public SkillDetailResponse getSkillDetail(UUID id, UUID userId) {
@@ -118,6 +121,8 @@ public class SkillService {
                 .mdContent(parsed.body())
                 .connectors(parsed.connectors())
                 .disclosure(parsed.disclosure())
+                .category(parsed.category())
+                .tags(new ArrayList<>(parsed.tags()))
                 .userId(ownerId)
                 .isPublic(isPublic)
                 .build();
@@ -169,6 +174,8 @@ public class SkillService {
         skill.setMdContent(parsed.body());
         skill.setConnectors(parsed.connectors());
         skill.setDisclosure(parsed.disclosure());
+        skill.setCategory(parsed.category());
+        skill.setTags(new ArrayList<>(parsed.tags()));
         if (isPublic != null) {
             skill.setIsPublic(isPublic);
         }
@@ -269,7 +276,8 @@ public class SkillService {
         return skill;
     }
 
-    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
+    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode,
+                                           ContentCategory category, ContentTag tag, int page, int size) {
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
         Specification<Skill> spec = SkillSpecs.notDeleted().and(filter);
         if (search != null && !search.isBlank()) {
@@ -277,6 +285,12 @@ public class SkillService {
         }
         if (connectorCode != null && !connectorCode.isBlank()) {
             spec = spec.and(SkillSpecs.hasConnector(connectorCode));
+        }
+        if (category != null) {
+            spec = spec.and(SkillSpecs.hasCategory(category));
+        }
+        if (tag != null) {
+            spec = spec.and(SkillSpecs.hasTag(tag.name()));
         }
         return skillRepository.findAll(spec, pageRequest).map(SkillResponse::from);
     }

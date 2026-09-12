@@ -2,6 +2,8 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentTag;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
@@ -32,11 +34,25 @@ public record CreateAgentPresetRequest(
         @Schema(description = "Type of the agent this preset creates; null — the wizard asks")
         AgentType agentType,
 
+        @Schema(description = "What the preset is about; omitted — OTHER (see GET /manage/taxonomy/)")
+        ContentCategory category,
+
+        @Schema(description = "Facets the category cannot carry (see GET /manage/taxonomy/)")
+        List<ContentTag> tags,
+
         @Schema(description = "Gallery sort order (ascending)", defaultValue = "0")
         Integer sortOrder
 ) {
     public List<String> resolveSkillNames() {
         return skillNames == null ? List.of() : skillNames;
+    }
+
+    public ContentCategory resolveCategory() {
+        return category == null ? ContentCategory.OTHER : category;
+    }
+
+    public List<String> resolveTags() {
+        return tags == null ? List.of() : tags.stream().map(Enum::name).distinct().toList();
     }
 
     public int resolveSortOrder() {

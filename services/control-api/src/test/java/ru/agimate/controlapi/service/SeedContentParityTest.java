@@ -20,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  * тело и подпись требования ({@code connectors[].title} — текст мастера подключения); остальной
  * frontmatter — машинные ключи, и переведённый ключ ломает связь молча:
  * {@code skills:} — привязку пресета к скилу, {@code connectors:} — привязку скила к коннектору,
- * {@code sortOrder} — порядок галереи мастера.
+ * {@code sortOrder} — порядок галереи мастера, {@code category}/{@code tags} — раздел каталога и
+ * фильтры.
  *
  * <p>В БД лежит один языковой набор ({@code app.content.language} выбирается для свежей
  * инсталляции), поэтому расхождение не всплыло бы больше нигде: каждый язык по отдельности
@@ -56,6 +57,8 @@ class SeedContentParityTest {
         assertEquals(base.name(), translated.name(), "name");
         assertEquals(withoutTitles(base.connectors()), withoutTitles(translated.connectors()),
                 "connectors (порядок тоже; подпись требования переводится и не сравнивается)");
+        assertEquals(base.category(), translated.category(), "category — раздел каталога");
+        assertEquals(base.tags(), translated.tags(), "tags (порядок тоже)");
         assertNotEquals(base.description(), translated.description(),
                 "description совпал с " + BASE + " — файл скопирован, а не переведён");
         assertNotEquals(base.body(), translated.body(),
@@ -79,6 +82,8 @@ class SeedContentParityTest {
         assertEquals(base.skillNames(), translated.skillNames(), "skills (порядок тоже)");
         assertEquals(base.sortOrder(), translated.sortOrder(), "sortOrder — порядок галереи мастера");
         assertEquals(base.agentType(), translated.agentType(), "agentType — какого агента создаёт пресет");
+        assertEquals(base.category(), translated.category(), "category — раздел галереи");
+        assertEquals(base.tags(), translated.tags(), "tags (порядок тоже)");
         assertNotEquals(base.instructions(), translated.instructions(),
                 "instructions совпали с " + BASE + " — файл скопирован, а не переведён");
     }

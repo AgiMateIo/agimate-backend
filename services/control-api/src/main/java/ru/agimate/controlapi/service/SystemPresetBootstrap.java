@@ -9,13 +9,16 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.entities.AgentPreset;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
 
@@ -31,7 +34,8 @@ import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
  * the row is looked up by {@code name} and created only when it does not exist yet — so edits through a
  * future admin UI are not wiped by the next deploy. It runs after the skills are seeded (see
  * {@code @Order}) so the {@code skills} references are checked against already-seeded system skills; an
- * unknown name is a warning, not a refusal (resolution happens at listing time anyway).
+ * unknown name is a warning, not a refusal (resolution happens at listing time anyway). The exception
+ * to seed-only-if-missing is the same one: {@link #fillTaxonomy} fills an empty category or tag list.
  *
  * <p>As with skills, the language is fixed by the first seeding: {@code instructions} are copied into
  * the agent at creation, so existing agents do not follow a change of {@code app.content.language}.
@@ -80,7 +84,9 @@ public class SystemPresetBootstrap {
         ParsedPreset parsed = parsePreset(seedContentLocator.read(SeedContentLocator.Kind.PRESET, code));
         warnOnUnknownSkills(parsed);
 
-        if (agentPresetRepository.findByName(parsed.name()).isPresent()) {
+        Optional<AgentPreset> existing = agentPresetRepository.findByName(parsed.name());
+        if (existing.isPresent()) {
+            fillTaxonomy(existing.get(), parsed);
             return;
         }
 
@@ -92,6 +98,8 @@ public class SystemPresetBootstrap {
                     .instructions(parsed.instructions())
                     .skillNames(parsed.skillNames())
                     .agentType(parsed.agentType())
+                    .category(parsed.category())
+                    .tags(new ArrayList<>(parsed.tags()))
                     .sortOrder(parsed.sortOrder())
                     .build());
             log.info("Seeded system preset '{}' id={} skills={}", preset.getName(), preset.getId(),
@@ -100,6 +108,25 @@ public class SystemPresetBootstrap {
             // A concurrent node inserted the same name on a cold start — it is seeded already.
             log.debug("System preset '{}' already seeded by a concurrent node", parsed.name());
         }
+    }
+
+    /** The same narrow exception as {@link SystemSkillBootstrap#fillTaxonomy}: fill what is empty, never overwrite. */
+    private void fillTaxonomy(AgentPreset preset, ParsedPreset parsed) {
+        boolean fillCategory = preset.getCategory() == ContentCategory.OTHER
+                && parsed.category() != ContentCategory.OTHER;
+        boolean fillTags = preset.getTags().isEmpty() && !parsed.tags().isEmpty();
+        if (!fillCategory && !fillTags) {
+            return;
+        }
+        if (fillCategory) {
+            preset.setCategory(parsed.category());
+        }
+        if (fillTags) {
+            preset.setTags(new ArrayList<>(parsed.tags()));
+        }
+        agentPresetRepository.save(preset);
+        log.info("Filled taxonomy of system preset '{}': category={} tags={}",
+                preset.getName(), preset.getCategory(), preset.getTags());
     }
 
     private void warnOnUnknownSkills(ParsedPreset parsed) {
@@ -112,7 +139,8 @@ public class SystemPresetBootstrap {
 
     /** A parsed PRESET.md: the frontmatter fields and the instruction body. */
     record ParsedPreset(String name, String title, String description, List<String> skillNames,
-                        AgentType agentType, Integer sortOrder, String instructions) {}
+                        AgentType agentType, ContentCategory category, List<String> tags,
+                        Integer sortOrder, String instructions) {}
 
     static ParsedPreset parsePreset(String content) {
         SkillFrontmatterParser.RawFrontmatter raw = SkillFrontmatterParser.parseRaw(content, "PRESET.md");
@@ -130,7 +158,10 @@ public class SystemPresetBootstrap {
         if (raw.body().isBlank()) {
             throw new IllegalStateException("PRESET.md body (agent instructions) is empty");
         }
-        return new ParsedPreset(name, title, description, skillNames, agentType, sortOrder, raw.body());
+        return new ParsedPreset(name, title, description, skillNames, agentType,
+                SkillFrontmatterParser.parseCategory(fields.get("category"), "PRESET.md"),
+                SkillFrontmatterParser.parseTags(fields.get("tags"), "PRESET.md"),
+                sortOrder, raw.body());
     }
 
     /** Absent means «the wizard asks»; a typo must not silently degrade to that. */

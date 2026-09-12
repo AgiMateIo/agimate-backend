@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Catalogue taxonomy (docs/decisions/content-taxonomy.md): one vocabulary of categories for both
+      skills and presets, plus a closed set of tags for the facets a category cannot carry.
+
+      No check constraint on category, unlike the status columns: a status is part of a state machine
+      and its new value changes code, while this vocabulary is meant to grow with the catalogue — a
+      constraint would mean a migration per added category. The value is checked in code, the way
+      connector codes are. No indexes either: both tables are small and the filter is a listing's.
+
+      Existing rows land in OTHER and are filled in from the classpath on the next boot (see the
+      bootstraps): the seeding is seed-only-if-missing, so a category written into SKILL.md would
+      otherwise never reach an installation that is already seeded.
+    -->
+    <changeSet id="content-taxonomy-columns" author="agimate">
+        <addColumn tableName="skills">
+            <column name="category" type="TEXT" defaultValue="OTHER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tags" type="text[]" defaultValueComputed="'{}'::text[]">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="agent_presets">
+            <column name="category" type="TEXT" defaultValue="OTHER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tags" type="text[]" defaultValueComputed="'{}'::text[]">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

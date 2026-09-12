@@ -9,6 +9,7 @@ import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import org.junit.jupiter.api.Nested;
 
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.Disclosure;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -168,6 +169,65 @@ class SkillFrontmatterParserTest {
 
             assertNull(requirement.title());
             assertNull(requirement.params());
+        }
+    }
+
+    @Nested
+    @DisplayName("category и tags")
+    class Taxonomy {
+
+        @Test
+        @DisplayName("без полей — OTHER и пустой список: чужой SKILL.md не обязан знать словарь")
+        void absent() {
+            SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse("""
+                    ---
+                    name: s
+                    ---
+                    body
+                    """);
+
+            assertEquals(ContentCategory.OTHER, parsed.category());
+            assertTrue(parsed.tags().isEmpty());
+        }
+
+        @Test
+        @DisplayName("читаются без учёта регистра и дефисов, повторы схлопываются, порядок сохранён")
+        void parsed() {
+            SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse("""
+                    ---
+                    name: s
+                    category: Finance
+                    tags: [own-token, READ_ONLY, own_token]
+                    ---
+                    body
+                    """);
+
+            assertEquals(ContentCategory.FINANCE, parsed.category());
+            assertEquals(List.of("OWN_TOKEN", "READ_ONLY"), parsed.tags());
+        }
+
+        @Test
+        @DisplayName("неизвестное значение — 400 со словарём в сообщении: по нему учится и мета-агент")
+        void unknownValues() {
+            BadRequestStatusException category = assertThrows(BadRequestStatusException.class,
+                    () -> SkillFrontmatterParser.parse("""
+                            ---
+                            name: s
+                            category: crypto
+                            ---
+                            body
+                            """));
+            assertTrue(category.getMessage().contains("FINANCE"), category.getMessage());
+
+            BadRequestStatusException tag = assertThrows(BadRequestStatusException.class,
+                    () -> SkillFrontmatterParser.parse("""
+                            ---
+                            name: s
+                            tags: [urgent]
+                            ---
+                            body
+                            """));
+            assertTrue(tag.getMessage().contains("OWN_TOKEN"), tag.getMessage());
         }
     }
 }

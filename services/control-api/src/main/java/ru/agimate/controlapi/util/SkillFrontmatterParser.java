@@ -3,10 +3,13 @@ package ru.agimate.controlapi.util;
 import lombok.experimental.UtilityClass;
 import org.yaml.snakeyaml.Yaml;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentTag;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -19,10 +22,12 @@ public class SkillFrontmatterParser {
      * A parsed SKILL.md: {@code name}/{@code description}/{@code connectors}/{@code disclosure} from
      * the frontmatter, and {@code body} — the body without the headers (everything after the closing
      * {@code ---}). {@code disclosure} defaults to EAGER: a body the author did not mark is shown;
-     * {@code connectors} is normalised (see {@link ConnectorRequirements#fromYaml}).
+     * {@code connectors} is normalised (see {@link ConnectorRequirements#fromYaml}), and
+     * {@code category}/{@code tags} are the catalogue's taxonomy — absent means OTHER and no tags.
      */
     public record ParsedSkill(String name, String title, String description,
-                              List<ConnectorRequirement> connectors, Disclosure disclosure, String body) {}
+                              List<ConnectorRequirement> connectors, Disclosure disclosure,
+                              ContentCategory category, List<String> tags, String body) {}
 
     /** A raw parse of a markdown document with YAML frontmatter: the fields plus the body after the closing {@code ---}. */
     public record RawFrontmatter(Map<String, Object> fields, String body) {}
@@ -46,7 +51,9 @@ public class SkillFrontmatterParser {
         List<ConnectorRequirement> connectors = ConnectorRequirements.fromYaml(frontmatter.get("connectors"));
         Disclosure disclosure = parseDisclosure(frontmatter.get("disclosure"));
 
-        return new ParsedSkill(name, title, description, connectors, disclosure, raw.body());
+        return new ParsedSkill(name, title, description, connectors, disclosure,
+                parseCategory(frontmatter.get("category"), "SKILL.md"),
+                parseTags(frontmatter.get("tags"), "SKILL.md"), raw.body());
     }
 
     /** {@code disclosure: eager|lazy}, case-insensitive; absent — EAGER. */
@@ -59,6 +66,43 @@ public class SkillFrontmatterParser {
         } catch (IllegalArgumentException e) {
             throw new BadRequestStatusException("SKILL.md frontmatter 'disclosure' must be eager or lazy, got: " + value);
         }
+    }
+
+    /**
+     * {@code category: finance} — case-insensitive, hyphens allowed; absent means
+     * {@link ContentCategory#OTHER}, which is how a user's own document stays valid without knowing the
+     * vocabulary. An unknown value is refused with the vocabulary in the message: that message is also
+     * how the meta-agent learns the allowed values when it authors a SKILL.md.
+     *
+     * @param docLabel the format's name for the error message ({@code SKILL.md}, {@code PRESET.md})
+     */
+    public static ContentCategory parseCategory(Object value, String docLabel) {
+        if (value == null || value.toString().isBlank()) {
+            return ContentCategory.OTHER;
+        }
+        try {
+            return ContentCategory.valueOf(value.toString().strip().toUpperCase().replace('-', '_'));
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestStatusException(docLabel + " frontmatter has unknown category '" + value
+                    + "'. Allowed: " + ContentCategory.codes());
+        }
+    }
+
+    /**
+     * {@code tags: [personal, own-token]} — case-insensitive, duplicates collapsed, declaration order
+     * kept. Stored as {@link ContentTag} names, so what lies in the column is what the API returns.
+     */
+    public static List<String> parseTags(Object value, String docLabel) {
+        LinkedHashSet<String> tags = new LinkedHashSet<>();
+        for (String raw : parseStringList(value)) {
+            try {
+                tags.add(ContentTag.valueOf(raw.toUpperCase().replace('-', '_')).name());
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestStatusException(docLabel + " frontmatter has unknown tag '" + raw
+                        + "'. Allowed: " + ContentTag.codes());
+            }
+        }
+        return new ArrayList<>(tags);
     }
 
     /**

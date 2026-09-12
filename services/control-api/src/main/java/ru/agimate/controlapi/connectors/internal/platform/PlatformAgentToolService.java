@@ -349,9 +349,10 @@ public class PlatformAgentToolService {
     @Tool(name = "create_skill",
             description = "Create a skill from a full SKILL.md document (YAML frontmatter with name "
                     + "(stable code), title (display name), description, connectors, disclosure "
-                    + "(eager|lazy, default eager) + markdown body). A connectors item is a bare code or "
-                    + "{code, key, title, params, tools: {allow|deny}, triggers: {allow|deny}}. "
-                    + "isPublic defaults to false",
+                    + "(eager|lazy, default eager), category and tags + markdown body). A connectors item "
+                    + "is a bare code or {code, key, title, params, tools: {allow|deny}, triggers: "
+                    + "{allow|deny}}. category and tags file the skill in the catalogue; a wrong value is "
+                    + "refused with the whole vocabulary in the message. isPublic defaults to false",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public SkillDetail createSkill(
             @ToolParam("Full SKILL.md content (frontmatter + body)") String skillMd,

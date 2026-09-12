@@ -43,6 +43,7 @@ import ru.agimate.controlapi.controller.manage.ManageConnectionController;
 import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageLlmUsageController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
+import ru.agimate.controlapi.controller.manage.ManageTaxonomyController;
 import ru.agimate.controlapi.controller.manage.ManageSessionController;
 import ru.agimate.controlapi.controller.manage.ManageWebchatController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
@@ -135,6 +136,7 @@ public class SecurityConfig {
             ManageConnectionController.PATH + "/**",
             ManageBoardController.PATH + "/**",
             ManageSkillController.PATH + "/**",
+            ManageTaxonomyController.PATH + "/**",
             ManageConnectorController.PATH + "/**",
             ManageConnectorJobController.PATH + "/**",
             ManageCentrifugoTokenController.PATH + "/**",

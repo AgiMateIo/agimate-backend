@@ -2,6 +2,8 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentTag;
 
 import java.util.List;
 
@@ -26,6 +28,12 @@ public record UpdateAgentPresetRequest(
 
         @Schema(description = "Type of the agent this preset creates; null — leave unchanged")
         AgentType agentType,
+
+        @Schema(description = "What the preset is about (see GET /manage/taxonomy/)")
+        ContentCategory category,
+
+        @Schema(description = "Facets the category cannot carry; replaces the list (see GET /manage/taxonomy/)")
+        List<ContentTag> tags,
 
         @Schema(description = "Gallery sort order (ascending)")
         Integer sortOrder,

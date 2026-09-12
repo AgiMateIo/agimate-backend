@@ -19,6 +19,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.ContentCategory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -80,6 +81,18 @@ public class AgentPreset extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "agent_type", columnDefinition = "TEXT")
     private AgentType agentType;
+
+    /** What the preset is about — the gallery's one navigation axis; see {@link Skill#getCategory()}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private ContentCategory category = ContentCategory.OTHER;
+
+    /** Facets a category cannot carry — names of {@code ContentTag}; {@code text[]} as {@link #skillNames}. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "tags", nullable = false, columnDefinition = "text[]", length = Length.LONG32)
+    @Builder.Default
+    private List<String> tags = new ArrayList<>();
 
     @Column(name = "sort_order", nullable = false)
     @Builder.Default

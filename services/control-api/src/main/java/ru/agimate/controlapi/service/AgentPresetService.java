@@ -66,6 +66,8 @@ public class AgentPresetService {
                 .instructions(request.instructions())
                 .skillNames(new ArrayList<>(skillNames))
                 .agentType(request.agentType())
+                .category(request.resolveCategory())
+                .tags(new ArrayList<>(request.resolveTags()))
                 .sortOrder(request.resolveSortOrder())
                 .enabled(true)
                 .build();
@@ -98,6 +100,13 @@ public class AgentPresetService {
         }
         if (request.agentType() != null) {
             preset.setAgentType(request.agentType());
+        }
+        if (request.category() != null) {
+            preset.setCategory(request.category());
+        }
+        if (request.tags() != null) {
+            preset.setTags(request.tags().stream().map(Enum::name).distinct()
+                    .collect(Collectors.toCollection(ArrayList::new)));
         }
         if (request.sortOrder() != null) {
             preset.setSortOrder(request.sortOrder());
@@ -176,6 +185,8 @@ public class AgentPresetService {
                 List.copyOf(connectorCodes),
                 List.copyOf(preset.getSkillNames()),
                 preset.getAgentType(),
+                preset.getCategory(),
+                List.copyOf(preset.getTags()),
                 preset.getSortOrder(),
                 preset.isEnabled());
     }
