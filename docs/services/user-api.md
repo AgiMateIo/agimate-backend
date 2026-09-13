@@ -388,10 +388,14 @@ Cookie `oauth2_link` несёт только признак «это была п
 `/.well-known/assetlinks.json` на том же хосте: там веб-сессии нет, код уходит приложению, и
 переносить App Link ради единообразия незачем. Фронт этот путь не перебрасывает.
 
-**Переходный период.** `allowed-redirect-urls` пока содержит и `www.agimate.io`, и `www.agimate.ru`:
-из списка же строится CORS, а вход, начатый на .ru без своей записи, вернулся бы на `agimate.io` с
-cookie из ответа `api.agimate.ru`, которую браузер отбросит. Убираются они, когда переброс на фронте
-выкачен, — вместе с коллбэками `api.agimate.ru` в консолях провайдеров.
+Отсюда два следствия для настройки. В `allowed-redirect-urls` — только `agimate.io`: из этого же
+списка строится CORS, так что API не принимает браузерные вызовы со страниц зеркала. В консолях
+провайдеров — только коллбэк `https://api.agimate.io/user/login/oauth2/code/{provider}`; включая
+провайдера заново (VK сейчас выключен), второй адрес на `api.agimate.ru` заводить не нужно.
+
+Порядок вывода важен: список сужается только после того, как фронт перебрасывает на основной адрес.
+Вход, начатый на .ru без своей записи в списке, вернулся бы на `agimate.io` с cookie из ответа
+`api.agimate.ru` — браузер её отбросит.
 
 **Как это работает:**
 1. Фронт дописывает к authorization-URL `?redirect_to=https://agimate.io/login-check` — адрес
@@ -404,8 +408,7 @@ cookie из ответа `api.agimate.ru`, которую браузер отб�
 
 **Если не совпал — адрес берётся у той установки, на которую пришёл сам колбэк**: `Host` запроса
 сопоставляется с доменами из `allowed-redirect-urls` (тот же разбор, что у `refresh` и `logout`).
-Берётся первый совпавший адрес, поэтому основной стоит в списке раньше своего `www`-варианта: из него
-же строятся ссылки в письмах.
+Берётся первый совпавший адрес — из него же строятся ссылки в письмах.
 Это ветка по умолчанию, а не исключение: `redirect_to` шлёт не каждый клиент, а колбэк провайдера
 всегда приходит на домен своей установки.
 
@@ -518,7 +521,7 @@ GET /user/oauth2/authorization/google?redirect_to=https://agimate.io/login-check
 
 **Production example:**
 ```
-APP_OAUTH_ALLOWED_REDIRECT_URLS=https://agimate.io/login-check,https://www.agimate.io/login-check,https://www.agimate.ru/login-check
+APP_OAUTH_ALLOWED_REDIRECT_URLS=https://agimate.io/login-check
 APP_OAUTH_FRONTEND_REDIRECT_URL=https://agimate.io/login-check
 APP_OAUTH_COOKIE_DOMAIN=agimate.io
 ```
