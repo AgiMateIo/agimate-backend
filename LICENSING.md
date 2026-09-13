@@ -1,8 +1,10 @@
 # Licensing
 
-AgiMate Backend is **source-available**, not open source: the source is public and free to use
-for almost everything, with one exception named below. This page is a plain-language summary —
-the binding text is [LICENSE](LICENSE).
+The AgiMate backend (agimate-backend) is **Fair Source**. The source is public, free for almost
+everything, and every release becomes Apache-2.0 two years after it ships, automatically and
+irrevocably: the grant is in the licence text, so it holds whatever we decide later. The one
+exception in the meantime is named below. This page is a plain-language summary; the binding
+text is [LICENSE](LICENSE).
 
 ## What applies
 
