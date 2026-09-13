@@ -34,6 +34,7 @@ import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
+import ru.agimate.controlapi.service.AgentSkillService.WithheldSkill;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.trigger.Channels;
@@ -81,6 +82,11 @@ public class RunCatalog {
      * @param trigger        the run's event; {@code null} outside a run
      * @param channels       the run's channel snapshot; {@code null} outside a run or for a direct run
      * @param skills         the agent's satisfied skills, in binding order
+     * @param withheld       the skills the gate held back, with the reason — the catalogue block says
+     *                       so; deliberately a second field rather than a state on {@code skills},
+     *                       because every other reader of {@code skills} (the loader tools included)
+     *                       means «what the agent may use», and a forgotten filter there would hand
+     *                       out the body of a withheld skill
      * @param connections    the agent's active bound connections (for the prompt-block providers)
      * @param tools          the tools in scope, full specs, {@link RunTool#disclosure} = the declared axis
      * @param skillsOnDemand a {@code skill-loader} connection is in scope: lazy bodies may be withheld
@@ -92,6 +98,7 @@ public class RunCatalog {
             Trigger trigger,
             Channels channels,
             List<AgentSkillWithConnectorsResponse> skills,
+            List<WithheldSkill> withheld,
             List<Connection> connections,
             List<RunTool> tools,
             boolean skillsOnDemand,
@@ -160,7 +167,7 @@ public class RunCatalog {
         List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         List<RunTool> tools = collectTools(connections, scope.requiredConnections(), ownConnectionId,
                 sessionAwareConnectionId, promptSessionId);
-        return new Catalog(spec, effective, trigger, channels, scope.skills(), connections, tools,
+        return new Catalog(spec, effective, trigger, channels, scope.skills(), scope.withheld(), connections, tools,
                 onDemand(connections, scope.requiredConnections(), SKILL_LOADER),
                 onDemand(connections, scope.requiredConnections(), TOOL_LOADER));
     }
@@ -172,7 +179,7 @@ public class RunCatalog {
         Scope scope = skillScope(agent.getId(), true);
         List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         List<RunTool> tools = collectTools(connections, scope.requiredConnections(), null, null, null);
-        return new Catalog(null, null, null, null, scope.skills(), connections, tools,
+        return new Catalog(null, null, null, null, scope.skills(), scope.withheld(), connections, tools,
                 onDemand(connections, scope.requiredConnections(), SKILL_LOADER),
                 onDemand(connections, scope.requiredConnections(), TOOL_LOADER));
     }
@@ -198,18 +205,21 @@ public class RunCatalog {
 
     // ===== Skills =====
 
-    /** The satisfied skills and the connections their tools come from. */
-    private record Scope(List<AgentSkillWithConnectorsResponse> skills, Set<UUID> requiredConnections) {}
+    /** The satisfied skills, the connections their tools come from, and what the gate held back. */
+    private record Scope(List<AgentSkillWithConnectorsResponse> skills, List<WithheldSkill> withheld,
+                         Set<UUID> requiredConnections) {}
 
     /**
-     * Only satisfied skills reach the agent: a skill whose connector has no reachable instance would
-     * promise tools that are not in the context. The same map carries the instances themselves — the
-     * gate is «this connection», not «any connection of that code». The tools come from ALL of the
+     * Only satisfied skills reach the agent: a skill whose connector has no usable instance would
+     * promise tools that are not in the context. Its name and the reason travel anyway — as a line in
+     * the catalogue, never a body. The same map carries the instances themselves — the gate is «this
+     * connection», not «any connection of that code». The tools come from ALL of the
      * agent's skills — the content of a task delegated through a trigger has nothing to do with the
      * event's connector (a task from the board may require media).
      */
     private Scope skillScope(UUID agentId, boolean skillTools) {
-        Map<UUID, Set<UUID>> satisfied = agentSkillService.satisfiedSkillInstances(agentId);
+        AgentSkillService.SkillGate gate = agentSkillService.gate(agentId);
+        Map<UUID, Set<UUID>> satisfied = gate.satisfied();
         List<AgentSkill> bindings = agentSkillRepository.findByAgentId(agentId);
         Map<UUID, AgentSkillWithConnectorsResponse> resolved = agentSkillService.resolveSkills(bindings);
         List<AgentSkillWithConnectorsResponse> listed = bindings.stream()
@@ -221,7 +231,7 @@ public class RunCatalog {
         if (skillTools) {
             listed.forEach(skill -> required.addAll(satisfied.getOrDefault(skill.skillId(), Set.of())));
         }
-        return new Scope(listed, required);
+        return new Scope(listed, gate.withheld(), required);
     }
 
     /** The axis is read only where a disclosing connection is in scope; elsewhere everything is EAGER, as before. */
@@ -268,6 +278,12 @@ public class RunCatalog {
      * directly, bypassing the skill gate). For {@code sessionAwareConnectionId} (the connection of a
      * prompt channel that brings tools) the STATIC listing gets an env carrying
      * {@code promptSessionId}, so the connector can return session-scoped tools (MCP from the IDE).
+     *
+     * <p>Deliberately blind to {@link Connection#isUsable()}. The skill gate already drops a skill whose
+     * instance is not usable, and it tells the agent why; what enters past that gate — the event's own
+     * connection, a prompt channel that brings tools — has no such line, and hiding the tool there
+     * would also hide the only thing that can fix it: a dead MCP grant answers the call with a
+     * re-authorisation link the agent can pass to the user.
      *
      * <p>A connector with {@link ToolProvider#sessionScopedTools()} enters the selection through that
      * connection only: a skill declaring it as required still gates on the connection being there,

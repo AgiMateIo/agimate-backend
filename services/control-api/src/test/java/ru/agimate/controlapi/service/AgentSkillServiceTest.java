@@ -20,12 +20,17 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgentSkillConnection;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
+import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService.ConnectorKind;
@@ -34,9 +39,13 @@ import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.abac.SkillPolicySync;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
@@ -77,6 +87,10 @@ class AgentSkillServiceTest {
     private ConnectionBindingService connectionBindingService;
     @Mock
     private ConnectorRepository connectorRepository;
+    @Mock
+    private ConnectionToolRepository connectionToolRepository;
+    @Mock
+    private ConnectionTriggerRepository connectionTriggerRepository;
     @Mock
     private ConnectorRegistry connectorRegistry;
     @Mock
@@ -315,7 +329,7 @@ class AgentSkillServiceTest {
     }
 
     @Nested
-    @DisplayName("satisfiedSkillInstances — что доедет до агента")
+    @DisplayName("гейт — что доедет до агента")
     class SatisfiedInstances {
 
         private final UUID otherTelegramId = UUID.randomUUID();
@@ -333,7 +347,7 @@ class AgentSkillServiceTest {
             referenced("telegram", TELEGRAM_ID);
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
 
-            assertTrue(service.satisfiedSkillInstances(AGENT_ID).isEmpty());
+            assertTrue(service.gate(AGENT_ID).satisfied().isEmpty());
         }
 
         @Test
@@ -345,7 +359,7 @@ class AgentSkillServiceTest {
                     .thenReturn(List.of(telegram, connection(otherTelegramId, "telegram", "Личный")));
 
             assertEquals(Map.of(SKILL_ID, java.util.Set.of(TELEGRAM_ID)),
-                    service.satisfiedSkillInstances(AGENT_ID));
+                    service.gate(AGENT_ID).satisfied());
         }
 
         @Test
@@ -357,7 +371,7 @@ class AgentSkillServiceTest {
                     .thenReturn(List.of(telegram, connection(otherTelegramId, "telegram", "Личный")));
 
             assertEquals(Map.of(SKILL_ID, java.util.Set.of(TELEGRAM_ID, otherTelegramId)),
-                    service.satisfiedSkillInstances(AGENT_ID));
+                    service.gate(AGENT_ID).satisfied());
         }
 
         @Test
@@ -369,7 +383,7 @@ class AgentSkillServiceTest {
 
             // Навык считает себя удовлетворённым по фолбэку «любой инстанс кода» — значит и коннекшен
             // обязан видеть, что им пользуются: иначе он выглядит мёртвым и его предложат отвязать.
-            assertFalse(service.satisfiedSkillInstances(AGENT_ID).isEmpty());
+            assertFalse(service.gate(AGENT_ID).satisfied().isEmpty());
             assertEquals(Map.of(TELEGRAM_ID, 1L), service.skillReferencesByConnection(AGENT_ID));
         }
 
@@ -380,8 +394,127 @@ class AgentSkillServiceTest {
             referenced("telegram", TELEGRAM_ID);
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(telegram));
 
-            assertTrue(service.satisfiedSkillInstances(AGENT_ID).isEmpty(),
+            assertTrue(service.gate(AGENT_ID).satisfied().isEmpty(),
                     "память не привязана — половина навыка не отдаётся");
+        }
+    }
+
+    @Nested
+    @DisplayName("причина, по которой навык не доехал")
+    class Blockers {
+
+        private AgentSkillService.WithheldSkill onlyWithheld() {
+            List<AgentSkillService.WithheldSkill> withheld = service.gate(AGENT_ID).withheld();
+            assertEquals(1, withheld.size(), "навык должен быть удержан");
+            return withheld.get(0);
+        }
+
+        private AgentSkillService.RequirementState stateOf(String key) {
+            return onlyWithheld().blockers().stream()
+                    .filter(blocker -> blocker.key().equals(key))
+                    .findFirst().orElseThrow().state();
+        }
+
+        @Test
+        @DisplayName("нечему отвечать за требование → NOT_CHOSEN, и навык назван")
+        void notChosen() {
+            skill("telegram");
+
+            AgentSkillService.WithheldSkill withheld = onlyWithheld();
+            assertEquals(SKILL_ID, withheld.skillId());
+            assertEquals("skill", withheld.name());
+            assertEquals(AgentSkillService.RequirementState.NOT_CHOSEN, withheld.blockers().get(0).state());
+            assertEquals("telegram", withheld.blockers().get(0).code());
+        }
+
+        @Test
+        @DisplayName("выбранный экземпляр не привязан к агенту → NOT_BOUND")
+        void notBound() {
+            skill("telegram");
+            when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of(
+                    AgentSkillConnection.builder().agentSkillId(AGENT_SKILL_ID)
+                            .connectorKey("telegram").connectionId(TELEGRAM_ID).build()));
+            when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of(telegram));
+
+            assertEquals(AgentSkillService.RequirementState.NOT_BOUND, stateOf("telegram"));
+        }
+
+        @Test
+        @DisplayName("привязан, но авторизация умерла → UNAUTHORIZED, навык не доезжает")
+        void unauthorized() {
+            skill("telegram");
+            Connection expired = connection(TELEGRAM_ID, "telegram", "Рабочий");
+            expired.setAuthStatus(ConnectionAuthStatus.AUTH_EXPIRED);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(expired));
+
+            // Раньше такой экземпляр проходил гейт: навык доезжал, а каждый вызов падал 401
+            assertTrue(service.gate(AGENT_ID).satisfied().isEmpty());
+            assertEquals(AgentSkillService.RequirementState.UNAUTHORIZED, stateOf("telegram"));
+        }
+
+        @Test
+        @DisplayName("DYNAMIC-экземпляр без живых тулов → NO_CAPABILITIES")
+        void noTools() {
+            UUID mcpId = UUID.randomUUID();
+            skill(List.of(requirement("mcp", "mcp")));
+            Connection mcp = connection(mcpId, "mcp", "Context7");
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(mcp));
+            Connector connector = new Connector();
+            connector.setCode("mcp");
+            connector.setDefinitionBinding(DefinitionBinding.DYNAMIC);
+            when(connectorRepository.findAllById(any())).thenReturn(List.of(connector));
+            when(connectionToolRepository.findIdsWithActiveTools(anyList())).thenReturn(Set.of());
+            when(connectionTriggerRepository.findIdsWithActiveTriggers(anyList())).thenReturn(Set.of());
+
+            assertEquals(AgentSkillService.RequirementState.NO_CAPABILITIES, stateOf("mcp"));
+        }
+
+        @Test
+        @DisplayName("тулов нет, но триггеры есть → не поломка: app объявляется ради событий")
+        void triggersAloneAreEnough() {
+            UUID appId = UUID.randomUUID();
+            skill(List.of(requirement("app", "app")));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(connection(appId, "app", "Телефон")));
+            Connector connector = new Connector();
+            connector.setCode("app");
+            connector.setDefinitionBinding(DefinitionBinding.DYNAMIC);
+            when(connectorRepository.findAllById(any())).thenReturn(List.of(connector));
+            when(connectionToolRepository.findIdsWithActiveTools(anyList())).thenReturn(Set.of());
+            when(connectionTriggerRepository.findIdsWithActiveTriggers(anyList())).thenReturn(Set.of(appId));
+
+            assertTrue(service.gate(AGENT_ID).withheld().isEmpty());
+        }
+
+        @Test
+        @DisplayName("сломан один инстанс из двух под безымянным требованием → навык живёт на рабочем")
+        void oneBrokenInstanceDoesNotPoisonTheCodeWideFallback() {
+            skill("telegram");
+            UUID otherId = UUID.randomUUID();
+            Connection expired = connection(otherId, "telegram", "Личный");
+            expired.setAuthStatus(ConnectionAuthStatus.AUTH_EXPIRED);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(telegram, expired));
+
+            // Требование не называет экземпляр — фолбэк значит «любой этого кода», а не «все сразу»
+            assertEquals(Map.of(SKILL_ID, Set.of(TELEGRAM_ID)), service.gate(AGENT_ID).satisfied());
+        }
+
+        @Test
+        @DisplayName("тот же ответ видит листинг: satisfied=false и та же причина")
+        void listingReadsTheSameState() {
+            skill("telegram");
+            Connection expired = connection(TELEGRAM_ID, "telegram", "Рабочий");
+            expired.setAuthStatus(ConnectionAuthStatus.AUTH_EXPIRED);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(expired));
+            when(agentSkillRepository.findByAgentId(eq(AGENT_ID), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(AgentSkill.builder().id(AGENT_SKILL_ID)
+                            .agentId(AGENT_ID).userId(USER_ID).skillId(SKILL_ID).installedSkillVersion(1).build())));
+
+            SkillConnectorStatus status = service.getAgentSkills(AGENT_ID, USER_ID, 0, 20)
+                    .getContent().get(0).connectors().get(0);
+
+            assertFalse(status.satisfied());
+            assertEquals(AgentSkillService.RequirementState.UNAUTHORIZED, status.state());
         }
     }
 
@@ -493,7 +626,7 @@ class AgentSkillServiceTest {
         void fallbackNarrowsByIdentity() {
             skill(List.of(docs()));
 
-            assertEquals(Map.of(SKILL_ID, java.util.Set.of(context7Id)), service.satisfiedSkillInstances(AGENT_ID));
+            assertEquals(Map.of(SKILL_ID, java.util.Set.of(context7Id)), service.gate(AGENT_ID).satisfied());
         }
 
         @Test
@@ -501,7 +634,7 @@ class AgentSkillServiceTest {
         void unknownIdentityIsNotSatisfiedByAnotherServer() {
             skill(List.of(new ConnectorRequirement("mcp", "docs", null, Map.of("url", "https://other/mcp"), null, null)));
 
-            assertTrue(service.satisfiedSkillInstances(AGENT_ID).isEmpty());
+            assertTrue(service.gate(AGENT_ID).satisfied().isEmpty());
         }
 
         @Test

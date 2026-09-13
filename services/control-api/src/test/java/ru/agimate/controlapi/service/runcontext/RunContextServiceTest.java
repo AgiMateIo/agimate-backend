@@ -30,6 +30,7 @@ import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
+import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
@@ -171,9 +172,10 @@ class RunContextServiceTest {
                         AgentSkillWithConnectorsResponse::skillId, s -> s)));
         // Every stubbed skill counts as satisfied and points at the connection of its code — the
         // satisfaction rules themselves are tested in AgentSkillServiceTest.
-        when(agentSkillService.satisfiedSkillInstances(AGENT_ID)).thenReturn(
+        when(agentSkillService.gate(AGENT_ID)).thenReturn(new AgentSkillService.SkillGate(
                 skills.stream().collect(java.util.stream.Collectors.toMap(
-                        AgentSkillWithConnectorsResponse::skillId, s -> java.util.Set.of(CONNECTION_ID))));
+                        AgentSkillWithConnectorsResponse::skillId, s -> java.util.Set.of(CONNECTION_ID))),
+                List.of()));
     }
 
     private Connection memoryConnection() {
@@ -333,6 +335,30 @@ class RunContextServiceTest {
         }
 
         @Test
+        @DisplayName("коннекция события со сломанной авторизацией тулы всё равно отдаёт")
+        void ownConnectionToolsSurviveBrokenAuth() {
+            stubRun(run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null));
+            stubSkills(List.of());
+            Connection expired = Connection.builder().id(CONNECTION_ID).userId(USER_ID)
+                    .connectorCode("time").authStatus(ConnectionAuthStatus.AUTH_EXPIRED).build();
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(expired));
+            Connector connector = new Connector();
+            connector.setCode("time");
+            connector.setDefinitionBinding(DefinitionBinding.STATIC);
+            when(connectorRepository.findById("time")).thenReturn(Optional.of(connector));
+            when(timeHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
+                    "cancel_scheduled",
+                    new ConnectorToolSpec("cancel_scheduled", null, "d", null, null, null, null, null)));
+            declareDue(ContextDirectives.builder().ownConnectionTools(true).build());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            // Мимо гейта навыков причину сказать нечем, а вызов вернёт ссылку на переавторизацию —
+            // спрятать тул значит спрятать единственное, что чинит ситуацию
+            assertEquals(1, view.tools().size());
+        }
+
+        @Test
         @DisplayName("skillTools=false отключает тулы скиллов агента")
         void skillToolsOff() {
             stubRun(run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null));
@@ -440,6 +466,41 @@ class RunContextServiceTest {
 
             assertTrue(view.systemBlocks().stream().anyMatch(b ->
                     "skill".equals(b.name()) && b.content().contains("Iteration discipline")));
+        }
+
+        @Test
+        @DisplayName("отсечённый навык остаётся строкой каталога с причиной, но без тела")
+        void withheldSkillIsListedWithItsReason() {
+            Agent agent = agent();
+            Channels channels = Channels.ofPrompt(new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+            stubRun(run(agent, triggerLog("webchat", "message_received"), channels));
+            UUID blocked = UUID.randomUUID();
+            stubSkills(List.of());
+            when(agentSkillService.gate(AGENT_ID)).thenReturn(new AgentSkillService.SkillGate(Map.of(),
+                    List.of(new AgentSkillService.WithheldSkill(blocked, "sales-report", "Недельный отчёт",
+                            List.of("sheets"),
+                            List.of(new AgentSkillService.WithheldSkill.Blocker("sheets", "sheets",
+                                    AgentSkillService.RequirementState.NOT_CHOSEN))))));
+            when(inboundTextResolver.resolve(any(), any()))
+                    .thenReturn(Optional.of(InboundMessage.text("hello")));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            RunBlock skills = view.systemBlocks().stream()
+                    .filter(b -> "skills".equals(b.name())).findFirst().orElseThrow();
+            assertTrue(skills.content().contains("name: sales-report"));
+            assertTrue(skills.content().contains("status: unavailable"));
+            assertTrue(skills.content().contains("blocked_by: sheets (sheets) — NOT_CHOSEN"));
+            // Пояснение — отдельным блоком, как все прочие правила поведения: внутри списка
+            // «ключ: значение» абзац читался бы продолжением последней записи
+            assertFalse(skills.content().contains(RunContextService.SKILLS_UNAVAILABLE_GUIDANCE));
+            assertTrue(view.systemBlocks().stream().anyMatch(b ->
+                            "skills_unavailable_guidance".equals(b.name())
+                                    && b.content().equals(RunContextService.SKILLS_UNAVAILABLE_GUIDANCE)),
+                    "без пояснения модель не знает, что значит unavailable");
+            // Тело не едет — ради этого гейт и существует; едет только причина
+            assertTrue(view.systemBlocks().stream().noneMatch(b -> "skill".equals(b.name())));
         }
 
         @Test
@@ -621,7 +682,8 @@ class RunContextServiceTest {
             when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(refs);
             when(agentSkillService.resolveSkills(anyList())).thenReturn(skills.stream()
                     .collect(java.util.stream.Collectors.toMap(AgentSkillWithConnectorsResponse::skillId, sk -> sk)));
-            when(agentSkillService.satisfiedSkillInstances(AGENT_ID)).thenReturn(satisfied);
+            when(agentSkillService.gate(AGENT_ID)).thenReturn(
+                    new AgentSkillService.SkillGate(satisfied, List.of()));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(connections);
             lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class))).thenReturn(List.of());
             Connector memory = new Connector();

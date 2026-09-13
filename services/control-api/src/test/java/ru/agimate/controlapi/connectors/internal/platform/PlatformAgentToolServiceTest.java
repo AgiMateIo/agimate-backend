@@ -207,6 +207,8 @@ class PlatformAgentToolServiceTest {
                     .id(SELF_AGENT_ID).userId(USER_ID).name("self").type(AgentType.MCP).build()));
             when(agentSkillRepository.findByAgentId(eq(SELF_AGENT_ID), any(Pageable.class)))
                     .thenReturn(Page.empty());
+            when(agentSkillService.gate(SELF_AGENT_ID))
+                    .thenReturn(new AgentSkillService.SkillGate(Map.of(), List.of()));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(selfEnv(),
                     "list_agent_skills", Map.of("agentId", SELF_AGENT_ID.toString()));
@@ -487,7 +489,7 @@ class PlatformAgentToolServiceTest {
     class ListAgentSkills {
 
         @Test
-        @DisplayName("мапит навыки и считает satisfied по satisfiedSkillInstances")
+        @DisplayName("мапит навыки, считает satisfied по гейту и отдаёт причину недоступности")
         void mapsSkillsAndSatisfaction() {
             UUID agentId = UUID.randomUUID();
             when(agentRepository.findById(agentId)).thenReturn(Optional.of(Agent.builder()
@@ -501,8 +503,11 @@ class PlatformAgentToolServiceTest {
             when(skillRepository.findByIdInNotDeleted(anyCollection())).thenReturn(List.of(
                     Skill.builder().id(skillA).name("Alpha").connectors(ConnectorRequirement.ofCodes(List.of("telegram"))).build(),
                     Skill.builder().id(skillB).name("Beta").connectors(ConnectorRequirement.ofCodes(List.of("gmail"))).build()));
-            when(agentSkillService.satisfiedSkillInstances(agentId))
-                    .thenReturn(Map.of(skillA, Set.of(UUID.randomUUID())));
+            when(agentSkillService.gate(agentId)).thenReturn(new AgentSkillService.SkillGate(
+                    Map.of(skillA, Set.of(UUID.randomUUID())),
+                    List.of(new AgentSkillService.WithheldSkill(skillB, "Beta", null, List.of("gmail"),
+                            List.of(new AgentSkillService.WithheldSkill.Blocker("gmail", "gmail",
+                                    AgentSkillService.RequirementState.UNAUTHORIZED))))));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "list_agent_skills",
                     Map.of("agentId", agentId.toString()));
@@ -514,9 +519,12 @@ class PlatformAgentToolServiceTest {
             assertEquals(skillA.toString(), first.get("skillId"));
             assertEquals("Alpha", first.get("name"));
             assertEquals(true, first.get("satisfied"));
+            assertEquals(List.of(), first.get("blockedBy"));
             assertEquals(skillB.toString(), second.get("skillId"));
             assertEquals(false, second.get("satisfied"));
-            verify(agentSkillService).satisfiedSkillInstances(agentId);
+            // Причина уезжает мета-агенту: он управляет платформой, и «почему» — то, по чему он может действовать
+            assertEquals(List.of("gmail (gmail) — UNAUTHORIZED"), second.get("blockedBy"));
+            verify(agentSkillService).gate(agentId);
         }
     }
 

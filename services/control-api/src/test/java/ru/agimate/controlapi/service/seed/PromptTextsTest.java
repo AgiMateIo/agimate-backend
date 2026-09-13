@@ -38,7 +38,8 @@ class PromptTextsTest {
     private static final List<String> PLATFORM_KEYS = List.of(
             PromptTexts.RUN_TRIGGER_GUIDANCE,
             PromptTexts.RUN_TOOL_CALL_GUIDANCE,
-            PromptTexts.RUN_ATTACHMENT_GUIDANCE);
+            PromptTexts.RUN_ATTACHMENT_GUIDANCE,
+            PromptTexts.RUN_SKILLS_UNAVAILABLE_GUIDANCE);
 
     /** Инструкции реакции на события: только коннекторы, объявившие ContextDirectives.guidance. */
     private static final List<String> CONNECTOR_KEYS = List.of(

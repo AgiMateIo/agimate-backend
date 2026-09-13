@@ -2,6 +2,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.abac.SkillPolicySync.DesiredPolicy;
+import ru.agimate.controlapi.service.AgentSkillService.RequirementState;
 
 import java.util.List;
 import java.util.Map;
@@ -19,8 +20,9 @@ import java.util.UUID;
  * someone has already bound. Where several instances answer, the status shows the first while the
  * gate lets all of them through.
  *
- * @param satisfied the instance is bound to the agent. {@code false} means the skill declares
- *                  something the agent cannot reach — its tools will not be in the context
+ * @param satisfied the requirement is met ({@code state == OK}). {@code false} means the skill
+ *                  declares something the agent cannot use — the skill is withheld whole, and
+ *                  {@link #state} says what to fix
  */
 @Schema(description = "Connector required by a skill: which instance it means and whether the agent has it")
 public record SkillConnectorStatus(
@@ -44,7 +46,10 @@ public record SkillConnectorStatus(
         UUID connectionId,
         @Schema(description = "Human-readable name of that instance", nullable = true)
         String connectionName,
-        @Schema(description = "The instance is bound to the agent — the skill's tools will be there")
+        @Schema(description = "Why the requirement is or is not met: OK, NOT_CHOSEN, NOT_BOUND, "
+                + "UNAUTHORIZED (the grant is dead), NO_CAPABILITIES (neither tools nor triggers discovered), UNKNOWN_CONNECTOR")
+        RequirementState state,
+        @Schema(description = "The requirement is met — the skill's tools will be there")
         boolean satisfied,
         @Schema(description = "Access rules the skill declares, as the rows they become on the binding")
         List<DesiredPolicy> policies,

@@ -48,7 +48,7 @@ class ToolLoaderToolServiceTest {
     }
 
     private static RunCatalog.Catalog catalog(RunTool... tools) {
-        return new RunCatalog.Catalog(null, null, null, null, List.of(), List.of(), List.of(tools), false, true);
+        return new RunCatalog.Catalog(null, null, null, null, List.of(), List.of(), List.of(), List.of(tools), false, true);
     }
 
     @BeforeEach

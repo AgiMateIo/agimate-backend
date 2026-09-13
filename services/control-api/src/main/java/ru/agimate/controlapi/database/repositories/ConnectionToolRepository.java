@@ -7,8 +7,10 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -23,6 +25,14 @@ public interface ConnectionToolRepository extends JpaRepository<ConnectionTool, 
             """)
     Optional<ConnectionTool> findActiveByConnectionIdAndName(
             @Param("connectionId") UUID connectionId, @Param("name") String name);
+
+    /**
+     * Which of the given connections have at least one live tool — one query for the whole gate
+     * rather than a count per requirement. A DYNAMIC instance missing from the answer brought
+     * nothing: discovery never succeeded, and its skill would promise tools that do not exist.
+     */
+    @Query("SELECT DISTINCT t.connectionId FROM ConnectionTool t WHERE t.connectionId IN :ids AND t.deletedAt IS NULL")
+    Set<UUID> findIdsWithActiveTools(@Param("ids") Collection<UUID> ids);
 
     @Modifying
     @Query("DELETE FROM ConnectionTool t WHERE t.connectionId = :connectionId")

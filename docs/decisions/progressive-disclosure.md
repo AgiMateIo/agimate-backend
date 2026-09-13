@@ -68,8 +68,8 @@ implemented: 2026-09-09
   тела».
 - `ContextSpec.SkillBodies.MATCHED` — детерминированный отбор тел по коннектору события. То есть
   идея «отбирать до рана, а не спрашивать модель» в проекте уже принята, просто для триггеров.
-- `AgentSkillService.satisfiedSkillInstances()` — гейт «навык доезжает только если его коннекторы
-  разрешаются в живые инстансы».
+- `AgentSkillService.gate()` — гейт «навык доезжает только если его коннекторы разрешаются в живые
+  инстансы» (до 2026-09-13 назывался `satisfiedSkillInstances()`).
 - `ToolRegistry` в воркере уже держит полный маппинг `sanitized → (connectorCode, name,
   connectionId)`; `ToolDef` — отдельный список, который передаётся в `llmCaller.call(messages,
   toolDefs)` на каждом ходу.

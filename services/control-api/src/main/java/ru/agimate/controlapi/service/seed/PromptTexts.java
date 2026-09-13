@@ -21,7 +21,8 @@ import java.util.Properties;
  * translation under the same rules.
  *
  * <p>Keys: {@code run.trigger.guidance}, {@code run.tool-call.guidance},
- * {@code run.attachment.guidance} — platform-level, applied to every matching run;
+ * {@code run.attachment.guidance}, {@code run.skills-unavailable.guidance} — platform-level, applied
+ * to every matching run;
  * {@code connector.<code>.<trigger>.guidance} falling back to {@code connector.<code>.guidance} — the
  * instruction for reacting to a particular connector's event.
  */
@@ -34,6 +35,8 @@ public class PromptTexts {
     public static final String RUN_TOOL_CALL_GUIDANCE = "run.tool-call.guidance";
     /** The attach convention — DIALOGUE runs whose prompt channel supports attachments. */
     public static final String RUN_ATTACHMENT_GUIDANCE = "run.attachment.guidance";
+    /** What an unavailable skill in the catalogue means — runs where the gate withheld one. */
+    public static final String RUN_SKILLS_UNAVAILABLE_GUIDANCE = "run.skills-unavailable.guidance";
 
     private final Properties texts;
 

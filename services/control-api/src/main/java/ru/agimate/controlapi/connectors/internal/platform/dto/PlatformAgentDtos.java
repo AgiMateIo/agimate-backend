@@ -38,11 +38,14 @@ public final class PlatformAgentDtos {
      * One skill bound to an agent.
      *
      * @param connectorCodes the connectors the skill declares
-     * @param satisfied      whether every declared connector has a bound connection — an unsatisfied
-     *                       skill is not given to the agent (see {@code AgentSkillService.satisfiedSkillInstances})
+     * @param satisfied      whether every requirement is met — an unsatisfied skill is not given to
+     *                       the agent at all (see {@code AgentSkillService.gate})
+     * @param blockedBy      why it is not, one entry per unmet requirement ({@code key (code) — STATE});
+     *                       empty when satisfied. The meta-agent manages the platform, so a reason it
+     *                       can act on beats a bare {@code false}
      */
     public record AgentSkillBinding(String skillId, String name, List<String> connectorCodes,
-                                    boolean satisfied) {
+                                    boolean satisfied, List<String> blockedBy) {
     }
 
     public record BoundSkill(String skillId, String name, List<String> connectorCodes) {

@@ -248,17 +248,22 @@ public class PlatformAgentToolService {
         Map<UUID, Skill> skillsById = skillIds.isEmpty() ? Map.of()
                 : skillRepository.findByIdInNotDeleted(skillIds).stream()
                 .collect(Collectors.toMap(Skill::getId, s -> s));
-        // Satisfaction is the service's computation: satisfiedSkillInstances resolves every bound skill
-        // against the agent's connections and reports only the complete ones (skillId → bound instance
-        // ids) — exactly "every declared connector has a bound connection". A skill absent from the map
-        // is unsatisfied and is not given to the agent. It is computed over all bindings — only the
-        // response is paged.
-        Map<UUID, Set<UUID>> satisfiedInstances = agentSkillService.satisfiedSkillInstances(id);
+        // Satisfaction is the service's computation: the gate resolves every bound skill against the
+        // agent's connections and reports both sides — what reaches the agent (skillId → bound instance
+        // ids) and what does not, with the reason. A skill absent from the satisfied map is not given to
+        // the agent. Computed over all bindings — only the response is paged.
+        AgentSkillService.SkillGate gate = agentSkillService.gate(id);
+        Map<UUID, List<String>> blockers = gate.withheld().stream()
+                .collect(Collectors.toMap(AgentSkillService.WithheldSkill::skillId,
+                        withheld -> withheld.blockers().stream()
+                                .map(b -> b.key() + " (" + b.code() + ") — " + b.state())
+                                .toList()));
         List<AgentSkillBinding> items = skillIds.stream()
                 .map(skillsById::get)
                 .filter(Objects::nonNull)
                 .map(s -> new AgentSkillBinding(s.getId().toString(), s.getName(), s.getConnectorCodes(),
-                        satisfiedInstances.containsKey(s.getId())))
+                        gate.satisfied().containsKey(s.getId()),
+                        blockers.getOrDefault(s.getId(), List.of())))
                 .toList();
         return new AgentSkillList(items, PlatformToolsSupport.truncated(page));
     }

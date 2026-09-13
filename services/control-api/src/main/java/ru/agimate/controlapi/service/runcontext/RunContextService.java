@@ -22,6 +22,7 @@ import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
+import ru.agimate.controlapi.service.AgentSkillService.WithheldSkill;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
@@ -40,6 +41,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Assembly of a run's context for {@code GetRunContext}: the policy ({@link ContextSpec}) is chosen
@@ -50,8 +52,8 @@ import java.util.UUID;
  *
  * <p>The order of the system blocks is part of the contract (stable ones first, friendly to the
  * prompt cache): agent → the agent's instructions → connector blocks → team → skills → skill bodies
- * (in a dialogue all of them, in a trigger run the ones matching the event's connector) → deferred
- * tools → trigger guidance. The run's main prompt is the last user block.
+ * (in a dialogue all of them, in a trigger run the ones matching the event's connector) → the
+ * withheld-skills note (only when the gate held something back) → deferred tools → trigger guidance. The run's main prompt is the last user block.
  *
  * <p>Progressive disclosure ({@code docs/decisions/progressive-disclosure.md}) is decided here, on
  * the wire form: a LAZY tool ships without its schema and with a summary, a LAZY skill without its
@@ -100,6 +102,19 @@ public class RunContextService {
             + "line \"Uploaded file description ... id: agf_...\"). The marker is stripped from the "
             + "text and the file is delivered to the channel as an attachment (image/video/document, "
             + "by file type). Do not invent ids: use only the ones you received in this conversation.";
+
+    /**
+     * What an {@code unavailable} entry in the skills catalogue means — emitted only when the gate
+     * withheld something. Its own block, like every other rule of behaviour here: inside the
+     * catalogue it would sit unindented under the last {@code blocked_by:} line and read as part of
+     * that one entry. Deliberately also says when <em>not</em> to bring it up: a standing note about
+     * missing configuration turns into an agent that mentions it every turn.
+     */
+    static final String SKILLS_UNAVAILABLE_GUIDANCE =
+            "A skill listed with status: unavailable is not loaded: its instructions and tools are not "
+            + "in this context and cannot be used. If the user asks for something such a skill covers, "
+            + "say plainly what is missing — the blocked_by line names the connection and the reason — "
+            + "instead of attempting the work or inventing a result. Do not raise it unprompted.";
 
     /** Deterministic serialisation of an event (sorted keys) — the same block whatever the map's order. */
     private static final ObjectMapper EVENT_MAPPER = new ObjectMapper()
@@ -158,10 +173,15 @@ public class RunContextService {
         }
         collectConnectorBlocks(catalog.connections(), agent, promptChannelId, promptSessionId, systemBlocks, userBlocks);
         teamBlock(agent).ifPresent(systemBlocks::add);
-        if (!listed.isEmpty()) {
-            systemBlocks.add(skillsBlock(listed, catalog.skillsOnDemand()));
+        if (!listed.isEmpty() || !catalog.withheld().isEmpty()) {
+            systemBlocks.add(skillsBlock(listed, catalog.withheld(), catalog.skillsOnDemand()));
         }
         systemBlocks.addAll(skillBodyBlocks(bodies));
+        if (!catalog.withheld().isEmpty()) {
+            systemBlocks.add(RunBlock.trusted("skills_unavailable_guidance", "guidance",
+                    promptTexts.get(PromptTexts.RUN_SKILLS_UNAVAILABLE_GUIDANCE, SKILLS_UNAVAILABLE_GUIDANCE),
+                    Map.of()));
+        }
         deferredToolsBlock(tools).ifPresent(systemBlocks::add);
         if (!tools.isEmpty()) {
             systemBlocks.add(RunBlock.trusted("tool_guidance", "guidance",
@@ -287,8 +307,16 @@ public class RunContextService {
      * The catalogue of skills. With a skill-loader in scope a LAZY skill is marked as such, so the
      * model knows its body is one {@code load_skill} away; without one the block is byte-identical
      * to what it always was.
+     *
+     * <p>A withheld skill is listed too, with {@code status} and {@code blocked_by} instead of being
+     * absent. The body is still not shipped — that is the whole point of the gate — but the agent can
+     * now tell the user what it cannot do and what to fix, rather than behaving as if the skill had
+     * never been bound. The reason codes are the gate's own
+     * ({@link ru.agimate.controlapi.service.AgentSkillService.RequirementState}), not prose: the
+     * catalogue stays enumerable.
      */
-    private static RunBlock skillsBlock(List<AgentSkillWithConnectorsResponse> skills, boolean onDemand) {
+    private static RunBlock skillsBlock(List<AgentSkillWithConnectorsResponse> skills,
+                                        List<WithheldSkill> withheld, boolean onDemand) {
         List<String> lines = new ArrayList<>();
         for (AgentSkillWithConnectorsResponse s : skills) {
             lines.add("- skill_id: " + s.skillId());
@@ -304,6 +332,22 @@ public class RunContextService {
             if (onDemand && s.disclosure() == Disclosure.LAZY) {
                 lines.add("  disclosure: lazy");
             }
+        }
+        for (WithheldSkill s : withheld) {
+            lines.add("- skill_id: " + s.skillId());
+            if (s.name() != null && !s.name().isBlank()) {
+                lines.add("  name: " + s.name());
+            }
+            if (s.description() != null && !s.description().isBlank()) {
+                lines.add("  description: " + s.description());
+            }
+            if (!s.connectorCodes().isEmpty()) {
+                lines.add("  connector_codes: " + String.join(", ", s.connectorCodes()));
+            }
+            lines.add("  status: unavailable");
+            lines.add("  blocked_by: " + s.blockers().stream()
+                    .map(b -> b.key() + " (" + b.code() + ") — " + b.state())
+                    .collect(Collectors.joining("; ")));
         }
         return RunBlock.trusted("skills", "skill", String.join("\n", lines), Map.of());
     }

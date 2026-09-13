@@ -24,7 +24,7 @@
 | `update_agent` **(расширен)** | Правка name/description/instructions/type/webhookUrl/enabled (PATCH-семантика; смена типа с WEBHOOK чистит webhookUrl и сохранённый auth-заголовок на сервере; пустой `type` означает «не прислан», очистки типа нет; `webhookAuthHeader` — не параметр тула, ввод на странице агента) |
 | `delete_agent` **(новый)** | Удалить агента (soft delete): снимает привязки, политики и джобы; себя — нельзя |
 | `regenerate_agent_key` **(новый)** | Перевыпустить ключ агента: старый перестаёт работать сразу; возвращает `keyUrl` на страницу UI `/dashboard/agents/<id>`, где новый ключ показывается один раз; себя — нельзя |
-| `list_agent_skills` **(новый)** | Навыки агента со статусом удовлетворённости коннекторов (что не хватает — видно в `list_agent_connections`; чтение собственного агента разрешено; новейшие привязки первыми, первые 100) |
+| `list_agent_skills` **(новый)** | Навыки агента со статусом удовлетворённости коннекторов и причиной в `blockedBy` — по требованию: `key (code) — STATE`, где STATE из `NOT_CHOSEN`, `NOT_BOUND`, `UNAUTHORIZED`, `NO_CAPABILITIES`, `UNKNOWN_CONNECTOR` (чтение собственного агента разрешено; новейшие привязки первыми, первые 100) |
 | `mark_skills_installed` **(новый)** | Принять текущую версию навыков агента и снять `needsReinstall` (после обновления навыков мимо тулов) |
 | `get_skill` | Полный SKILL.md навыка |
 | `list_skills` | Навыки: `scope` MINE (свои) / PUBLIC, `search`, `connectorCode` |

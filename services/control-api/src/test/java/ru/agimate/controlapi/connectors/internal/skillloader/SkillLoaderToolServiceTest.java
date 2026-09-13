@@ -27,7 +27,7 @@ class SkillLoaderToolServiceTest {
     private static final UUID AGENT_ID = UUID.randomUUID();
     private static final UUID RUN_ID = UUID.randomUUID();
     private static final RunCatalog.Catalog CATALOG =
-            new RunCatalog.Catalog(null, null, null, null, List.of(), List.of(), List.of(), true, false);
+            new RunCatalog.Catalog(null, null, null, null, List.of(), List.of(), List.of(), List.of(), true, false);
 
     @Mock private RunCatalog runCatalog;
 
