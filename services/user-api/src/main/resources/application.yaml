@@ -193,11 +193,17 @@ app:
     # Последний рубеж: сначала redirect_to, потом установка, на которую пришёл колбэк
     # (OAuthProperties.resolveFromRedirectUrl). Досюда доходит только адрес, не похожий
     # ни на один из allowed-redirect-urls, — и это именно страница, читающая #rti-.
-    frontend-redirect-url: https://www.agimate.io/login-check
+    frontend-redirect-url: https://agimate.io/login-check
+    # Порядок значим: resolveFromRequest берёт первый адрес с доменом запроса, и от него зависят
+    # ссылки в письмах — основной agimate.io стоит раньше своего www-варианта.
+    # Вход живёт только на agimate.io, фронт перебрасывает туда до его начала. www-вариант и .ru
+    # остаются, пока это не выкачено: из этого же списка строится CORS, а вход, начатый на .ru без
+    # своей записи, вернулся бы на agimate.io с cookie из ответа api.agimate.ru — браузер её отбросит.
     allowed-redirect-urls:
       - http://www.agimate.lc:8000/login-check
-      - https://www.agimate.ru/login-check
+      - https://agimate.io/login-check
       - https://www.agimate.io/login-check
+      - https://www.agimate.ru/login-check
     # Адреса нативных клиентов — отдельным списком, а не в allowed-redirect-urls: из веб-адреса
     # вычисляется домен cookie, а у agimate:// домена нет. Смешение ломает именно веб-ветку,
     # поэтому OAuthProperties отказывается стартовать, если списки перепутаны.

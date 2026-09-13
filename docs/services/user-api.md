@@ -374,12 +374,27 @@ Cookie `oauth2_link` несёт только признак «это была п
 вход по паролю. Это самый дешёвый сигнал о захвате: тот, кто добавил себе способ входа в чужой
 аккаунт, не может помешать письму уйти владельцу.
 
-## Multi-domain OAuth2 Redirect
+## Основной домен и адреса возврата
 
-Вход поддерживается с нескольких доменов фронта (`agimate.ru`, `agimate.io`, локальный `agimate.lc`).
+**Вход живёт на одном адресе — `https://agimate.io`.** `agimate.ru` — зеркало публичных страниц,
+`www.agimate.io` — вариант того же сайта. Всё, что требует входа, фронт перебрасывает на
+`agimate.io` до того, как вход начнётся. Причина — в том, где лежит сессия: refresh-cookie ставится
+на домен ответа, а `refresh_token_id` фронт держит в localStorage, привязанном к точному адресу.
+Сессия, открытая на одном адресе, на другом не видна, и синхронизировать её между доменами без
+отдельного сервера входа нельзя. Коллбэк MCP OAuth (`app.connectors.mcp.oauth.redirect-uri`) —
+тоже на `agimate.io`: другим адресом возврата его не сделать, клиент один на инсталляцию.
+
+Исключение — возврат Android-приложения `https://www.agimate.io/app/auth` вместе с
+`/.well-known/assetlinks.json` на том же хосте: там веб-сессии нет, код уходит приложению, и
+переносить App Link ради единообразия незачем. Фронт этот путь не перебрасывает.
+
+**Переходный период.** `allowed-redirect-urls` пока содержит и `www.agimate.io`, и `www.agimate.ru`:
+из списка же строится CORS, а вход, начатый на .ru без своей записи, вернулся бы на `agimate.io` с
+cookie из ответа `api.agimate.ru`, которую браузер отбросит. Убираются они, когда переброс на фронте
+выкачен, — вместе с коллбэками `api.agimate.ru` в консолях провайдеров.
 
 **Как это работает:**
-1. Фронт дописывает к authorization-URL `?redirect_to=https://www.agimate.io/login-check` — адрес
+1. Фронт дописывает к authorization-URL `?redirect_to=https://agimate.io/login-check` — адрес
    страницы, которая читает `#rti-`
 2. Значение кладётся в временную cookie `oauth2_redirect_to` (15 минут)
 3. На колбэке `OAuth2SuccessHandler` читает cookie и сверяет адрес со списком
@@ -389,6 +404,8 @@ Cookie `oauth2_link` несёт только признак «это была п
 
 **Если не совпал — адрес берётся у той установки, на которую пришёл сам колбэк**: `Host` запроса
 сопоставляется с доменами из `allowed-redirect-urls` (тот же разбор, что у `refresh` и `logout`).
+Берётся первый совпавший адрес, поэтому основной стоит в списке раньше своего `www`-варианта: из него
+же строятся ссылки в письмах.
 Это ветка по умолчанию, а не исключение: `redirect_to` шлёт не каждый клиент, а колбэк провайдера
 всегда приходит на домен своей установки.
 
@@ -481,7 +498,7 @@ access. Refresh нативной сессии живёт 60 дней и прод
 **Контракт с фронтом.** Код добавляется к authorization-URL рядом с `redirect_to`:
 
 ```
-GET /user/oauth2/authorization/google?redirect_to=https://www.agimate.ru/login-check&ref=K7M2QX9F
+GET /user/oauth2/authorization/google?redirect_to=https://agimate.io/login-check&ref=K7M2QX9F
 ```
 
 Дальше он на время круга к провайдеру ложится в cookie `oauth2_ref` (15 минут, как и
@@ -501,9 +518,9 @@ GET /user/oauth2/authorization/google?redirect_to=https://www.agimate.ru/login-c
 
 **Production example:**
 ```
-APP_OAUTH_ALLOWED_REDIRECT_URLS=https://www.agimate.ru/login-check,https://www.agimate.io/login-check
-APP_OAUTH_FRONTEND_REDIRECT_URL=https://www.agimate.ru/login-check
-APP_OAUTH_COOKIE_DOMAIN=agimate.ru
+APP_OAUTH_ALLOWED_REDIRECT_URLS=https://agimate.io/login-check,https://www.agimate.io/login-check,https://www.agimate.ru/login-check
+APP_OAUTH_FRONTEND_REDIRECT_URL=https://agimate.io/login-check
+APP_OAUTH_COOKIE_DOMAIN=agimate.io
 ```
 
 ## Database Tables
