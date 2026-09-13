@@ -128,7 +128,34 @@ public class McpOAuthStore {
         return new LinkedHashSet<>(List.of(scope.trim().split("\\s+")));
     }
 
-    /** The grant is dead and only the user can fix it. Idempotent: the job may arrive here twice. */
+    /**
+     * The authorisation server refused the refresh token. It is erased so that the job's next tick
+     * ends on «nothing to refresh» instead of sending a dead token to the server every five minutes
+     * until the user re-authorises. Guarded like {@link #storeRefreshed}: a re-authorisation that
+     * finished during the exchange has written a new chain, and that one is neither erased nor expired.
+     *
+     * @return whether the grant was actually marked dead
+     */
+    @Transactional
+    public boolean rejectRefresh(UUID connectionId, String rejectedRefreshToken) {
+        Connection connection = connection(connectionId);
+        Map<String, String> current = credentials(connection);
+        if (!rejectedRefreshToken.equals(OAuthCredentials.refreshToken(current))) {
+            log.info("Connection {} was re-authorised while refreshing; keeping the new grant", connectionId);
+            return false;
+        }
+        Map<String, String> updated = new LinkedHashMap<>(current);
+        updated.remove(OAuthCredentials.REFRESH_TOKEN);
+        secretService.update(secret(connection), connection.getId(), updated);
+        connection.setAuthStatus(ConnectionAuthStatus.AUTH_EXPIRED);
+        connectionRepository.save(connection);
+        return true;
+    }
+
+    /**
+     * The grant is dead and only the user can fix it. Idempotent: the job may arrive here twice. The
+     * refresh token stays — after a 401 in a tool call it may still be alive, see {@link #rejectRefresh}.
+     */
     @Transactional
     public void markExpired(UUID connectionId) {
         connectionRepository.findByIdNotDeleted(connectionId).ifPresent(connection -> {

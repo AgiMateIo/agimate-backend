@@ -153,7 +153,7 @@ class McpOAuthServiceTest {
         }
 
         @Test
-        @DisplayName("invalid_grant — коннекция уходит в AUTH_EXPIRED")
+        @DisplayName("invalid_grant — отвергнутый токен отдаётся на стирание, а не просто статус")
         void grantRejected() {
             connection.setOauthExpiresAt(LocalDateTime.now().plusMinutes(1));
             when(store.connection(CONNECTION_ID)).thenReturn(connection);
@@ -162,7 +162,8 @@ class McpOAuthServiceTest {
                     .thenThrow(new OAuthGrantRejectedException("revoked"));
 
             assertFalse(service.refreshIfNeeded(CONNECTION_ID));
-            verify(store).markExpired(CONNECTION_ID);
+            verify(store).rejectRefresh(CONNECTION_ID, REFRESH_TOKEN);
+            verify(store, never()).markExpired(any());
         }
 
         @Test

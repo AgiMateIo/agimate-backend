@@ -116,8 +116,9 @@ public class McpOAuthService {
             // The only failure that means «only the user can fix this». A timeout or a 5xx propagates
             // and the job retries — otherwise one blinking network moves a live connection into
             // «go re-authorise».
-            store.markExpired(connectionId);
-            log.info("Refresh token of connection {} was rejected: re-authorisation required", connectionId);
+            if (store.rejectRefresh(connectionId, refreshToken)) {
+                log.info("Refresh token of connection {} was rejected: re-authorisation required", connectionId);
+            }
             return false;
         }
 
