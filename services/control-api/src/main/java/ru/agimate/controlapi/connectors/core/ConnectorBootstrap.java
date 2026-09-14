@@ -8,6 +8,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
+import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -77,6 +78,7 @@ public class ConnectorBootstrap {
         connector.applyTraits(handler.traits());
         requireConsistentInstanceBearing(handler, connector);
         requireValidContextDirectives(handler);
+        requireSpreadableJobs(handler);
 
         connectorRepository.save(connector);
     }
@@ -118,6 +120,28 @@ public class ConnectorBootstrap {
             if (directives.promptParam() == null || directives.promptParam().isBlank()) {
                 throw new IllegalStateException("Connector '" + handler.connectorCode() + "', trigger '"
                         + name + "': presentation=PROMPT requires promptParam");
+            }
+        });
+    }
+
+    /**
+     * Fail-fast validation of {@code @Job(spreadSeconds)}: the window is applied by moving the cron's
+     * second/minute/hour, so it only means anything for an expression naming a single point — a range
+     * or a step would quietly become a different schedule, and a window running past midnight would
+     * move the job to the day before. Walking every handler here also forces {@code getJobs()} on a
+     * fresh installation, where no rows exist yet and the re-sync would have nothing to read.
+     */
+    private static void requireSpreadableJobs(ConnectorHandler handler) {
+        if (!(handler instanceof JobProvider jobProvider)) {
+            return;
+        }
+        jobProvider.getJobs().forEach((name, spec) -> {
+            long window = JobSchedule.readLong(spec.config(), JobSchedule.KEY_SPREAD_SECONDS, 0);
+            try {
+                JobSchedule.requireShiftable((String) spec.config().get(JobSchedule.KEY_CRON), window);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalStateException("Connector '" + handler.connectorCode() + "', job '"
+                        + name + "': " + e.getMessage(), e);
             }
         });
     }

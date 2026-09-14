@@ -144,6 +144,24 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
                    @Param("timeoutSeconds") Integer timeoutSeconds);
 
     /**
+     * Re-pins a cron row's deadline after the declared expression changed: the pending one was computed
+     * from an expression that no longer exists. {@code PENDING} and not paused only — a {@code RUNNING}
+     * row recomputes on completion and a paused one on resume, so touching either would race them.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ConnectorJob t
+            SET t.nextRunAt = :nextRunAt,
+                t.updatedAt = :now
+            WHERE t.id = :id
+              AND t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.PENDING
+              AND t.pausedAt IS NULL
+            """)
+    int rescheduleCron(@Param("id") UUID id,
+                       @Param("nextRunAt") LocalDateTime nextRunAt,
+                       @Param("now") LocalDateTime now);
+
+    /**
      * Shutdown release: returns a RUNNING row to PENDING with an immediate {@code next_run_at};
      * {@code last_error} is left alone. The status guard means a ONETIME that managed to finalise
      * ({@code markCompleted}) while racing the shutdown is not resurrected.

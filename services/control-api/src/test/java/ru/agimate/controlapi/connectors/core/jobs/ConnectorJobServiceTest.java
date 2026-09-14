@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -106,6 +107,40 @@ class ConnectorJobServiceTest {
             service.resyncSystemJobs(registryOf("mcp", handler));
 
             verify(handler).getJobs(argThat(env -> row.getConnectionId().equals(env.connectionId())));
+        }
+
+        @Test
+        @DisplayName("cron изменился → next_run_at пересчитывается по новому выражению")
+        void repinsAChangedCron() {
+            ConnectorJob row = systemRow("persist-memory", "daily");
+            row.setType(ConnectorJobType.CRON);
+            row.setConfig(Map.of("cron", "0 0 3 * * *", "zone", "UTC"));
+            when(repository.findByKind(ConnectorJobKind.SYSTEM)).thenReturn(List.of(row));
+            JobCapableHandler handler = mock(JobCapableHandler.class);
+            when(handler.getJobs(any())).thenReturn(Map.of("daily", new JobSpec("daily",
+                    ConnectorJobType.CRON,
+                    JobSchedule.cronConfig("0 0 3 * * *", "UTC", 3_600), Map.of(), 120)));
+
+            service.resyncSystemJobs(registryOf("persist-memory", handler));
+
+            verify(repository).rescheduleCron(eq(row.getId()), any(), any());
+        }
+
+        @Test
+        @DisplayName("cron прежний → планирование не трогается")
+        void leavesAnUnchangedCronAlone() {
+            ConnectorJob row = systemRow("persist-memory", "daily");
+            row.setType(ConnectorJobType.CRON);
+            row.setConfig(Map.of("cron", "0 0 3 * * *", "zone", "UTC"));
+            when(repository.findByKind(ConnectorJobKind.SYSTEM)).thenReturn(List.of(row));
+            JobCapableHandler handler = mock(JobCapableHandler.class);
+            when(handler.getJobs(any())).thenReturn(Map.of("daily", new JobSpec("daily",
+                    ConnectorJobType.CRON,
+                    JobSchedule.cronConfig("0 0 3 * * *", "UTC"), Map.of(), 120)));
+
+            service.resyncSystemJobs(registryOf("persist-memory", handler));
+
+            verify(repository, never()).rescheduleCron(any(), any(), any());
         }
 
         @Test

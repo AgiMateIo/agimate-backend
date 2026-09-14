@@ -11,6 +11,7 @@ import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobKind;
 import ru.agimate.controlapi.database.enums.ConnectorJobStatus;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 
 import java.time.LocalDateTime;
@@ -99,6 +100,8 @@ public class ConnectorJobService {
      * updated by a targeted UPDATE, because status and lease are written concurrently by the scheduler
      * (this node's and the neighbouring ones'). The registry is an argument: its one caller is the
      * bootstrap that already holds it, and the rest of this write API has no business with handlers.
+     *
+     * <p>Scheduling is left alone, with one exception — see {@link #cronChanged}.
      */
     @Transactional
     public void resyncSystemJobs(ConnectorRegistry registry) {
@@ -117,9 +120,32 @@ public class ConnectorJobService {
                         row.getConnectorCode(), row.getConnectionId(), row.getName());
                 continue;
             }
+            boolean cronChanged = cronChanged(row, spec);
             connectorJobRepository.updateSpec(
                     row.getId(), spec.type(), spec.config(), spec.args(), spec.timeoutSeconds());
+            if (cronChanged) {
+                LocalDateTime now = LocalDateTime.now();
+                connectorJobRepository.rescheduleCron(row.getId(), JobSchedule.nextCron(spec.config(), now), now);
+                log.info("Re-pinned system job {}/{}/{} to the new cron {}", row.getConnectorCode(),
+                        row.getConnectionId(), row.getName(), spec.config().get(JobSchedule.KEY_CRON));
+            }
         }
+    }
+
+    /**
+     * The one case where the re-sync touches scheduling. Normally {@code next_run_at} belongs to the
+     * scheduler and the manage API, but a deadline computed from an expression that no longer exists is
+     * not a deadline: the row would fire at the old moment once more and only then move to the new one
+     * — and for a job that has just gained a spread window that «once more» is the whole installation
+     * waking up together one last time, which is exactly what the window is there to prevent.
+     */
+    private static boolean cronChanged(ConnectorJob row, JobSpec spec) {
+        if (spec.type() != ConnectorJobType.CRON || row.getType() != ConnectorJobType.CRON) {
+            return false;
+        }
+        Object declared = spec.config().get(JobSchedule.KEY_CRON);
+        Object stored = row.getConfig() == null ? null : row.getConfig().get(JobSchedule.KEY_CRON);
+        return declared != null && !declared.equals(stored);
     }
 
     /**

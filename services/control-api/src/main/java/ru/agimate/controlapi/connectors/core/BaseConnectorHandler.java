@@ -5,6 +5,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.annotation.ToolMeta;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
@@ -149,10 +150,15 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
     }
 
     private static JobSpec toJobSpecification(String name, Job task) {
+        if (task.spreadSeconds() > 0 && task.type() != ConnectorJobType.CRON) {
+            // Silently dropping it would be worse: the declaration reads as spread and the rows are not.
+            throw new IllegalStateException(
+                    "Job '" + name + "': spreadSeconds applies to CRON jobs only");
+        }
         Map<String, Object> config = switch (task.type()) {
             case ONETIME -> JobSchedule.onetimeConfig();
             case PERIODIC -> JobSchedule.periodicConfig(task.intervalSeconds());
-            case CRON -> JobSchedule.cronConfig(task.cron(), task.zone());
+            case CRON -> JobSchedule.cronConfig(task.cron(), task.zone(), task.spreadSeconds());
         };
         return new JobSpec(name, task.type(), config, Map.of(), task.timeoutSeconds());
     }

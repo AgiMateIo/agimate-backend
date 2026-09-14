@@ -63,6 +63,8 @@ public class PersistentMemoryToolService {
     private static final int NOTES_MAX_CHARS = 60_000;
     /** Cadence of the consolidation sweep. */
     private static final long CONSOLIDATION_INTERVAL_SECONDS = 3_600;
+    /** The nightly sweep needs the night, not three o'clock — every connection takes its own hour of it. */
+    private static final long DAILY_SPREAD_SECONDS = 3_600;
     /** Firing the job is only a database read plus publishing triggers; the iteration is short. */
     private static final int JOB_TIMEOUT_SECONDS = 120;
 
@@ -133,7 +135,12 @@ public class PersistentMemoryToolService {
     // ===== Hidden background jobs (per connection, connectionId = connections.id) =====
 
     @Tool(name = DAILY_JOB, description = "Internal: emit per-session note requests for the last 24h")
-    @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
+    // The window is the point of the declaration, not a detail of it: this is the heavy job — every
+    // session of every bound agent for the last 24 hours, and a model run per session — so a shared
+    // 03:00:00 across an installation is the nightly counterpart of the :00 spike. Each connection sits
+    // somewhere in the hour after three and stays there.
+    @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", spreadSeconds = DAILY_SPREAD_SECONDS,
+            timeoutSeconds = JOB_TIMEOUT_SECONDS)
     public void daily() {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID connectionId = requireConnectionId(ctx);

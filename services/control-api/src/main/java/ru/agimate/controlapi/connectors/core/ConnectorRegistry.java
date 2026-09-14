@@ -4,6 +4,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
+import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 
 import java.util.Collection;
 import java.util.Map;
@@ -101,13 +102,18 @@ public class ConnectorRegistry {
     }
 
     /**
-     * The jobs a connector declares for one of its instances.
+     * The jobs a connector declares for one of its instances, ready to be written into rows — the one
+     * place both writers go through ({@code ConnectorIdentityListener} on a lifecycle event,
+     * {@code ConnectorJobService#resyncSystemJobs} at startup), which is why the spread of a windowed
+     * cron ({@link JobSchedule#spread}) is applied here and not in a handler: an override of
+     * {@link JobProvider#getJobs(ConnectorEnv)} (MCP has one) would bypass it.
      *
      * @return empty when the connector has no handler; an empty map when it has no {@link JobProvider}
      */
     public Optional<Map<String, JobSpec>> declaredJobs(String connectorCode, String connectionId) {
+        UUID id = UUID.fromString(connectionId);
         return findHandler(connectorCode).map(handler -> handler instanceof JobProvider jobProvider
-                ? jobProvider.getJobs(ConnectorEnvFactory.listing(UUID.fromString(connectionId)))
+                ? JobSchedule.spread(jobProvider.getJobs(ConnectorEnvFactory.listing(id)), id)
                 : Map.of());
     }
 

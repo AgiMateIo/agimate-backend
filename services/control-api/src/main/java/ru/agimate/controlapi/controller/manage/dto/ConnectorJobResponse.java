@@ -34,7 +34,9 @@ public record ConnectorJobResponse(
         @Schema(description = "Schedule type")
         ConnectorJobType type,
 
-        @Schema(description = "Schedule parameters (intervalSeconds / cron + zone)")
+        @Schema(description = "Schedule parameters (intervalSeconds / cron + zone; a spread cron also "
+                + "carries baseCron and spreadSeconds — the declared moment and the window this "
+                + "instance picked its own moment from)")
         Map<String, Object> config,
 
         @Schema(description = "Arguments passed to the task on each run")

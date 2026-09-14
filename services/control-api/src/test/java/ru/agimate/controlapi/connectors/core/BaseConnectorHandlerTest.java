@@ -161,6 +161,17 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
+        @DisplayName("окно едет в декларации базой, а не уже сдвинутым выражением")
+        void keepsTheWindowBesideTheBase() {
+            JobSpec spec = handler.getJobs().get("test.spread_task");
+
+            assertNotNull(spec);
+            assertEquals("0 0 3 * * *", spec.config().get("cron"));
+            assertEquals(3600L, spec.config().get("spreadSeconds"));
+            assertFalse(spec.config().containsKey("baseCron"));
+        }
+
+        @Test
         @DisplayName("не содержит обычных тулов")
         void excludesPlainTools() {
             assertFalse(handler.getJobs().containsKey("test.echo"));
@@ -404,6 +415,11 @@ class BaseConnectorHandlerTest {
         @Tool(name = "test.cron_task", description = "Cron background task")
         @Job(type = ConnectorJobType.CRON, cron = "0 0 * * * *", zone = "Europe/Moscow", timeoutSeconds = 120)
         public void cronTask() {
+        }
+
+        @Tool(name = "test.spread_task", description = "Cron background task with a window")
+        @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", spreadSeconds = 3600, timeoutSeconds = 120)
+        public void spreadTask() {
         }
 
         @Tool(name = "test.internal_target", description = "Hidden dispatch target (job-scheduled, not an LLM tool)",

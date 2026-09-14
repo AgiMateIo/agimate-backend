@@ -37,6 +37,21 @@ public @interface Job {
 
     String zone() default "UTC";
 
+    /**
+     * Window in seconds inside which a {@code CRON} instance picks a moment of its own — and keeps it:
+     * the offset is derived from the connection id, not drawn anew, so the job sits on the same second
+     * across restarts. Declare it wherever only the cadence matters and the moment does not
+     * («overnight», «once an hour»): without a window every row of every installation comes due at the
+     * one second the expression names, and the whole install wakes up together.
+     *
+     * <p>{@code 0} — the instance fires exactly when declared. That is the right choice when the moment
+     * is part of a promise to the user (a digest at 9:00) or is dictated by the outside world.
+     *
+     * <p>Only an expression naming a single point can be spread: plain second/minute/hour fields, and
+     * the window staying inside the same day. Anything else fails the startup.
+     */
+    long spreadSeconds() default 0;
+
     /** Limit of a single iteration in seconds; once the lease expires the row is picked up again. */
     int timeoutSeconds() default 300;
 }
