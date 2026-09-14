@@ -150,7 +150,7 @@ public final class ContextBuilder {
     }
 
     /** Blocks joined by a blank line, each rendered per the trust/name rules. Order untouched. */
-    String render(List<PromptBlock> blocks) {
+    public String render(List<PromptBlock> blocks) {
         List<String> parts = new ArrayList<>(blocks.size());
         for (PromptBlock block : blocks) {
             parts.add(renderBlock(block));

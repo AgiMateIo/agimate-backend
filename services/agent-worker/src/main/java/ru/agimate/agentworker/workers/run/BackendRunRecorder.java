@@ -6,6 +6,7 @@ import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.RunRecorder;
 import ru.agimate.agentworker.agent.ToolRegistry;
+import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
@@ -41,7 +42,8 @@ class BackendRunRecorder implements RunRecorder {
         this.client = client;
         this.channelLog = channelLog;
         this.turnLog = turnLog;
-        this.steering = new SteeringAbsorber(client, turnLog, agentId, runId, templates.steeredPrefix());
+        this.steering = new SteeringAbsorber(client, turnLog, agentId, runId, templates.steeredPrefix(),
+                templates.steeredEventPrefix(), new ContextBuilder(templates)::render);
         this.registry = registry;
         this.agentId = agentId;
         this.runId = runId;

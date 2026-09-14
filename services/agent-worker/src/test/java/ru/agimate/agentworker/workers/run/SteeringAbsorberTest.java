@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.agentworker.ClaimSteeringResponse;
+import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.SteeringMessage;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
@@ -31,12 +32,14 @@ import static org.mockito.Mockito.when;
 class SteeringAbsorberTest {
 
     private static final String PREFIX = "while you were working:";
+    private static final String EVENT_PREFIX = "an event arrived:";
 
     @Mock
     private AgentWorkerClient client;
 
     private SteeringAbsorber absorber() {
-        return new SteeringAbsorber(client, new TurnLog(client, "agent-1", "run-1"), "agent-1", "run-1", PREFIX);
+        return new SteeringAbsorber(client, new TurnLog(client, "agent-1", "run-1"), "agent-1", "run-1", PREFIX,
+                EVENT_PREFIX, blocks -> blocks.stream().map(b -> "<" + b.getName() + ">" + b.getContent()).reduce("", String::concat));
     }
 
     private static ClaimSteeringResponse claim(String... runIds) {
@@ -45,6 +48,23 @@ class SteeringAbsorberTest {
             builder.addMessages(SteeringMessage.newBuilder().setRunId(id).setText("текст " + id));
         }
         return builder.build();
+    }
+
+    @Test
+    @DisplayName("событие: блоки рендерятся, обрамление событийное, журнал — отрендеренные блоки")
+    void eventIsRenderedWithEventFraming() {
+        ClaimSteeringResponse response = ClaimSteeringResponse.newBuilder()
+                .addMessages(SteeringMessage.newBuilder().setRunId("r1")
+                        .addBlocks(PromptBlock.newBuilder().setName("event").setContent("{report}")))
+                .build();
+        when(client.claimSteering("agent-1", "run-1")).thenReturn(response);
+
+        List<AgentChatMessage> absorbed = absorber().poll();
+
+        assertEquals(1, absorbed.size());
+        assertEquals(EVENT_PREFIX + "\n\n<event>{report}", absorbed.get(0).text());
+        verify(client).saveTurn(eq("agent-1"), eq("run-1"), anyInt(), any(), eq("<event>{report}"),
+                isNull(), anyList(), anyList(), isNull(), isNull(), isNull());
     }
 
     @Test

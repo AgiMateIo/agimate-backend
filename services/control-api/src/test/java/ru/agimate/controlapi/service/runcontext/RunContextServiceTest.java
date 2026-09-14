@@ -117,11 +117,11 @@ class RunContextServiceTest {
         catalog = new RunCatalog(agentRunRepository, agentRepository, agentSkillRepository, agentSkillService,
                 skillRepository, connectionRepository, connectorRepository, connectionToolRepository,
                 registry, envFactory, channelRepository, channelHandlerRegistry);
+        // Язык-первоисточник: переводов нет, блоки промпта совпадают с константами в коде.
+        PromptTexts promptTexts = new PromptTexts(new ContentProperties());
         service = new RunContextService(catalog, agentRepository, agenticTeamRepository,
                 registry, envFactory, channelRepository, channelHandlerRegistry,
-                inboundTextResolver, historyAssembler,
-                // Язык-первоисточник: переводов нет, блоки промпта совпадают с константами в коде.
-                new PromptTexts(new ContentProperties()));
+                inboundTextResolver, historyAssembler, promptTexts, new TriggerBlocks(registry, promptTexts));
     }
 
     private Agent agent() {

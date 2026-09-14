@@ -125,6 +125,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                         .setRunId(inbound.runId().toString())
                         .setText(nullToEmpty(inbound.text()));
                 inbound.parts().forEach(p -> message.addParts(RunContextMapper.toProto(p)));
+                inbound.blocks().forEach(b -> message.addBlocks(RunContextMapper.toProto(b)));
                 builder.addMessages(message);
             }
             responseObserver.onNext(builder.build());

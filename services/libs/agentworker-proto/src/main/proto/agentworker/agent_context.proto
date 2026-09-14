@@ -113,6 +113,11 @@ message SteeringMessage {
   string run_id = 1;             // the claimed run (agent_runs.id)
   string text = 2;
   repeated FilePart parts = 3;
+  // An absorbed event (a detached result, a subagent's report, a reminder) instead of a channel
+  // message: the blocks its own run would have started with, rendered by the same trust rules.
+  // Empty — a channel message in text/parts. For an event, text still carries the compact JSON a
+  // worker predating this field reads.
+  repeated PromptBlock blocks = 4;
 }
 
 message MarkSteeredRequest {

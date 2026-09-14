@@ -1,7 +1,5 @@
 package ru.agimate.controlapi.service.runcontext;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,7 +10,6 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
-import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -116,11 +113,6 @@ public class RunContextService {
             + "say plainly what is missing — the blocked_by line names the connection and the reason — "
             + "instead of attempting the work or inventing a result. Do not raise it unprompted.";
 
-    /** Deterministic serialisation of an event (sorted keys) — the same block whatever the map's order. */
-    private static final ObjectMapper EVENT_MAPPER = new ObjectMapper()
-            .enable(SerializationFeature.INDENT_OUTPUT)
-            .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
-
     private final RunCatalog runCatalog;
     private final AgentRepository agentRepository;
     private final AgenticTeamRepository agenticTeamRepository;
@@ -131,6 +123,7 @@ public class RunContextService {
     private final InboundTextResolver inboundTextResolver;
     private final RunHistoryAssembler historyAssembler;
     private final PromptTexts promptTexts;
+    private final TriggerBlocks triggerBlocks;
 
     public RunContextView build(UUID agentId, UUID triggerId) {
         RunCatalog.Catalog catalog = runCatalog.forRun(agentId, triggerId);
@@ -205,13 +198,7 @@ public class RunContextService {
             userBlocks.add(dialoguePromptBlock(inbound, trigger));
             inboundParts = inboundParts(inbound);
         } else {
-            if (effective.guidance() != null) {
-                String guidance = promptTexts.triggerGuidance(
-                        trigger.connectorCode(), trigger.name(), effective.guidance());
-                userBlocks.add(RunBlock.trusted("event_guidance",
-                        "connector:" + trigger.connectorCode(), guidance, Map.of()));
-            }
-            userBlocks.add(triggerMainBlock(effective, trigger));
+            userBlocks.addAll(triggerBlocks.of(trigger, effective));
         }
 
         RunContextView view = new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools,
@@ -471,7 +458,7 @@ public class RunContextService {
                 .orElseGet(() -> {
                     log.warn("Prompt channel unusable for trigger {} — falling back to event block",
                             trigger.id());
-                    return eventBlock(trigger);
+                    return TriggerBlocks.eventBlock(trigger);
                 });
     }
 
@@ -486,50 +473,5 @@ public class RunContextService {
     private static String partName(Part part) {
         Object name = part.meta() != null ? part.meta().get("name") : null;
         return name != null ? name.toString() : "";
-    }
-
-    /**
-     * The event's main block, per {@link EffectiveContext#presentation()}: {@code PROMPT} means
-     * trusted text from {@code data[promptParam]} (declarable by internal connectors only, guarded at
-     * bootstrap; the text is authored by the agent or the platform), and empty or non-string falls
-     * back to the untrusted event.
-     */
-    private static RunBlock triggerMainBlock(EffectiveContext effective, Trigger trigger) {
-        if (effective.presentation() != ContextDirectives.Presentation.PROMPT) {
-            return eventBlock(trigger);
-        }
-        Object raw = trigger.data() != null && effective.promptParam() != null
-                ? trigger.data().get(effective.promptParam()) : null;
-        if (raw instanceof String text && !text.isBlank()) {
-            Map<String, String> attrs = new LinkedHashMap<>();
-            attrs.put("connector", trigger.connectorCode());
-            attrs.put("name", trigger.name());
-            return RunBlock.trusted("trigger_prompt", "connector:" + trigger.connectorCode(),
-                    text.strip(), attrs);
-        }
-        log.warn("PROMPT trigger {}.{} has no usable '{}' in data — falling back to event block",
-                trigger.connectorCode(), trigger.name(), effective.promptParam());
-        return eventBlock(trigger);
-    }
-
-    /** The event as data: an untrusted block, with the wrapper and preamble applied by the worker's renderer. */
-    private static RunBlock eventBlock(Trigger trigger) {
-        Map<String, Object> event = new LinkedHashMap<>();
-        event.put("connectorCode", trigger.connectorCode());
-        event.put("connectionId", trigger.connectionId());
-        event.put("name", trigger.name());
-        event.put("id", trigger.id());
-        event.put("data", trigger.data());
-        event.put("occurredAt", trigger.occurredAt());
-        String content;
-        try {
-            content = EVENT_MAPPER.writeValueAsString(event);
-        } catch (Exception e) {
-            content = String.valueOf(event);
-        }
-        Map<String, String> attrs = new LinkedHashMap<>();
-        attrs.put("connector", trigger.connectorCode());
-        attrs.put("name", trigger.name());
-        return new RunBlock("event", "connector:" + trigger.connectorCode(), content, attrs, false, false);
     }
 }

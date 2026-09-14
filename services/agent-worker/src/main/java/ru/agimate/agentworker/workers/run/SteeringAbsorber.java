@@ -1,6 +1,7 @@
 package ru.agimate.agentworker.workers.run;
 
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.SteeringMessage;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * The run's steering client: claims the session's queued messages at the loop seam
@@ -31,24 +33,33 @@ class SteeringAbsorber {
     private final String runId;
     /** How an absorbed message is presented to the model: arrived mid-run, not part of the original request. */
     private final String steeredPrefix;
+    /** The same for an absorbed event — a detached result or a subagent's report is not the user speaking. */
+    private final String eventPrefix;
+    /** Renders an absorbed event's blocks by the same trust rules as the run's own context. */
+    private final Function<List<PromptBlock>, String> blockRenderer;
     /** Absorbed by this process — a re-fetched unconfirmed claim must not enter the conversation twice. */
     private final Set<String> absorbed = new LinkedHashSet<>();
     /** Awaiting {@code MarkSteered}; retried on every assistant turn until the backend accepts. */
     private final List<String> unconfirmed = new ArrayList<>();
 
     SteeringAbsorber(AgentWorkerClient client, TurnLog turnLog, String agentId, String runId,
-                     String steeredPrefix) {
+                     String steeredPrefix, String eventPrefix,
+                     Function<List<PromptBlock>, String> blockRenderer) {
         this.client = client;
         this.turnLog = turnLog;
         this.agentId = agentId;
         this.runId = runId;
         this.steeredPrefix = steeredPrefix;
+        this.eventPrefix = eventPrefix;
+        this.blockRenderer = blockRenderer;
     }
 
     /**
      * Claim and absorb whatever is queued: the messages ready to append to the conversation,
      * framed, oldest first. The ledger records the bare text — the framing is ephemeral, like the
-     * prefix of the initial request: today's presentation must not settle into history.
+     * prefix of the initial request: today's presentation must not settle into history. An event's
+     * bare text is its rendered blocks: the trust wrapper is content, not presentation, and a report
+     * replayed from history must stay marked as data.
      */
     List<AgentChatMessage> poll() {
         List<SteeringMessage> claimed;
@@ -65,10 +76,12 @@ class SteeringAbsorber {
                 // A re-fetched unconfirmed claim: already in the conversation, confirmation pending.
                 continue;
             }
-            AgentChatMessage bare = AgentChatMessage.user(
-                    m.getText(), ContextBuilder.mapParts(m.getPartsList()));
+            boolean event = m.getBlocksCount() > 0;
+            AgentChatMessage bare = event
+                    ? AgentChatMessage.user(blockRenderer.apply(m.getBlocksList()), List.of())
+                    : AgentChatMessage.user(m.getText(), ContextBuilder.mapParts(m.getPartsList()));
             turnLog.record(bare, null);
-            result.add(withFraming(bare));
+            result.add(withFraming(bare, event ? eventPrefix : steeredPrefix));
             unconfirmed.add(m.getRunId());
         }
         return result;
@@ -93,8 +106,8 @@ class SteeringAbsorber {
         }
     }
 
-    private AgentChatMessage withFraming(AgentChatMessage bare) {
+    private static AgentChatMessage withFraming(AgentChatMessage bare, String prefix) {
         String base = bare.text() != null ? bare.text() : "";
-        return AgentChatMessage.user(steeredPrefix + "\n\n" + base, bare.parts());
+        return AgentChatMessage.user(prefix + "\n\n" + base, bare.parts());
     }
 }

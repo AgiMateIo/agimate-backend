@@ -1,5 +1,10 @@
 package ru.agimate.controlapi.service.trigger;
 
+import ru.agimate.controlapi.config.ContentProperties;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.service.runcontext.RunBlock;
+import ru.agimate.controlapi.service.runcontext.TriggerBlocks;
+import ru.agimate.controlapi.service.seed.PromptTexts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,7 +48,8 @@ class SteeringServiceTest {
     @Mock private InboundTextResolver inboundTextResolver;
 
     private SteeringService service() {
-        return new SteeringService(agentRunRepository, inboundTextResolver);
+        return new SteeringService(agentRunRepository, inboundTextResolver,
+                new TriggerBlocks(new ConnectorRegistry(List.of()), new PromptTexts(new ContentProperties())));
     }
 
     private AgentRun mainRun(UUID sessionId) {
@@ -115,17 +122,21 @@ class SteeringServiceTest {
     }
 
     @Test
-    @DisplayName("канал не извлёк текста → компактный JSON события, как у каноники INBOUND")
-    void claimFallsBackToCompactEvent() {
+    @DisplayName("ран без prompt-канала → блоки события, недоверенные, как у его собственного рана")
+    void claimRendersEventWithoutPrompt() {
         mainRun(SESSION_ID);
-        AgentRun queued = queuedRun(null); // no channels snapshot — e.g. a trigger run in the session
+        AgentRun queued = queuedRun(null); // no channels snapshot — e.g. a subagent's report in the session
         when(agentRunRepository.findSteerable(eq(SESSION_ID), eq(AGENT_ID), eq(MAIN_RUN_ID), any()))
                 .thenReturn(List.of(queued));
 
         List<SteeringService.SteeringInbound> claimed = service().claim(AGENT_ID, MAIN_RUN_ID);
 
-        assertTrue(claimed.get(0).text().contains("\"connectorCode\":\"webchat\""));
-        assertTrue(claimed.get(0).text().contains("второе сообщение"));
+        assertTrue(claimed.get(0).text().contains("\"connectorCode\":\"webchat\""), "fallback for an older worker");
+        assertEquals(1, claimed.get(0).blocks().size());
+        RunBlock event = claimed.get(0).blocks().get(0);
+        assertEquals("event", event.name());
+        assertFalse(event.trusted());
+        assertTrue(event.content().contains("второе сообщение"));
         assertTrue(claimed.get(0).parts().isEmpty());
     }
 

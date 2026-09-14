@@ -96,6 +96,11 @@ public class ResponseTemplates {
         return get("prompt.steered-prefix");
     }
 
+    /** User-turn framing of an event absorbed mid-run: a result or report, not the user speaking. */
+    public String steeredEventPrefix() {
+        return get("prompt.steered-event-prefix");
+    }
+
     /** System hint for a call carrying image attachments the model sees inline. */
     public String imageVisible() {
         return get("prompt.image-visible");
