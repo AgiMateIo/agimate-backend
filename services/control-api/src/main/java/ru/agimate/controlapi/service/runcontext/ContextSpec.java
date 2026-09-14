@@ -4,9 +4,10 @@ import java.util.Set;
 
 /**
  * Policy for assembling a run's context (the worker's former ContextProfile, moved to the backend).
- * The preset is chosen by the trigger's route: a prompt channel exists → {@link #DIALOGUE},
- * otherwise {@link #SYSTEM_TRIGGER}. New kinds of input mean new constants with their own policy,
- * not conditionals inside the assembly.
+ * The preset is chosen by the trigger's route: a prompt channel exists → {@link #DIALOGUE}; no
+ * prompt, but a conversation to answer into and an event that carries that conversation on →
+ * {@link #DIALOGUE_EVENT}; otherwise {@link #SYSTEM_TRIGGER}. New kinds of input mean new constants
+ * with their own policy, not conditionals inside the assembly.
  */
 public enum ContextSpec {
 
@@ -24,7 +25,16 @@ public enum ContextSpec {
      * block.
      */
     SYSTEM_TRIGGER(SkillBodies.MATCHED, true,
-            Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS, HistoryPart.REASONING), true);
+            Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS, HistoryPart.REASONING), true),
+
+    /**
+     * An event that carries a conversation on — a detached tool's result, a subagent's report: the
+     * input is an event, but the answer goes back into the dialogue, so the agent needs the dialogue's
+     * whole behaviour (every skill body) and no «you may ignore this» guidance. The conversation's
+     * history is the window, so nothing is disclosed up front.
+     */
+    DIALOGUE_EVENT(SkillBodies.ALL, false,
+            Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS, HistoryPart.REASONING), false);
 
     /** Which skill bodies are injected into the system prompt. */
     public enum SkillBodies {

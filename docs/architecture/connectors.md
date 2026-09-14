@@ -192,7 +192,8 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 
 **Директивы контекста триггера (`ContextDirectives` в `TriggerSpec`).** Триггер статически
 декларирует, какой контекст нужен его рану, — overlay поверх route-пресета `ContextSpec`
-(DIALOGUE/SYSTEM_TRIGGER выбирает маршрут, коннектор его не знает; `null`-поле = «как в базе»),
+(DIALOGUE/DIALOGUE_EVENT/SYSTEM_TRIGGER выбирает маршрут, коннектор его не знает — кроме флага
+`TriggerSpec.continuesConversation`, которым событие говорит, что продолжает разговор; `null`-поле = «как в базе»),
 накладывается один раз в `EffectiveContext.of` при сборке (`RunContextService`). Поля двух классов
 риска:
 

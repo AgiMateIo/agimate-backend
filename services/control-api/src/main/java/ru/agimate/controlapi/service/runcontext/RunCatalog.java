@@ -15,7 +15,6 @@ import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -37,6 +36,7 @@ import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.AgentSkillService.WithheldSkill;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
+import ru.agimate.controlapi.service.delivery.DetachedToolResultDelivery;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -145,14 +145,14 @@ public class RunCatalog {
         }
 
         Channels channels = ChannelsCodec.fromMap(run.getChannels());
-        ContextSpec spec = channels != null && channels.prompt() != null
-                ? ContextSpec.DIALOGUE
-                : ContextSpec.SYSTEM_TRIGGER;
         Trigger trigger = Trigger.fromLog(run.getTriggerLog());
         // Directives come only from the connector code's static declaration (the registry); dynamic
         // triggers (connection_triggers) and the payload never reach here — an unfamiliar name = the base preset.
-        EffectiveContext effective = EffectiveContext.of(spec, declaredDirectives(trigger));
+        TriggerSpec declared = declaredSpec(trigger);
+        ContextSpec spec = presetOf(channels, trigger, declared);
+        EffectiveContext effective = EffectiveContext.of(spec, declared != null ? declared.context() : null);
 
+        List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         Scope scope = skillScope(agentId, effective.skillTools());
         UUID promptChannelId = channels != null && channels.prompt() != null ? channels.prompt().channelId() : null;
         UUID promptSessionId = channels != null && channels.prompt() != null ? channels.prompt().sessionId() : null;
@@ -164,7 +164,6 @@ public class RunCatalog {
         // INSTANCE) enters the selection past the skill gate.
         UUID ownConnectionId = effective.ownConnectionTools() ? tryParseUuid(trigger.connectionId()) : null;
 
-        List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         List<RunTool> tools = collectTools(connections, scope.requiredConnections(), ownConnectionId,
                 sessionAwareConnectionId, promptSessionId);
         return new Catalog(spec, effective, trigger, channels, scope.skills(), scope.withheld(), connections, tools,
@@ -240,13 +239,29 @@ public class RunCatalog {
                 .anyMatch(c -> loaderCode.equals(c.getConnectorCode()) && required.contains(c.getId()));
     }
 
-    /** The trigger's static directives from the registry ({@code null} — undeclared or a dynamic trigger). */
-    private ContextDirectives declaredDirectives(Trigger trigger) {
+    /** The trigger's static declaration from the registry ({@code null} — undeclared or a dynamic trigger). */
+    private TriggerSpec declaredSpec(Trigger trigger) {
         return connectorRegistry.findCapability(trigger.connectorCode(), TriggerProvider.class)
                 .map(TriggerProvider::getTriggers)
                 .map(triggers -> triggers.get(trigger.name()))
-                .map(TriggerSpec::context)
                 .orElse(null);
+    }
+
+    /**
+     * The route preset. A detached tool's result is a platform trigger with no declaration of its own
+     * (its connector code is the tool's), so it is named here; every other event that carries a
+     * conversation on says so in its {@link TriggerSpec}. Either way it needs a conversation to carry
+     * on — without one it is an autonomous event like any other.
+     */
+    static ContextSpec presetOf(Channels channels, Trigger trigger, TriggerSpec declared) {
+        if (channels != null && channels.prompt() != null) {
+            return ContextSpec.DIALOGUE;
+        }
+        boolean carriesOn = DetachedToolResultDelivery.TRIGGER_NAME.equals(trigger.name())
+                || (declared != null && declared.continuesConversation());
+        return carriesOn && Channels.sessionIdOf(channels) != null
+                ? ContextSpec.DIALOGUE_EVENT
+                : ContextSpec.SYSTEM_TRIGGER;
     }
 
     // ===== Tools =====

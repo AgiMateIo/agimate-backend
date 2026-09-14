@@ -37,17 +37,19 @@ declared in one place. Since stage 2 the policy lives **server-side**
 (`controlapi/service/runcontext/ContextSpec`), where the data is — the worker receives ready
 blocks and never branches on input kind:
 
-| Policy | `DIALOGUE` | `SYSTEM_TRIGGER` |
-|---|---|---|
-| Skills | all listed, **all bodies** injected (skills define dialogue behavior too) | all listed, bodies of **matched** skills injected |
-| Toolset | connectors of **all** skills | connectors of **matched** skills only |
-| System prompt | base | base + trigger guidance («часто правильный исход — ничего не делать») |
-| User turn | inbound text as a trusted block | event as an **untrusted** block (renderer wraps it) |
+| Policy | `DIALOGUE` | `DIALOGUE_EVENT` | `SYSTEM_TRIGGER` |
+|---|---|---|---|
+| Skills | all listed, **all bodies** injected (skills define dialogue behavior too) | all listed, **all bodies** | all listed, bodies of **matched** skills injected |
+| Toolset | connectors of **all** skills | connectors of **all** skills | connectors of **matched** skills only |
+| System prompt | base | base | base + trigger guidance («часто правильный исход — ничего не делать») |
+| User turn | inbound text as a trusted block | event as an **untrusted** block | event as an **untrusted** block (renderer wraps it) |
 
-The preset is chosen by the route snapshot persisted at dispatch
-(`agent_runs.channels`: prompt channel present → `DIALOGUE`). New input kinds
-(e.g. inter-agent requests) become new enum constants with their own policy row — not new
-conditionals inside the assembly.
+The preset is chosen by the route snapshot persisted at dispatch (`agent_runs.channels`):
+prompt channel present → `DIALOGUE`; no prompt, but a conversation session in the answer slot and
+an event that carries the conversation on (`tool_completed`, a subagent's report —
+`TriggerSpec.continuesConversation`) → `DIALOGUE_EVENT`; otherwise `SYSTEM_TRIGGER`. New input
+kinds become new enum constants with their own policy row — not new conditionals inside the
+assembly.
 
 ## Composition invariants
 

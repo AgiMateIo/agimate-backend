@@ -155,7 +155,6 @@ public class RunContextService {
                 : scoped;
 
         UUID promptChannelId = channels != null && channels.prompt() != null ? channels.prompt().channelId() : null;
-        UUID promptSessionId = channels != null && channels.prompt() != null ? channels.prompt().sessionId() : null;
 
         List<RunBlock> systemBlocks = new ArrayList<>();
         List<RunBlock> userBlocks = new ArrayList<>();
@@ -165,7 +164,10 @@ public class RunContextService {
             systemBlocks.add(RunBlock.trusted("", "agent", agent.getInstructions().strip(), Map.of()));
         }
         systemBlocks.add(agentBlock(agent));
-        collectConnectorBlocks(catalog.connections(), agent, promptChannelId, promptSessionId, systemBlocks, userBlocks);
+        // The conversation's session, not only the prompt's: an event that carries a conversation on (a
+        // subagent's report) has no prompt channel, yet its blocks describe that conversation.
+        collectConnectorBlocks(catalog.connections(), agent, promptChannelId, Channels.sessionIdOf(channels),
+                systemBlocks, userBlocks);
         teamBlock(agent).ifPresent(systemBlocks::add);
         if (!listed.isEmpty() || !catalog.withheld().isEmpty()) {
             systemBlocks.add(skillsBlock(listed, catalog.withheld(), catalog.skillsOnDemand()));
@@ -398,11 +400,12 @@ public class RunContextService {
      * warning in the log). Ephemeral for user blocks is derived from {@code stable}: a volatile user
      * block (memory notes) changes every run and is not persisted into history.
      *
-     * <p>{@code promptSessionId} is the same session-aware addressing the tools use: a block may
-     * depend on the conversation's session (ACP reports the root of the open IDE project).
+     * <p>{@code sessionId} is the conversation's session — the prompt channel's, otherwise the answer
+     * channel's: a block may depend on it (ACP reports the root of the open IDE project, the subagents
+     * connector lists the conversation's children).
      */
     private void collectConnectorBlocks(List<Connection> connections, Agent agent, UUID promptChannelId,
-                                        UUID promptSessionId,
+                                        UUID sessionId,
                                         List<RunBlock> systemBlocks, List<RunBlock> userBlocks) {
         for (Connection connection : connections) {
             PromptBlockProvider provider = connectorRegistry
@@ -412,7 +415,7 @@ public class RunContextService {
                 continue;
             }
             ConnectorEnv env = envFactory.internal(connection.getId().toString(), agent.getUserId(),
-                    agent.getId(), null, promptChannelId, promptSessionId);
+                    agent.getId(), null, promptChannelId, sessionId);
             List<PromptBlock> blocks;
             try {
                 blocks = provider.promptBlocks(env);
