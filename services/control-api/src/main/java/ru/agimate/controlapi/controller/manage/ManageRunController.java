@@ -45,13 +45,15 @@ public class ManageRunController {
 
     @Operation(summary = "List runs",
             description = "Runs of the current user's agents, newest first. Every filter is optional "
-                    + "and they compose: agentId, sessionId, triggerLogId, connectorCode, connectionId, "
+                    + "and they compose: agentId, sessionId, originRunId (the runs this run caused — "
+                    + "a subagent's runs, a report), triggerLogId, connectorCode, connectionId, "
                     + "name (substring of the trigger's name), status.")
     @GetMapping("/")
     public SuccessResponse<PageResponse<AgentRunResponse>> listRuns(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agentId,
             @RequestParam(required = false) UUID sessionId,
+            @RequestParam(required = false) UUID originRunId,
             @RequestParam(required = false) UUID triggerLogId,
             @RequestParam(required = false) String connectorCode,
             @RequestParam(required = false) String connectionId,
@@ -61,7 +63,7 @@ public class ManageRunController {
             @RequestParam(defaultValue = "20") int size
     ) {
         return SuccessResponse.ok(PageResponse.from(runQueryService.listRuns(
-                UUID.fromString(principal.id()), agentId, sessionId, triggerLogId,
+                UUID.fromString(principal.id()), agentId, sessionId, originRunId, triggerLogId,
                 connectorCode, connectionId, name, status, page, size)));
     }
 

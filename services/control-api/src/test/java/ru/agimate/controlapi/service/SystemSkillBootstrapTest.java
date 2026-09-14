@@ -44,6 +44,25 @@ class SystemSkillBootstrapTest {
         assertTrue(parsed.connectors().stream().noneMatch(r -> r.code().isBlank()), "blank connector code");
     }
 
+    @ParameterizedTest(name = "{0}")
+    @org.junit.jupiter.params.provider.EnumSource(ContentLanguage.class)
+    @DisplayName("каждая папка seed/skills/<lang>/ есть в SYSTEM_SKILL_CODES — иначе скилл молча не сеется")
+    void everyFolderIsListed(ContentLanguage language) throws Exception {
+        org.springframework.core.io.Resource[] files =
+                new org.springframework.core.io.support.PathMatchingResourcePatternResolver()
+                        .getResources("classpath*:seed/skills/" + language.dir() + "/*/SKILL.md");
+        java.util.Set<String> folders = new java.util.TreeSet<>();
+        for (org.springframework.core.io.Resource file : files) {
+            String path = file.getURL().getPath();
+            String dir = path.substring(0, path.lastIndexOf('/'));
+            folders.add(dir.substring(dir.lastIndexOf('/') + 1));
+        }
+
+        assertFalse(folders.isEmpty(), "ресурсы не найдены");
+        folders.removeAll(SystemSkillBootstrap.SYSTEM_SKILL_CODES);
+        assertTrue(folders.isEmpty(), "папки без записи в SYSTEM_SKILL_CODES: " + folders);
+    }
+
     @ParameterizedTest(name = "{0}/{1}")
     @MethodSource("languageAndCode")
     @DisplayName("name совпадает с именем папки — по нему пресет резолвит скилл")

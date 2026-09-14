@@ -25,6 +25,9 @@ public record SessionResponse(
         @Schema(description = "Connector the conversation runs over")
         String connectorCode,
 
+        @Schema(description = "For a subagent's session — the conversation it works for; null otherwise")
+        UUID parentSessionId,
+
         @Schema(description = "Title — derived from the first message, or set explicitly")
         String title,
 
@@ -59,6 +62,7 @@ public record SessionResponse(
                 session.getAgentId(),
                 session.getChannelId(),
                 session.getConnectorCode(),
+                session.getParentSessionId(),
                 session.getTitle(),
                 session.getLastActivityAt(),
                 session.getClosedAt(),

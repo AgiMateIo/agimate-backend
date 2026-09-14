@@ -99,6 +99,7 @@ public class DetachedToolResultDelivery {
                 .agent(parent.getAgent())
                 .destination(parent.getAgent().getType().name())
                 .sessionId(parent.getSessionId())
+                .originRunId(parent.getId())
                 .channels(ChannelsCodec.toMap(channels))
                 .build());
         return Optional.of(new Prepared(run, trigger, channels));

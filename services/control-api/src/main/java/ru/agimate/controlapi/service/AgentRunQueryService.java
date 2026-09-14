@@ -55,13 +55,13 @@ public class AgentRunQueryService {
     private final LlmUsageLogRepository usageLogRepository;
 
     /** Every filter is optional; {@code userId} is not — it is the ownership gate, not a filter. */
-    public Page<AgentRunResponse> listRuns(UUID userId, UUID agentId, UUID sessionId, UUID triggerLogId,
-                                           String connectorCode, String connectionId, String name,
-                                           RunStatus status, int page, int size) {
+    public Page<AgentRunResponse> listRuns(UUID userId, UUID agentId, UUID sessionId, UUID originRunId,
+                                           UUID triggerLogId, String connectorCode, String connectionId,
+                                           String name, RunStatus status, int page, int size) {
         return withUsage(agentRunRepository.findRunsWithFilters(
                 userId, null, agentId, sessionId, triggerLogId,
                 blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
-                null, null,
+                null, null, originRunId,
                 PageRequest.of(page, size)));
     }
 
@@ -113,7 +113,7 @@ public class AgentRunQueryService {
      */
     public AgentRunResponse getRun(UUID runId, UUID userId) {
         return withUsage(agentRunRepository.findRunsWithFilters(
-                        userId, runId, null, null, null, null, null, null, null, null, null,
+                        userId, runId, null, null, null, null, null, null, null, null, null, null,
                         PageRequest.of(0, 1)))
                 .stream()
                 .findFirst()

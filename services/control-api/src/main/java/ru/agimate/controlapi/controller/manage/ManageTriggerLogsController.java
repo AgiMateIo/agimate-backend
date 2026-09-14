@@ -74,7 +74,7 @@ public class ManageTriggerLogsController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(runQueryService.listRuns(
-                userId, agentId, null, null, connectorCode, connectionId, name, status, page, size)));
+                userId, agentId, null, null, null, connectorCode, connectionId, name, status, page, size)));
     }
 
     @Operation(

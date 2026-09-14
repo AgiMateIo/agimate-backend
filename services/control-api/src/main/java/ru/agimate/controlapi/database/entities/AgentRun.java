@@ -96,6 +96,21 @@ public class AgentRun extends BaseEntity {
     private LocalDateTime steeredAt;
 
     /**
+     * The run whose action created this one: the conversation run that asked a subagent, the
+     * subagent's run for its report, the calling run for a detached tool's result. Unlike
+     * {@link #mainRunId}, which is about the queue (who absorbed this run), this is about the work.
+     */
+    @Column(name = "origin_run_id")
+    private UUID originRunId;
+
+    /**
+     * When the report of this subagent run was delivered to its conversation — the claim against a
+     * second delivery. {@code null} for every run that is not a subagent's.
+     */
+    @Column(name = "reported_at")
+    private LocalDateTime reportedAt;
+
+    /**
      * The run's latest sign of life: extended by its own RPCs (SaveMessage, GetLlmCredentials,
      * ExecuteToolAsync/GetToolResult, ClaimSteering). A RUNNING run idle for longer than the threshold
      * is collected by the background sweeper ({@code RunActivityService}).

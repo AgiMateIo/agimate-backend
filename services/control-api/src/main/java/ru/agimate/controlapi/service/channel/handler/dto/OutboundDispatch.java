@@ -17,6 +17,9 @@ import java.util.UUID;
  * @param channelId    the channel the delivery is going to
  * @param sessionId    the channel's session, resolved at the service boundary
  * @param replyContext correlation of the inbound message, restored from the session (the answer's addressee)
+ * @param runId        the run whose output this is; {@code null} for a platform line with no run behind
+ *                     it (the stop command's reply). The subagent channel needs it: its output is
+ *                     the report of exactly that run
  */
 public record OutboundDispatch(
         String messageId,
@@ -24,6 +27,12 @@ public record OutboundDispatch(
         String progressType,
         UUID channelId,
         UUID sessionId,
-        Map<String, Object> replyContext
+        Map<String, Object> replyContext,
+        UUID runId
 ) {
+
+    public OutboundDispatch(String messageId, String stream, String progressType, UUID channelId,
+                            UUID sessionId, Map<String, Object> replyContext) {
+        this(messageId, stream, progressType, channelId, sessionId, replyContext, null);
+    }
 }

@@ -134,6 +134,7 @@ public class PlatformObservabilityToolService {
                         : PlatformToolsSupport.parseEnum(RunStatus.class, status, "status"),
                 PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
                 PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
+                null,
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING, Sort.by("createdAt").descending()));
         List<RunBrief> runItems = page.getContent().stream()
                 .map(this::toRunBrief)
@@ -149,7 +150,7 @@ public class PlatformObservabilityToolService {
         UUID id = PlatformToolsSupport.parseUuid(runId, "runId");
         return agentRunRepository.findRunsWithFilters(
                         PlatformToolsSupport.userId(), id, null, null, null, null, null, null, null,
-                        null, null,
+                        null, null, null,
                         PageRequest.of(0, 1))
                 .getContent().stream().findFirst()
                 .map(this::toRunBrief)
@@ -353,7 +354,7 @@ public class PlatformObservabilityToolService {
         UUID id = PlatformToolsSupport.parseUuid(runId, "runId");
         return agentRunRepository.findRunsWithFilters(
                         PlatformToolsSupport.userId(), id, null, null, null, null, null, null, null,
-                        null, null,
+                        null, null, null,
                         PageRequest.of(0, 1))
                 .getContent().stream().findFirst()
                 .orElseThrow(() -> new ConnectorException("Run not found: " + runId));

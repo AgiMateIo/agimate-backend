@@ -172,6 +172,7 @@ public class TriggerRouterService {
                         .agent(route.agent())
                         .destination(route.agent().getType().name())
                         .sessionId(runSessionId(triggerLog, route, connectionId))
+                        .originRunId(trigger.context() != null ? trigger.context().originRunId() : null)
                         // A snapshot of the route: GetRunContext (the profile and the inbound message) and
                         // SaveMessage delivery (stage 3) read the channels from here rather than re-resolving them.
                         .channels(ChannelsCodec.toMap(route.channels()))

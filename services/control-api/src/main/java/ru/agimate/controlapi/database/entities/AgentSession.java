@@ -59,6 +59,13 @@ public class AgentSession extends BaseEntity {
     @Column(name = "channel_id")
     private UUID channelId;
 
+    /**
+     * The conversation a subagent's session works for; {@code null} for every session that is not a
+     * subagent's (docs/decisions/subagents.md).
+     */
+    @Column(name = "parent_session_id")
+    private UUID parentSessionId;
+
     @Column(name = "title", columnDefinition = "TEXT")
     private String title;
 

@@ -71,7 +71,7 @@ public class RunCancellationService {
     @Transactional
     public int cancelSession(UUID sessionId, UUID userId) {
         requireOwnedSession(sessionId, userId);
-        int updated = agentRunRepository.requestCancelBySession(sessionId, LocalDateTime.now());
+        int updated = requestCancel(sessionId);
         log.info("cancel requested for {} run(s) of session {} by user {}", updated, sessionId, userId);
         return updated;
     }
@@ -89,9 +89,16 @@ public class RunCancellationService {
      */
     @Transactional
     public int cancelSessionFromChannel(UUID sessionId) {
-        int updated = agentRunRepository.requestCancelBySession(sessionId, LocalDateTime.now());
+        int updated = requestCancel(sessionId);
         log.info("cancel requested for {} run(s) of session {} from the channel", updated, sessionId);
         return updated;
+    }
+
+    /** The conversation's runs and its subagents' runs: a stopped conversation owes no one its delegated work. */
+    private int requestCancel(UUID sessionId) {
+        LocalDateTime now = LocalDateTime.now();
+        return agentRunRepository.requestCancelBySession(sessionId, now)
+                + agentRunRepository.requestCancelByParentSession(sessionId, now);
     }
 
     /** Someone else's run reads as absent, not forbidden: their existence is not disclosed. */

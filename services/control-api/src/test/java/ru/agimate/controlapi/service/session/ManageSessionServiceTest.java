@@ -78,7 +78,7 @@ class ManageSessionServiceTest {
     }
 
     private void stubList() {
-        when(agentSessionService.list(USER_ID, null, null, null, null, null, 0, 50))
+        when(agentSessionService.list(USER_ID, null, null, null, null, null, null, 0, 50))
                 .thenReturn(new PageImpl<>(List.of(session)));
     }
 
@@ -98,7 +98,7 @@ class ManageSessionServiceTest {
                             Timestamp.valueOf(LocalDateTime.of(2026, 8, 15, 12, 0))}));
             when(agentRunQueryService.liveSessionIds(List.of(SESSION_ID))).thenReturn(Set.of(SESSION_ID));
 
-            SessionResponse row = manageSessionService.list(USER_ID, null, null, null, 0, 50)
+            SessionResponse row = manageSessionService.list(USER_ID, null, null, null, null, 0, 50)
                     .getContent().get(0);
 
             assertEquals(SESSION_ID, row.id());
@@ -116,7 +116,7 @@ class ManageSessionServiceTest {
         void emptySessionRow() {
             stubList();
 
-            SessionResponse row = manageSessionService.list(USER_ID, null, null, null, 0, 50)
+            SessionResponse row = manageSessionService.list(USER_ID, null, null, null, null, 0, 50)
                     .getContent().get(0);
 
             assertEquals(0L, row.unreadCount());
@@ -127,10 +127,10 @@ class ManageSessionServiceTest {
         @Test
         @DisplayName("пустая страница не идёт за обогащением")
         void emptyPageAsksNothing() {
-            when(agentSessionService.list(USER_ID, null, null, null, null, null, 0, 50))
+            when(agentSessionService.list(USER_ID, null, null, null, null, null, null, 0, 50))
                     .thenReturn(new PageImpl<>(List.of(), Pageable.ofSize(50), 0));
 
-            assertEquals(0, manageSessionService.list(USER_ID, null, null, null, 0, 50).getTotalElements());
+            assertEquals(0, manageSessionService.list(USER_ID, null, null, null, null, 0, 50).getTotalElements());
             verifyNoInteractions(webchatMessageRepository, agentRunQueryService);
         }
     }

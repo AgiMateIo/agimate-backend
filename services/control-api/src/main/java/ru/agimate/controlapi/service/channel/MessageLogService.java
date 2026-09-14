@@ -85,7 +85,7 @@ public class MessageLogService {
         }
         String messageId = deterministicId(runId, seq);
         outboundService.send(agentId, target.channelId(), target.sessionId(),
-                OutboundMessage.text(text), messageId, kind.name().toLowerCase(), progressType);
+                OutboundMessage.text(text), messageId, kind.name().toLowerCase(), progressType, runId);
     }
 
     /** A deterministic message_id from (run_id, seq): a retry sends the same id and downstream deduplicates. */

@@ -36,21 +36,25 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
 
     /**
      * Sweeper for stuck runs: RUNNING with no sign of life for longer than the threshold → FAILED
-     * (the worker died silently, without a SaveMessage(ERROR)). Observability; it blocks nobody.
+     * (the worker died silently, without a SaveMessage(ERROR)). Nothing else hears about such a run,
+     * so the ids come back: a subagent's conversation is waiting for exactly this answer.
      *
      * <p>One already asked to stop goes to CANCELLED instead ({@link #cancelStaleRequested}) — hence
-     * the {@code cancelRequestedAt IS NULL} here.
+     * the {@code cancel_requested_at IS NULL} here.
+     *
+     * <p>Native and unannotated: {@code UPDATE … RETURNING} yields rows, which JPQL cannot express and
+     * {@code @Modifying} would discard. It runs in the caller's transaction like any read.
      */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-            UPDATE AgentRun t
-            SET t.status = ru.agimate.controlapi.database.enums.RunStatus.FAILED,
-                t.error = :error
-            WHERE t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
-              AND t.cancelRequestedAt IS NULL
-              AND t.lastActivityAt < :cutoff
-            """)
-    int failStaleRunning(@Param("cutoff") LocalDateTime cutoff, @Param("error") String error);
+    @Query(value = """
+            UPDATE agent_runs
+            SET status = 'FAILED', error = :error, updated_at = :now
+            WHERE status = 'RUNNING'
+              AND cancel_requested_at IS NULL
+              AND last_activity_at < :cutoff
+            RETURNING id
+            """, nativeQuery = true)
+    List<UUID> failStaleRunning(@Param("cutoff") LocalDateTime cutoff, @Param("error") String error,
+                                @Param("now") LocalDateTime now);
 
     /** Asked to stop, then silent: the worker died before a seam, and the intent explains it better than silence. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -86,6 +90,49 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                                ru.agimate.controlapi.database.enums.RunStatus.RUNNING)
             """)
     int requestCancelBySession(@Param("sessionId") UUID sessionId, @Param("now") LocalDateTime now);
+
+    /**
+     * The same for the subagents of a conversation: stopping a conversation stops the work it
+     * delegated, or the children would keep spending tokens on an answer nobody is waiting for.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE agent_runs
+            SET cancel_requested_at = :now, updated_at = :now
+            WHERE session_id IN (SELECT id FROM agent_sessions WHERE parent_session_id = :sessionId)
+              AND cancel_requested_at IS NULL
+              AND status IN ('ENQUEUED', 'RUNNING')
+            """, nativeQuery = true)
+    int requestCancelByParentSession(@Param("sessionId") UUID sessionId, @Param("now") LocalDateTime now);
+
+    /**
+     * The conversation's latest run started by a person's message — the one that knows where the
+     * conversation's replies go. Events carried into the conversation borrow its channels.
+     */
+    @Query(value = """
+            SELECT * FROM agent_runs
+            WHERE session_id = :sessionId
+              AND channels -> 'prompt' ->> 'channelId' IS NOT NULL
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<AgentRun> findLatestDialogueRun(@Param("sessionId") UUID sessionId);
+
+    /**
+     * Claim the delivery of a subagent run's report: both the channel output and the stale-run
+     * sweeper may try, and only the first one delivers.
+     *
+     * @return 1 when this call claimed it
+     */
+    // No clearAutomatically: the caller keeps reading the child run (its lazy agent) after the claim.
+    @Modifying
+    @Query("""
+            UPDATE AgentRun t
+            SET t.reportedAt = :now, t.updatedAt = :now
+            WHERE t.id = :runId
+              AND t.reportedAt IS NULL
+            """)
+    int claimReport(@Param("runId") UUID runId, @Param("now") LocalDateTime now);
 
     /** Read on every seam RPC, so it selects one column rather than the row. */
     @Query("SELECT t.cancelRequestedAt IS NOT NULL FROM AgentRun t WHERE t.id = :runId")
@@ -143,7 +190,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
      * Listing for the runs view: a run joined to the event that produced it. Every filter is
      * optional — {@code agentId} included, so the same query serves «this agent's runs», «this
      * session's runs» and «who handled this event». {@code name} is a case-insensitive substring
-     * over the trigger's name. {@code userId} is not a filter but the ownership gate.
+     * over the trigger's name, {@code originRunId} — «what did this run cause». {@code userId} is not
+     * a filter but the ownership gate.
      *
      * <p>{@code runId} is here so that reading one run is this same query narrowed to a key, rather
      * than a second copy of the projection: a row of the listing and a run's details are the same
@@ -155,6 +203,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                    tl.occurredAt AS occurredAt, tl.input AS input,
                    a.status AS status, a.result AS result, a.error AS error,
                    a.sessionId AS sessionId, a.mainRunId AS mainRunId, a.steeredAt AS steeredAt,
+                   a.originRunId AS originRunId,
                    a.turnsIntact AS turnsIntact,
                    (SELECT COUNT(t) FROM AgentRunTurn t WHERE t.runId = a.id) AS turnsCount,
                    CASE WHEN a.prompt IS NULL THEN false ELSE true END AS hasPrompt,
@@ -170,6 +219,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             AND (:connectionId IS NULL OR tl.connectionId = :connectionId)
             AND (:name IS NULL OR LOWER(tl.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))
             AND (:status IS NULL OR a.status = :status)
+            AND (:originRunId IS NULL OR a.originRunId = :originRunId)
             AND (CAST(:since AS LocalDateTime) IS NULL OR a.createdAt >= :since)
             AND (CAST(:until AS LocalDateTime) IS NULL OR a.createdAt <= :until)
             ORDER BY a.createdAt DESC
@@ -185,6 +235,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                                                 @Param("status") RunStatus status,
                                                 @Param("since") LocalDateTime since,
                                                 @Param("until") LocalDateTime until,
+                                                @Param("originRunId") UUID originRunId,
                                                 Pageable pageable);
 
     /**

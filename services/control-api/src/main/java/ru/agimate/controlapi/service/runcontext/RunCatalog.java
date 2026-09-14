@@ -26,6 +26,7 @@ import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
+import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
@@ -73,6 +74,8 @@ public class RunCatalog {
     /** Codes of the disclosing connectors — each switches one axis on for the run it is bound to. */
     public static final String SKILL_LOADER = "skill-loader";
     public static final String TOOL_LOADER = "tool-loader";
+    /** Code of the subagents connector — the one a subagent's own run is denied. */
+    public static final String SUBAGENTS = "subagents";
 
     /**
      * The catalogue of one run, or of an agent outside a run.
@@ -117,6 +120,7 @@ public class RunCatalog {
     }
 
     private final AgentRunRepository agentRunRepository;
+    private final AgentSessionRepository agentSessionRepository;
     private final AgentRepository agentRepository;
     private final AgentSkillRepository agentSkillRepository;
     private final AgentSkillService agentSkillService;
@@ -154,6 +158,9 @@ public class RunCatalog {
 
         List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         Scope scope = skillScope(agentId, effective.skillTools());
+        if (isSubagentRun(run)) {
+            scope = withoutSubagents(scope, connections);
+        }
         UUID promptChannelId = channels != null && channels.prompt() != null ? channels.prompt().channelId() : null;
         UUID promptSessionId = channels != null && channels.prompt() != null ? channels.prompt().sessionId() : null;
         // A channel that brings its own tools (the IDE connector) mixes the prompt channel's connector in past
@@ -262,6 +269,31 @@ public class RunCatalog {
         return carriesOn && Channels.sessionIdOf(channels) != null
                 ? ContextSpec.DIALOGUE_EVENT
                 : ContextSpec.SYSTEM_TRIGGER;
+    }
+
+    // ===== Run role =====
+
+    /** A subagent's run: its session works for another conversation. */
+    private boolean isSubagentRun(AgentRun run) {
+        return agentSessionRepository.findById(run.getSessionId())
+                .map(session -> session.getParentSessionId() != null)
+                .orElse(false);
+    }
+
+    /**
+     * What a subagent does not get: the subagents connector itself — its tools (depth 1) and the skills
+     * that require it, whose bodies would describe tools the run does not have. The one place a run's
+     * role narrows the catalogue; further restrictions for subagents belong here too.
+     */
+    private static Scope withoutSubagents(Scope scope, List<Connection> connections) {
+        Set<UUID> required = new LinkedHashSet<>(scope.requiredConnections());
+        connections.stream()
+                .filter(c -> SUBAGENTS.equals(c.getConnectorCode()))
+                .forEach(c -> required.remove(c.getId()));
+        List<AgentSkillWithConnectorsResponse> skills = scope.skills().stream()
+                .filter(skill -> skill.connectorCodes() == null || !skill.connectorCodes().contains(SUBAGENTS))
+                .toList();
+        return new Scope(skills, scope.withheld(), required);
     }
 
     // ===== Tools =====

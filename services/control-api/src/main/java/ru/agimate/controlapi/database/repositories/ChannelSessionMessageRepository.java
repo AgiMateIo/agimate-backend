@@ -75,10 +75,16 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
     Optional<ChannelSessionMessage> findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(
             UUID sessionId);
 
-    /** Sessions of an agent with messages since {@code since} — for the daily note collection. */
+    /**
+     * Sessions of an agent with messages since {@code since} — for the daily note collection. A
+     * subagent's session is left out: its other side is the agent itself, and what it learned is
+     * already in the conversation it reported to.
+     */
     @Query("""
             SELECT DISTINCT m.sessionId FROM ChannelSessionMessage m
             WHERE m.agentId = :agentId AND m.createdAt > :since
+              AND NOT EXISTS (SELECT 1 FROM AgentSession s
+                              WHERE s.id = m.sessionId AND s.parentSessionId IS NOT NULL)
             """)
     List<UUID> findSessionIdsByAgentSince(@Param("agentId") UUID agentId, @Param("since") java.time.LocalDateTime since);
 

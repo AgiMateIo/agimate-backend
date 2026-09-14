@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Subagents (docs/decisions/subagents.md): a child is a session of the `subagents` channel, and
+      the conversation it works for is its parent. The column is null for every other session — a
+      child is the only session that belongs to another one. Cascade, not SET NULL: a child without
+      its conversation has nowhere to report and nothing to show.
+
+      Partial index: the listings ask «the children of this conversation», and nobody asks for the
+      null rows, which are nearly all of them.
+    -->
+    <changeSet id="add-agent-sessions-parent-session-id" author="agimate">
+        <addColumn tableName="agent_sessions">
+            <column name="parent_session_id" type="UUID"/>
+        </addColumn>
+
+        <addForeignKeyConstraint baseTableName="agent_sessions"
+                                 baseColumnNames="parent_session_id"
+                                 constraintName="fk_agent_sessions_parent_session"
+                                 referencedTableName="agent_sessions"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <sql>
+            CREATE INDEX idx_agent_sessions_parent_session_id
+                ON agent_sessions (parent_session_id)
+                WHERE parent_session_id IS NOT NULL;
+        </sql>
+    </changeSet>
+
+    <!--
+      origin_run_id: the run whose action created this run — the conversation run that called
+      ask_subagent for a child's run, the child's run for its report, the calling run for a detached
+      tool_completed. Not main_run_id: that one says «this run absorbed me by steering», a fact about
+      the queue; this one says «this run caused me», a fact about the work. SET NULL: a run outlives
+      the history of what caused it.
+
+      reported_at: a child run's report has been delivered to its conversation. The claim that keeps
+      a report from being delivered twice — the channel output and the stale-run sweeper can both
+      try.
+    -->
+    <changeSet id="add-agent-runs-origin-run-id-reported-at" author="agimate">
+        <addColumn tableName="agent_runs">
+            <column name="origin_run_id" type="UUID"/>
+            <column name="reported_at" type="TIMESTAMP"/>
+        </addColumn>
+
+        <addForeignKeyConstraint baseTableName="agent_runs"
+                                 baseColumnNames="origin_run_id"
+                                 constraintName="fk_agent_runs_origin_run"
+                                 referencedTableName="agent_runs"
+                                 referencedColumnNames="id"
+                                 onDelete="SET NULL"/>
+
+        <sql>
+            CREATE INDEX idx_agent_runs_origin_run_id
+                ON agent_runs (origin_run_id)
+                WHERE origin_run_id IS NOT NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

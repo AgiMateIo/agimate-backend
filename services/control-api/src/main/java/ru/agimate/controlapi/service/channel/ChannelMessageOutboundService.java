@@ -52,6 +52,13 @@ public class ChannelMessageOutboundService {
     public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
                                OutboundMessage outbound, String messageId, String stream,
                                String progressType) {
+        return send(agentId, channelId, sessionIdOrNull, outbound, messageId, stream, progressType, null);
+    }
+
+    /** The same, for the output of a run: {@code runId} reaches the handler in {@link OutboundDispatch}. */
+    public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
+                               OutboundMessage outbound, String messageId, String stream,
+                               String progressType, UUID runId) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(channelId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
 
@@ -88,7 +95,7 @@ public class ChannelMessageOutboundService {
         ChannelConfig config = new ChannelConfig(
                 channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
         OutboundDispatch dispatch = new OutboundDispatch(
-                effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext);
+                effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext, runId);
 
         dispatchAll(channel, handler.handleOutput(config, effectiveOutbound, dispatch));
         // The single funnel of everything outgoing: the parts are already resolved from [[attach:…]],

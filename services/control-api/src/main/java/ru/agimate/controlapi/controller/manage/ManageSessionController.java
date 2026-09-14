@@ -38,19 +38,21 @@ public class ManageSessionController {
 
     private final ManageSessionService manageSessionService;
 
-    @Operation(summary = "List sessions, freshest activity first")
+    @Operation(summary = "List sessions, freshest activity first",
+            description = "parentSessionId narrows the listing to the subagent sessions working for one conversation")
     @GetMapping("/")
     public SuccessResponse<PageResponse<SessionResponse>> list(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agentId,
             @RequestParam(required = false) UUID channelId,
             @RequestParam(required = false) String connectorCode,
+            @RequestParam(required = false) UUID parentSessionId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(
-                manageSessionService.list(userId, agentId, channelId, connectorCode, page, size)));
+                manageSessionService.list(userId, agentId, channelId, connectorCode, parentSessionId, page, size)));
     }
 
     @Operation(summary = "Get a session by id")

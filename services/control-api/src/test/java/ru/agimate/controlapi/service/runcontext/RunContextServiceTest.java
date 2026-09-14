@@ -78,6 +78,7 @@ class RunContextServiceTest {
     private static final UUID SESSION_ID = UUID.randomUUID();
 
     @Mock private AgentRunRepository agentRunRepository;
+    @Mock private ru.agimate.controlapi.database.repositories.AgentSessionRepository agentSessionRepository;
     @Mock private AgentRepository agentRepository;
     @Mock private AgenticTeamRepository agenticTeamRepository;
     @Mock private AgentSkillRepository agentSkillRepository;
@@ -101,6 +102,7 @@ class RunContextServiceTest {
 
     private MemoryLikeHandler memoryHandler;
     private TimeLikeHandler timeHandler;
+    private MemoryLikeHandler subagentsHandler;
     private RunCatalog catalog;
     private RunContextService service;
 
@@ -110,12 +112,14 @@ class RunContextServiceTest {
         lenient().when(memoryHandler.connectorCode()).thenReturn("persist-memory");
         timeHandler = mock(TimeLikeHandler.class);
         lenient().when(timeHandler.connectorCode()).thenReturn("time");
+        subagentsHandler = mock(MemoryLikeHandler.class);
+        lenient().when(subagentsHandler.connectorCode()).thenReturn(RunCatalog.SUBAGENTS);
         // A mock answers null for a record; every build() reads the history, so the empty one is the default.
         lenient().when(historyAssembler.assemble(any(), anyInt(), any())).thenReturn(RunHistory.empty());
-        ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler));
+        ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler, subagentsHandler));
         ConnectorEnvFactory envFactory = new ConnectorEnvFactory(null, null);
-        catalog = new RunCatalog(agentRunRepository, agentRepository, agentSkillRepository, agentSkillService,
-                skillRepository, connectionRepository, connectorRepository, connectionToolRepository,
+        catalog = new RunCatalog(agentRunRepository, agentSessionRepository, agentRepository, agentSkillRepository,
+                agentSkillService, skillRepository, connectionRepository, connectorRepository, connectionToolRepository,
                 registry, envFactory, channelRepository, channelHandlerRegistry);
         // Язык-первоисточник: переводов нет, блоки промпта совпадают с константами в коде.
         PromptTexts promptTexts = new PromptTexts(new ContentProperties());
@@ -588,6 +592,93 @@ class RunContextServiceTest {
             // Гейт снимает только тулы: скилл в контексте остаётся, привязка-то есть.
             assertTrue(view.systemBlocks().stream().anyMatch(b ->
                     "skill".equals(b.name()) && b.content().contains("Working from the IDE")));
+        }
+    }
+
+    @Nested
+    @DisplayName("Ран субагента")
+    class Subagent {
+
+        private final UUID subagentsConnectionId = UUID.randomUUID();
+        private final UUID memorySkill = UUID.randomUUID();
+        private final UUID subagentsSkill = UUID.randomUUID();
+
+        /** A dialogue run in {@link #SESSION_ID}; the session is a subagent's when {@code parentSessionId} is set. */
+        private RunContextView build(UUID parentSessionId) {
+            AgentRun run = run(agent(), triggerLog(RunCatalog.SUBAGENTS, "request_received"),
+                    Channels.ofPrompt(new ChannelInfo(CHANNEL_ID, SESSION_ID, null)));
+            run.setSessionId(SESSION_ID);
+            stubRun(run);
+            when(agentSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(
+                    ru.agimate.controlapi.database.entities.AgentSession.builder()
+                            .id(SESSION_ID).parentSessionId(parentSessionId).build()));
+
+            List<AgentSkillWithConnectorsResponse> skills = List.of(
+                    new AgentSkillWithConnectorsResponse(memorySkill, "Memory", "d", List.of("persist-memory"), Disclosure.EAGER),
+                    new AgentSkillWithConnectorsResponse(subagentsSkill, "Subagents", "d", List.of(RunCatalog.SUBAGENTS), Disclosure.EAGER));
+            List<AgentSkill> refs = skills.stream().map(s -> {
+                AgentSkill ref = new AgentSkill();
+                ref.setSkillId(s.skillId());
+                return ref;
+            }).toList();
+            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(refs);
+            when(agentSkillService.resolveSkills(anyList())).thenReturn(Map.of(
+                    memorySkill, skills.get(0), subagentsSkill, skills.get(1)));
+            when(agentSkillService.gate(AGENT_ID)).thenReturn(new AgentSkillService.SkillGate(Map.of(
+                    memorySkill, java.util.Set.of(CONNECTION_ID),
+                    subagentsSkill, java.util.Set.of(subagentsConnectionId)), List.of()));
+            lenient().when(skillRepository.findByIdNotDeleted(memorySkill)).thenReturn(Optional.of(
+                    ru.agimate.controlapi.database.entities.Skill.builder()
+                            .id(memorySkill).name("Memory").mdContent("Remember facts").version(1).build()));
+            lenient().when(skillRepository.findByIdNotDeleted(subagentsSkill)).thenReturn(Optional.of(
+                    ru.agimate.controlapi.database.entities.Skill.builder()
+                            .id(subagentsSkill).name("Subagents").mdContent("Delegate work").version(1).build()));
+
+            when(inboundTextResolver.resolve(any(), any()))
+                    .thenReturn(Optional.of(InboundMessage.text("do the part")));
+            Connection subagents = Connection.builder()
+                    .id(subagentsConnectionId).userId(USER_ID).connectorCode(RunCatalog.SUBAGENTS).build();
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(memoryConnection(), subagents));
+            for (String code : List.of("persist-memory", RunCatalog.SUBAGENTS)) {
+                Connector connector = new Connector();
+                connector.setCode(code);
+                connector.setDefinitionBinding(DefinitionBinding.STATIC);
+                lenient().when(connectorRepository.findById(code)).thenReturn(Optional.of(connector));
+            }
+            lenient().when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
+                    "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null, null)));
+            lenient().when(subagentsHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
+                    "ask_subagent", new ConnectorToolSpec("ask_subagent", null, "d", null, null, null, null, null)));
+
+            return service.build(AGENT_ID, TRIGGER_ID);
+        }
+
+        private static List<String> toolCodes(RunContextView view) {
+            return view.tools().stream().map(RunTool::connectorCode).sorted().toList();
+        }
+
+        private static boolean hasSkillBody(RunContextView view, String body) {
+            return view.systemBlocks().stream().anyMatch(b -> "skill".equals(b.name()) && b.content().contains(body));
+        }
+
+        @Test
+        @DisplayName("разговор получает тулы и навык subagents")
+        void conversationKeepsSubagents() {
+            RunContextView view = build(null);
+
+            assertEquals(List.of("persist-memory", RunCatalog.SUBAGENTS), toolCodes(view));
+            assertTrue(hasSkillBody(view, "Delegate work"));
+        }
+
+        @Test
+        @DisplayName("субагент — без тул и навыка subagents (глубина 1), остальное как у разговора")
+        void subagentLosesOnlySubagents() {
+            RunContextView view = build(UUID.randomUUID());
+
+            assertEquals(List.of("persist-memory"), toolCodes(view));
+            assertFalse(hasSkillBody(view, "Delegate work"));
+            assertTrue(hasSkillBody(view, "Remember facts"));
         }
     }
 

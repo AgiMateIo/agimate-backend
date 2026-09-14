@@ -25,6 +25,7 @@ public interface AgentRunProjection {
     UUID getSessionId();
     UUID getMainRunId();
     LocalDateTime getSteeredAt();
+    UUID getOriginRunId();
     boolean getTurnsIntact();
     long getTurnsCount();
     boolean getHasPrompt();

@@ -44,6 +44,7 @@ class PromptTextsTest {
     /** Инструкции реакции на события: только коннекторы, объявившие ContextDirectives.guidance. */
     private static final List<String> CONNECTOR_KEYS = List.of(
             "connector.board.guidance",
+            "connector.subagents.report_received.guidance",
             "connector.time.due.guidance");
 
     private static Stream<ContentLanguage> translations() {

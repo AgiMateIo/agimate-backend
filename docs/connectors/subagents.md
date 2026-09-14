@@ -1,0 +1,88 @@
+# Субагенты: `subagents`
+
+Код: `subagents`. Пакеты: `controlapi.connectors.internal.subagents` (тула и фасад),
+`controlapi.service.subagent` (домен и доставка отчёта), обработчик канала —
+`controlapi.service.channel.handler.SubagentChannelHandler`. Решение и разбор альтернатив —
+[decisions/subagents.md](../decisions/subagents.md).
+
+Агент поручает самостоятельную задачу своей копии. Копия — сессия канала `subagents`, начинает с
+чистого листа и возвращается отчётом отдельным раном разговора. Коннектор внутренний со строкой-режимом
+(одна на пользователя, как `webchat`), подключается к агенту сидовым навыком `subagents`. Агенту без
+пуш-транспорта (MCP) недоступен.
+
+## Как устроено
+
+| Часть | Где | Что делает |
+|---|---|---|
+| Тула `ask_subagent` | `SubagentsToolService` | проверки и сессия ребёнка через `SubagentService.open`, затем триггер `request_received` через роутер — тем же путём, что сообщение webchat |
+| Канал | `SubagentChannelHandler` | канал на агента, создаётся при первом поручении; `handleInput` рисует `<subagent_request>`; `handleOutput` на `answer`/`error` публикует `SubagentOutput` |
+| Отчёт | `SubagentReportListener` → `SubagentReportDelivery` | claim `agent_runs.reported_at`, триггер `report_received`, ран в сессии разговора, правило молчания |
+| Умерший ребёнок | `RunActivityService` публикует `RunsSwept` | тот же отчёт со статусом `failed`; своих джоб и таймеров у коннектора нет |
+| Блоки промпта | `SubagentsConnectorService.promptBlocks` | ребёнку — `subagent` (роль), разговору — `subagents` (дети и сколько работает) |
+
+## Тула
+
+`ask_subagent(title, instructions, context?, subagentId?)` → сразу, без детача:
+`{subagentId, status: started|appended, note}`. `subagentId` — id сессии ребёнка; с ним поручение
+дописывается существующему ребёнку: бегущему его подхватит стиринг, закончившему — новый ран с его
+историей.
+
+Отказы (`ConnectorException`, текст видит модель):
+
+- вызов не из рана (MCP) или агент без пуш-транспорта;
+- у рана нет разговора — `Channels.sessionIdOf` пуст (cron, вебхук без канала);
+- ран сам идёт в сессии субагента — глубина 1;
+- `subagentId` не ребёнок этого разговора или его сессия закрыта — роутер отдал бы поручение
+  активной сессии канала, то есть другому ребёнку;
+- в разговоре уже работают три субагента (`SubagentService.MAX_WORKING`).
+
+Кап считается под `SELECT … FOR UPDATE` строки сессии разговора: вызовы одного хода исполняются
+параллельно. Работающий ребёнок — сессия с живым раном, не поглощённым стирингом и не отменённым, либо
+сессия младше окна сметателя, у которой рана ещё нет.
+
+## Триггеры
+
+| Триггер | Кому | Как попадает в промпт | Данные |
+|---|---|---|---|
+| `subagents.request_received` | ребёнку | вход канала: текст из `handleInput`, пресет `DIALOGUE` | `subagentId`, `title`, `mode: new\|append`, `instructions`, `context` |
+| `subagents.report_received` | разговору | недоверенный `event` + guidance, пресет `DIALOGUE_EVENT` (`continuesConversation`) | `subagentId`, `title`, `status: done\|failed`, `report` или `error`, `remaining` |
+
+В `<subagent_request>` значения экранированы (`PromptEscaping`): `<`, `>`, `&`, в атрибутах `"`;
+управляющие и форматирующие символы вырезаются. Отчёт экранировать отдельно не нужно — недоверенный
+блок оборачивает и нейтрализует воркер. Отчёт обрезается до 20 000 символов.
+
+## Правило молчания
+
+`remaining` считается после того, как ран ребёнка стал терминальным. Больше нуля — ран отчёта
+получает `answer = ChannelInfo(channelId = null, sessionId = разговор)`: история разговора собирается,
+а `MessageLogService` при пустом `channelId` пишет ответ только в историю. Ноль — каналы последнего
+рана разговора, начатого сообщением человека (`findLatestDialogueRun`): progress и answer, без prompt.
+Из двух одновременно отчитавшихся детей хотя бы поздний насчитает ноль; оба могут — тогда реплик две.
+
+## Что видит ран
+
+| | Разговор | Ребёнок | Отчёт |
+|---|---|---|---|
+| Пресет | `DIALOGUE` | `DIALOGUE` | `DIALOGUE_EVENT` |
+| Тела навыков | все | все, кроме навыков, требующих `subagents` | все |
+| Тулы | каталог агента | без тул коннектора `subagents` (`RunCatalog.withoutSubagents`) | каталог агента |
+| История | сессия разговора | сессия ребёнка | сессия разговора |
+| Блоки хода | `subagents`, если есть дети | `subagent` | `subagents` |
+
+Роль рана определяется по сессии: `agent_sessions.parent_session_id` не пуст — ран субагента.
+
+## Связь в БД и API
+
+- `agent_sessions.parent_session_id` — разговор, которому принадлежит сессия ребёнка.
+- `agent_runs.origin_run_id` — ран, чьё действие породило этот: ран ребёнка ← ран разговора, позвавший
+  тулу; ран отчёта ← ран ребёнка; `tool_completed` ← ран, чей вызов отложен.
+- `agent_runs.reported_at` — отчёт по рану ребёнка доставлен.
+
+`GET /manage/runs/?originRunId=` и `GET /manage/sessions/?parentSessionId=`, поля `originRunId` и
+`parentSessionId` в ответах. Схемы — в OpenAPI.
+
+## Отмена и память
+
+`/stop` в чате и отмена сессии из интерфейса отменяют и раны детей этого разговора
+(`requestCancelByParentSession`). Отменённый ребёнок отчёта не шлёт. Сессии субагентов не участвуют в
+ежедневных заметках памяти: всё, что ребёнок узнал, уже в отчёте разговору.

@@ -1,7 +1,10 @@
 package ru.agimate.controlapi.database.repositories;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -64,6 +67,44 @@ public interface AgentSessionRepository
                                 @Param("connectorCode") String connectorCode,
                                 @Param("connectionId") UUID connectionId,
                                 @Param("now") LocalDateTime now);
+
+    /**
+     * The session row under a write lock — the serialisation point for starting subagents of one
+     * conversation: calls of one turn run in parallel, and the cap must count what the others created.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM AgentSession s WHERE s.id = :id")
+    Optional<AgentSession> lockById(@Param("id") UUID id);
+
+    /**
+     * Subagents of a conversation that still owe a report: a live run that is neither absorbed nor
+     * stopped, or — for a session created a moment ago — no run yet, since the run is routed after
+     * the session's transaction commits. Both liveness conditions share the stale-run window, past
+     * which nothing is believed alive: a queue that stalled, or a request that never became a run,
+     * must not hold the conversation's count up forever.
+     */
+    @Query(value = """
+            SELECT COUNT(*) FROM agent_sessions s
+            WHERE s.parent_session_id = :parentSessionId
+              AND (EXISTS (SELECT 1 FROM agent_runs r
+                           WHERE r.session_id = s.id
+                             AND r.steered_at IS NULL
+                             AND r.cancel_requested_at IS NULL
+                             AND (r.status = 'RUNNING'
+                                  OR (r.status = 'ENQUEUED' AND r.created_at > :liveSince)))
+                   OR (s.created_at > :liveSince
+                       AND NOT EXISTS (SELECT 1 FROM agent_runs r WHERE r.session_id = s.id)))
+            """, nativeQuery = true)
+    long countWorkingChildren(@Param("parentSessionId") UUID parentSessionId,
+                              @Param("liveSince") LocalDateTime liveSince);
+
+    /** Subagent sessions of a conversation, most recently active first. */
+    @Query("""
+            SELECT s FROM AgentSession s
+            WHERE s.parentSessionId = :parentSessionId
+            ORDER BY s.lastActivityAt DESC, s.id DESC
+            """)
+    List<AgentSession> findChildren(@Param("parentSessionId") UUID parentSessionId, Pageable pageable);
 
     /** Activity of a session that is not loaded: bulk update, so {@code updated_at} is stamped here. */
     @Modifying

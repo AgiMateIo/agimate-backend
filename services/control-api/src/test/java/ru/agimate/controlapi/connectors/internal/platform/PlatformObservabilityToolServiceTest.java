@@ -94,7 +94,7 @@ class PlatformObservabilityToolServiceTest {
     /** Владельческая проверка (owner check) рана: тот же запрос, что у manage getRun. */
     private static void stubOwnedRun(AgentRunRepository repository, UUID runId, AgentRunProjection projection) {
         when(repository.findRunsWithFilters(eq(USER_ID), eq(runId), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(projection)));
     }
 
@@ -110,7 +110,7 @@ class PlatformObservabilityToolServiceTest {
             when(projection.getResult()).thenReturn(
                     "created agent, key: agntapLrNHYBw8f3QtfDE9ueFPWbejAPskkSl21TwPYo9PHII1Oc6UfK_DD4CSDl");
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(projection)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_runs", Map.of());
@@ -131,7 +131,7 @@ class PlatformObservabilityToolServiceTest {
             AgentRunProjection projection = runProjection(runId, sessionId);
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), isNull(), eq(agentId), eq(sessionId),
                     isNull(), eq("telegram"), eq("conn-1"), eq("tick"), eq(RunStatus.RUNNING),
-                    isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(projection)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_runs",
@@ -172,7 +172,7 @@ class PlatformObservabilityToolServiceTest {
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
                     isNull(), isNull(), isNull(), isNull(),
                     eq(LocalDateTime.of(2026, 9, 1, 10, 0)),
-                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), any(Pageable.class)))
+                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             handler.executeTool(env(), "list_runs", Map.of(
@@ -181,7 +181,7 @@ class PlatformObservabilityToolServiceTest {
             verify(agentRunRepository).findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
                     isNull(), isNull(), isNull(), isNull(),
                     eq(LocalDateTime.of(2026, 9, 1, 10, 0)),
-                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), any(Pageable.class));
+                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), isNull(), any(Pageable.class));
         }
 
         @Test
@@ -213,7 +213,7 @@ class PlatformObservabilityToolServiceTest {
         void foreignRunReadsAsNotFound() {
             UUID runId = UUID.randomUUID();
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), eq(runId), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "get_run",
@@ -823,7 +823,7 @@ class PlatformObservabilityToolServiceTest {
         void foreignRunReadsAsNotFound() {
             UUID runId = UUID.randomUUID();
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), eq(runId), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "get_run_turns",

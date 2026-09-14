@@ -58,6 +58,11 @@ public record AgentRunResponse(
                 + "being handled by mainRunId")
         LocalDateTime steeredAt,
 
+        @Schema(description = "The run whose action created this one: the conversation run that asked a "
+                + "subagent, the subagent's run for its report, the calling run for a detached tool result; "
+                + "null for a run raised by an outside event")
+        UUID originRunId,
+
         @Schema(description = "Whether the run's turn ledger is intact. False means the transcript has "
                 + "a hole, and the run is left out of the history later runs are given")
         boolean turnsIntact,
@@ -96,6 +101,7 @@ public record AgentRunResponse(
                 p.getSessionId(),
                 p.getMainRunId(),
                 p.getSteeredAt(),
+                p.getOriginRunId(),
                 p.getTurnsIntact(),
                 p.getTurnsCount(),
                 p.getHasPrompt(),

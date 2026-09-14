@@ -1,0 +1,51 @@
+package ru.agimate.controlapi.service.subagent;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
+import ru.agimate.controlapi.service.AgentDeliveryService;
+import ru.agimate.controlapi.service.trigger.RunActivityService;
+import ru.agimate.controlapi.service.trigger.RunsSwept;
+
+import java.util.UUID;
+
+/**
+ * The two ways a subagent run ends: it says its last word into its channel ({@link SubagentOutput}),
+ * or it dies silently and the stale-run sweeper marks it failed ({@link RunsSwept}). Both become the
+ * same report; the claim in {@link SubagentReportDelivery} keeps it to one.
+ *
+ * <p>No job and no timer of its own: the sweeper already decides that a run is dead, and a report is
+ * owed exactly then. At rest the connector writes nothing.
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class SubagentReportListener {
+
+    private final SubagentReportDelivery reportDelivery;
+    private final AgentDeliveryService agentDeliveryService;
+
+    /** Synchronous: published from the message log's delivery, which already runs after its commit. */
+    @EventListener
+    public void onOutput(SubagentOutput output) {
+        report(output.runId(), output.failed(), output.text());
+    }
+
+    @TransactionalEventListener
+    public void onSwept(RunsSwept swept) {
+        for (UUID runId : swept.runIds()) {
+            report(runId, true, RunActivityService.STALE_ERROR);
+        }
+    }
+
+    private void report(UUID childRunId, boolean failed, String text) {
+        try {
+            reportDelivery.prepare(childRunId, failed, text).ifPresent(prepared ->
+                    agentDeliveryService.deliverTrigger(prepared.run(), prepared.trigger(), prepared.channels(), null));
+        } catch (Exception e) {
+            log.error("report of subagent run {} was not delivered: {}", childRunId, e.getMessage(), e);
+        }
+    }
+}

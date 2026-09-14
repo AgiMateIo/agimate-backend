@@ -38,7 +38,7 @@ class ConnectorTextsTest {
     private static final List<String> CONNECTOR_CODES = List.of(
             "app", "claude-code",
             "acp", "astro", "board", "divination", "mcp", "media", "persist-memory",
-            "platform", "sheets", "skill-loader", "telegram", "time", "tool-loader", "webchat");
+            "platform", "sheets", "skill-loader", "subagents", "telegram", "time", "tool-loader", "webchat");
 
     private static Stream<ContentLanguage> translations() {
         return Stream.of(ContentLanguage.values()).filter(language -> language != ContentLanguage.DEFAULT);

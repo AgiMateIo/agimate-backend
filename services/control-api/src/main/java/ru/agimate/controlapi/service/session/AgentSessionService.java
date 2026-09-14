@@ -55,6 +55,13 @@ public class AgentSessionService {
      */
     public Page<AgentSession> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
                                    LocalDateTime since, LocalDateTime until, int page, int size) {
+        return list(userId, agentId, channelId, connectorCode, null, since, until, page, size);
+    }
+
+    /** The same, narrowed to the subagent sessions of one conversation when {@code parentSessionId} is set. */
+    public Page<AgentSession> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
+                                   UUID parentSessionId, LocalDateTime since, LocalDateTime until,
+                                   int page, int size) {
         Specification<AgentSession> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("userId"), userId));
@@ -66,6 +73,9 @@ public class AgentSessionService {
             }
             if (connectorCode != null) {
                 predicates.add(cb.equal(root.get("connectorCode"), connectorCode));
+            }
+            if (parentSessionId != null) {
+                predicates.add(cb.equal(root.get("parentSessionId"), parentSessionId));
             }
             // The activity window binds to the column the listing sorts by (lastActivityAt).
             if (since != null) {
@@ -116,6 +126,25 @@ public class AgentSessionService {
                 .build();
         AgentSession saved = agentSessionRepository.save(session);
         log.info("Created new channel session id={} for channel id={}", saved.getId(), channel.getId());
+        return saved;
+    }
+
+    /** A subagent's session: a new conversation of the subagents channel that works for {@code parentSessionId}. */
+    @Transactional
+    public AgentSession createChild(Channel channel, UUID parentSessionId, String title) {
+        AgentSession session = AgentSession.builder()
+                .scope(AgentSessionScope.CHANNEL)
+                .agentId(channel.getAgentId())
+                .userId(channel.getUserId())
+                .connectorCode(channel.getConnectorCode())
+                .connectionId(channel.getConnectionId())
+                .channelId(channel.getId())
+                .parentSessionId(parentSessionId)
+                .title(buildTitle(title))
+                .lastActivityAt(LocalDateTime.now())
+                .build();
+        AgentSession saved = agentSessionRepository.save(session);
+        log.info("Created subagent session id={} for conversation {}", saved.getId(), parentSessionId);
         return saved;
     }
 

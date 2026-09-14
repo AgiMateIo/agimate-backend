@@ -54,9 +54,9 @@ public class ManageSessionService {
      * «working now» — are three batch queries for the whole page, never one per row.
      */
     public Page<SessionResponse> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
-                                      int page, int size) {
+                                      UUID parentSessionId, int page, int size) {
         Page<AgentSession> sessions = agentSessionService.list(
-                userId, agentId, channelId, connectorCode, null, null,
+                userId, agentId, channelId, connectorCode, parentSessionId, null, null,
                 page, Math.min(size, MAX_PAGE_SIZE));
         return sessions.map(enricher(sessions.getContent()));
     }
