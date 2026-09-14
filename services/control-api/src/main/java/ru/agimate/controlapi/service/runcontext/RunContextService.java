@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
  * renders them.
  *
  * <p>The order of the system blocks is part of the contract (stable ones first, friendly to the
- * prompt cache): agent → the agent's instructions → connector blocks → team → skills → skill bodies
+ * prompt cache): the agent's instructions → agent → connector blocks → team → skills → skill bodies
  * (in a dialogue all of them, in a trigger run the ones matching the event's connector) → the
  * withheld-skills note (only when the gate held something back) → deferred tools → trigger guidance. The run's main prompt is the last user block.
  *
@@ -167,10 +167,11 @@ public class RunContextService {
         List<RunBlock> systemBlocks = new ArrayList<>();
         List<RunBlock> userBlocks = new ArrayList<>();
 
-        systemBlocks.add(agentBlock(agent));
+        // The user's instructions open the prompt: its head carries the most weight, the metadata does not deserve it.
         if (agent.getInstructions() != null && !agent.getInstructions().isBlank()) {
             systemBlocks.add(RunBlock.trusted("", "agent", agent.getInstructions().strip(), Map.of()));
         }
+        systemBlocks.add(agentBlock(agent));
         collectConnectorBlocks(catalog.connections(), agent, promptChannelId, promptSessionId, systemBlocks, userBlocks);
         teamBlock(agent).ifPresent(systemBlocks::add);
         if (!listed.isEmpty() || !catalog.withheld().isEmpty()) {

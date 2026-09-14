@@ -427,6 +427,9 @@ class RunContextServiceTest {
             List<String> systemNames = view.systemBlocks().stream().map(RunBlock::name).toList();
             assertTrue(systemNames.contains("memory"));
             assertFalse(systemNames.contains("trigger_guidance"));
+            // The instructions open the prompt, the agent's metadata follows.
+            assertEquals("You are helpful.", view.systemBlocks().get(0).content());
+            assertEquals("agent", systemNames.get(1));
 
             RunBlock main = view.userBlocks().get(view.userBlocks().size() - 1);
             assertEquals("", main.name());

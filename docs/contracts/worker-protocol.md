@@ -131,7 +131,7 @@ interim детача и нотисы таймаута регенерирует. 
 
 | Поле | Содержимое |
 |---|---|
-| `system_blocks` | Упорядоченные `PromptBlock`, стабильные первыми — ради prompt-cache: agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → листинг скиллов → тела скиллов → trigger guidance |
+| `system_blocks` | Упорядоченные `PromptBlock`, стабильные первыми — ради prompt-cache: инструкции агента → agent (id/name/type) → блоки `PromptBlockProvider`-коннекторов → team → листинг скиллов → тела скиллов → trigger guidance |
 | `user_blocks` | User-ход: блоки коннекторов (`ephemeral=true` — в историю не попадают) + основной промпт последним. Диалоговый текст `trusted`, событие триггера `trusted=false` — воркер оборачивает как недоверенные данные |
 | `tools` | `ConnectorToolSpec`, уже отскоупленные binding-гейтом и скиллами |
 | `history` | История **канальной** сессии из журнала ходов (`agent_run_turns`): завершённые раны с целым журналом, окно в 20 ранов, набор частей из пресета. У рана без канала история пуста — сессия коннекшена в контекст не тянется ([decisions/agent-sessions.md](../decisions/agent-sessions.md)) |
