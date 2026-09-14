@@ -38,7 +38,7 @@ MCP-сервер и каждая интеграция приходят в кат
 | `home` | Дом и быт | `personal-assistant` | — |
 | `health` | Здоровье | `health-diary` | — |
 | `learning` | Учёба и развитие | `language-tutor` | — |
-| `content` | Творчество и контент | `creative`, `visual` | — |
+| `content` | Творчество и контент | `creative`, `visual` | `docli` |
 | `development` | Разработка | `coder`, `external-agent` | `acp` |
 | `communication` | Общение и связь | — | — |
 | `leisure` | Досуг и увлечения | `astrologer` | `astro`, `divination` |
@@ -106,6 +106,7 @@ MCP-сервер и каждая интеграция приходят в кат
 | `platform` | `platform` | `developer`, `management` |
 | `acp` | `development` | `developer` |
 | `tinvest` | `finance` | `own-token`, `read-only` |
+| `docli` | `content` | `writing` |
 | `astro` | `leisure` | `advice` |
 | `divination` | `leisure` | `advice` |
 
