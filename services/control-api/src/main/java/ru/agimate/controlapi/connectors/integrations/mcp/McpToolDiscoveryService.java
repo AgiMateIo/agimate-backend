@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -57,8 +58,15 @@ public class McpToolDiscoveryService {
                 .toList();
     }
 
-    /** Rewrites the instance's {@code connection_tools} cache: upsert by name plus deletion of what disappeared. */
-    @Transactional
+    /**
+     * Rewrites the instance's {@code connection_tools} cache: upsert by name plus deletion of what disappeared.
+     *
+     * <p>{@code REQUIRES_NEW} for the reason given on
+     * {@link ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService#syncConnectionJobs}: the listener
+     * runs AFTER_COMMIT, where REQUIRED joins the committed transaction and its writes are silently never
+     * committed — the «Synced» line gets logged all the same.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void reconcile(UUID connectionId, List<ConnectionTool> fresh) {
         Map<String, ConnectionTool> existing = new HashMap<>();
         connectionToolRepository.findActiveByConnectionId(connectionId)
@@ -87,7 +95,8 @@ public class McpToolDiscoveryService {
         log.info("Synced {} MCP tool(s) for connection {}", freshNames.size(), connectionId);
     }
 
-    @Transactional
+    /** {@code REQUIRES_NEW} — called from the same AFTER_COMMIT listener, see {@link #reconcile}. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int deleteByConnectionId(UUID connectionId) {
         return connectionToolRepository.deleteByConnectionId(connectionId);
     }
