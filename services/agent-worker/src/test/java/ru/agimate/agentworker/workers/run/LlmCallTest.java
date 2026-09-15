@@ -28,6 +28,7 @@ import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.config.AgentProperties;
+import ru.agimate.common.net.EgressProxy;
 import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
@@ -272,7 +273,7 @@ class LlmCallTest {
                         .build();
                 AgentWorkerClient client = mock(AgentWorkerClient.class);
                 when(client.getLlmCredentials("agent-1")).thenReturn(creds);
-                LlmCall llmCall = new LlmCall(client, new ModelFactory(localTargetsAllowed(), OutboundTrust.systemDefault()),
+                LlmCall llmCall = new LlmCall(client, new ModelFactory(localTargetsAllowed(), OutboundTrust.systemDefault(), EgressProxy.NONE),
                         new LlmMessageMapper(TestTemplates.of("ru")), mock(ResponseTemplates.class), 1,
                         budgets(Duration.ofSeconds(5)));
 
@@ -610,7 +611,7 @@ class LlmCallTest {
             props.getNet().setAllowPrivateTargets(true);
             // The factory reads the budgets too: the read timeout under the stream and the call ceiling.
             props.setLlm(budgets);
-            LlmCall llmCall = new LlmCall(client, new ModelFactory(props, OutboundTrust.systemDefault()),
+            LlmCall llmCall = new LlmCall(client, new ModelFactory(props, OutboundTrust.systemDefault(), EgressProxy.NONE),
                     new LlmMessageMapper(TestTemplates.of("ru")), mock(ResponseTemplates.class), 1, budgets);
             return llmCall.call(List.of(AgentChatMessage.user("привет")), toolDefs, "agent-1", "run-1-0");
         }

@@ -28,6 +28,9 @@ logging:
     # INFO = the clean per-run story (start → context → turns → answer → finish).
     # Flip to DEBUG for the full trace: credentials/model, tool names, per-progress sends, gRPC retries.
     ru.agimate.agentworker: INFO
+    # Startup lines of the shared outbound setup — trust anchors and the egress proxy — which have to
+    # match control-api's and can only be compared if both services print them.
+    ru.agimate.common.net: INFO
     # Spring AI's stream aggregator logs every broken stream at ERROR with a stack trace; LlmCall
     # logs the same failure a line later with its cause and classification.
     org.springframework.ai.chat.model.MessageAggregator: off
@@ -76,6 +79,11 @@ agent:
     # Дополнительные корни доверия для исходящего TLS (см. app.net.trusted-ca в control-api):
     # набор обязан совпадать, иначе провайдер перечислит модели и не ответит на сам вызов.
     trusted-ca: ""
+    # HTTP-прокси для провайдеров, недоступных из сети установки (см. app.net.proxy в control-api):
+    # пара обязана совпадать, иначе список моделей загрузится, а вызов получит 403.
+    proxy:
+      url: ""
+      hosts: []
   dbos:
     app-name: "agent-worker"
     # Must address the same database as control-api's dbos.system-database.

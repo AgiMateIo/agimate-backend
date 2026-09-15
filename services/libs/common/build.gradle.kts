@@ -41,6 +41,7 @@ dependencies {
 
     implementation("org.springframework.data:spring-data-commons")
 
+    implementation("com.google.guava:guava")
     implementation("org.apache.commons:commons-lang3")
     implementation("commons-io:commons-io")
 

@@ -130,6 +130,13 @@ app:
     # / file:), нечитаемый останавливает старт. Пусто намеренно: якорь действует на весь исходящий
     # трафик, поэтому classpath:certs/russian-trusted-root.pem включает ops, а не jar.
     trusted-ca: ""
+    # HTTP-прокси для хостов, недоступных из сети установки (заблокированные LLM, MCP, Telegram), —
+    # только для хостов из списка, остальное напрямую. url: http://user:password@host:port (env
+    # APP_NET_PROXY_URL); hosts через запятую: точное имя или *.домен (не над публичным суффиксом).
+    # Задаётся парой вместе с agent.net.proxy воркера. См. docs/decisions/egress-proxy.md.
+    proxy:
+      url: ""
+      hosts: ""
   connectors:
     mcp:
       oauth:

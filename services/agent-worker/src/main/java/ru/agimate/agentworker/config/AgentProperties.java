@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Worker configuration, bound from {@code application.yaml} under the {@code agent}
@@ -42,6 +44,19 @@ public class AgentProperties {
 
         /** Extra root certificates for outbound TLS: Spring resource locations, comma-separated. */
         private String trustedCa = "";
+
+        private ProxySettings proxy = new ProxySettings();
+    }
+
+    /** The egress proxy — the same pair as control-api's {@code app.net.proxy}. */
+    @Getter
+    @Setter
+    public static class ProxySettings {
+        /** {@code http://user:password@host:port}; empty — no proxy. */
+        private String url = "";
+
+        /** Exact names or {@code *.domain}; only these go through the proxy. */
+        private List<String> hosts = new ArrayList<>();
     }
 
     /** gRPC channel to control-api's worker protocol (:9091, TLS). */

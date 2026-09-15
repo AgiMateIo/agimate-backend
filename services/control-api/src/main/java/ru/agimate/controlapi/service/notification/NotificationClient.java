@@ -34,8 +34,8 @@ public class NotificationClient {
     public NotificationClient(UserApiProperties userApi, NotificationProperties properties) {
         this.userApi = userApi;
         this.properties = properties;
-        // An explicit factory, as in TelegramApiClient: the default builder picks one by classpath
-        // detection, which HttpComponents wins by arriving transitively with the AWS SDK.
+        // An explicit factory: the default builder picks one by classpath detection, which
+        // HttpComponents wins by arriving transitively with the AWS SDK.
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory();
         factory.setReadTimeout(READ_TIMEOUT);
         this.restClient = RestClient.builder().requestFactory(factory).build();

@@ -17,3 +17,7 @@ agent:
     allow-private-targets: true
     # Тот же набор якорей, что у control-api.
     trusted-ca: "classpath:certs/russian-trusted-root.pem"
+    # Тот же прокси и список хостов, что у control-api (app.net.proxy).
+    # proxy:
+    #   url: "http://user:password@host:port"
+    #   hosts: [openrouter.ai, api.openai.com]

@@ -58,6 +58,10 @@ allprojects {
                 // natively, and a natively sent message the universal SDK on the device discards
                 implementation("com.google.auth:google-auth-library-oauth2-http:1.50.0")
 
+                // Public Suffix List for the egress proxy's host patterns (libs/common). Already on
+                // every classpath through gRPC and google-auth; pinned so the list does not age silently.
+                implementation("com.google.guava:guava:33.5.0-jre")
+
                 implementation("com.squareup.okhttp3:okhttp:5.3.2")
                 implementation("com.squareup.okhttp3:okhttp-brotli:5.3.2")
                 implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")

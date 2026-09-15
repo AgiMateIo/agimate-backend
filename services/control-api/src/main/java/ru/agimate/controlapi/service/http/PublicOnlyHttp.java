@@ -2,12 +2,15 @@ package ru.agimate.controlapi.service.http;
 
 import org.apache.hc.client5.http.DnsResolver;
 import org.apache.hc.client5.http.SystemDefaultDnsResolver;
+import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.auth.CredentialsProviderBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +18,7 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import ru.agimate.common.net.EgressProxy;
 import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.common.net.PublicTargets;
 
@@ -34,7 +38,8 @@ import java.time.Duration;
  * name resolved by the client are two separate lookups, and a name may answer differently to each.
  *
  * <p>Whose signature is accepted is a separate layer — {@link OutboundTrust}; the strategy keeps its
- * default hostname verifier.
+ * default hostname verifier. Hosts on the operator's list go through the {@link EgressProxy}, and for
+ * them the resolver checks the proxy's address, not the target's.
  *
  * <p>The connection pool is shared across callers; only the response timeout differs between them,
  * which is why {@link #requestFactory} takes it and the connect timeout is fixed.
@@ -58,14 +63,15 @@ public class PublicOnlyHttp {
 
     @Autowired
     public PublicOnlyHttp(@Value("${app.net.allow-private-targets:false}") boolean allowPrivateTargets,
-                          OutboundTrust trust) {
-        this.targets = new PublicTargets(allowPrivateTargets);
-        this.httpClient = buildClient(this.targets, trust);
+                          OutboundTrust trust,
+                          EgressProxy proxy) {
+        this.targets = new PublicTargets(allowPrivateTargets, proxy);
+        this.httpClient = buildClient(this.targets, trust, proxy);
     }
 
-    /** Constructor for tests and for callers that build their own: the platform trust set as-is. */
+    /** Constructor for tests and for callers that build their own: the platform trust set, no proxy. */
     public PublicOnlyHttp(boolean allowPrivateTargets) {
-        this(allowPrivateTargets, OutboundTrust.systemDefault());
+        this(allowPrivateTargets, OutboundTrust.systemDefault(), EgressProxy.NONE);
     }
 
     public PublicTargets targets() {
@@ -96,7 +102,7 @@ public class PublicOnlyHttp {
         return RestClient.builder().requestFactory(requestFactory(readTimeout));
     }
 
-    private static CloseableHttpClient buildClient(PublicTargets targets, OutboundTrust trust) {
+    private static CloseableHttpClient buildClient(PublicTargets targets, OutboundTrust trust, EgressProxy proxy) {
         PoolingHttpClientConnectionManager connections = PoolingHttpClientConnectionManagerBuilder.create()
                 .setDnsResolver(publicOnlyDns(targets))
                 .setTlsSocketStrategy(new DefaultClientTlsStrategy(trust.context()))
@@ -109,7 +115,17 @@ public class PublicOnlyHttp {
         return HttpClients.custom()
                 .setConnectionManager(connections)
                 .disableRedirectHandling()
+                .setProxySelector(proxy)
+                .setDefaultCredentialsProvider(proxyCredentials(proxy))
                 .build();
+    }
+
+    private static CredentialsProvider proxyCredentials(EgressProxy proxy) {
+        CredentialsProviderBuilder credentials = CredentialsProviderBuilder.create();
+        if (proxy.enabled()) {
+            credentials.add(new HttpHost(proxy.host(), proxy.port()), proxy.username(), proxy.password().toCharArray());
+        }
+        return credentials.build();
     }
 
     /** Not a lambda: {@link DnsResolver} has a second method, and canonical-name lookup stays default. */

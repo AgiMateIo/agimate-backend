@@ -4,13 +4,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.client.MultipartBodyBuilder;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.AttributionHeaders;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -28,24 +27,19 @@ public class TelegramApiClient {
     private final RestClient restClient;
     private final RestClient longPollClient;
 
-    public TelegramApiClient(AttributionHeaders attribution) {
+    /**
+     * Both clients come from {@link PublicOnlyHttp}: the address is not a user's, but that is where the
+     * egress proxy lives, and some networks do not reach Telegram directly. Its request is streaming, so
+     * a multipart body (up to 50 MB) is not buffered in the heap.
+     */
+    public TelegramApiClient(AttributionHeaders attribution, PublicOnlyHttp http) {
         String userAgent = attribution.userAgent();
-        // An explicit streaming factory (the JDK HttpClient): a multipart body (up to 50 MB) is not buffered in
-        // the heap. The default builder picks a factory by classpath detection (right now HttpComponents arrives
-        // transitively with the AWS SDK) — that cannot be relied upon.
-        JdkClientHttpRequestFactory sendFactory = new JdkClientHttpRequestFactory();
-        sendFactory.setReadTimeout(SEND_READ_TIMEOUT);
-        this.restClient = RestClient.builder()
+        this.restClient = http.restClient(SEND_READ_TIMEOUT)
                 .baseUrl(BASE_URL)
-                .requestFactory(sendFactory)
                 .defaultHeader(HttpHeaders.USER_AGENT, userAgent)
                 .build();
-
-        SimpleClientHttpRequestFactory longPollFactory = new SimpleClientHttpRequestFactory();
-        longPollFactory.setReadTimeout(LONG_POLL_READ_TIMEOUT);
-        this.longPollClient = RestClient.builder()
+        this.longPollClient = http.restClient(LONG_POLL_READ_TIMEOUT)
                 .baseUrl(BASE_URL)
-                .requestFactory(longPollFactory)
                 .defaultHeader(HttpHeaders.USER_AGENT, userAgent)
                 .build();
     }

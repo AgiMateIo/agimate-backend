@@ -2,6 +2,7 @@ package ru.agimate.agentworker.llm;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.openai.core.http.ProxyAuthenticator;
 import okhttp3.Interceptor;
 import okhttp3.Response;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.config.AgentProperties;
+import ru.agimate.common.net.EgressProxy;
 import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.common.net.PublicOnlySslSocketFactory;
 import ru.agimate.common.net.PublicTargets;
@@ -18,10 +20,12 @@ import ru.agimate.common.util.CryptoUtils;
 import ru.agimate.common.util.JsonUtils;
 
 import java.io.IOException;
+import java.net.URI;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -52,6 +56,9 @@ public class ModelFactory {
 
     private static final Set<String> OPENAI_COMPATIBLE =
             Set.of("openai", "openai_compatible", "openai-compatible");
+
+    /** Where Spring AI sends a provider without a base url — needed to decide on the proxy for it. */
+    private static final String DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
     /** OpenRouter base URLs contain this host; app-attribution headers are sent only to it. */
     private static final String OPENROUTER_HOST = "openrouter.ai";
@@ -93,6 +100,12 @@ public class ModelFactory {
     /** Whose signature is accepted. Both halves go to OkHttp from one instance — see {@link OutboundTrust}. */
     private final OutboundTrust trust;
 
+    /**
+     * Decided per model rather than per request: a model is built for one base url, which is already in
+     * the cache key, and the proxy changes only with a restart.
+     */
+    private final EgressProxy proxy;
+
     private final Cache<ModelKey, OpenAiChatModel> models = Caffeine.newBuilder()
             .maximumSize(64)
             .expireAfterAccess(Duration.ofMinutes(30))
@@ -105,12 +118,13 @@ public class ModelFactory {
      * serves any of them. */
     private record ModelKey(String baseUrl, String apiKeyHash, String model) {}
 
-    public ModelFactory(AgentProperties props, OutboundTrust trust) {
+    public ModelFactory(AgentProperties props, OutboundTrust trust, EgressProxy proxy) {
         this.app = props.getApp();
         this.callTimeout = props.getLlm().getCallTimeout();
         this.readTimeout = props.getLlm().getFirstChunkTimeout();
-        this.targets = new PublicTargets(props.getNet().isAllowPrivateTargets());
+        this.targets = new PublicTargets(props.getNet().isAllowPrivateTargets(), proxy);
         this.trust = trust;
+        this.proxy = proxy;
     }
 
     public OpenAiChatModel build(LlmCredentials creds) {
@@ -163,13 +177,30 @@ public class ModelFactory {
                 .maxRetries(PROVIDER_RETRIES)
                 .customHeaders(requestHeaders(baseUrl))
                 .build();
+        boolean proxied = proxy.covers(URI.create(baseUrl != null ? baseUrl : DEFAULT_BASE_URL).getHost());
         return OpenAiChatModel.builder()
                 .options(options)
-                .httpClientBuilderCustomizer(builder -> builder
-                        .sslSocketFactory(publicOnlySslSocketFactory())
-                        .trustManager(trust.manager())
-                        .interceptor(this::withReadTimeout))
+                .httpClientBuilderCustomizer(builder -> {
+                    builder.sslSocketFactory(publicOnlySslSocketFactory())
+                            .trustManager(trust.manager())
+                            .interceptor(this::withReadTimeout);
+                    if (proxied) {
+                        builder.proxy(proxy.proxy()).proxyAuthenticator(proxyAuthenticator());
+                    }
+                })
                 .build();
+    }
+
+    /**
+     * Basic credentials offered once. The SDK's own {@code basic} answers every {@code 407} with the same
+     * header, so a wrong password made OkHttp open the tunnel 21 times and fail with «Too many tunnel
+     * connections» — inside each of {@code LlmCall}'s attempts, and without a word about credentials.
+     */
+    private ProxyAuthenticator proxyAuthenticator() {
+        ProxyAuthenticator basic = ProxyAuthenticator.basic(proxy.username(), proxy.password());
+        return (via, request, response) -> request.headers().values("Proxy-Authorization").isEmpty()
+                ? basic.authenticate(via, request, response)
+                : Optional.empty();
     }
 
     /**

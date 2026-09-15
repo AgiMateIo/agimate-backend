@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -96,6 +97,18 @@ class PublicTargetsTest {
                     () -> targets.requireAllowed("http://127.0.0.1:8080/mcp"));
             assertThrows(TargetNotAllowedException.class,
                     () -> targets.requireAllowed("https://10.0.0.5/mcp"));
+        }
+
+        @Test
+        @DisplayName("хост из списка прокси не резолвится здесь: его резолвит прокси, а заблокированное DNS имя иначе не дошло бы до него")
+        void proxiedHostIsNotResolvedLocally() {
+            PublicTargets proxied = new PublicTargets(false,
+                    EgressProxy.of("http://user:secret@203.0.113.10:3128", List.of("no-such-host.invalid")));
+            assertDoesNotThrow(() -> proxied.requireAllowed("https://no-such-host.invalid/v1", true));
+            assertThrows(TargetNotAllowedException.class,
+                    () -> proxied.requireAllowed("http://no-such-host.invalid/v1", true));
+            assertThrows(TargetNotAllowedException.class,
+                    () -> proxied.requireAllowed("https://other-host.invalid/v1", true));
         }
 
         @Test

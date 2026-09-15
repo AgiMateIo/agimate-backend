@@ -147,6 +147,10 @@ services:
       # Корень Минцифры к якорям JDK: без него нет ни MCP-сервера T-Invest, ни половины
       # российских API. В application.yaml пусто намеренно — якорь действует на весь трафик.
       APP_NET_TRUSTED_CA: classpath:certs/russian-trusted-root.pem
+      # Прокси для хостов, недоступных из вашей сети (OpenRouter, OpenAI, Telegram из России).
+      # Пара задаётся вместе с AGENT_NET_PROXY_* воркера. См. docs/decisions/egress-proxy.md.
+      # APP_NET_PROXY_URL: http://user:password@host:port
+      # APP_NET_PROXY_HOSTS: openrouter.ai,api.openai.com,api.anthropic.com,api.telegram.org
     # 8180 matches the port the Caddyfile proxies /control/* to, so one Caddyfile serves both
     # the `infra` (bootRun on the host) and `full` (container) layouts.
     ports:
@@ -178,6 +182,9 @@ services:
       AGENT_DBOS_PASSWORD: agimate_dev_password
       # Тот же набор якорей, что у control-api.
       AGENT_NET_TRUSTED_CA: classpath:certs/russian-trusted-root.pem
+      # Тот же прокси, что у control-api (APP_NET_PROXY_*), и тот же список хостов.
+      # AGENT_NET_PROXY_URL: http://user:password@host:port
+      # AGENT_NET_PROXY_HOSTS: openrouter.ai,api.openai.com,api.anthropic.com
     network_mode: "service:control-api"
     restart: unless-stopped
 

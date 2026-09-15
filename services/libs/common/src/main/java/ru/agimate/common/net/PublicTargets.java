@@ -21,13 +21,22 @@ import java.net.UnknownHostException;
  * <p>{@code allowPrivate} exists for local development, where the interesting targets are on
  * loopback. It disables the guard entirely rather than softening it — a half-guard is harder to
  * reason about than none.
+ *
+ * <p>A host covered by the {@link EgressProxy} is not ours to vet: the proxy looks it up and connects
+ * to it, and the client-side half checks the proxy's address instead.
  */
 public final class PublicTargets {
 
     private final boolean allowPrivate;
+    private final EgressProxy proxy;
 
     public PublicTargets(boolean allowPrivate) {
+        this(allowPrivate, EgressProxy.NONE);
+    }
+
+    public PublicTargets(boolean allowPrivate, EgressProxy proxy) {
         this.allowPrivate = allowPrivate;
+        this.proxy = proxy;
     }
 
     public boolean allowsPrivate() {
@@ -67,7 +76,9 @@ public final class PublicTargets {
      */
     public URI requireAllowed(String url, boolean httpsOnly) {
         URI uri = requireShape(url, httpsOnly);
-        if (allowPrivate) {
+        // A covered host resolved here could be refused before the proxy is ever asked — for exactly
+        // the hosts blocked by DNS the proxy exists for.
+        if (allowPrivate || proxy.covers(uri.getHost())) {
             return uri;
         }
         try {
