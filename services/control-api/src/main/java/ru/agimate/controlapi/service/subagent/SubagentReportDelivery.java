@@ -30,10 +30,10 @@ import java.util.UUID;
  * by provenance, like a detached tool's result, with no recipient discovery. Enqueueing is the
  * caller's.
  *
- * <p>Who hears the answer is decided here: while other subagents of the conversation still work, the
- * report run gets a history-only answer slot — its reply lands in the conversation's history and
- * nowhere else; the report after which none are left gets the conversation's channels, and that reply
- * reaches the user.
+ * <p>Every report run answers into the conversation's channels; {@code remaining} in the data tells the
+ * agent whether to note progress or bring the reports together. No history-only slot for the reports
+ * that leave others working: steering absorbs the younger runs of the same session into the running
+ * one, and a run answering into history would take a person's message or the last report with it.
  */
 @Slf4j
 @Component
@@ -88,9 +88,7 @@ public class SubagentReportDelivery {
                 Instant.now());
         TriggerLog triggerLog = triggerLogService.createTriggerLog(childSession.getUserId(), trigger);
 
-        Channels channels = remaining == 0
-                ? conversationChannels(conversationId)
-                : historyOnly(conversationId);
+        Channels channels = conversationChannels(conversationId);
         AgentRun run = agentRunRepository.save(AgentRun.builder()
                 .triggerLog(triggerLog)
                 .agent(child.getAgent())
@@ -117,7 +115,7 @@ public class SubagentReportDelivery {
     /**
      * The conversation's channels, taken from its latest run started by a person's message —
      * progress and answer, no prompt, as a detached result keeps them. Not from the run that asked:
-     * that may itself have been a report run answering only into history.
+     * that may itself have been an event run of a conversation with no chat to answer into.
      */
     private Channels conversationChannels(UUID conversationId) {
         Channels dialogue = agentRunRepository.findLatestDialogueRun(conversationId)
@@ -131,8 +129,8 @@ public class SubagentReportDelivery {
     }
 
     /**
-     * An answer slot with the conversation's session and no channel: the run reads and writes the
-     * conversation's history, and delivery finds nowhere to send its reply.
+     * A conversation no person's message started: an answer slot with its session and no channel —
+     * the run reads and writes the history, and delivery finds nowhere to send its reply.
      */
     private static Channels historyOnly(UUID conversationId) {
         return new Channels(null, null, new ChannelInfo(null, conversationId, null));

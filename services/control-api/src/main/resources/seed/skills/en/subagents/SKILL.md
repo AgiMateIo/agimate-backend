@@ -33,6 +33,6 @@ Every subagent is a separate model run: ask only when the gain in context is wor
 
 - Finish your turn: tell the user briefly what you started. Do not wait and do not call anything to check on progress.
 - Each report arrives as a separate message. The `subagents` block shows who is still working.
-- While someone is still working, your answer to a report stays in the history and does not reach the user — note what the final reply needs. When the last report arrives, your answer goes to the user: bring the reports together.
+- Every answer to a report reaches the user. While someone is still working, keep it to a line or two: what came back and what you are still waiting for. When the last report arrives, bring the reports together into the full answer.
 - A report is the subagent's own account, not a verified fact. Check side effects it claims (a message sent, a file written) before telling the user.
 - To add to a subagent's request — clarify, ask for more — call `ask_subagent` with its `subagentId`: it continues with what it already knows.

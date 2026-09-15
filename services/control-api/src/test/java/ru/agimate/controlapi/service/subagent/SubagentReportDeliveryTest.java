@@ -104,23 +104,43 @@ class SubagentReportDeliveryTest {
         verify(agentRunRepository, never()).save(any());
     }
 
+    private void dialogueRun() {
+        ChannelInfo chat = new ChannelInfo(CHAT_CHANNEL, CONVERSATION, null);
+        AgentRun dialogue = AgentRun.builder().channels(ChannelsCodec.toMap(Channels.ofPrompt(chat))).build();
+        when(agentRunRepository.findLatestDialogueRun(CONVERSATION)).thenReturn(Optional.of(dialogue));
+    }
+
     @Test
-    @DisplayName("кто-то ещё работает — ответ только в историю разговора")
-    void othersWorkingHistoryOnly() {
+    @DisplayName("кто-то ещё работает — ответ всё равно в чат, remaining сообщает, что ждать")
+    void othersWorkingStillReachTheChat() {
         childSession(CONVERSATION);
         when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
         when(subagentService.countWorking(CONVERSATION)).thenReturn(2L);
+        dialogueRun();
 
         SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, false, "отчёт").orElseThrow();
 
         assertEquals(CONVERSATION, prepared.run().getSessionId());
         assertEquals(CHILD_RUN, prepared.run().getOriginRunId());
         assertNull(prepared.channels().prompt());
-        assertNull(prepared.channels().answer().channelId());
-        assertEquals(CONVERSATION, prepared.channels().answer().sessionId());
+        assertEquals(CHAT_CHANNEL, prepared.channels().answer().channelId());
         assertEquals(2L, prepared.trigger().data().get("remaining"));
         assertEquals("отчёт", prepared.trigger().data().get("report"));
         assertEquals(CHILD_SESSION.toString(), prepared.trigger().data().get("subagentId"));
+    }
+
+    @Test
+    @DisplayName("в разговоре нет рана от сообщения человека — ответ только в историю")
+    void noDialogueRunHistoryOnly() {
+        childSession(CONVERSATION);
+        when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
+        when(subagentService.countWorking(CONVERSATION)).thenReturn(0L);
+        when(agentRunRepository.findLatestDialogueRun(CONVERSATION)).thenReturn(Optional.empty());
+
+        SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, false, "отчёт").orElseThrow();
+
+        assertNull(prepared.channels().answer().channelId());
+        assertEquals(CONVERSATION, prepared.channels().answer().sessionId());
     }
 
     @Test
@@ -129,9 +149,7 @@ class SubagentReportDeliveryTest {
         childSession(CONVERSATION);
         when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
         when(subagentService.countWorking(CONVERSATION)).thenReturn(0L);
-        ChannelInfo chat = new ChannelInfo(CHAT_CHANNEL, CONVERSATION, null);
-        AgentRun dialogue = AgentRun.builder().channels(ChannelsCodec.toMap(Channels.ofPrompt(chat))).build();
-        when(agentRunRepository.findLatestDialogueRun(CONVERSATION)).thenReturn(Optional.of(dialogue));
+        dialogueRun();
 
         SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, true, "упал").orElseThrow();
 
