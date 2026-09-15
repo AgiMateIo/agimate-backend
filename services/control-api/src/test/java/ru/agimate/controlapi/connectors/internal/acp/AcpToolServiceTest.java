@@ -345,12 +345,18 @@ class AcpToolServiceTest {
     @DisplayName("промпт-блок корня проекта")
     class Blocks {
 
+        /** A run from the IDE: the prompt channel is there, and with it the IDE tools. */
+        private ConnectorEnv promptEnv() {
+            return new ConnectorEnv("conn", UUID.randomUUID(), UUID.randomUUID(), null, UUID.randomUUID(),
+                    SESSION_ID, Map.of(), null);
+        }
+
         @Test
         @DisplayName("живая IDE-сессия с корнем → SYSTEM-блок с путём проекта")
         void rootBlock() {
             when(registry.cwd(SESSION_ID)).thenReturn("/home/u/project");
 
-            var blocks = handler.promptBlocks(env());
+            var blocks = handler.promptBlocks(promptEnv());
 
             assertEquals(1, blocks.size());
             assertEquals(PromptBlock.Placement.SYSTEM, blocks.getFirst().placement());
@@ -372,7 +378,14 @@ class AcpToolServiceTest {
         void unknownSessionNoBlock() {
             when(registry.cwd(SESSION_ID)).thenReturn(null);
 
+            assertTrue(handler.promptBlocks(promptEnv()).isEmpty());
+        }
+
+        @Test
+        @DisplayName("событие в разговоре из IDE (нет prompt-канала, нет тулов IDE) → блока нет")
+        void eventRunNoBlock() {
             assertTrue(handler.promptBlocks(env()).isEmpty());
+            verify(registry, never()).cwd(any());
         }
     }
 }

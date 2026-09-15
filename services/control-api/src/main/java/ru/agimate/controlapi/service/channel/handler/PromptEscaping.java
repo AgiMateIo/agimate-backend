@@ -12,15 +12,20 @@ import java.util.regex.Pattern;
 @UtilityClass
 public class PromptEscaping {
 
-    /** Control and format characters (bidi overrides, zero-width joiners, line/paragraph separators), except tab and newline. */
-    private static final Pattern INVISIBLE = Pattern.compile("[\\p{Cc}\\p{Cf}\\u2028\\u2029&&[^\\t\\n]]");
+    /**
+     * Control and format characters (bidi overrides, invisible tag characters, line/paragraph
+     * separators), except tab and newline — and the zero-width (non-)joiners, which emoji sequences
+     * and Persian or Indic text are written with.
+     */
+    private static final Pattern INVISIBLE = Pattern.compile("[\\p{Cc}\\p{Cf}\\u2028\\u2029&&[^\\t\\n\\u200C\\u200D]]");
 
+    // Only < and > can close a tag; nothing decodes entities on the way to the model, so an escaped
+    // & would reach it literally and break every URL with a query string.
     public static String text(String value) {
         if (value == null) {
             return "";
         }
         return INVISIBLE.matcher(value).replaceAll("")
-                .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;");
     }

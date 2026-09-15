@@ -92,12 +92,14 @@ public class AcpConnectorService extends BaseConnectorHandler
      * not know where the project lives: {@code read_file}/{@code write_file} accept absolute paths
      * only, and there would be nowhere to get them from. The block appears only when the run comes
      * from a live IDE session — for web chat and triggers the {@code sessionId} belongs to something
-     * else and is absent from the registry.
+     * else and is absent from the registry. An event carried into the IDE conversation (a detached
+     * result, a reminder) has no prompt channel and so no IDE tools: the root would promise files it
+     * cannot open.
      */
     @Override
     public List<PromptBlock> promptBlocks(ConnectorEnv env) {
         UUID sessionId = env.sessionId();
-        if (sessionId == null) {
+        if (sessionId == null || env.channelId() == null) {
             return List.of();
         }
         String cwd = sessionRegistry.cwd(sessionId);

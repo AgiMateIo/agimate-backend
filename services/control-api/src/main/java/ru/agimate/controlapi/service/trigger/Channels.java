@@ -8,13 +8,29 @@ import java.util.UUID;
  * The channels of an agent's interaction within a single run. {@code prompt} is the inbound channel
  * (where the trigger came from); {@code progress} is filled with the same channel when its handler
  * delivers intermediate output ({@code ChannelHandler.deliverProgress}, webchat); {@code answer} is
- * not populated yet — the worker falls back to {@code prompt}.
+ * set only on runs that answer somewhere other than an inbound — events carrying a conversation on
+ * ({@link #continuation()}) and reminders; without it delivery falls back to {@code prompt}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record Channels(ChannelInfo prompt, ChannelInfo progress, ChannelInfo answer) {
 
     public static Channels ofPrompt(ChannelInfo prompt) {
         return new Channels(prompt, null, null);
+    }
+
+    /**
+     * The channels of an event that carries this run's conversation on (a detached tool's result, a
+     * subagent's report): no prompt — nothing came in — and the answer where this run's answer went,
+     * its address included.
+     *
+     * @return {@code null} when this run delivered nowhere
+     */
+    public Channels continuation() {
+        ChannelInfo effectiveAnswer = answer != null ? answer : prompt;
+        if (effectiveAnswer == null && progress == null) {
+            return null;
+        }
+        return new Channels(null, progress, effectiveAnswer);
     }
 
     /**

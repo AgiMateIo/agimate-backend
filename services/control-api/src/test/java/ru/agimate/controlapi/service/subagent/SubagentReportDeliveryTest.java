@@ -45,6 +45,7 @@ class SubagentReportDeliveryTest {
     private static final UUID CHILD_SESSION = UUID.randomUUID();
     private static final UUID CONVERSATION = UUID.randomUUID();
     private static final UUID CHAT_CHANNEL = UUID.randomUUID();
+    private static final UUID ASKER_RUN = UUID.randomUUID();
 
     @Mock private AgentRunRepository agentRunRepository;
     @Mock private AgentSessionRepository agentSessionRepository;
@@ -62,6 +63,7 @@ class SubagentReportDeliveryTest {
                 .agent(Agent.builder().id(UUID.randomUUID()).type(AgentType.GENERIC).build())
                 .sessionId(CHILD_SESSION)
                 .status(RunStatus.DONE)
+                .originRunId(ASKER_RUN)
                 .build();
         child.setId(CHILD_RUN);
         lenient().when(agentRunRepository.findById(CHILD_RUN)).thenReturn(Optional.of(child));
@@ -105,10 +107,13 @@ class SubagentReportDeliveryTest {
         verify(agentRunRepository, never()).save(any());
     }
 
-    private void dialogueRun() {
-        ChannelInfo chat = new ChannelInfo(CHAT_CHANNEL, CONVERSATION, null, Map.of("chatId", 4271));
-        AgentRun dialogue = AgentRun.builder().channels(ChannelsCodec.toMap(Channels.ofPrompt(chat))).build();
-        when(agentRunRepository.findLatestDialogueRun(CONVERSATION)).thenReturn(Optional.of(dialogue));
+    private void askerRun(Channels channels) {
+        AgentRun asker = AgentRun.builder().channels(ChannelsCodec.toMap(channels)).build();
+        when(agentRunRepository.findById(ASKER_RUN)).thenReturn(Optional.of(asker));
+    }
+
+    private void askedFromChat() {
+        askerRun(Channels.ofPrompt(new ChannelInfo(CHAT_CHANNEL, CONVERSATION, null, Map.of("chatId", 4271))));
     }
 
     @Test
@@ -117,7 +122,7 @@ class SubagentReportDeliveryTest {
         childSession(CONVERSATION);
         when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
         when(subagentService.countWorking(CONVERSATION)).thenReturn(2L);
-        dialogueRun();
+        askedFromChat();
 
         SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, false, "отчёт").orElseThrow();
 
@@ -125,7 +130,7 @@ class SubagentReportDeliveryTest {
         assertEquals(CHILD_RUN, prepared.run().getOriginRunId());
         assertNull(prepared.channels().prompt());
         assertEquals(CHAT_CHANNEL, prepared.channels().answer().channelId());
-        // The address travels with the copy: the report answers into the chat the person wrote from.
+        // The address travels with the copy: the report answers into the chat it was asked from.
         assertEquals(Map.of("chatId", 4271), prepared.channels().answer().address());
         assertEquals(2L, prepared.trigger().data().get("remaining"));
         assertEquals("отчёт", prepared.trigger().data().get("report"));
@@ -133,12 +138,26 @@ class SubagentReportDeliveryTest {
     }
 
     @Test
-    @DisplayName("в разговоре нет рана от сообщения человека — ответ только в историю")
-    void noDialogueRunHistoryOnly() {
+    @DisplayName("поручил ран напоминания — отчёт уходит в его канал, хотя сообщений человека в сессии нет")
+    void askedFromReminder() {
         childSession(CONVERSATION);
         when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
         when(subagentService.countWorking(CONVERSATION)).thenReturn(0L);
-        when(agentRunRepository.findLatestDialogueRun(CONVERSATION)).thenReturn(Optional.empty());
+        ChannelInfo reminderChat = new ChannelInfo(CHAT_CHANNEL, CONVERSATION, null, Map.of("chatId", 4271));
+        askerRun(new Channels(null, reminderChat, reminderChat));
+
+        SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, false, "отчёт").orElseThrow();
+
+        assertEquals(reminderChat, prepared.channels().answer());
+    }
+
+    @Test
+    @DisplayName("поручившего рана нет — ответ только в историю разговора")
+    void askerGoneHistoryOnly() {
+        childSession(CONVERSATION);
+        when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
+        when(subagentService.countWorking(CONVERSATION)).thenReturn(0L);
+        when(agentRunRepository.findById(ASKER_RUN)).thenReturn(Optional.empty());
 
         SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, false, "отчёт").orElseThrow();
 
@@ -147,12 +166,12 @@ class SubagentReportDeliveryTest {
     }
 
     @Test
-    @DisplayName("последний отчёт — каналы последнего диалогового рана разговора, без prompt")
+    @DisplayName("последний отчёт — каналы поручившего рана, без prompt")
     void lastReportReachesTheChat() {
         childSession(CONVERSATION);
         when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
         when(subagentService.countWorking(CONVERSATION)).thenReturn(0L);
-        dialogueRun();
+        askedFromChat();
 
         SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, true, "упал").orElseThrow();
 

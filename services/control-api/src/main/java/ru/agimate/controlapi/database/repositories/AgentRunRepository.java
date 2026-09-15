@@ -106,19 +106,6 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     int requestCancelByParentSession(@Param("sessionId") UUID sessionId, @Param("now") LocalDateTime now);
 
     /**
-     * The conversation's latest run started by a person's message — the one that knows where the
-     * conversation's replies go. Events carried into the conversation borrow its channels.
-     */
-    @Query(value = """
-            SELECT * FROM agent_runs
-            WHERE session_id = :sessionId
-              AND channels -> 'prompt' ->> 'channelId' IS NOT NULL
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1
-            """, nativeQuery = true)
-    Optional<AgentRun> findLatestDialogueRun(@Param("sessionId") UUID sessionId);
-
-    /**
      * Claim the delivery of a subagent run's report: both the channel output and the stale-run
      * sweeper may try, and only the first one delivers.
      *

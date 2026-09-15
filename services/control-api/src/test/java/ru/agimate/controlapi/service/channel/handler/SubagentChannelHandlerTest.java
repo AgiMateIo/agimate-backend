@@ -93,6 +93,18 @@ class SubagentChannelHandlerTest {
         }
 
         @Test
+        @DisplayName("ссылки и составные эмодзи доходят как есть")
+        void keepsUrlsAndJoiners() {
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("title", "t");
+            data.put("instructions", "открой https://x.ru/search?q=a&page=2 и ответь 👨‍👩‍👧");
+
+            String text = handler.handleInput(config, request(data)).map(InboundMessage::text).orElseThrow();
+
+            assertTrue(text.contains("https://x.ru/search?q=a&page=2 и ответь 👨‍👩‍👧"));
+        }
+
+        @Test
         @DisplayName("без инструкций — пропуск")
         void emptyInstructionsSkipped() {
             assertEquals(Optional.empty(), handler.handleInput(config, request(Map.of("title", "x"))));

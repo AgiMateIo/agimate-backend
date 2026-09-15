@@ -10,7 +10,6 @@ import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.dto.IToolResult;
-import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -93,7 +92,8 @@ public class DetachedToolResultDelivery {
                 Instant.now());
         TriggerLog triggerLog = triggerLogService.createTriggerLog(toolCallLog.getUserId(), trigger);
 
-        Channels channels = deliveryChannels(ChannelsCodec.fromMap(parent.getChannels()));
+        Channels parentChannels = ChannelsCodec.fromMap(parent.getChannels());
+        Channels channels = parentChannels != null ? parentChannels.continuation() : null;
         AgentRun run = agentRunRepository.save(AgentRun.builder()
                 .triggerLog(triggerLog)
                 .agent(parent.getAgent())
@@ -118,23 +118,6 @@ public class DetachedToolResultDelivery {
             data.put("output", cap(result.getOutput()));
         }
         return data;
-    }
-
-    /**
-     * The delivery run keeps the parent's outbound channels but not its prompt: without a prompt
-     * channel the context is assembled as SYSTEM_TRIGGER (this is an event, not a user's reply) and
-     * the inbound falls back to the compact JSON of the event. The answer slot gets the parent's
-     * effective answer channel — {@code answer}, or the {@code prompt} it would have fallen back to.
-     */
-    private static Channels deliveryChannels(Channels parent) {
-        if (parent == null) {
-            return null;
-        }
-        ChannelInfo answer = parent.answer() != null ? parent.answer() : parent.prompt();
-        if (answer == null && parent.progress() == null) {
-            return null;
-        }
-        return new Channels(null, parent.progress(), answer);
     }
 
     private static String cap(String value) {

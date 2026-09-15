@@ -9,6 +9,7 @@ import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
+import ru.agimate.controlapi.service.channel.handler.PromptEscaping;
 import ru.agimate.controlapi.service.subagent.SubagentService;
 
 import java.util.List;
@@ -104,7 +105,8 @@ public class SubagentsConnectorService extends BaseConnectorHandler
         }
         long working = children.stream().filter(SubagentService.Child::working).count();
         String lines = children.stream()
-                .map(child -> "- " + child.sessionId() + " «" + (child.title() != null ? child.title() : "")
+                // The title is the model's own words, possibly lifted from a page: one line, no tags.
+                .map(child -> "- " + child.sessionId() + " «" + PromptEscaping.attribute(child.title())
                         + "» " + (child.working() ? "working" : "finished"))
                 .collect(Collectors.joining("\n"));
         return List.of(PromptBlock.user(CHILDREN_BLOCK,
