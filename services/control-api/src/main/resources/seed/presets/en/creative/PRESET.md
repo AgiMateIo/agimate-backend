@@ -2,7 +2,7 @@
 name: creative
 title: Copywriter
 description: Everything with words — comes up with ideas and headlines, writes posts and newsletters, keeps the content plan and reminds you when things are due. Remembers your channel's voice.
-skills: [persist-memory, time]
+skills: [persist-memory, time, files]
 sortOrder: 6
 category: content
 tags: [personal, writing, schedule]

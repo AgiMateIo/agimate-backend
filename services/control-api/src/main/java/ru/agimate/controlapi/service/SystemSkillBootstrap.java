@@ -59,6 +59,7 @@ public class SystemSkillBootstrap {
             "astro",
             "divination",
             "media",
+            "files",
             "platform",
             "sheets",
             "acp",

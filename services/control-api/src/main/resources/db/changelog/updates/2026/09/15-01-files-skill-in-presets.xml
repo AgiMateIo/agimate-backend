@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      The files skill joins two system presets. Presets are seed-only-if-missing, so the PRESET.md edit
+      alone reaches only a fresh installation; an already seeded one learns it here. Agents created
+      from these presets earlier keep their skills — a preset is a template, not a binding.
+    -->
+    <changeSet id="add-files-skill-to-writing-presets" author="agimate">
+        <sql>
+            UPDATE agent_presets
+            SET skill_names = skill_names || ARRAY['files'],
+                updated_at = CURRENT_TIMESTAMP
+            WHERE name IN ('personal-assistant', 'creative')
+              AND NOT (skill_names @> ARRAY['files']);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -75,7 +75,7 @@ webchat/acp, экземпляр у telegram/mcp), либо отсутствуе�
 
 | | владелец: агент | владелец: команда | правила нет |
 |---|---|---|---|
-| **Режим** (1/пользователя, скиллы) | persist-memory, time, sheets, skill-loader, tool-loader | board | media, webchat, acp |
+| **Режим** (1/пользователя, скиллы) | persist-memory, time, sheets, skill-loader, tool-loader | board | media, files, webchat, acp |
 | **Экземпляры** (N, явный bind) | — | — | telegram, mcp, app |
 
 Чувствительность к агенту бывает трёх видов, ось — только первый: вывод владельца из caller'а
