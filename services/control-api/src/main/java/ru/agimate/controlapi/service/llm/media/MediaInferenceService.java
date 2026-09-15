@@ -193,17 +193,16 @@ public class MediaInferenceService {
      */
     private InputImage loadImage(MediaCall call, String fileId) {
         FileContent content = fileStorageService.open(call.userId(), fileId);
-        StoredFile file = content.file();
-        if (file.getMime() == null || !file.getMime().startsWith("image/")) {
-            throw new MediaInferenceException(
-                    "file " + fileId + " is " + file.getMime() + ", not an image");
+        String mime = content.mime();
+        if (mime == null || !mime.startsWith("image/")) {
+            throw new MediaInferenceException("file " + fileId + " is " + mime + ", not an image");
         }
-        if (file.getSizeBytes() != null && file.getSizeBytes() > MAX_INPUT_IMAGE_BYTES) {
+        if (content.size() > MAX_INPUT_IMAGE_BYTES) {
             throw new MediaInferenceException("file " + fileId + " is too large for vision ("
-                    + file.getSizeBytes() + " bytes, limit " + MAX_INPUT_IMAGE_BYTES + ")");
+                    + content.size() + " bytes, limit " + MAX_INPUT_IMAGE_BYTES + ")");
         }
         try (InputStream in = content.content()) {
-            return new InputImage(file.getMime(), in.readAllBytes());
+            return new InputImage(mime, in.readAllBytes());
         } catch (IOException e) {
             throw new MediaInferenceException("failed to read file " + fileId);
         }

@@ -167,9 +167,14 @@ XML-тегом у рендерера, пустой `name` — сырой тек�
 
 ## `GetFile`
 
-`GetFile(file_id, agent_id)` → `stream FileChunk{data, mime, total_size}` — содержимое вложения
-чанками ~128 КБ (первый несёт `mime` и `total_size`). Гейт владения: `file.user_id == agent.user_id`,
-иначе `NOT_FOUND` — существование чужих файлов не раскрывается.
+`GetFile(file_id, agent_id, version)` → `stream FileChunk{data, mime, total_size}` — содержимое
+вложения чанками ~128 КБ (первый несёт `mime` и `total_size`). Гейт владения:
+`file.user_id == agent.user_id`, иначе `NOT_FOUND` — существование чужих файлов не раскрывается.
+
+`version` берётся из `FilePart.version`: файл могли переписать после отправки, а ран должен видеть
+присланное. `0` — текущая версия: так читаются запрос воркера и чекпоинт, записанные до поля.
+Версии, которой у файла нет, отвечает `NOT_FOUND`. Порядок деплоя — control-api первым, drain не
+нужен ([connectors/files.md](../connectors/files.md#версии)).
 
 Как и `GetLlmCredentials`, вызывается внутри шага `llm_call` и в его выход **не попадает** —
 байтам в чекпоинте не место. Недоступный файл воркер пропускает: текст сообщения уже содержит

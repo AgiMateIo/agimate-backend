@@ -108,7 +108,7 @@ class AgentContextGrpcServiceTest {
                         new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks"),
                         new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "готово"),
                         new RunHistoryMessage(ChannelSessionMessageKind.ERROR, "упс")),
-                List.of(new InboundPart("agf_img", "image", "image/png", 4096, "shot.png")));
+                List.of(new InboundPart("agf_img", 1, "image", "image/png", 4096, "shot.png")));
         when(runContextService.build(any(), any())).thenReturn(view);
 
         RunContext response = callGetRunContext();
@@ -428,9 +428,10 @@ class AgentContextGrpcServiceTest {
                     ru.agimate.controlapi.database.entities.StoredFile.builder()
                             .id(UUID.randomUUID()).userId(userId).mime("image/png")
                             .sizeBytes((long) content.length).build();
-            when(fileStorageService.open(userId, "agf_x")).thenReturn(
+            when(fileStorageService.open(userId, "agf_x", 0)).thenReturn(
                     new ru.agimate.controlapi.storage.FileStorageService.FileContent(
-                            file, new java.io.ByteArrayInputStream(content)));
+                            ru.agimate.controlapi.storage.FileLink.of(file), content.length,
+                            new java.io.ByteArrayInputStream(content)));
 
             List<FileChunk> chunks = callGetFile("agf_x");
 
@@ -446,7 +447,7 @@ class AgentContextGrpcServiceTest {
         @DisplayName("недоступный файл (чужой/протух) → NOT_FOUND")
         void notFound() {
             stubAgent();
-            when(fileStorageService.open(userId, "agf_x"))
+            when(fileStorageService.open(userId, "agf_x", 0))
                     .thenThrow(new ru.agimate.controlapi.storage.StoredFileNotFoundException("agf_x"));
 
             StatusRuntimeException error = assertThrows(StatusRuntimeException.class,

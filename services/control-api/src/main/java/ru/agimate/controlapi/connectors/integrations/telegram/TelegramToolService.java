@@ -138,7 +138,7 @@ public class TelegramToolService {
         try {
             FileStorageService.FileContent file = fileStorageService.open(env.userId(), value);
             try (InputStream content = file.content()) {
-                long sizeBytes = file.file().getSizeBytes();
+                long sizeBytes = file.size();
                 if (sizeBytes > BOT_UPLOAD_LIMIT_BYTES) {
                     throw new ConnectorException("file " + value + " is too large for Telegram bot upload: "
                             + sizeBytes + " bytes, limit " + BOT_UPLOAD_LIMIT_BYTES + " (50 MB)");
@@ -147,9 +147,9 @@ public class TelegramToolService {
                 // (the stored name, else a synthetic one): a document forwarded to a chat should keep
                 // the name the user sent it with.
                 String effectiveName = fileName != null && !fileName.isBlank() ? fileName
-                        : FileNames.forDownload(FileLink.of(file.file()));
+                        : FileNames.forDownload(file.link());
                 return telegramApiClient.sendRequestMultipart(method, token, apiParams, field,
-                        effectiveName, file.file().getMime(), content, file.file().getSizeBytes());
+                        effectiveName, file.mime(), content, sizeBytes);
             }
         } catch (FileStorageException e) {
             // The message goes to the agent: «file not found: agf_…» / the storage's reason for refusal.

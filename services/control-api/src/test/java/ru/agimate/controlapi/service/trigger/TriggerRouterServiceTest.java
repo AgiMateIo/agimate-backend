@@ -230,7 +230,7 @@ class TriggerRouterServiceTest {
             String fileId = "agf_" + UUID.randomUUID();
             Agent agent = boundGenericAgent();
             stubChannelRouteWith(sessionId, new InboundMessage("вот файл",
-                    List.of(new Part("image", fileId, "image/png", 7, Map.of()))));
+                    List.of(new Part("image", fileId, 1, "image/png", 7, Map.of()))));
 
             routerService.routeTrigger(USER, trigger);
 
@@ -244,7 +244,7 @@ class TriggerRouterServiceTest {
             UUID sessionId = UUID.randomUUID();
             boundGenericAgent();
             stubChannelRouteWith(sessionId, new InboundMessage("вот файл",
-                    List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 7, Map.of()))));
+                    List.of(new Part("image", "agf_" + UUID.randomUUID(), 1, "image/png", 7, Map.of()))));
             doThrow(new IllegalStateException("worker is down"))
                     .when(agentDeliveryService).deliverTrigger(any(), any(), any(), any());
 

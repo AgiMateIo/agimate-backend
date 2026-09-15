@@ -26,7 +26,7 @@ class LlmMessageMapperMediaTest {
     @DisplayName("image-part с байтами → UserMessage с одним Media + guidance «видишь напрямую»")
     void attachesImageMedia() {
         AgentChatMessage user = AgentChatMessage.user("что на фото?",
-                List.of(new FilePartRef("agf_1", "image", "image/png", 3, "s.png")));
+                List.of(new FilePartRef("agf_1", 1, "image", "image/png", 3, "s.png")));
         Map<String, byte[]> bytes = Map.of("agf_1", new byte[]{1, 2, 3});
 
         List<Message> out = mapper.toSpringMessages(List.of(user), bytes, true);
@@ -43,7 +43,7 @@ class LlmMessageMapperMediaTest {
     @DisplayName("модель без image-входа → media не подмешивается, guidance «не видны»")
     void blindModelGetsStubOnly() {
         AgentChatMessage user = AgentChatMessage.user("[изображение. id: agf_1]",
-                List.of(new FilePartRef("agf_1", "image", "image/png", 3, null)));
+                List.of(new FilePartRef("agf_1", 1, "image", "image/png", 3, null)));
 
         List<Message> out = mapper.toSpringMessages(List.of(user),
                 Map.of("agf_1", new byte[]{1, 2, 3}), false);
@@ -59,7 +59,7 @@ class LlmMessageMapperMediaTest {
     void guidanceInsertedAfterLeadingSystem() {
         AgentChatMessage system = AgentChatMessage.system("ты — ассистент");
         AgentChatMessage user = AgentChatMessage.user("смотри",
-                List.of(new FilePartRef("agf_1", "image", "image/png", 3, null)));
+                List.of(new FilePartRef("agf_1", 1, "image", "image/png", 3, null)));
 
         List<Message> out = mapper.toSpringMessages(List.of(system, user), Map.of(), false);
 
@@ -81,7 +81,7 @@ class LlmMessageMapperMediaTest {
     @DisplayName("нет байтов для ссылки → без Media (текст со стабом)")
     void skipsWhenBytesMissing() {
         AgentChatMessage user = AgentChatMessage.user("[приложено изображение: agf_1]",
-                List.of(new FilePartRef("agf_1", "image", "image/png", 3, null)));
+                List.of(new FilePartRef("agf_1", 1, "image", "image/png", 3, null)));
 
         List<Message> out = mapper.toSpringMessages(List.of(user), Map.of(), true);
 
@@ -93,7 +93,7 @@ class LlmMessageMapperMediaTest {
     @DisplayName("не-image part не подаётся как Media даже при наличии байтов")
     void ignoresNonImage() {
         AgentChatMessage user = AgentChatMessage.user("документ",
-                List.of(new FilePartRef("agf_2", "file", "application/pdf", 3, "d.pdf")));
+                List.of(new FilePartRef("agf_2", 1, "file", "application/pdf", 3, "d.pdf")));
         List<Message> out = mapper.toSpringMessages(List.of(user), Map.of("agf_2", new byte[]{1}), true);
 
         UserMessage msg = assertInstanceOf(UserMessage.class, out.get(0));

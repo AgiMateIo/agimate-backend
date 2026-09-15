@@ -468,7 +468,7 @@ public class RunContextService {
     /** Inbound attachments → {@link InboundPart} references (only image/video/audio/file reach the context). */
     private static List<InboundPart> inboundParts(Optional<InboundMessage> inbound) {
         return inbound.map(m -> m.parts().stream()
-                        .map(p -> new InboundPart(p.storageRef(), p.type(), p.mime(), p.size(), partName(p)))
+                        .map(p -> new InboundPart(p.storageRef(), p.version(), p.type(), p.mime(), p.size(), partName(p)))
                         .toList())
                 .orElse(List.of());
     }

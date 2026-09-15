@@ -75,7 +75,7 @@ public final class ContextBuilder {
     public static List<FilePartRef> mapParts(List<FilePart> parts) {
         List<FilePartRef> refs = new ArrayList<>(parts.size());
         for (FilePart p : parts) {
-            refs.add(new FilePartRef(p.getFileId(), p.getType(), p.getMime(), p.getSize(), p.getName()));
+            refs.add(new FilePartRef(p.getFileId(), p.getVersion(), p.getType(), p.getMime(), p.getSize(), p.getName()));
         }
         return refs;
     }

@@ -97,7 +97,7 @@ public class WebchatMessagePublisher {
         }
     }
 
-    /** The stored representation of parts ({@code type/fileId/mime/size/name}); null — a message with no attachments. */
+    /** The stored representation of parts ({@code type/fileId/version/mime/size/name}); null — a message with no attachments. */
     private static List<Map<String, Object>> storedParts(List<Part> parts) {
         if (parts == null || parts.isEmpty()) {
             return null;
@@ -106,6 +106,7 @@ public class WebchatMessagePublisher {
             Map<String, Object> stored = new LinkedHashMap<>();
             stored.put("type", part.type());
             stored.put("fileId", part.storageRef());
+            stored.put("version", part.version());
             stored.put("mime", part.mime());
             stored.put("size", part.size());
             Object name = part.meta() != null ? part.meta().get("name") : null;

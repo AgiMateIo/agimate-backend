@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.channel.handler.dto;
 
+import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.FileNames;
 
 import java.util.Map;
@@ -13,6 +14,8 @@ import java.util.Map;
  *
  * @param type       attachment type (e.g. {@code "image"}, {@code "audio"}, {@code "file"})
  * @param storageRef reference to the contents in object storage
+ * @param version    the version of the file the message carries — what was sent, even after the
+ *                   file is rewritten
  * @param mime       MIME type
  * @param size       size in bytes
  * @param meta       arbitrary metadata (file name, duration, transcription, ...)
@@ -20,6 +23,7 @@ import java.util.Map;
 public record Part(
         String type,
         String storageRef,
+        int version,
         String mime,
         long size,
         Map<String, Object> meta
@@ -28,5 +32,10 @@ public record Part(
     /** Attachment type from the MIME: {@code image|video|audio|file} — how to render it or feed it to the LLM. */
     public static String typeForMime(String mime) {
         return FileNames.kindForMime(mime);
+    }
+
+    /** The version of a part stored as a map; a part written before files had versions is version 1. */
+    public static int storedVersion(Map<String, Object> stored) {
+        return stored.get("version") instanceof Number n ? n.intValue() : FileLink.FIRST_VERSION;
     }
 }

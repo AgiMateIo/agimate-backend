@@ -144,7 +144,7 @@ class ChannelMessageOutboundServiceTest {
         void progressStreamDropsParts() {
             OutboundMessage outbound = OutboundMessage.text("думаю про [[attach:agf_x]]");
             OutboundMessage parsed = new OutboundMessage("думаю про",
-                    List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 5, Map.of())));
+                    List.of(new Part("image", "agf_" + UUID.randomUUID(), 1, "image/png", 5, Map.of())));
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
             when(channelHandlerRegistry.find("telegram")).thenReturn(Optional.of(handler));
             when(agentSessionService.findOrCreateActive(channel, null)).thenReturn(session);
@@ -172,7 +172,7 @@ class ChannelMessageOutboundServiceTest {
             String fileId = "agf_" + UUID.randomUUID();
             OutboundMessage outbound = OutboundMessage.text("держи [[attach:" + fileId + "]]");
             OutboundMessage parsed = new OutboundMessage("держи",
-                    List.of(new Part("image", fileId, "image/png", 5, Map.of())));
+                    List.of(new Part("image", fileId, 1, "image/png", 5, Map.of())));
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
             when(channelHandlerRegistry.find("telegram")).thenReturn(Optional.of(handler));
             when(agentSessionService.findOrCreateActive(channel, null)).thenReturn(session);

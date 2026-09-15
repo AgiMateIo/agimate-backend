@@ -204,7 +204,7 @@ public class LlmCall {
                     continue;
                 }
                 try {
-                    byte[] data = client.getFile(part.fileId(), agentId);
+                    byte[] data = client.getFile(part.fileId(), part.version(), agentId);
                     bytes.put(part.fileId(), data);
                     log.info("inbound image {} fetched: {} bytes (mime={})",
                             part.fileId(), data.length, part.mime());

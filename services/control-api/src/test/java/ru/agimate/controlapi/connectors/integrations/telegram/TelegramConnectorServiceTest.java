@@ -21,6 +21,7 @@ import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
+import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.StoredFileNotFoundException;
@@ -367,8 +368,7 @@ class TelegramConnectorServiceTest {
             String fileId = FileIds.external(stored.getId());
             // The file has no stored name, so the part is named the way downloading it would be.
             String synthetic = "image-" + fileId.substring(fileId.length() - 8) + ".png";
-            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
-                    stored, new ByteArrayInputStream("bytes".getBytes(StandardCharsets.UTF_8))));
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(FileLink.of(stored), stored.getSizeBytes(), new ByteArrayInputStream("bytes".getBytes(StandardCharsets.UTF_8))));
             when(telegramApiClient.sendRequestMultipart(eq("sendPhoto"), eq("token123"), any(),
                     eq("photo"), eq(synthetic), eq("image/png"), any(), eq(5L)))
                     .thenReturn(Map.of("ok", true));
@@ -392,8 +392,7 @@ class TelegramConnectorServiceTest {
                     .mime("application/pdf").sizeBytes(3L)
                     .expiresAt(LocalDateTime.now().plusDays(1)).build();
             String fileId = FileIds.external(stored.getId());
-            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
-                    stored, new ByteArrayInputStream(new byte[]{1, 2, 3})));
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(FileLink.of(stored), stored.getSizeBytes(), new ByteArrayInputStream(new byte[]{1, 2, 3})));
             when(telegramApiClient.sendRequestMultipart(any(), any(), any(), any(), any(), any(), any(), anyLong()))
                     .thenReturn(Map.of("ok", true));
 
@@ -412,8 +411,7 @@ class TelegramConnectorServiceTest {
                     .mime("video/mp4").sizeBytes(51L * 1024 * 1024)
                     .expiresAt(LocalDateTime.now().plusDays(1)).build();
             String fileId = FileIds.external(stored.getId());
-            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
-                    stored, new ByteArrayInputStream(new byte[]{1})));
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(FileLink.of(stored), stored.getSizeBytes(), new ByteArrayInputStream(new byte[]{1})));
 
             ConnectorException e = assertThrows(ConnectorException.class, () ->
                     handler.executeTool(env(), "send_video", Map.of("chatId", "100", "video", fileId)));

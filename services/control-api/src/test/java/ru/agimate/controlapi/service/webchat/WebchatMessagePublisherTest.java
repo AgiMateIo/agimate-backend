@@ -81,12 +81,12 @@ class WebchatMessagePublisherTest {
     @DisplayName("вложение: строка хранит fileId без url, событие несёт свежую подписанную ссылку")
     void partsStoredWithoutUrlEventWithUrl() {
         String fileId = FileIds.external(UUID.randomUUID());
-        when(signedFileUrlService.issue(new FileLink(USER_ID, fileId, "image/png", null)))
+        when(signedFileUrlService.issue(new FileLink(USER_ID, fileId, "image/png", null, 1)))
                 .thenReturn("/files/" + fileId + "?exp=1&sig=s");
 
         publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
                 WebchatMessageDirection.AGENT, "answer", "m2", "вот скриншот",
-                List.of(new Part("image", fileId, "image/png", 42, Map.of())));
+                List.of(new Part("image", fileId, 1, "image/png", 42, Map.of())));
 
         ArgumentCaptor<String> partsJson = ArgumentCaptor.forClass(String.class);
         verify(webchatMessageRepository).insertIgnoreConflict(eq(USER_ID), eq(AGENT_ID), eq(CHANNEL_ID),

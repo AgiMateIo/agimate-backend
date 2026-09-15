@@ -174,11 +174,12 @@ public class AgentWorkerClient {
      * during the LLM call — like {@link #getLlmCredentials}, outside any DBOS checkpoint. An
      * oversized stream is aborted with {@code OUT_OF_RANGE}.
      */
-    public byte[] getFile(String fileId, String agentId) {
+    public byte[] getFile(String fileId, int version, String agentId) {
         return call("GetFile", () -> {
             Iterator<FileChunk> chunks = agentContext
                     .withDeadlineAfter(FILE_STREAM_DEADLINE_MS, TimeUnit.MILLISECONDS)
-                    .getFile(GetFileRequest.newBuilder().setFileId(fileId).setAgentId(agentId).build());
+                    .getFile(GetFileRequest.newBuilder()
+                            .setFileId(fileId).setVersion(version).setAgentId(agentId).build());
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             while (chunks.hasNext()) {
                 byte[] data = chunks.next().getData().toByteArray();

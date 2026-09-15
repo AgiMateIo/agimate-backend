@@ -16,10 +16,10 @@ import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 /**
- * Downloading a file by a signed link (docs/connectors/files.md): browser access to webchat
- * attachments without an {@code Authorization} header ({@code <img src>}). Authentication is the HMAC
- * signature {@code exp+sig} ({@link SignedFileUrlService}), which is why the path is public in
- * {@code SecurityConfig}; ownership was checked when the link was issued.
+ * Downloading a version of a file by a signed link (docs/connectors/files.md): browser access to
+ * webchat attachments without an {@code Authorization} header ({@code <img src>}). Authentication is
+ * the HMAC signature {@code v+exp+sig} ({@link SignedFileUrlService}), which is why the path is public
+ * in {@code SecurityConfig}; ownership was checked when the link was issued.
  */
 @Slf4j
 @RestController
@@ -36,14 +36,15 @@ public class FileDownloadController {
     @GetMapping("/{fileId}")
     public ResponseEntity<InputStreamResource> download(
             @PathVariable String fileId,
+            @RequestParam("v") int version,
             @RequestParam long exp,
             @RequestParam String sig
     ) {
-        if (!signedFileUrlService.verify(fileId, exp, sig)) {
+        if (!signedFileUrlService.verify(fileId, version, exp, sig)) {
             throw new ForbiddenStatusException("File link is invalid or expired");
         }
-        FileStorageService.FileContent content = fileStorageService.openSigned(fileId);
-        // Content behind an agf_ id is immutable; the cache is private and no longer than the link's lifetime.
+        FileStorageService.FileContent content = fileStorageService.openSigned(fileId, version);
+        // A link addresses one version, and a version never changes; the cache is private and no longer than the link's lifetime.
         return FileHttpResponses.serve(content, true,
                 CacheControl.maxAge(fileStorageProperties.getUrlTtl()).cachePrivate());
     }

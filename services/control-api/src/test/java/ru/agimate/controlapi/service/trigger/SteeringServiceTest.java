@@ -111,7 +111,7 @@ class SteeringServiceTest {
                 .thenReturn(List.of(queued));
         when(inboundTextResolver.resolve(eq(PROMPT_CHANNEL), any()))
                 .thenReturn(Optional.of(new InboundMessage("глянь фото",
-                        List.of(new Part("image", "agf_123", "image/png", 42, Map.of("name", "cat.png"))))));
+                        List.of(new Part("image", "agf_123", 1, "image/png", 42, Map.of("name", "cat.png"))))));
 
         List<SteeringService.SteeringInbound> claimed = service().claim(AGENT_ID, MAIN_RUN_ID);
 

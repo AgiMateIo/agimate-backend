@@ -19,6 +19,7 @@ import ru.agimate.controlapi.service.llm.NoCapableModelException;
 import ru.agimate.controlapi.service.llm.media.MediaInferenceService.ImageResult;
 import ru.agimate.controlapi.service.llm.media.MediaInferenceService.MediaCall;
 import ru.agimate.controlapi.storage.FileStorageService.FileContent;
+import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.NewFile;
 
@@ -380,6 +381,6 @@ class MediaInferenceServiceTest {
                 .sizeBytes(sizeBytes)
                 .build();
         InputStream content = new ByteArrayInputStream(bytes);
-        when(fileStorageService.open(userId, fileId)).thenReturn(new FileContent(file, content));
+        when(fileStorageService.open(userId, fileId)).thenReturn(new FileContent(FileLink.of(file), file.getSizeBytes(), content));
     }
 }

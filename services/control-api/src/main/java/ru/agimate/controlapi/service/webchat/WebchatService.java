@@ -234,7 +234,7 @@ public class WebchatService {
                     .orElseThrow(() -> new BadRequestStatusException("Attachment not found: " + fileId));
             String mime = file.getMime();
             Map<String, Object> meta = file.getName() != null ? Map.of("name", file.getName()) : Map.of();
-            parts.add(new Part(Part.typeForMime(mime), fileId, mime, file.getSizeBytes(), meta));
+            parts.add(new Part(Part.typeForMime(mime), fileId, file.getVersion(), mime, file.getSizeBytes(), meta));
         }
         return parts;
     }
@@ -245,6 +245,7 @@ public class WebchatService {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("type", part.type());
             m.put("fileId", part.storageRef());
+            m.put("version", part.version());
             m.put("mime", part.mime());
             m.put("size", part.size());
             Object name = part.meta().get("name");

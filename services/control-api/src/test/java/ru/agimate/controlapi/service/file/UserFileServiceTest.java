@@ -42,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -251,8 +252,10 @@ class UserFileServiceTest {
 
             service.delete(USER_ID, fileId);
 
-            assertFalse(stored.getExpiresAt().isAfter(LocalDateTime.now()));
-            verify(storedFileRepository).save(stored);
+            verify(storedFileRepository).expire(eq(stored.getId()),
+                    argThat(at -> !at.isAfter(LocalDateTime.now())));
+            // A targeted update, not a save: a full-row write would put back the version columns it read.
+            verify(storedFileRepository, never()).save(any());
             // Своего пути удаления у сервиса нет: блоб трогает только purgeExpiredBatch.
             verify(storedFileRepository, never()).delete(any());
         }

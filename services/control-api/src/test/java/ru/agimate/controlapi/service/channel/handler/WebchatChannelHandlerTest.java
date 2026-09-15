@@ -166,7 +166,7 @@ class WebchatChannelHandlerTest {
         @DisplayName("parts ответа прокидываются в publisher как есть")
         void passesPartsThrough() {
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            List<Part> parts = List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 5, Map.of()));
+            List<Part> parts = List.of(new Part("image", "agf_" + UUID.randomUUID(), 1, "image/png", 5, Map.of()));
             OutboundDispatch dispatch = new OutboundDispatch("msg-4", null, null, CHANNEL_ID, SESSION_ID, Map.of());
 
             handler.handleOutput(config, new OutboundMessage("вот скриншот", parts), dispatch);

@@ -27,12 +27,15 @@ import java.util.Optional;
  *   <li>a presigned URL straight into the object store, when the backend issues one
  *       ({@code app.files.presign}) — the bytes then never pass through control-api, and the browser
  *       gets range requests and resumable downloads for free;</li>
- *   <li>otherwise a relative {@code /files/agf_…?exp&sig} served by us, authenticated by HMAC-SHA256
- *       over {@code fileId|exp}.</li>
+ *   <li>otherwise a relative {@code /files/agf_…?v&exp&sig} served by us, authenticated by HMAC-SHA256
+ *       over {@code fileId|version|exp}.</li>
  * </ol>
  * The two differ in revocation: the HMAC link goes through the {@code files} row on every download and
  * dies the moment the file expires, a presigned one is answered by the storage alone and lives until
  * the blob is swept. See {@link BlobStore#presignGet}.
+ *
+ * <p>Both shapes address one version of the file, not the file: the version is inside the signature
+ * and inside the blob key, so a private cache never serves old bytes under a link to a new version.
  */
 @Slf4j
 @Component
@@ -65,8 +68,8 @@ public class SignedFileUrlService {
     }
 
     /**
-     * A link to the contents: absolute when the object store signed it itself, otherwise the relative
-     * {@code /files/agf_…?exp=…&sig=…} whose origin the frontend adds.
+     * A link to the contents of {@code link.version()}: absolute when the object store signed it
+     * itself, otherwise the relative {@code /files/agf_…?v=…&exp=…&sig=…} whose origin the frontend adds.
      */
     public String issue(FileLink link) {
         Optional<URI> direct = presign(link);
@@ -74,16 +77,17 @@ public class SignedFileUrlService {
             return direct.get().toString();
         }
         long exp = Instant.now().plus(props.getUrlTtl()).getEpochSecond();
-        return PATH_PREFIX + link.fileId() + "?exp=" + exp + "&sig=" + sign(link.fileId(), exp);
+        return PATH_PREFIX + link.fileId() + "?v=" + link.version() + "&exp=" + exp
+                + "&sig=" + sign(link.fileId(), link.version(), exp);
     }
 
     /** Whether the signature is valid and unexpired; the reasons for refusal are deliberately indistinguishable to the client. */
-    public boolean verify(String fileId, long exp, String sig) {
+    public boolean verify(String fileId, int version, long exp, String sig) {
         if (sig == null || Instant.now().getEpochSecond() > exp) {
             return false;
         }
         return MessageDigest.isEqual(
-                sign(fileId, exp).getBytes(StandardCharsets.UTF_8),
+                sign(fileId, version, exp).getBytes(StandardCharsets.UTF_8),
                 sig.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -100,11 +104,11 @@ public class SignedFileUrlService {
                 FileContentHeaders.forDelivery(link, true));
     }
 
-    private String sign(String fileId, long exp) {
+    private String sign(String fileId, int version, long exp) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);
             mac.init(key);
-            byte[] digest = mac.doFinal((fileId + "|" + exp).getBytes(StandardCharsets.UTF_8));
+            byte[] digest = mac.doFinal((fileId + "|" + version + "|" + exp).getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
         } catch (Exception e) {
             throw new IllegalStateException("HMAC signing failed", e);

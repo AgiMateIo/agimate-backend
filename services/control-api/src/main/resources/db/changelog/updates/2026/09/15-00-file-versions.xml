@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Files get versions (docs/decisions/files-and-pages.md): agf_ becomes the identity of a document,
+      and reading it by id returns the current version.
+
+      files keeps a copy of the current version (mime, size, sha256, agent_id, origin describe it) so
+      that the dozen readers of files never learn about versions. That copy is denormalisation on
+      purpose; file_versions is the full journal, the current version included.
+
+      claimed_version is the last attempt number handed out, and it is never handed out twice: the
+      blob key agf_….v{n} is derived from it, so two writers can never upload under one key. A writer
+      claims it only while no other attempt is in flight (claimed_version = version) or the one in
+      flight has been silent for a while (updated_at); the version it commits must still be its own
+      claim. A crashed attempt leaves a gap in the numbering, never a broken file.
+    -->
+    <changeSet id="add-file-versions" author="agimate">
+        <addColumn tableName="files">
+            <column name="version" type="INTEGER" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="claimed_version" type="INTEGER" defaultValueNumeric="1">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <createTable tableName="file_versions">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_file_versions_file"
+                             referencedTableName="files" referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+            <column name="version" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="mime" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="size" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sha256" type="TEXT"/>
+            <column name="agent_id" type="UUID"/>
+            <column name="origin" type="TEXT"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="file_versions" columnNames="file_id, version"
+                             constraintName="uq_file_versions_file_id_version"/>
+    </changeSet>
+
+    <!--
+      Every existing file is its version 1, under its old blob key. UPLOADING rows are included: they
+      are swept within the hour, and the cascade takes their version along.
+    -->
+    <changeSet id="backfill-file-versions" author="agimate">
+        <sql>
+            INSERT INTO file_versions (file_id, version, mime, size, sha256, agent_id, origin, created_at, updated_at)
+            SELECT id, 1, mime, size, sha256, agent_id, origin, created_at, created_at
+            FROM files
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

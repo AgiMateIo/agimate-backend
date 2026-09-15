@@ -23,7 +23,7 @@ public class FileHttpResponses {
     /** @param cacheControl null — no cache header (private answers behind an auth header) */
     public static ResponseEntity<InputStreamResource> serve(FileStorageService.FileContent content,
                                                             boolean inline, CacheControl cacheControl) {
-        FileLink link = FileLink.of(content.file());
+        FileLink link = content.link();
         MediaType mediaType = FileContentHeaders.contentType(link.mime());
         ContentDisposition disposition = FileContentHeaders.contentDisposition(link, mediaType, inline);
         ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
@@ -35,7 +35,7 @@ public class FileHttpResponses {
         }
         return builder
                 .contentType(mediaType)
-                .contentLength(content.file().getSizeBytes())
+                .contentLength(content.size())
                 .body(new InputStreamResource(content.content()));
     }
 }

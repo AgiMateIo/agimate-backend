@@ -124,7 +124,7 @@ class OutboundAttachmentParserTest {
     @DisplayName("уже заполненные parts — сообщение не трогается")
     void structuredPartsPassThrough() {
         OutboundMessage outbound = new OutboundMessage("text [[attach:" + FileIds.external(UUID.randomUUID()) + "]]",
-                List.of(new Part("image", "agf_x", "image/png", 1, java.util.Map.of())));
+                List.of(new Part("image", "agf_x", 1, "image/png", 1, java.util.Map.of())));
         assertSame(outbound, parser.parse(USER_ID, outbound));
         verifyNoInteractions(fileStorageService);
     }

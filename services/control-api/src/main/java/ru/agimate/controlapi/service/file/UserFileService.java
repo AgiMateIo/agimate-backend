@@ -127,8 +127,7 @@ public class UserFileService {
     public void delete(UUID userId, String fileId) {
         StoredFile file = fileStorageService.findReadable(userId, fileId)
                 .orElseThrow(() -> new NotFoundStatusException("File", fileId));
-        file.setExpiresAt(LocalDateTime.now());
-        storedFileRepository.save(file);
+        storedFileRepository.expire(file.getId(), LocalDateTime.now());
         log.info("file {} expired on request by user {}", fileId, userId);
     }
 

@@ -83,11 +83,15 @@ message FilePart {
   string mime = 3;
   int64 size = 4;
   string name = 5;      // file name when known (Telegram document), otherwise empty
+  // The version the message carried: a file can be rewritten after it was sent, and history must
+  // show what was sent. 0 — the current version (a control-api predating file versions).
+  int32 version = 6;
 }
 
 message GetFileRequest {
   string file_id = 1;   // agf_<uuid>
   string agent_id = 2;  // ownership gate: file.user_id == agent.user_id
+  int32 version = 3;    // FilePart.version; 0 — the current version (a worker predating file versions)
 }
 
 // The first chunk carries mime and total_size; the rest carry data only. Chunks are ~128 KB so as

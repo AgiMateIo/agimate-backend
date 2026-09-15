@@ -120,7 +120,7 @@ public class SteeringService {
 
     private static List<InboundPart> parts(InboundMessage message) {
         return message.parts().stream()
-                .map(p -> new InboundPart(p.storageRef(), p.type(), p.mime(), p.size(), partName(p)))
+                .map(p -> new InboundPart(p.storageRef(), p.version(), p.type(), p.mime(), p.size(), partName(p)))
                 .toList();
     }
 

@@ -6,11 +6,13 @@ package ru.agimate.controlapi.service.runcontext;
  * bytes with a separate {@code GetFile}, so a DBOS checkpoint only ever holds the reference, never
  * the contents (see docs/connectors/files.md).
  *
- * @param fileId the file's public id ({@code agf_<uuid>})
- * @param type   attachment type (image | video | audio | file) — it drives the worker's multimodality
- * @param mime   MIME of the contents
- * @param size   size in bytes
- * @param name   file name when known (a Telegram document); otherwise empty
+ * @param fileId  the file's public id ({@code agf_<uuid>})
+ * @param version the version the user sent — the worker pulls exactly it, even if the file was
+ *                rewritten since
+ * @param type    attachment type (image | video | audio | file) — it drives the worker's multimodality
+ * @param mime    MIME of the contents
+ * @param size    size in bytes
+ * @param name    file name when known (a Telegram document); otherwise empty
  */
-public record InboundPart(String fileId, String type, String mime, long size, String name) {
+public record InboundPart(String fileId, int version, String type, String mime, long size, String name) {
 }

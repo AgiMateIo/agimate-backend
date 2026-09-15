@@ -24,12 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SignedFileUrlServiceTest {
 
     private static final Pattern URL_PATTERN =
-            Pattern.compile("^/files/(agf_[0-9a-f-]+)\\?exp=(\\d+)&sig=([A-Za-z0-9_-]+)$");
+            Pattern.compile("^/files/(agf_[0-9a-f-]+)\\?v=(\\d+)&exp=(\\d+)&sig=([A-Za-z0-9_-]+)$");
 
     private static final UUID USER_ID = UUID.randomUUID();
 
     private final String fileId = FileIds.external(UUID.randomUUID());
-    private final FileLink link = new FileLink(USER_ID, fileId, "image/png", "скриншот.png");
+    private final FileLink link = new FileLink(USER_ID, fileId, "image/png", "скриншот.png", 2);
 
     private FileStorageProperties props;
     private StubBlobStore blobStore;
@@ -93,11 +93,12 @@ class SignedFileUrlServiceTest {
     class Issue {
 
         @Test
-        @DisplayName("хранилище не подписывает — относительный /files/{id}?exp&sig с exp ≈ now + url-ttl")
+        @DisplayName("хранилище не подписывает — относительный /files/{id}?v&exp&sig с exp ≈ now + url-ttl")
         void urlShape() {
             Matcher matcher = issued();
             assertEquals(fileId, matcher.group(1));
-            long exp = Long.parseLong(matcher.group(2));
+            assertEquals("2", matcher.group(2));
+            long exp = Long.parseLong(matcher.group(3));
             long expected = Instant.now().plus(props.getUrlTtl()).getEpochSecond();
             assertTrue(Math.abs(exp - expected) <= 5);
         }
@@ -109,7 +110,8 @@ class SignedFileUrlServiceTest {
                     + "?X-Amz-Signature=abc");
 
             assertEquals(blobStore.presigned.toString(), service.issue(link));
-            assertEquals(USER_ID + "/" + fileId, blobStore.key);
+            // The version is in the key: a direct link, too, shows the version it was issued for.
+            assertEquals(USER_ID + "/" + fileId + ".v2", blobStore.key);
             assertEquals(props.getUrlTtl(), blobStore.ttl);
         }
 
@@ -123,7 +125,7 @@ class SignedFileUrlServiceTest {
             assertTrue(blobStore.headers.contentDisposition().startsWith("inline;"));
 
             assertEquals(blobStore.presigned.toString(),
-                    service.issue(new FileLink(USER_ID, fileId, "image/svg+xml", "картинка.svg")));
+                    service.issue(new FileLink(USER_ID, fileId, "image/svg+xml", "картинка.svg", 1)));
             // Active content degrades to octet-stream on the direct path too.
             assertEquals("application/octet-stream", blobStore.headers.contentType());
             assertTrue(blobStore.headers.contentDisposition().startsWith("attachment;"));
@@ -134,7 +136,7 @@ class SignedFileUrlServiceTest {
         void unknownMimeIsNotPresigned() {
             blobStore.presigned = URI.create("https://s3.cloud.ru/bucket/key?X-Amz-Signature=abc");
 
-            assertTrue(URL_PATTERN.matcher(service.issue(new FileLink(USER_ID, fileId, null, null)))
+            assertTrue(URL_PATTERN.matcher(service.issue(new FileLink(USER_ID, fileId, null, null, 1)))
                     .matches());
             assertNull(blobStore.key);
         }
@@ -148,7 +150,7 @@ class SignedFileUrlServiceTest {
         @DisplayName("выданная ссылка валидна")
         void roundTrip() {
             Matcher matcher = issued();
-            assertTrue(service.verify(fileId, Long.parseLong(matcher.group(2)), matcher.group(3)));
+            assertTrue(service.verify(fileId, 2, Long.parseLong(matcher.group(3)), matcher.group(4)));
         }
 
         @Test
@@ -156,18 +158,19 @@ class SignedFileUrlServiceTest {
         void expiredRejected() {
             props.setUrlTtl(Duration.ofSeconds(-60));
             Matcher matcher = issued();
-            assertFalse(service.verify(fileId, Long.parseLong(matcher.group(2)), matcher.group(3)));
+            assertFalse(service.verify(fileId, 2, Long.parseLong(matcher.group(3)), matcher.group(4)));
         }
 
         @Test
-        @DisplayName("подмена exp или fileId ломает подпись")
+        @DisplayName("подмена exp, fileId или версии ломает подпись")
         void tamperedRejected() {
             Matcher matcher = issued();
-            long exp = Long.parseLong(matcher.group(2));
-            String sig = matcher.group(3);
-            assertFalse(service.verify(fileId, exp + 1000, sig));
-            assertFalse(service.verify(FileIds.external(UUID.randomUUID()), exp, sig));
-            assertFalse(service.verify(fileId, exp, "not-a-signature"));
+            long exp = Long.parseLong(matcher.group(3));
+            String sig = matcher.group(4);
+            assertFalse(service.verify(fileId, 2, exp + 1000, sig));
+            assertFalse(service.verify(FileIds.external(UUID.randomUUID()), 2, exp, sig));
+            assertFalse(service.verify(fileId, 2, exp, "not-a-signature"));
+            assertFalse(service.verify(fileId, 3, exp, sig), "a link to one version does not open another");
         }
 
         @Test
@@ -177,7 +180,7 @@ class SignedFileUrlServiceTest {
             FileStorageProperties other = new FileStorageProperties();
             other.setUrlSecret("another-secret");
             assertFalse(newService(other, new StubBlobStore()).verify(
-                    fileId, Long.parseLong(matcher.group(2)), matcher.group(3)));
+                    fileId, 2, Long.parseLong(matcher.group(3)), matcher.group(4)));
         }
 
         @Test
@@ -186,10 +189,10 @@ class SignedFileUrlServiceTest {
             SignedFileUrlService devService = newService(new FileStorageProperties(), new StubBlobStore());
             Matcher matcher = URL_PATTERN.matcher(devService.issue(link));
             assertTrue(matcher.matches());
-            assertTrue(devService.verify(fileId, Long.parseLong(matcher.group(2)), matcher.group(3)));
+            assertTrue(devService.verify(fileId, 2, Long.parseLong(matcher.group(3)), matcher.group(4)));
             // Другой инстанс (другой boot) те же ссылки не признаёт.
             assertFalse(newService(new FileStorageProperties(), new StubBlobStore())
-                    .verify(fileId, Long.parseLong(matcher.group(2)), matcher.group(3)));
+                    .verify(fileId, 2, Long.parseLong(matcher.group(3)), matcher.group(4)));
         }
     }
 }

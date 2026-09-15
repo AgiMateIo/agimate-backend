@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.webchat;
 
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.storage.FileLink;
 
 import java.util.List;
@@ -10,9 +11,11 @@ import java.util.function.Function;
 /**
  * An attachment of a webchat message as the frontend sees it (the Centrifugo event and the
  * {@code /manage/webchat} history). In {@code webchat_messages.parts} it is stored without the
- * {@code url} (type/fileId/mime/size): signed links expire, so fresh ones are issued on every read or
- * publication.
+ * {@code url} (type/fileId/version/mime/size): signed links expire, so fresh ones are issued on every
+ * read or publication.
  *
+ * @param version the version of the file the message carried; the link shows exactly it, even after
+ *                the file was rewritten
  * @param name the file name when the producer knew one; {@code null} for a Telegram photo or a
  *             generated image, where there is none to show
  * @param url  freshly signed URL of the contents — either relative ({@code /files/agf_…?exp&sig},
@@ -22,6 +25,7 @@ import java.util.function.Function;
 public record WebchatAttachment(
         String type,
         String fileId,
+        int version,
         String mime,
         Long size,
         String name,
@@ -34,6 +38,7 @@ public record WebchatAttachment(
         return new WebchatAttachment(
                 (String) stored.get("type"),
                 (String) stored.get("fileId"),
+                Part.storedVersion(stored),
                 (String) stored.get("mime"),
                 size instanceof Number number ? number.longValue() : null,
                 (String) stored.get("name"),
@@ -57,7 +62,8 @@ public record WebchatAttachment(
                         userId,
                         (String) stored.get("fileId"),
                         (String) stored.get("mime"),
-                        (String) stored.get("name")))))
+                        (String) stored.get("name"),
+                        Part.storedVersion(stored)))))
                 .toList();
     }
 }

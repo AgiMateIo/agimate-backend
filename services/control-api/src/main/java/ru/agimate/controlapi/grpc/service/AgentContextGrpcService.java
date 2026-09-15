@@ -175,7 +175,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
             FileStorageService.FileContent content;
             try {
-                content = fileStorageService.open(agent.getUserId(), fileId);
+                content = fileStorageService.open(agent.getUserId(), fileId, request.getVersion());
             } catch (StoredFileNotFoundException e) {
                 // Ownership, expiry and incompleteness are indistinguishable — the file is simply unavailable to the worker.
                 responseObserver.onError(Status.NOT_FOUND
@@ -183,8 +183,8 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                 return;
             }
 
-            long total = content.file().getSizeBytes();
-            String mime = nullToEmpty(content.file().getMime());
+            long total = content.size();
+            String mime = nullToEmpty(content.mime());
             long streamed = 0;
             String signature = null;
             try (InputStream in = content.content()) {

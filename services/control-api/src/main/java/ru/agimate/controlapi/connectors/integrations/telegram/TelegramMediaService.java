@@ -117,6 +117,7 @@ public class TelegramMediaService {
         Map<String, Object> part = new LinkedHashMap<>();
         part.put("type", Part.typeForMime(descriptor.mime()));
         part.put("fileId", fileId);
+        part.put("version", stored.getVersion());
         part.put("mime", descriptor.mime());
         part.put("size", stored.getSizeBytes());
         if (descriptor.name() != null && !descriptor.name().isBlank()) {

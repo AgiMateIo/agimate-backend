@@ -240,7 +240,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("текст + image-part → send_message и send_photo с суффиксом идемпотентности")
         void textWithImagePart() {
             OutboundMessage outbound = new OutboundMessage("Вот скриншот",
-                    List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 5, Map.of())));
+                    List.of(new Part("image", "agf_" + UUID.randomUUID(), 1, "image/png", 5, Map.of())));
             OutboundDispatch dispatch = new OutboundDispatch("call-3", null, null, null, null, Map.of("chatId", 42));
 
             List<ToolCallRequest> requests = handler.handleOutput(config, outbound, dispatch);
@@ -258,8 +258,8 @@ class TelegramChannelHandlerTest {
         @DisplayName("part без текста: video → send_video, file → send_document")
         void partsOnlyMapping() {
             OutboundMessage outbound = new OutboundMessage("  ", List.of(
-                    new Part("video", "agf_" + UUID.randomUUID(), "video/mp4", 5, Map.of()),
-                    new Part("file", "agf_" + UUID.randomUUID(), "application/pdf", 5, Map.of())));
+                    new Part("video", "agf_" + UUID.randomUUID(), 1, "video/mp4", 5, Map.of()),
+                    new Part("file", "agf_" + UUID.randomUUID(), 1, "application/pdf", 5, Map.of())));
             OutboundDispatch dispatch = new OutboundDispatch("call-4", null, null, null, null, Map.of("chatId", 42));
 
             List<ToolCallRequest> requests = handler.handleOutput(config, outbound, dispatch);

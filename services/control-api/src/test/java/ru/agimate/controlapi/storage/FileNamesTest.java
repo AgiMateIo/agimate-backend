@@ -16,7 +16,7 @@ class FileNamesTest {
     private static final String FILE_ID = "agf_0199c3b2-8f41-8a2c-9d77-1b0e5f2a3c44";
 
     private static FileLink link(String mime, String name) {
-        return new FileLink(USER_ID, FILE_ID, mime, name);
+        return new FileLink(USER_ID, FILE_ID, mime, name, 1);
     }
 
     @Nested

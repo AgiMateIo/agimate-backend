@@ -20,6 +20,7 @@ import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.AppService;
 import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
+import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.NewFile;
@@ -133,8 +134,7 @@ class AppFilesControllerTest {
         when(appService.getApp(PRINCIPAL)).thenReturn(app());
         StoredFile stored = storedFile();
         String fileId = FileIds.external(stored.getId());
-        when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
-                stored, new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8))));
+        when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(FileLink.of(stored), stored.getSizeBytes(), new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8))));
 
         ResponseEntity<InputStreamResource> response = controller.downloadFile(fileId, PRINCIPAL);
 
@@ -156,8 +156,7 @@ class AppFilesControllerTest {
             StoredFile stored = storedFile();
             stored.setMime(mime);
             String fileId = FileIds.external(stored.getId());
-            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
-                    stored, new ByteArrayInputStream(new byte[]{1})));
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(FileLink.of(stored), stored.getSizeBytes(), new ByteArrayInputStream(new byte[]{1})));
 
             ResponseEntity<InputStreamResource> response = controller.downloadFile(fileId, PRINCIPAL);
             assertEquals(MediaType.APPLICATION_OCTET_STREAM, response.getHeaders().getContentType(), mime);
@@ -171,8 +170,7 @@ class AppFilesControllerTest {
         StoredFile stored = storedFile();
         stored.setMime("definitely not a mime");
         String fileId = FileIds.external(stored.getId());
-        when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
-                stored, new ByteArrayInputStream(new byte[]{1})));
+        when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(FileLink.of(stored), stored.getSizeBytes(), new ByteArrayInputStream(new byte[]{1})));
 
         ResponseEntity<InputStreamResource> response = controller.downloadFile(fileId, PRINCIPAL);
         assertEquals(MediaType.APPLICATION_OCTET_STREAM, response.getHeaders().getContentType());

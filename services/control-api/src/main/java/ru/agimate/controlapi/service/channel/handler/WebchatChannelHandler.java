@@ -99,7 +99,7 @@ public class WebchatChannelHandler implements ChannelHandler {
             String type = m.get("type") != null ? m.get("type").toString() : Part.typeForMime(mime);
             long size = m.get("size") instanceof Number n ? n.longValue() : 0L;
             Map<String, Object> meta = m.get("name") != null ? Map.of("name", m.get("name")) : Map.of();
-            parts.add(new Part(type, fileId.toString(), mime, size, meta));
+            parts.add(new Part(type, fileId.toString(), Part.storedVersion(m), mime, size, meta));
         }
         return parts;
     }

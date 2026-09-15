@@ -41,6 +41,7 @@ public class RunContextMapper {
     public static FilePart toProto(InboundPart part) {
         return FilePart.newBuilder()
                 .setFileId(nullToEmpty(part.fileId()))
+                .setVersion(part.version())
                 .setType(nullToEmpty(part.type()))
                 .setMime(nullToEmpty(part.mime()))
                 .setSize(part.size())
