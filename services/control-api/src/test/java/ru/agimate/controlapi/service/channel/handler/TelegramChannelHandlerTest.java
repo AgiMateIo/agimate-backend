@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -156,6 +157,24 @@ class TelegramChannelHandlerTest {
     }
 
     @Nested
+    @DisplayName("replyAddress")
+    class ReplyAddress {
+
+        @Test
+        @DisplayName("адрес — только chatId входящего сообщения")
+        void chatIdOnly() {
+            assertEquals(Map.of("chatId", 42), handler.replyAddress(config,
+                    trigger("message_received", Map.of("chatId", 42, "text", "hi", "messageId", 7))));
+        }
+
+        @Test
+        @DisplayName("без chatId адреса нет")
+        void noChatNoAddress() {
+            assertNull(handler.replyAddress(config, trigger("message_received", Map.of("text", "hi"))));
+        }
+    }
+
+    @Nested
     @DisplayName("chat filter (allowedChatIds)")
     class ChatFilter {
 
@@ -188,7 +207,7 @@ class TelegramChannelHandlerTest {
     class Process {
 
         @Test
-        @DisplayName("returns send_message tool call with chatId from reply context")
+        @DisplayName("returns send_message tool call with chatId from the reply address")
         void dispatches() {
             OutboundMessage outbound = OutboundMessage.text("Готово");
             OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, null, Map.of("chatId", 42));
@@ -206,7 +225,7 @@ class TelegramChannelHandlerTest {
         }
 
         @Test
-        @DisplayName("falls back to config defaultChatId when reply context has none")
+        @DisplayName("falls back to config defaultChatId when the reply address has none")
         void defaultChatIdFallback() {
             ChannelConfig withDefault = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("defaultChatId", 777));
             OutboundMessage outbound = OutboundMessage.text("Напоминание");

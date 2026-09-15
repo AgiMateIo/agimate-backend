@@ -71,4 +71,34 @@ class PlaceholderRendererTest {
         Map<String, Object> last = (Map<String, Object>) items.get(2);
         assertEquals("v", last.get("x"));
     }
+
+    @Test
+    @DisplayName("triggerFields: только поля, на которые ссылается шаблон, в исходной вложенности")
+    void triggerFieldsKeepsOnlyReferenced() {
+        Map<String, Object> template = Map.of(
+                "chat_id", "{trigger.message.chat.id}",
+                "body", "Re {trigger.user}: {text}",
+                "missing", "{trigger.nope}");
+        Map<String, Object> data = Map.of(
+                "message", Map.of("chat", Map.of("id", 12345L, "title", "big"), "text", "long payload"),
+                "user", "alice",
+                "photo", "huge");
+
+        Map<String, Object> fields = PlaceholderRenderer.triggerFields(template, data);
+
+        assertEquals(Map.of("message", Map.of("chat", Map.of("id", 12345L)), "user", "alice"), fields);
+        assertEquals(PlaceholderRenderer.render(template, "hi", data),
+                PlaceholderRenderer.render(template, "hi", fields));
+    }
+
+    @Test
+    @DisplayName("triggerFields: путь внутри уже взятого значения не дублируется и не портит исходник")
+    void triggerFieldsNestedPaths() {
+        Map<String, Object> chat = Map.of("id", 1, "title", "t");
+        Map<String, Object> template = Map.of("a", "{trigger.chat.id}", "b", "{trigger.chat}");
+
+        Map<String, Object> fields = PlaceholderRenderer.triggerFields(template, Map.of("chat", chat));
+
+        assertEquals(Map.of("chat", chat), fields);
+    }
 }

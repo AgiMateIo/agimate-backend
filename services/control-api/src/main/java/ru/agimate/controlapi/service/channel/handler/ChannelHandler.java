@@ -56,6 +56,16 @@ public interface ChannelHandler {
     Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger);
 
     /**
+     * Where in the channel the answer to this trigger goes — stored in the run's channel snapshot and
+     * handed back as {@link OutboundDispatch#address()}. Only what the handler needs to reply: the
+     * snapshot is copied into every event run of the conversation. {@code null} for a channel that
+     * addresses by session alone.
+     */
+    default Map<String, Object> replyAddress(ChannelConfig config, Trigger trigger) {
+        return null;
+    }
+
+    /**
      * Whether the agent's intermediate output (progress) should be delivered into this channel.
      * {@code true} → the router fills the progress role in {@code Channels} with the same channel, and
      * the worker sends progress lines through {@link #handleOutput} (with {@code stream="progress"})
@@ -93,7 +103,7 @@ public interface ChannelHandler {
      * {@link ToolCallRequest}s — which the caller executes (idempotency + ABAC + dispatch after the
      * log is committed). The idempotency key is {@link OutboundDispatch#messageId()} (with a
      * deterministic suffix for the additional requests); the answer's address comes from
-     * {@link OutboundDispatch#replyContext()}. There are no tool side effects inside the handler —
+     * {@link OutboundDispatch#address()}. There are no tool side effects inside the handler —
      * that breaks the bean cycle with the inbound router and keeps the dispatch outside transactions.
      */
     List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,

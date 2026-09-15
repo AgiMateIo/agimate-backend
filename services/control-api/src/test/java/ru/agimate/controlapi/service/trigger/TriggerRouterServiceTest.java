@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
@@ -157,7 +158,7 @@ class TriggerRouterServiceTest {
 
             routerService.routeTrigger(USER, trigger);
 
-            verify(outboundService).send(any(), any(), eq(sessionId), any(), any(), eq("answer"), isNull());
+            verify(outboundService).send(any(), argThat(t -> sessionId.equals(t.sessionId())), any(), any(), eq("answer"), isNull(), isNull());
         }
 
         @Test
@@ -169,7 +170,7 @@ class TriggerRouterServiceTest {
             routerService.routeTrigger(USER, trigger);
 
             verify(runCancellationService, never()).cancelSessionFromChannel(any());
-            verify(outboundService).send(any(), any(), isNull(), any(), any(), eq("answer"), isNull());
+            verify(outboundService).send(any(), argThat(t -> t.sessionId() == null), any(), any(), eq("answer"), isNull(), isNull());
         }
     }
 

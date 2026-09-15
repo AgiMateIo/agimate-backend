@@ -14,6 +14,7 @@ import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -82,7 +83,7 @@ public class ChannelRouteResolver {
             return null;
         }
         ChannelInfo resolved = new ChannelInfo(
-                channel.getId(), resolveProactiveSessionId(channel, ref.sessionId()), ref.messageId());
+                channel.getId(), resolveProactiveSessionId(channel, ref.sessionId()), ref.messageId(), ref.address());
         return new Channels(null,
                 channels.progress() != null ? resolved : null,
                 channels.answer() != null ? resolved : null);
@@ -150,16 +151,17 @@ public class ChannelRouteResolver {
         if (inbound.isEmpty()) {
             return ChannelResolution.skip();
         }
+        Map<String, Object> address = handler.replyAddress(cc, trigger);
         if (isStopCommand(channel, inbound.get())) {
             // The live session only: a stop must not conjure a conversation to have something to stop.
             UUID sessionId = agentSessionService.findActive(channel)
                     .map(AgentSession::getId).orElse(null);
             return ChannelResolution.cancel(
-                    Channels.ofPrompt(new ChannelInfo(channel.getId(), sessionId, null)));
+                    Channels.ofPrompt(new ChannelInfo(channel.getId(), sessionId, null, address)));
         }
 
         AgentSession session = resolveSession(channel, trigger);
-        ChannelInfo info = new ChannelInfo(channel.getId(), session.getId(), null);
+        ChannelInfo info = new ChannelInfo(channel.getId(), session.getId(), null, address);
         // The progress role goes to the same channel when the handler delivers intermediate output (webchat);
         // answer is left unset — the worker falls back to prompt on its own.
         Channels channels = handler.deliverProgress(cc)

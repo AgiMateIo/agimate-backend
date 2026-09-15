@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.channel;
 import lombok.experimental.UtilityClass;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,7 +13,7 @@ import java.util.regex.Pattern;
 /**
  * Recursively renders placeholders in a JSONB-style template:
  * - {text} → the agent's answer text
- * - {trigger.<dot.path>} → a value from the payload of the session's last IN message
+ * - {trigger.<dot.path>} → a value from the data of the inbound trigger, as kept in the reply address
  */
 @UtilityClass
 public class PlaceholderRenderer {
@@ -21,6 +22,53 @@ public class PlaceholderRenderer {
 
     public static final String TEXT_PLACEHOLDER = "text";
     public static final String TRIGGER_PREFIX = "trigger.";
+
+    /**
+     * The part of {@code triggerData} the template's {@code {trigger.*}} placeholders read, nested as in
+     * the original — so {@link #render} over the result resolves exactly as over the whole payload.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> triggerFields(Map<String, Object> template, Map<String, Object> triggerData) {
+        List<String> paths = triggerPaths(template, new ArrayList<>());
+        // Shorter first: a path under one already taken is inside its value and is skipped.
+        paths.sort(Comparator.comparingInt(String::length));
+        Map<String, Object> fields = new LinkedHashMap<>();
+        List<String> taken = new ArrayList<>();
+        for (String path : paths) {
+            if (taken.stream().anyMatch(t -> path.equals(t) || path.startsWith(t + "."))) {
+                continue;
+            }
+            Object value = InputFilterEvaluator.resolvePath(triggerData, path);
+            if (value == null) {
+                continue;
+            }
+            String[] segments = path.split("\\.");
+            Map<String, Object> node = fields;
+            for (int i = 0; i < segments.length - 1; i++) {
+                node = (Map<String, Object>) node.computeIfAbsent(segments[i], k -> new LinkedHashMap<String, Object>());
+            }
+            node.put(segments[segments.length - 1], value);
+            taken.add(path);
+        }
+        return fields;
+    }
+
+    private static List<String> triggerPaths(Object value, List<String> paths) {
+        if (value instanceof String s) {
+            Matcher matcher = PLACEHOLDER.matcher(s);
+            while (matcher.find()) {
+                String key = matcher.group(1).trim();
+                if (key.startsWith(TRIGGER_PREFIX)) {
+                    paths.add(key.substring(TRIGGER_PREFIX.length()));
+                }
+            }
+        } else if (value instanceof Map<?, ?> map) {
+            map.values().forEach(v -> triggerPaths(v, paths));
+        } else if (value instanceof List<?> list) {
+            list.forEach(v -> triggerPaths(v, paths));
+        }
+        return paths;
+    }
 
     public static Map<String, Object> render(Map<String, Object> template,
                                              String text,

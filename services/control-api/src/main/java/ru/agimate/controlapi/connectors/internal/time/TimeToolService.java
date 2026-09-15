@@ -14,8 +14,10 @@ import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
+import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
@@ -32,6 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * Tools of the time connector: the current time and scheduling of an agent's deferred jobs.
@@ -52,8 +55,12 @@ public class TimeToolService {
     /** Firing is merely publishing a trigger; the iteration is short. */
     private static final int FIRE_TIMEOUT_SECONDS = 60;
 
+    /** Job arg carrying the scheduling conversation's reply address to {@link #fire}. */
+    static final String REPLY_ADDRESS = "replyAddress";
+
     private final ConnectorJobService jobService;
     private final TriggerRouterService triggerRouterService;
+    private final AgentRunRepository agentRunRepository;
 
     @Tool(name = "current_datetime", description = "Get the current date and time in UTC (ISO-8601)",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
@@ -114,11 +121,17 @@ public class TimeToolService {
             config = JobSchedule.cronConfig(cron, resolvedZone);
         }
 
-        JobSpec spec = new JobSpec(
-                FIRE_TASK, type, config, Map.of("prompt", prompt), FIRE_TIMEOUT_SECONDS);
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("prompt", prompt);
+        Map<String, Object> address = replyAddress(ctx);
+        if (address != null) {
+            args.put(REPLY_ADDRESS, address);
+        }
+        JobSpec spec = new JobSpec(FIRE_TASK, type, config, args, FIRE_TIMEOUT_SECONDS);
         // A snapshot of the call's originating channel and prompt session onto the job's row: the reminder
         // will reach the agent with that channel as progress/answer (a reminder has no prompt), and while the
-        // session is alive — with the history and the partition of the original conversation.
+        // session is alive — with the history and the partition of the original conversation. The reply
+        // address rides in the args: it is handed back to fire as is, nothing else reads it.
         ConnectorJob row = jobService.schedule(
                 TimeConnectorService.CONNECTOR_CODE, ctx.connectionId(), ctx.userId(),
                 ctx.agentId(), ctx.channelId(), ctx.sessionId(), spec, firstRunAt);
@@ -181,7 +194,9 @@ public class TimeToolService {
      * reconcile would create a background SYSTEM row with no initiating agent.
      */
     @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent", internal = true)
-    public void fire(@ToolParam("Prompt to deliver to the agent") String prompt) {
+    public void fire(@ToolParam("Prompt to deliver to the agent") String prompt,
+                     @ToolParam(value = "Reply address of the scheduling conversation", required = false)
+                     Map<String, Object> replyAddress) {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null) {
             throw new ConnectorException("Scheduled task has no originating agent");
@@ -192,8 +207,23 @@ public class TimeToolService {
                 ctx.connectionId(),
                 DUE_TRIGGER,
                 Map.of("prompt", prompt == null ? "" : prompt),
-                fireContext(audience, ctx.channelId(), ctx.sessionId()));
+                fireContext(audience, ctx.channelId(), ctx.sessionId(), replyAddress));
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
+    }
+
+    /** The address of the call's conversation, as the calling run's channel snapshot keeps it. */
+    private Map<String, Object> replyAddress(ConnectorEnv ctx) {
+        if (ctx.runId() == null || ctx.sessionId() == null) {
+            return null;
+        }
+        return agentRunRepository.findById(ctx.runId())
+                .map(run -> ChannelsCodec.fromMap(run.getChannels()))
+                .map(channels -> Stream.of(channels.prompt(), channels.answer())
+                        .filter(slot -> slot != null && ctx.sessionId().equals(slot.sessionId()))
+                        .findFirst()
+                        .map(ChannelInfo::address)
+                        .orElse(null))
+                .orElse(null);
     }
 
     /**
@@ -203,11 +233,12 @@ public class TimeToolService {
      * {@code progress}/{@code answer}; a session closed by the time it fires is replaced by
      * {@code ChannelRouteResolver} with the channel's active session.
      */
-    private TriggerContext fireContext(TriggerAudience audience, UUID channelId, UUID sessionId) {
+    private TriggerContext fireContext(TriggerAudience audience, UUID channelId, UUID sessionId,
+                                       Map<String, Object> replyAddress) {
         if (channelId == null) {
             return TriggerContext.audience(audience);
         }
-        ChannelInfo ref = new ChannelInfo(channelId, sessionId, null);
+        ChannelInfo ref = new ChannelInfo(channelId, sessionId, null, replyAddress);
         return new TriggerContext(audience, new Channels(null, ref, ref));
     }
 

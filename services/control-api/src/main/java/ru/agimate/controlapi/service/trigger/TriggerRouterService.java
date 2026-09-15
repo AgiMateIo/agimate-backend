@@ -247,11 +247,10 @@ public class TriggerRouterService {
         if (cancelled > 0) {
             return;
         }
-        ChannelInfo prompt = route.channels().prompt();
-        outboundService.send(route.agent().getId(), prompt.channelId(), sessionId,
+        outboundService.send(route.agent().getId(), route.channels().prompt(),
                 OutboundMessage.text(channelTexts.get(ChannelTexts.NOTHING_TO_STOP,
                         "Nothing to stop: the agent is not working right now.")),
-                triggerLog.getId() + ":nothing-to-stop", "answer", null);
+                triggerLog.getId() + ":nothing-to-stop", "answer", null, null);
     }
 
     private static TriggerAudience audienceOf(Trigger trigger) {

@@ -14,7 +14,10 @@ import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.enums.FileReferenceKind;
 import ru.agimate.controlapi.database.entities.AgentSession;
+import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.session.AgentSessionService;
+import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
@@ -35,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +52,7 @@ class ChannelMessageOutboundServiceTest {
     private static final UUID CHANNEL_ID = UUID.randomUUID();
     private static final UUID SESSION_ID = UUID.randomUUID();
     private static final UUID CONNECTION_ID = UUID.randomUUID();
+    private static final ChannelInfo TARGET = new ChannelInfo(CHANNEL_ID, null, null);
 
     @Mock private ChannelRepository channelRepository;
     @Mock private AgentSessionRepository agentSessionRepository;
@@ -110,7 +115,7 @@ class ChannelMessageOutboundServiceTest {
             OutboundMessage outbound = OutboundMessage.text("hi");
             stubHappyPath(outbound, List.of(request("m1"), request("m1:att0")));
 
-            var result = service.send(AGENT_ID, CHANNEL_ID, null, outbound, "m1", null, null);
+            var result = service.send(AGENT_ID, TARGET, outbound, "m1", null, null, null);
 
             assertEquals("m1", result.messageId());
             verify(agentToolCallService, times(2)).processToolCall(eq(AGENT_ID), any());
@@ -127,7 +132,7 @@ class ChannelMessageOutboundServiceTest {
             doThrow(new ForbiddenStatusException("denied"))
                     .when(agentToolCallService).processToolCall(AGENT_ID, att0);
 
-            var result = service.send(AGENT_ID, CHANNEL_ID, null, outbound, "m1", null, null);
+            var result = service.send(AGENT_ID, TARGET, outbound, "m1", null, null, null);
 
             assertEquals("m1", result.messageId());
             verify(agentToolCallService).processToolCall(AGENT_ID, text);
@@ -150,7 +155,7 @@ class ChannelMessageOutboundServiceTest {
             when(handler.supportsOutboundAttachments()).thenReturn(true);
             when(handler.handleOutput(any(), any(), any())).thenReturn(List.of());
 
-            service.send(AGENT_ID, CHANNEL_ID, null, outbound, "m1", "progress", "THINKING");
+            service.send(AGENT_ID, TARGET, outbound, "m1", "progress", "THINKING", null);
 
             ArgumentCaptor<OutboundMessage> delivered = ArgumentCaptor.forClass(OutboundMessage.class);
             verify(handler).handleOutput(any(), delivered.capture(), any());
@@ -178,7 +183,7 @@ class ChannelMessageOutboundServiceTest {
             when(handler.supportsOutboundAttachments()).thenReturn(true);
             when(handler.handleOutput(any(), any(), any())).thenReturn(List.of());
 
-            service.send(AGENT_ID, CHANNEL_ID, null, outbound, "m1", null, null);
+            service.send(AGENT_ID, TARGET, outbound, "m1", null, null, null);
 
             verify(fileReferenceService).record(eq(List.of(fileId)), eq(SESSION_ID), eq(AGENT_ID),
                     eq(FileReferenceKind.OUTBOUND));
@@ -195,9 +200,54 @@ class ChannelMessageOutboundServiceTest {
                     .when(agentToolCallService).processToolCall(eq(AGENT_ID), any());
 
             assertThrows(ForbiddenStatusException.class,
-                    () -> service.send(AGENT_ID, CHANNEL_ID, null, outbound, "m1", null, null));
+                    () -> service.send(AGENT_ID, TARGET, outbound, "m1", null, null, null));
             verify(agentToolCallService).processToolCall(AGENT_ID, text);
             verify(agentToolCallService).processToolCall(AGENT_ID, att0);
+        }
+    }
+
+    @Nested
+    @DisplayName("адрес ответа")
+    class Address {
+
+        private OutboundDispatch dispatchFor(ChannelInfo target) {
+            OutboundMessage outbound = OutboundMessage.text("hi");
+            when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            when(channelHandlerRegistry.find("telegram")).thenReturn(Optional.of(handler));
+            when(agentSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
+            when(attachmentParser.parse(USER_ID, outbound)).thenReturn(outbound);
+            when(handler.handleOutput(any(), eq(outbound), any())).thenReturn(List.of());
+
+            service.send(AGENT_ID, target, outbound, "m1", null, null, null);
+
+            ArgumentCaptor<OutboundDispatch> dispatch = ArgumentCaptor.forClass(OutboundDispatch.class);
+            verify(handler).handleOutput(any(), eq(outbound), dispatch.capture());
+            return dispatch.getValue();
+        }
+
+        @Test
+        @DisplayName("берётся из снимка рана, журнал сессии не читается")
+        void fromTheSnapshot() {
+            OutboundDispatch dispatch = dispatchFor(
+                    new ChannelInfo(CHANNEL_ID, SESSION_ID, null, Map.of("chatId", 4271)));
+
+            assertEquals(Map.of("chatId", 4271), dispatch.address());
+            verify(channelSessionMessageRepository, never())
+                    .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(any());
+        }
+
+        @Test
+        @DisplayName("снимок без адреса (до выката) — последний вход сессии из журнала")
+        void snapshotWithoutAddressFallsBackToTheJournal() {
+            ChannelSessionMessage inbound = ChannelSessionMessage.builder()
+                    .triggerInput(Map.of("chatId", 99)).build();
+            when(channelSessionMessageRepository
+                    .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(SESSION_ID))
+                    .thenReturn(Optional.of(inbound));
+
+            OutboundDispatch dispatch = dispatchFor(new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+
+            assertEquals(Map.of("chatId", 99), dispatch.address());
         }
     }
 }

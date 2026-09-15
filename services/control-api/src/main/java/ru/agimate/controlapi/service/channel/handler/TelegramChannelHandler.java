@@ -130,6 +130,12 @@ public class TelegramChannelHandler implements ChannelHandler {
     }
 
     @Override
+    public Map<String, Object> replyAddress(ChannelConfig config, Trigger trigger) {
+        Object chatId = trigger.data() != null ? trigger.data().get("chatId") : null;
+        return chatId != null ? Map.of("chatId", chatId) : null;
+    }
+
+    @Override
     public boolean supportsOutboundAttachments() {
         return true;
     }
@@ -137,15 +143,15 @@ public class TelegramChannelHandler implements ChannelHandler {
     @Override
     public List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
                                               OutboundDispatch dispatch) {
-        Map<String, Object> replyContext = dispatch.replyContext() != null ? dispatch.replyContext() : Map.of();
-        // The answer's address: from the incoming message (replyContext) → the default from config (proactive and non-channel triggers).
-        Object chatId = replyContext.get("chatId");
+        Map<String, Object> address = dispatch.address() != null ? dispatch.address() : Map.of();
+        // The answer's address: the chat the conversation came from → the default from config (a run with no chat behind it).
+        Object chatId = address.get("chatId");
         if (chatId == null) {
             chatId = config.setting(CFG_DEFAULT_CHAT_ID);
         }
         if (chatId == null) {
             throw new ConnectorException(
-                    "cannot send Telegram reply: no chatId in reply context and no defaultChatId in config");
+                    "cannot send Telegram reply: no chatId in the reply address and no defaultChatId in config");
         }
 
         List<ToolCallRequest> requests = new ArrayList<>();

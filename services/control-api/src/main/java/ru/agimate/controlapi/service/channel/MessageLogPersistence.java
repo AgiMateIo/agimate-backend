@@ -30,8 +30,8 @@ import java.util.UUID;
  *
  * <p>INBOUND is the «agent received it» ack: the worker sends no text, and the canonical form is
  * taken from the trigger's persistent data ({@link InboundTextResolver} / a compact JSON of the
- * event); {@code trigger_input} is filled from {@code trigger_log.input} (the reply-context
- * mechanism). A final ANSWER marks every message of the run {@code completed=true} — only those are
+ * event); {@code trigger_input} is filled from {@code trigger_log.input} of a channel message only —
+ * the old reply-address lookup for snapshots with no address, which an event must not overwrite. A final ANSWER marks every message of the run {@code completed=true} — only those are
  * visible to the history of later runs.
  */
 @Slf4j
@@ -94,7 +94,7 @@ public class MessageLogPersistence {
             String message = kind == ChannelSessionMessageKind.INBOUND
                     ? canonicalInbound(run, channels)
                     : text;
-            String triggerInput = kind == ChannelSessionMessageKind.INBOUND
+            String triggerInput = kind == ChannelSessionMessageKind.INBOUND && channels.prompt() != null
                     ? JsonUtils.writeValueAsString(run.getTriggerLog().getInput())
                     : null;
             String messageJson = toolTurn != null && !toolTurn.isEmpty()

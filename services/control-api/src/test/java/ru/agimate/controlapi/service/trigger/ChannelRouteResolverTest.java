@@ -318,4 +318,70 @@ class ChannelRouteResolverTest {
             assertNull(resolution.channels().answer());
         }
     }
+
+    @Nested
+    @DisplayName("адрес ответа в снимке каналов")
+    class ReplyAddress {
+
+        private static final Map<String, Object> CHAT = Map.of("chatId", 4271);
+
+        @Test
+        @DisplayName("адрес обработчика ложится в prompt и progress")
+        void addressFromHandler() {
+            stubChannelLookupByTriple();
+            when(handler.replyAddress(any(ChannelConfig.class), any(Trigger.class))).thenReturn(CHAT);
+            when(handler.deliverProgress(any(ChannelConfig.class))).thenReturn(true);
+            when(agentSessionService.findOrCreateActive(channel, null))
+                    .thenReturn(session(UUID.randomUUID(), CHANNEL_ID));
+
+            ChannelResolution resolution = resolver.resolve(agent,
+                    Trigger.createBasic("webchat", IDENTITY, "message_received", Map.of("text", "hi")));
+
+            assertEquals(CHAT, resolution.channels().prompt().address());
+            assertEquals(CHAT, resolution.channels().progress().address());
+        }
+
+        @Test
+        @DisplayName("«/stop»: ответ «нечего останавливать» знает чат, приславший команду")
+        void stopCarriesAddress() {
+            when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                    AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.of(channel));
+            when(channelHandlerRegistry.find("webchat")).thenReturn(Optional.of(handler));
+            when(handler.handleInput(any(ChannelConfig.class), any(Trigger.class)))
+                    .thenReturn(Optional.of(InboundMessage.text("/stop")));
+            when(handler.replyAddress(any(ChannelConfig.class), any(Trigger.class))).thenReturn(CHAT);
+
+            ChannelResolution resolution = resolver.resolve(agent,
+                    Trigger.createBasic("webchat", IDENTITY, "message_received", Map.of("text", "/stop")));
+
+            assertEquals(ChannelResolution.Kind.CANCEL, resolution.kind());
+            assertEquals(CHAT, resolution.channels().prompt().address());
+        }
+
+        @Test
+        @DisplayName("проактивный снимок переносит адрес")
+        void proactiveKeepsAddress() {
+            ChannelInfo ref = new ChannelInfo(CHANNEL_ID, null, null, CHAT);
+            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            when(agentSessionService.findOrCreateActive(channel, null))
+                    .thenReturn(session(UUID.randomUUID(), CHANNEL_ID));
+
+            ChannelResolution resolution = resolver.resolve(agent, Trigger.createDirected("time", IDENTITY, "due",
+                    Map.of("prompt", "п"), new TriggerContext(null, new Channels(null, ref, ref))));
+
+            assertEquals(CHAT, resolution.channels().answer().address());
+        }
+
+        @Test
+        @DisplayName("снимок с адресом переживает запись в agent_runs.channels и обратно")
+        void addressSurvivesTheCodec() {
+            Channels channels = new Channels(null, null, new ChannelInfo(CHANNEL_ID, UUID.randomUUID(), null, CHAT));
+
+            Channels restored = ChannelsCodec.fromMap(ChannelsCodec.toMap(channels));
+
+            assertEquals(CHAT, restored.answer().address());
+            assertNull(ChannelsCodec.fromMap(ChannelsCodec.toMap(Channels.ofPrompt(
+                    new ChannelInfo(CHANNEL_ID, null, null)))).prompt().address());
+        }
+    }
 }

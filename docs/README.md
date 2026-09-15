@@ -110,6 +110,7 @@
 | [skill-connector-requirements.md](decisions/skill-connector-requirements.md) | Навык объявляет экземпляр, а не код: ключ требования, параметры MCP и правила доступа; мастер подключения получает план, а не догадки |
 | [content-taxonomy.md](decisions/content-taxonomy.md) | Категории и теги каталога: одна ось «о чём это» на навыки и пресеты, закрытый словарь тегов на остальное, дозаполнение засеянных установок |
 | [outbound-tls-trust.md](decisions/outbound-tls-trust.md) | Корень, которого нет в `cacerts`: штатный набор якорей плюс наш, по умолчанию выключенный, и почему доверие живёт у установки, а не у подключения |
+| [reply-address-in-channels.md](decisions/reply-address-in-channels.md) | Куда уходит ответ: чат — часть снимка каналов рана, а не последний вход сессии, поэтому событие в разговоре не сбивает адрес |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md) |
 
 ## Как ведётся документация

@@ -22,6 +22,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.file.FileReferenceService;
+import ru.agimate.controlapi.service.trigger.ChannelInfo;
 
 import java.util.List;
 import java.util.Map;
@@ -48,18 +49,14 @@ public class ChannelMessageOutboundService {
      * session, the tool log), and the execution dispatch comes afterwards — otherwise the async
      * executor would not see an uncommitted {@code tool_call_log}, and a call from a post-commit
      * context (SaveMessage) would silently lose the record (the notorious REQUIRED inside afterCommit).
+     *
+     * @param target the channel slot of the run's snapshot: the channel, its session (a {@code null}
+     *               session means the channel's active one) and the reply address
+     * @param runId  the run whose output this is; {@code null} for a platform line with no run behind it
      */
-    public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
-                               OutboundMessage outbound, String messageId, String stream,
-                               String progressType) {
-        return send(agentId, channelId, sessionIdOrNull, outbound, messageId, stream, progressType, null);
-    }
-
-    /** The same, for the output of a run: {@code runId} reaches the handler in {@link OutboundDispatch}. */
-    public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
-                               OutboundMessage outbound, String messageId, String stream,
-                               String progressType, UUID runId) {
-        Channel channel = channelRepository.findByIdAndDeletedAtIsNull(channelId)
+    public OutboundResult send(UUID agentId, ChannelInfo target, OutboundMessage outbound, String messageId,
+                               String stream, String progressType, UUID runId) {
+        Channel channel = channelRepository.findByIdAndDeletedAtIsNull(target.channelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
 
         if (!agentId.equals(channel.getAgentId())) {
@@ -70,8 +67,10 @@ public class ChannelMessageOutboundService {
                 .orElseThrow(() -> new NotFoundStatusException(
                         "Channel handler not found: " + channel.getChannelHandler()));
 
-        AgentSession session = resolveSession(channel, sessionIdOrNull);
-        Map<String, Object> replyContext = lookupLastInboundTrigger(session);
+        AgentSession session = resolveSession(channel, target.sessionId());
+        Map<String, Object> address = target.address() != null
+                ? target.address()
+                : lookupLastInboundTrigger(session);
 
         // The attach convention: [[attach:agf_…]] markers from the text → parts (the owner is the channel's user).
         OutboundMessage effectiveOutbound = attachmentParser.parse(channel.getUserId(), outbound);
@@ -95,7 +94,7 @@ public class ChannelMessageOutboundService {
         ChannelConfig config = new ChannelConfig(
                 channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
         OutboundDispatch dispatch = new OutboundDispatch(
-                effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext, runId);
+                effectiveMessageId, stream, progressType, channel.getId(), session.getId(), address, runId);
 
         dispatchAll(channel, handler.handleOutput(config, effectiveOutbound, dispatch));
         // The single funnel of everything outgoing: the parts are already resolved from [[attach:…]],
@@ -149,6 +148,8 @@ public class ChannelMessageOutboundService {
         return agentSessionService.findOrCreateActive(channel, null);
     }
 
+    // The address of a snapshot taken before addresses were recorded — a run queued over the deploy, an
+    // event copied from such a run. Removed after one release (docs/decisions/reply-address-in-channels.md).
     private Map<String, Object> lookupLastInboundTrigger(AgentSession session) {
         return channelSessionMessageRepository
                 .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(session.getId())

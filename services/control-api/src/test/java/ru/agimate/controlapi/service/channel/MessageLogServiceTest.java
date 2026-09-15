@@ -118,6 +118,19 @@ class MessageLogServiceTest {
         }
 
         @Test
+        @DisplayName("INBOUND рана события: trigger_input не пишется — событие не становится последним входом разговора")
+        void eventInboundKeepsNoTriggerInput() {
+            run(SESSION_ID, new Channels(null, null, new ChannelInfo(PROMPT_CHANNEL, SESSION_ID, null)));
+            when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
+
+            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
+                    eq(0), eq("INBOUND"), isNull(), contains("\"text\""), isNull(), isNull());
+        }
+
+        @Test
         @DisplayName("повтор (run_id, seq) → duplicate=true")
         void duplicate() {
             run(SESSION_ID, dialogueChannels());
@@ -247,8 +260,8 @@ class MessageLogServiceTest {
             service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "thinking...", null);
 
             // Оба вызова (ретрай) шлют один и тот же messageId — дедуп downstream.
-            verify(outboundService, org.mockito.Mockito.times(2)).send(eq(AGENT_ID), eq(PROGRESS_CHANNEL),
-                    eq(SESSION_ID), any(OutboundMessage.class),
+            verify(outboundService, org.mockito.Mockito.times(2)).send(eq(AGENT_ID), eq(new ChannelInfo(PROGRESS_CHANNEL, SESSION_ID, null)),
+                    any(OutboundMessage.class),
                     eq(UUID.nameUUIDFromBytes(("agimate-msglog:" + TRIGGER_ID + ":1")
                             .getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString()),
                     eq("progress"), eq("TEXT"), eq(TRIGGER_ID));
@@ -261,7 +274,7 @@ class MessageLogServiceTest {
 
             service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done", null);
 
-            verify(outboundService).send(eq(AGENT_ID), eq(PROMPT_CHANNEL), eq(SESSION_ID),
+            verify(outboundService).send(eq(AGENT_ID), eq(new ChannelInfo(PROMPT_CHANNEL, SESSION_ID, null)),
                     any(OutboundMessage.class), anyString(), eq("answer"), isNull(), eq(TRIGGER_ID));
         }
 
@@ -272,14 +285,14 @@ class MessageLogServiceTest {
 
             service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TEXT", "line", null);
 
-            verify(outboundService, never()).send(any(), any(), any(), any(), any(), any(), any(), any());
+            verify(outboundService, never()).send(any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
         @DisplayName("сбой доставки (канал удалён mid-run) не роняет запись — history-only")
         void deliveryFailureDoesNotFailSave() {
             run(SESSION_ID, dialogueChannels());
-            when(outboundService.send(any(), any(), any(), any(), any(), any(), any(), any()))
+            when(outboundService.send(any(), any(), any(), any(), any(), any(), any()))
                     .thenThrow(new NotFoundStatusException("Channel not found"));
 
             var result = service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done", null);

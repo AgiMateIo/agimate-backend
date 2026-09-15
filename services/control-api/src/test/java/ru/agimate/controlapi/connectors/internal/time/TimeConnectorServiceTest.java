@@ -20,7 +20,7 @@ class TimeConnectorServiceTest {
 
     // taskService/triggerRouter не нужны для метаданных и current_datetime — передаём null.
     private final TimeConnectorService handler =
-            new TimeConnectorService(new TimeToolService(null, null));
+            new TimeConnectorService(new TimeToolService(null, null, null));
 
     private static ConnectorEnv env() {
         return new ConnectorEnv(null, null, null, null, null, null, Map.of(), null);

@@ -8,7 +8,10 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
+import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -16,6 +19,7 @@ import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,8 +39,9 @@ class TimeToolServiceTest {
 
     private final ConnectorJobService jobService = mock(ConnectorJobService.class);
     private final TriggerRouterService triggerRouterService = mock(TriggerRouterService.class);
+    private final AgentRunRepository agentRunRepository = mock(AgentRunRepository.class);
     private final TimeConnectorService handler =
-            new TimeConnectorService(new TimeToolService(jobService, triggerRouterService));
+            new TimeConnectorService(new TimeToolService(jobService, triggerRouterService, agentRunRepository));
 
     private static ConnectorEnv env() {
         return new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, null, Map.of(), null);
@@ -99,6 +104,34 @@ class TimeToolServiceTest {
         assertNull(channels.prompt());
         assertEquals(new ChannelInfo(channelId, sessionId, null), channels.progress());
         assertEquals(channels.progress(), channels.answer());
+    }
+
+    @Test
+    @DisplayName("адрес ответа из снимка вызвавшего рана уезжает в args job и возвращается в fire")
+    void replyAddressRoundTrip() {
+        UUID channelId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        UUID runId = UUID.randomUUID();
+        Map<String, Object> chat = Map.of("chatId", 4271);
+        AgentRun run = AgentRun.builder().channels(ChannelsCodec.toMap(
+                Channels.ofPrompt(new ChannelInfo(channelId, sessionId, null, chat)))).build();
+        when(agentRunRepository.findById(runId)).thenReturn(Optional.of(run));
+        when(jobService.schedule(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(ConnectorJob.builder().id(UUID.randomUUID()).build());
+        ConnectorEnv callEnv = new ConnectorEnv(null, USER_ID, AGENT_ID, runId, channelId, sessionId, Map.of(), null);
+
+        handler.executeTool(callEnv, "schedule", Map.of("prompt", "п", "delaySeconds", 60));
+
+        ArgumentCaptor<JobSpec> spec = ArgumentCaptor.forClass(JobSpec.class);
+        verify(jobService).schedule(any(), any(), any(), any(), any(), any(), spec.capture(), any());
+        assertEquals(chat, spec.getValue().args().get(TimeToolService.REPLY_ADDRESS));
+
+        ConnectorEnv jobEnv = new ConnectorEnv(null, USER_ID, AGENT_ID, null, channelId, sessionId, Map.of(), null);
+        handler.executeJob(jobEnv, "fire", spec.getValue().args());
+
+        ArgumentCaptor<Trigger> trigger = ArgumentCaptor.forClass(Trigger.class);
+        verify(triggerRouterService).routeTrigger(eq(USER_ID), trigger.capture());
+        assertEquals(chat, trigger.getValue().context().channels().answer().address());
     }
 
     @Test

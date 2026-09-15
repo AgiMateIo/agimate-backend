@@ -22,6 +22,7 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerLogService;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -105,7 +106,7 @@ class SubagentReportDeliveryTest {
     }
 
     private void dialogueRun() {
-        ChannelInfo chat = new ChannelInfo(CHAT_CHANNEL, CONVERSATION, null);
+        ChannelInfo chat = new ChannelInfo(CHAT_CHANNEL, CONVERSATION, null, Map.of("chatId", 4271));
         AgentRun dialogue = AgentRun.builder().channels(ChannelsCodec.toMap(Channels.ofPrompt(chat))).build();
         when(agentRunRepository.findLatestDialogueRun(CONVERSATION)).thenReturn(Optional.of(dialogue));
     }
@@ -124,6 +125,8 @@ class SubagentReportDeliveryTest {
         assertEquals(CHILD_RUN, prepared.run().getOriginRunId());
         assertNull(prepared.channels().prompt());
         assertEquals(CHAT_CHANNEL, prepared.channels().answer().channelId());
+        // The address travels with the copy: the report answers into the chat the person wrote from.
+        assertEquals(Map.of("chatId", 4271), prepared.channels().answer().address());
         assertEquals(2L, prepared.trigger().data().get("remaining"));
         assertEquals("отчёт", prepared.trigger().data().get("report"));
         assertEquals(CHILD_SESSION.toString(), prepared.trigger().data().get("subagentId"));

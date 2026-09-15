@@ -89,11 +89,18 @@ public class GenericChannelHandler implements ChannelHandler {
         return Optional.of(InboundMessage.text(text));
     }
 
+    /** Only the fields the reply template reads: the snapshot travels into every event run's channels. */
+    @Override
+    public Map<String, Object> replyAddress(ChannelConfig config, Trigger trigger) {
+        Map<String, Object> template = replyParams(config);
+        return template != null ? PlaceholderRenderer.triggerFields(template, trigger.data()) : null;
+    }
+
     @Override
     public List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
                                                   OutboundDispatch dispatch) {
         Map<String, Object> args = PlaceholderRenderer.render(
-                replyParams(config), outbound.text(), dispatch.replyContext());
+                replyParams(config), outbound.text(), dispatch.address());
         return List.of(ToolCallRequest.builder()
                 .id(dispatch.messageId())
                 .connectionId(replyConnectionId(config))
