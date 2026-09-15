@@ -22,6 +22,7 @@ import ru.agimate.controlapi.storage.FileStorageService.FileContent;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.NewFile;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.Base64;
@@ -95,12 +96,16 @@ class MediaInferenceServiceTest {
     }
 
     private static Map<String, Object> imageResponse(String text) {
+        return imageResponse(text, PNG_DATA_URI);
+    }
+
+    private static Map<String, Object> imageResponse(String text, String dataUri) {
         return Map.of(
                 "choices", List.of(Map.of("message", Map.of(
                         "content", text,
                         "images", List.of(Map.of(
                                 "type", "image_url",
-                                "image_url", Map.of("url", PNG_DATA_URI)))))),
+                                "image_url", Map.of("url", dataUri)))))),
                 "usage", Map.of("prompt_tokens", 10, "completion_tokens", 1290));
     }
 
@@ -149,6 +154,25 @@ class MediaInferenceServiceTest {
             assertEquals(runId, usage.getValue().runId());
             assertEquals(1290, usage.getValue().outputTokens());
             assertEquals(provider.getId(), usage.getValue().providerId());
+        }
+
+        @Test
+        @DisplayName("непрозрачный PNG от модели ложится в storage JPEG'ом")
+        void opaquePngStoredAsJpeg() {
+            byte[] png = JpegRecompressorTest.photoLikePng(BufferedImage.TYPE_INT_RGB);
+            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+                    .thenReturn(resolved("img-model", Map.of()));
+            when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse("",
+                    "data:image/png;base64," + Base64.getEncoder().encodeToString(png)));
+            when(fileStorageService.store(any(NewFile.class), any()))
+                    .thenReturn(StoredFile.builder().id(UUID.randomUUID()).build());
+
+            service.generateImage(call, "нарисуй кота", List.of());
+
+            ArgumentCaptor<NewFile> spec = ArgumentCaptor.forClass(NewFile.class);
+            verify(fileStorageService).store(spec.capture(), any());
+            assertEquals("image/jpeg", spec.getValue().mime());
+            assertTrue(spec.getValue().sizeBytes() < png.length);
         }
 
         @Test

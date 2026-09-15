@@ -85,7 +85,8 @@ public class MediaInferenceService {
     /**
      * Generation from a prompt: with no sources — from scratch, with one — editing, with several —
      * composition (the model receives them in list order). The result is a file in storage with the
-     * provenance {@code media:<model>} and the default TTL.
+     * provenance {@code media:<model>} and the default TTL, an opaque PNG stored as a JPEG
+     * ({@link JpegRecompressor}).
      */
     public ImageResult generateImage(MediaCall call, String prompt, List<String> sourceFileIds) {
         List<String> sourceIds = sourceFileIds == null ? List.of() : sourceFileIds;
@@ -104,15 +105,16 @@ public class MediaInferenceService {
                     call.agentId(), resolved.model(), transport.type());
             return new ImageResult(null, generated.text());
         }
+        InputImage image = JpegRecompressor.compact(generated.mime(), generated.bytes());
         // No name: a generated image has none, and a synthetic one would be indistinguishable from a real one.
         StoredFile stored = fileStorageService.store(NewFile.builder()
                 .userId(call.userId())
                 .agentId(call.agentId())
                 .sessionId(call.sessionId())
                 .origin("media:" + resolved.model())
-                .mime(generated.mime())
-                .sizeBytes(generated.bytes().length)
-                .build(), new ByteArrayInputStream(generated.bytes()));
+                .mime(image.mime())
+                .sizeBytes(image.bytes().length)
+                .build(), new ByteArrayInputStream(image.bytes()));
         return new ImageResult(stored, generated.text());
     }
 
