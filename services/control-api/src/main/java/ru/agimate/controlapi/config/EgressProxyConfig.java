@@ -1,11 +1,8 @@
 package ru.agimate.controlapi.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ru.agimate.common.net.EgressProxy;
-
-import java.util.List;
 
 /**
  * The proxy for hosts that do not answer from where the installation runs. The worker reads the same
@@ -16,8 +13,7 @@ import java.util.List;
 public class EgressProxyConfig {
 
     @Bean
-    public EgressProxy egressProxy(@Value("${app.net.proxy.url:}") String url,
-                                   @Value("${app.net.proxy.hosts:}") List<String> hosts) {
-        return EgressProxy.of(url, hosts);
+    public EgressProxy egressProxy(EgressProxyProperties properties) {
+        return EgressProxy.of(properties.getUrl(), properties.getHosts());
     }
 }

@@ -1,5 +1,6 @@
 package ru.agimate.common.net;
 
+import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,6 +33,9 @@ public final class EgressProxy extends ProxySelector {
 
     public static final EgressProxy NONE = new EgressProxy(null, null, null, List.of());
 
+    /** What an unencoded {@code @} or {@code #} in a password turns into — said instead of «no host». */
+    private static final String ENCODING_HINT = " (special characters of the password must be percent-encoded: @ is %40)";
+
     private final Proxy proxy;
     private final String username;
     private final String password;
@@ -46,20 +50,22 @@ public final class EgressProxy extends ProxySelector {
     }
 
     /**
-     * @param url   {@code http://user:password@host:port}; blank together with an empty
-     *              {@code hosts} means no proxy
-     * @throws IllegalStateException the configuration is incomplete or unsafe — a half-configured
-     *                               proxy silently routes nothing, so the start stops instead
+     * @param url   {@code http://user:password@host:port}; blank means no proxy, whatever the hosts —
+     *              the list may live in shared settings while only some installations have a proxy
+     * @throws IllegalStateException the url is set but unusable, or nothing would go through it
      */
     public static EgressProxy of(String url, List<String> hosts) {
         List<String> patterns = hosts == null ? List.of()
                 : hosts.stream().map(String::strip).filter(host -> !host.isEmpty()).toList();
-        boolean hasUrl = url != null && !url.isBlank();
-        if (!hasUrl && patterns.isEmpty()) {
+        if (url == null || url.isBlank()) {
+            if (!patterns.isEmpty()) {
+                // Loud, because a misspelt url variable otherwise shows up only as 403s from the providers.
+                log.warn("Egress proxy: hosts {} are listed but no url is set — they go direct", patterns);
+            }
             return NONE;
         }
-        if (!hasUrl || patterns.isEmpty()) {
-            throw new IllegalStateException("Egress proxy needs both a url and hosts");
+        if (patterns.isEmpty()) {
+            throw new IllegalStateException("Egress proxy url is set but no hosts are listed");
         }
 
         URI uri = parse(url.strip());
@@ -129,14 +135,17 @@ public final class EgressProxy extends ProxySelector {
         try {
             uri = new URI(url);
         } catch (URISyntaxException e) {
-            throw new IllegalStateException("Egress proxy url is invalid");
+            throw new IllegalStateException("Egress proxy url is invalid" + ENCODING_HINT);
         }
         // TLS to the proxy itself is something neither client speaks without wrappers.
         if (!"http".equalsIgnoreCase(uri.getScheme())) {
             throw new IllegalStateException("Egress proxy url must use http");
         }
-        if (uri.getHost() == null || uri.getPort() == -1) {
-            throw new IllegalStateException("Egress proxy url must name a host and a port");
+        if (uri.getHost() == null) {
+            throw new IllegalStateException("Egress proxy url has no host" + ENCODING_HINT);
+        }
+        if (uri.getPort() == -1) {
+            throw new IllegalStateException("Egress proxy url must name a port");
         }
         return uri;
     }
@@ -144,8 +153,9 @@ public final class EgressProxy extends ProxySelector {
     private static String normalize(String pattern) {
         String host = pattern.toLowerCase(Locale.ROOT);
         if (!host.startsWith("*.")) {
-            if (host.contains("*")) {
-                throw new IllegalStateException("Egress proxy host pattern not allowed: " + pattern);
+            // A url or host:port here would be accepted and never match, sending the host direct.
+            if (!InternetDomainName.isValid(host) && !InetAddresses.isInetAddress(host)) {
+                throw new IllegalStateException("Egress proxy host must be a bare host name: " + pattern);
             }
             return host;
         }

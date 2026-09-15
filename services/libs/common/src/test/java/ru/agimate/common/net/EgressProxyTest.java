@@ -62,13 +62,14 @@ class EgressProxyTest {
         }
 
         @Test
-        @DisplayName("пустой конфиг — прокси выключен и ничего не покрывает")
+        @DisplayName("без url прокси выключен и ничего не покрывает — даже если хосты перечислены")
         void none() {
-            EgressProxy none = EgressProxy.of("", List.of());
-            assertSame(EgressProxy.NONE, none);
-            assertFalse(none.enabled());
-            assertFalse(none.covers("openrouter.ai"));
-            assertSame(Proxy.NO_PROXY, none.select(URI.create("https://openrouter.ai")).getFirst());
+            for (EgressProxy none : List.of(EgressProxy.of("", List.of()), EgressProxy.of(null, List.of("openrouter.ai")))) {
+                assertSame(EgressProxy.NONE, none);
+                assertFalse(none.enabled());
+                assertFalse(none.covers("openrouter.ai"));
+                assertSame(Proxy.NO_PROXY, none.select(URI.create("https://openrouter.ai")).getFirst());
+            }
         }
     }
 
@@ -77,10 +78,10 @@ class EgressProxyTest {
     class Refusals {
 
         @Test
-        @DisplayName("url без hosts и hosts без url")
-        void halfConfigured() {
+        @DisplayName("url без hosts: прокси задан, но через него не пошло бы ничего")
+        void urlWithoutHosts() {
             assertThrows(IllegalStateException.class, () -> EgressProxy.of(URL, List.of()));
-            assertThrows(IllegalStateException.class, () -> EgressProxy.of("", List.of("openrouter.ai")));
+            assertThrows(IllegalStateException.class, () -> EgressProxy.of(URL, List.of(" ", "")));
         }
 
         @Test
@@ -92,6 +93,25 @@ class EgressProxyTest {
             assertThrows(IllegalStateException.class, () -> EgressProxy.of("http://u:p@203.0.113.10", hosts));
             assertThrows(IllegalStateException.class, () -> EgressProxy.of("http://203.0.113.10:3128", hosts));
             assertThrows(IllegalStateException.class, () -> EgressProxy.of("http://u@203.0.113.10:3128", hosts));
+        }
+
+        @Test
+        @DisplayName("незакодированный @ или # в пароле — подсказка про кодирование, а не «нет хоста»")
+        void unencodedPassword() {
+            List<String> hosts = List.of("openrouter.ai");
+            for (String url : List.of("http://u:p@ss@203.0.113.10:3128", "http://u:p#ss@203.0.113.10:3128")) {
+                IllegalStateException e = assertThrows(IllegalStateException.class, () -> EgressProxy.of(url, hosts));
+                assertTrue(e.getMessage().contains("%40"), e.getMessage());
+            }
+            assertEquals("p@ss", EgressProxy.of("http://u:p%40ss@203.0.113.10:3128", hosts).password());
+        }
+
+        @Test
+        @DisplayName("хост URL-ом или с портом: иначе он принялся бы и никогда не совпал")
+        void notABareHost() {
+            for (String host : List.of("https://openrouter.ai", "api.openai.com:443", "openrouter.ai/api", "user@host.com")) {
+                assertThrows(IllegalStateException.class, () -> EgressProxy.of(URL, List.of(host)), host);
+            }
         }
 
         @Test
