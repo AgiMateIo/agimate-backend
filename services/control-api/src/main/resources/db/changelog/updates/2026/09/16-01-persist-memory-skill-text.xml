@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      The nightly daily job of persist-memory is gone and consolidation runs once a day, so the seeded
+      skill body still describes a notes_by_session trigger that never arrives and an hourly cadence.
+      System skills are seed-only-if-missing, so this DML is the only way the new SKILL.md reaches an
+      environment seeded before the change; on a fresh one it is a no-op and the bootstrap seeds the
+      classpath text after Liquibase.
+
+      The body is rewritten only where it is still the seeded one: the installation's language is told
+      by the text itself (the language is fixed by the first seeding), and a skill an admin has edited
+      (version above 1, or the old section already gone) is left alone. The version is bumped because
+      the content changed — agents holding the skill see it as needing reinstall; the text applies at
+      once either way, the body is read live on every run.
+    -->
+    <changeSet id="rewrite-persist-memory-skill-ru" author="agimate">
+        <sql splitStatements="false"><![CDATA[
+            UPDATE skills
+            SET md_content = $skill$# Skill: AgiMate Memory
+
+Память двухслойная:
+
+- **cold** — свёрнутая память. Она **уже в твоём контексте** (блок memory) — не вызывай тулы, чтобы «вспомнить».
+- **hot** — заметки: сырые факты, которые ты добавляешь по ходу диалога (`save_memory_note`). Они тоже в твоём контексте, пока их не свернут в cold; свёртку раз в сутки инициирует триггер — вручную консолидацию не запускай.
+
+Твоя главная обязанность в диалоге — **вовремя сохранять заметки**: другого пути в память нет, диалоги потом никто не перечитывает.
+
+## Когда сохранять заметку
+
+Вызывай `save_memory_note`, как только появляется то, что пригодится в будущих разговорах:
+
+- пользователь просит запомнить или сообщает устойчивый факт о себе: имя, роль, таймзона, проекты, предпочтения, ограничения;
+- принято решение или договорённость, к которым вы вернётесь;
+- **негативные сигналы — самое ценное, не упускай**: тебя поправили или переделали твою работу (сохрани, что было не так и как надо), пользователь выразил недовольство (сохрани триггер реакции), задал жёсткий запрет («никогда не …»), ты ошибся и это указали (сохрани антипаттерн).
+
+Правила:
+
+- **Сомневаешься — сохраняй.** Заметки дешёвые и append-only; дубли и противоречия разрешит консолидация — не перечитывай память для проверки.
+- **Одна заметка — один самодостаточный факт**: будущий «ты» прочтёт её без контекста диалога. Плохо: «он согласился». Хорошо: «Пользователь согласовал релиз биллинга на 2026-07-01».
+- **Не сохраняй мусор**: одноразовые реплики и сиюминутные детали задачи.
+
+## Структура cold-памяти
+
+cold попадает в контекст каждый ход — держи её компактной. При консолидации раскладывай факты по разделам в этом порядке (пустые опускай):
+
+```markdown
+# Память
+
+## Профиль             ← стабильные факты о пользователе (имя, роль, таймзона, проекты)
+## Предпочтения         ← как общаться и работать: тон, формат, стиль, степень автономии
+## Чего избегать        ← раздражители, запреты, повторявшиеся правки — самое ценное
+## Приёмы и инструменты ← что работает, подводные камни, правила «если X — делай Y»
+## Рабочий контекст     ← активные цели/задачи/договорённости; вычищай завершённое
+## Глоссарий            ← термины и сущности в лексиконе пользователя (опционально)
+```
+
+Один пункт — одна строка — один атомарный факт. Компактность важнее полноты: сливай родственное, противоречия решай в пользу более свежего, не дублируй то, что и так в системном промпте или скиллах.
+
+## Триггеры
+
+### consolidate — «сверни заметки в cold»
+
+Приходит раз в сутки, если накопились заметки: в `data` — `consolidationId` и `notes`. Действуй так:
+
+1. `get_memory()` → текущее содержимое cold и его `version`.
+2. Слей `data.notes` с cold по структуре выше: разложи по разделам, убери дубли и устаревшее, вычисти завершённое из «Рабочего контекста».
+3. `update_memory(text, version, consolidationId: data.consolidationId)` — атомарно запишет cold и удалит свёрнутые заметки.
+4. Ошибка «memory changed» (конфликт версии) — перечитай `get_memory` и повтори шаг 3: заметки не потерялись.$skill$,
+                version = version + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'persist-memory'
+              AND deleted_at IS NULL
+              AND version = 1
+              AND md_content LIKE '%### notes_by_session%'
+              AND md_content LIKE '%Память двухслойная%';
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="rewrite-persist-memory-skill-en" author="agimate">
+        <sql splitStatements="false"><![CDATA[
+            UPDATE skills
+            SET md_content = $skill$# Skill: AgiMate Memory
+
+Memory has two layers:
+
+- **cold** — folded memory. It is **already in your context** (the memory block) — don't call tools to "recall" something.
+- **hot** — notes: raw facts you add as the conversation goes (`save_memory_note`). They are in your context too until folded into cold; folding is initiated once a day by a trigger — never start consolidation by hand.
+
+Your main duty during a conversation is to **save notes at the right moment**: there is no other way into memory, nobody rereads the dialogues later.
+
+## When to save a note
+
+Call `save_memory_note` as soon as something appears that will be useful in future conversations:
+
+- the user asks you to remember something, or states a durable fact about themselves: name, role, timezone, projects, preferences, constraints;
+- a decision or agreement has been made that you'll come back to;
+- **negative signals are the most valuable — don't let them slip**: you were corrected or your work was redone (save what was wrong and what right looks like), the user expressed displeasure (save what triggered it), they set a hard prohibition ("never …"), you made a mistake and it was pointed out (save the anti-pattern).
+
+Rules:
+
+- **When in doubt, save.** Notes are cheap and append-only; duplicates and contradictions are resolved by consolidation — don't re-read memory to check.
+- **One note, one self-contained fact**: the future "you" will read it without the conversation around it. Bad: "he agreed". Good: "The user approved the billing release for 2026-07-01".
+- **Don't save noise**: throwaway remarks and momentary task details.
+
+## The structure of cold memory
+
+cold enters the context on every turn — keep it compact. When consolidating, lay facts out under these sections in this order (omit empty ones):
+
+```markdown
+# Memory
+
+## Profile              ← durable facts about the user (name, role, timezone, projects)
+## Preferences          ← how to talk and work: tone, format, style, degree of autonomy
+## What to avoid        ← irritants, prohibitions, edits that recurred — the most valuable part
+## Techniques and tools ← what works, pitfalls, "if X then do Y" rules
+## Working context      ← active goals/tasks/agreements; clear out what's finished
+## Glossary             ← terms and entities in the user's vocabulary (optional)
+```
+
+One bullet, one line, one atomic fact. Compactness beats completeness: merge related items, resolve contradictions in favour of the more recent, and don't duplicate what's already in the system prompt or in skills.
+
+## Triggers
+
+### consolidate — "fold notes into cold"
+
+Arrives once a day if notes have piled up: `data` holds `consolidationId` and `notes`. Proceed like this:
+
+1. `get_memory()` → the current contents of cold and its `version`.
+2. Merge `data.notes` into cold using the structure above: sort into sections, drop duplicates and stale items, clear finished work out of "Working context".
+3. `update_memory(text, version, consolidationId: data.consolidationId)` — atomically writes cold and deletes the folded notes.
+4. On a "memory changed" error (version conflict), re-read `get_memory` and repeat step 3: the notes were not lost.$skill$,
+                version = version + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'persist-memory'
+              AND deleted_at IS NULL
+              AND version = 1
+              AND md_content LIKE '%### notes_by_session%'
+              AND md_content LIKE '%Memory has two layers%';
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>
