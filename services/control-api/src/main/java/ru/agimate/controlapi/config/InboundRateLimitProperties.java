@@ -29,4 +29,9 @@ public class InboundRateLimitProperties {
      * hit its own interval before this limit.
      */
     private int mcpTaskPollsPerMinute = 240;
+    /**
+     * Tool calls from a connector view ({@code /manage/agents/{agentId}/views/tools/call}) per minute per
+     * agent. The caller is a signed-in user, but the page making the calls is a third-party one.
+     */
+    private int viewCallsPerMinute = 120;
 }

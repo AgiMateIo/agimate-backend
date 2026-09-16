@@ -213,6 +213,7 @@ inbound-rate-limit:
   tool-results-per-minute: 120
   file-uploads-per-minute: 30
   mcp-calls-per-minute: 120
+  view-calls-per-minute: 120
 
 grpc:
   server:
