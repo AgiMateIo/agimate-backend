@@ -6,17 +6,17 @@
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
     <!--
-      The nightly daily job of persist-memory is gone and consolidation runs once a day, so the seeded
-      skill body still describes a notes_by_session trigger that never arrives and an hourly cadence.
+      The nightly daily job of persist-memory is gone, so the seeded skill body still describes a
+      notes_by_session trigger that never arrives.
       System skills are seed-only-if-missing, so this DML is the only way the new SKILL.md reaches an
       environment seeded before the change; on a fresh one it is a no-op and the bootstrap seeds the
       classpath text after Liquibase.
 
       The body is rewritten only where it is still the seeded one: the installation's language is told
       by the text itself (the language is fixed by the first seeding), and a skill an admin has edited
-      (version above 1, or the old section already gone) is left alone. The version is bumped because
-      the content changed — agents holding the skill see it as needing reinstall; the text applies at
-      once either way, the body is read live on every run.
+      (version above 1, or the old section already gone) is left alone. The version is not bumped: a
+      bump marks every agent holding the skill as needing reinstall, and accepting that re-applies the
+      rules of all its skills, while the body is read live on every run and applies at once anyway.
     -->
     <changeSet id="rewrite-persist-memory-skill-ru" author="agimate">
         <sql splitStatements="false"><![CDATA[
@@ -26,7 +26,7 @@
 Память двухслойная:
 
 - **cold** — свёрнутая память. Она **уже в твоём контексте** (блок memory) — не вызывай тулы, чтобы «вспомнить».
-- **hot** — заметки: сырые факты, которые ты добавляешь по ходу диалога (`save_memory_note`). Они тоже в твоём контексте, пока их не свернут в cold; свёртку раз в сутки инициирует триггер — вручную консолидацию не запускай.
+- **hot** — заметки: сырые факты, которые ты добавляешь по ходу диалога (`save_memory_note`). Они тоже в твоём контексте, пока их не свернут в cold; свёртку раз в час инициирует триггер — вручную консолидацию не запускай.
 
 Твоя главная обязанность в диалоге — **вовремя сохранять заметки**: другого пути в память нет, диалоги потом никто не перечитывает.
 
@@ -65,13 +65,12 @@ cold попадает в контекст каждый ход — держи е�
 
 ### consolidate — «сверни заметки в cold»
 
-Приходит раз в сутки, если накопились заметки: в `data` — `consolidationId` и `notes`. Действуй так:
+Приходит раз в час, если накопились заметки: в `data` — `consolidationId` и `notes`. Действуй так:
 
 1. `get_memory()` → текущее содержимое cold и его `version`.
 2. Слей `data.notes` с cold по структуре выше: разложи по разделам, убери дубли и устаревшее, вычисти завершённое из «Рабочего контекста».
 3. `update_memory(text, version, consolidationId: data.consolidationId)` — атомарно запишет cold и удалит свёрнутые заметки.
 4. Ошибка «memory changed» (конфликт версии) — перечитай `get_memory` и повтори шаг 3: заметки не потерялись.$skill$,
-                version = version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE user_id = '00000000-0000-0000-0000-000000000000'
               AND name = 'persist-memory'
@@ -90,7 +89,7 @@ cold попадает в контекст каждый ход — держи е�
 Memory has two layers:
 
 - **cold** — folded memory. It is **already in your context** (the memory block) — don't call tools to "recall" something.
-- **hot** — notes: raw facts you add as the conversation goes (`save_memory_note`). They are in your context too until folded into cold; folding is initiated once a day by a trigger — never start consolidation by hand.
+- **hot** — notes: raw facts you add as the conversation goes (`save_memory_note`). They are in your context too until folded into cold; folding is initiated once an hour by a trigger — never start consolidation by hand.
 
 Your main duty during a conversation is to **save notes at the right moment**: there is no other way into memory, nobody rereads the dialogues later.
 
@@ -129,13 +128,12 @@ One bullet, one line, one atomic fact. Compactness beats completeness: merge rel
 
 ### consolidate — "fold notes into cold"
 
-Arrives once a day if notes have piled up: `data` holds `consolidationId` and `notes`. Proceed like this:
+Arrives once an hour if notes have piled up: `data` holds `consolidationId` and `notes`. Proceed like this:
 
 1. `get_memory()` → the current contents of cold and its `version`.
 2. Merge `data.notes` into cold using the structure above: sort into sections, drop duplicates and stale items, clear finished work out of "Working context".
 3. `update_memory(text, version, consolidationId: data.consolidationId)` — atomically writes cold and deletes the folded notes.
 4. On a "memory changed" error (version conflict), re-read `get_memory` and repeat step 3: the notes were not lost.$skill$,
-                version = version + 1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE user_id = '00000000-0000-0000-0000-000000000000'
               AND name = 'persist-memory'

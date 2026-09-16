@@ -31,8 +31,8 @@ import java.util.UUID;
  * atomic deletion of the consolidated batch's notes).
  *
  * <p>A hidden {@code @Job} per connection ({@code connection_id = connections.id}):
- * {@code consolidation} claims the accumulated notes single-flight once a day and sends a
- * {@code consolidate} — daily by cadence, not by the clock, see the declaration. Notes come only from
+ * {@code consolidation} claims the accumulated notes single-flight once an hour and sends a
+ * {@code consolidate} — hourly by cadence, not by the clock, see the declaration. Notes come only from
  * the agent itself during a conversation; there is no second pass over the dialogues.
  */
 @Component
@@ -44,12 +44,8 @@ public class PersistentMemoryToolService {
 
     /** How long to wait before reclaiming an abandoned consolidation (the lease on claimed notes). */
     private static final long CONSOLIDATION_LEASE_SECONDS = 1_800;
-    /**
-     * Cadence of the consolidation sweep. Once a day is enough because the pending notes already reach
-     * the agent's context as their own block: folding them only keeps that block short, it is not what
-     * makes a fact remembered.
-     */
-    private static final long CONSOLIDATION_INTERVAL_SECONDS = 86_400;
+    /** Cadence of the consolidation sweep: pending notes ride in every turn's context until folded. */
+    private static final long CONSOLIDATION_INTERVAL_SECONDS = 3_600;
     /** Firing the job is only a database read plus publishing triggers; the iteration is short. */
     private static final int JOB_TIMEOUT_SECONDS = 120;
 

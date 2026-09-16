@@ -11,7 +11,7 @@ category: platform
 Memory has two layers:
 
 - **cold** — folded memory. It is **already in your context** (the memory block) — don't call tools to "recall" something.
-- **hot** — notes: raw facts you add as the conversation goes (`save_memory_note`). They are in your context too until folded into cold; folding is initiated once a day by a trigger — never start consolidation by hand.
+- **hot** — notes: raw facts you add as the conversation goes (`save_memory_note`). They are in your context too until folded into cold; folding is initiated once an hour by a trigger — never start consolidation by hand.
 
 Your main duty during a conversation is to **save notes at the right moment**: there is no other way into memory, nobody rereads the dialogues later.
 
@@ -50,7 +50,7 @@ One bullet, one line, one atomic fact. Compactness beats completeness: merge rel
 
 ### consolidate — "fold notes into cold"
 
-Arrives once a day if notes have piled up: `data` holds `consolidationId` and `notes`. Proceed like this:
+Arrives once an hour if notes have piled up: `data` holds `consolidationId` and `notes`. Proceed like this:
 
 1. `get_memory()` → the current contents of cold and its `version`.
 2. Merge `data.notes` into cold using the structure above: sort into sections, drop duplicates and stale items, clear finished work out of "Working context".

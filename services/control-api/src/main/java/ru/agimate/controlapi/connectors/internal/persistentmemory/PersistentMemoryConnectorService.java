@@ -19,15 +19,15 @@ import java.util.UUID;
 
 /**
  * Facade of the persistent memory connector: hot/cold memory per scope. The tools (get/update/note)
- * and the hidden daily and hourly jobs live in {@link PersistentMemoryToolService}.
+ * and the hidden consolidation job live in {@link PersistentMemoryToolService}.
  *
  * <p>Memory is personal: the space belongs to an agent, and its content is keyed by {@code agentId}
  * (resolved from {@code ConnectorEnv} at call time). The connection is a mode row, one per user; the
- * declarative {@code @Job}s (daily/consolidation) are registered on it and walk the spaces of every
+ * declarative {@code @Job} {@code consolidation} is registered on it and walks the spaces of every
  * bound agent (a {@code ConnectorCreatedEvent} when the row is materialised).
  *
- * <p>Triggers are addressed to the bound agents (audience): {@code notes-by-session} — collect a
- * session's notes, {@code consolidate} — fold the accumulated notes into cold.
+ * <p>The one trigger, {@code consolidate}, is addressed to the bound agents (audience): fold the
+ * accumulated notes into cold.
  *
  * <p>{@link PromptBlockProvider}: cold memory is the SYSTEM block {@code memory} (with the attr
  * {@code version} for the CAS in {@code update_memory}), and hot notes are the USER block
