@@ -450,7 +450,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Tool(name = "test.view_only", description = "Called by a view, never by the model",
-                visibility = ToolVisibility.APP)
+                visibility = ToolVisibility.VIEW)
         public Map<String, Object> viewOnly() {
             return Map.of("ok", true);
         }

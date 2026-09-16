@@ -27,7 +27,7 @@ public record ConnectorToolSpec(
          * applies. The effective value is resolved at run-context assembly, not here.
          */
         Disclosure disclosure,
-        /** The tool's view link; {@code null} for every tool without one, which is all but MCP Apps servers. */
+        /** The tool's view link and visibility; {@code null} — a foreign tool that declared neither. */
         ToolUi ui
 ) {
 
