@@ -204,6 +204,16 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         }
     }
 
+    /** A view of this instance ({@code resources/read} of a {@code ui://} uri); authorisation failures as in {@link #executeTool}. */
+    public McpClient.Resource readResource(ConnectorEnv env, String uri) {
+        McpClient.ServerConfig config = McpUtils.toServerConfig(env.credentials());
+        try {
+            return mcpClient.readResource(config, uri);
+        } catch (McpUnauthorizedException e) {
+            throw reauthorizationNeeded(env, e);
+        }
+    }
+
     private ConnectorException reauthorizationNeeded(ConnectorEnv env, McpUnauthorizedException failure) {
         UUID connectionId = connectionId(env);
         if (failure.insufficientScope()) {

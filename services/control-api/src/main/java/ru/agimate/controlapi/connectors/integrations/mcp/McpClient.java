@@ -18,9 +18,11 @@ import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedEx
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
 import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
+import java.nio.charset.StandardCharsets;
 import java.security.cert.CertPathBuilderException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,7 +35,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * SSE stream).
  *
  * <p>The session is short-lived and stateless: every high-level operation ({@link #probe},
- * {@link #listTools}, {@link #callTool}) does its own {@code initialize} plus
+ * {@link #listTools}, {@link #callTool}, {@link #readResource}) does its own {@code initialize} plus
  * {@code notifications/initialized}, reusing the {@code Mcp-Session-Id} within that call. A pool of
  * long-lived sessions is out of scope for v1. Inside the layer we throw only
  * {@link ConnectorException}.
@@ -50,6 +52,18 @@ public class McpClient {
     /** AgiMate's identity: {@code name} is the machine id, {@code title} the display name (spec 2025-06-18). */
     private static final String CLIENT_NAME = "agimate";
     private static final String CLIENT_TITLE = "AgiMate";
+
+    /**
+     * MCP Apps: declaring the extension is what makes some servers attach {@code _meta.ui} to their
+     * tools at all. Declared on every session — the views are served by us, not by the agent.
+     */
+    public static final String UI_EXTENSION = "io.modelcontextprotocol/ui";
+    public static final String UI_MIME_TYPE = "text/html;profile=mcp-app";
+    private static final Map<String, Object> CLIENT_CAPABILITIES = Map.of(
+            "extensions", Map.of(UI_EXTENSION, Map.of("mimeTypes", List.of(UI_MIME_TYPE))));
+
+    /** A view is a single self-contained page; anything bigger is not one we are willing to hand to a browser. */
+    private static final int MAX_RESOURCE_CHARS = 5 * 1024 * 1024;
 
     private final RestClient restClient;
     private final AtomicLong requestId = new AtomicLong(1);
@@ -112,13 +126,65 @@ public class McpClient {
         return JsonUtils.MAPPER.convertValue(result, JsonUtils.MAP_TYPE_REFERENCE);
     }
 
+    /**
+     * One entry of {@code resources/read}: exactly one of text and blob comes from the server, a blob
+     * is decoded here as UTF-8 so callers see text either way.
+     *
+     * @param meta the entry's raw {@code _meta}; {@code null} when absent
+     */
+    public record Resource(String uri, String mimeType, String text, JsonNode meta) {}
+
+    /** {@code resources/read} of one uri: the first content entry carrying that uri, or the first one at all. */
+    public Resource readResource(ServerConfig config, String uri) {
+        Session session = openSession(config);
+        JsonNode contents = rpc(config, session.sessionId(), "resources/read", Map.of("uri", uri)).path("contents");
+        JsonNode entry = null;
+        for (JsonNode item : contents) {
+            if (uri.equals(item.path("uri").asText(null))) {
+                entry = item;
+                break;
+            }
+            if (entry == null) {
+                entry = item;
+            }
+        }
+        if (entry == null) {
+            throw new ConnectorException("MCP resource not found: " + uri);
+        }
+        String text = entry.hasNonNull("text") ? entry.get("text").asText() : decodeBlob(entry.get("blob"));
+        if (text == null) {
+            throw new ConnectorException("MCP resource has no content: " + uri);
+        }
+        if (text.length() > MAX_RESOURCE_CHARS) {
+            throw new ConnectorException("MCP resource is too large: " + uri);
+        }
+        JsonNode meta = entry.get("_meta");
+        return new Resource(uri, entry.path("mimeType").asText(null), text,
+                meta == null || meta.isNull() ? null : meta);
+    }
+
+    private static String decodeBlob(JsonNode blob) {
+        if (blob == null || blob.isNull()) {
+            return null;
+        }
+        // Base64 inflates by 4/3, so the encoded length alone rejects an oversize blob before decoding it.
+        if (blob.asText().length() > MAX_RESOURCE_CHARS / 3 * 4 + 4) {
+            throw new ConnectorException("MCP resource is too large");
+        }
+        try {
+            return new String(Base64.getDecoder().decode(blob.asText()), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            throw new ConnectorException("MCP resource blob is not valid base64");
+        }
+    }
+
     private record Session(String sessionId, ServerInfo serverInfo) {}
 
     private Session openSession(ServerConfig config) {
         validateTarget(config.url());
         Map<String, Object> params = Map.of(
                 "protocolVersion", PROTOCOL_VERSION,
-                "capabilities", Map.of(),
+                "capabilities", CLIENT_CAPABILITIES,
                 "clientInfo", Map.of(
                         "name", CLIENT_NAME,
                         "title", CLIENT_TITLE,
