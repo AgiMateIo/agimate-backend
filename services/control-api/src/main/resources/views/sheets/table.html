@@ -1,0 +1,258 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sheets</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff);
+    --bg-soft: var(--color-background-secondary, #f4f5f7);
+    --text: var(--color-text-primary, #1c1f24);
+    --text-soft: var(--color-text-secondary, #5f6672);
+    --line: var(--color-border-primary, #dfe2e7);
+    --accent: var(--color-text-info, #2f6fdd);
+    --danger: var(--color-text-danger, #c2362f);
+    --font: var(--font-sans, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+    --radius: var(--border-radius-md, 8px);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: var(--color-background-primary, #17191d);
+    --bg-soft: var(--color-background-secondary, #22252b);
+    --text: var(--color-text-primary, #e8eaed);
+    --text-soft: var(--color-text-secondary, #9aa1ac);
+    --line: var(--color-border-primary, #343841);
+    --accent: var(--color-text-info, #7aa7f5);
+    --danger: var(--color-text-danger, #f08a84);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+  main { display: grid; gap: 12px; padding: 16px; }
+  .bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bar .spacer { flex: 1; }
+  select, button {
+    font: inherit; color: var(--text); background: var(--bg-soft);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 10px;
+  }
+  button { cursor: pointer; color: var(--accent); background: transparent; border-color: var(--accent); }
+  select:focus-visible, button:focus-visible, th button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .meta { color: var(--text-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .status { font-size: 12px; color: var(--text-soft); }
+  .status.error { color: var(--danger); }
+  .grid { overflow: auto; max-height: 480px; border: 1px solid var(--line); border-radius: var(--radius); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { position: sticky; top: 0; background: var(--bg-soft); font-weight: 600; white-space: nowrap; }
+  th button {
+    all: unset; cursor: pointer; display: inline-flex; gap: 4px; align-items: baseline;
+  }
+  th .unit { color: var(--text-soft); font-weight: 400; font-size: 12px; }
+  th .arrow { color: var(--accent); font-size: 11px; min-width: 10px; }
+  td { max-width: 320px; overflow-wrap: anywhere; }
+  td.number { text-align: right; white-space: nowrap; }
+  th.number { text-align: right; }
+  tbody tr:last-child td { border-bottom: none; }
+  .empty { color: var(--text-soft); font-style: italic; padding: 16px 0; }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar">
+    <label for="sheet" class="meta" data-t="sheet" hidden></label>
+    <select id="sheet" hidden></select>
+    <h2 id="single" hidden></h2>
+    <span class="spacer"></span>
+    <span class="meta" id="count"></span>
+    <button id="reload" type="button" data-t="reload"></button>
+  </div>
+  <div class="status" id="status" role="status"></div>
+  <div id="content"></div>
+</main>
+
+<script>
+(() => {
+  const LIMIT = 500;
+  const TEXTS = {
+    en: {
+      sheet: "Sheet", reload: "Reload", loading: "Loading…", failed: "Failed: ",
+      noSheets: "The agent has no sheets yet.", noRows: "No rows yet.",
+      rows: (n) => n + (n === 1 ? " row" : " rows"),
+      truncated: (shown, total) => "Showing the first " + shown + " of " + total + " rows.",
+      yes: "yes", no: "no"
+    },
+    ru: {
+      sheet: "Таблица", reload: "Обновить", loading: "Загрузка…", failed: "Ошибка: ",
+      noSheets: "Таблиц у агента пока нет.", noRows: "Строк пока нет.",
+      rows: (n) => n + " " + plural(n, "строка", "строки", "строк"),
+      truncated: (shown, total) => "Показаны первые " + shown + " из " + total + " строк.",
+      yes: "да", no: "нет"
+    }
+  };
+  function plural(n, one, few, many) {
+    const d = n % 10, h = n % 100;
+    if (d === 1 && h !== 11) return one;
+    if (d >= 2 && d <= 4 && (h < 12 || h > 14)) return few;
+    return many;
+  }
+  let t = TEXTS.en, locale = "en";
+
+  // --- MCP Apps bridge: JSON-RPC over postMessage to the host ---
+  let nextId = 1;
+  const pending = new Map();
+  function request(method, params) {
+    const id = nextId++;
+    window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  }
+  function notify(method, params) {
+    window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+  }
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0" || message.id == null || !pending.has(message.id)) return;
+    const { resolve, reject } = pending.get(message.id);
+    pending.delete(message.id);
+    message.error ? reject(new Error(message.error.message)) : resolve(message.result);
+  });
+
+  async function callTool(name, args) {
+    const result = await request("tools/call", { name, arguments: args || {} });
+    if (result.isError) {
+      const text = (result.content || []).map((block) => block.text || "").join("\n");
+      throw new Error(text || name);
+    }
+    return result.structuredContent || {};
+  }
+
+  // --- UI ---
+  const $ = (id) => document.getElementById(id);
+  const select = $("sheet");
+  let sheets = [], current = null, sort = { column: null, dir: "asc" };
+
+  function status(text, isError) {
+    $("status").textContent = text || "";
+    $("status").classList.toggle("error", !!isError);
+  }
+
+  function el(tag, props, children) {
+    const node = Object.assign(document.createElement(tag), props || {});
+    (children || []).forEach((child) => node.append(child));
+    return node;
+  }
+
+  function formatCell(column, value) {
+    if (value === null || value === undefined || value === "") return "";
+    switch (column.type) {
+      case "number": return typeof value === "number" ? new Intl.NumberFormat(locale).format(value) : String(value);
+      case "bool": return value === true || value === "true" ? t.yes : t.no;
+      default: return String(value);
+    }
+  }
+
+  function renderSheetChooser() {
+    const many = sheets.length > 1;
+    select.hidden = !many;
+    $("single").hidden = many || sheets.length === 0;
+    document.querySelector("label[for=sheet]").hidden = !many;
+    select.replaceChildren(...sheets.map((s) => el("option", { value: s.name, textContent: s.title || s.name })));
+    if (current) select.value = current.name;
+    $("single").textContent = sheets.length === 1 ? (sheets[0].title || sheets[0].name) : "";
+  }
+
+  function renderTable(rowList) {
+    const columns = current.columns || [];
+    $("count").textContent = t.rows(current.rows);
+    if (!rowList.rows.length) {
+      $("content").replaceChildren(el("p", { className: "empty", textContent: t.noRows }));
+      return;
+    }
+    const head = el("tr", {}, columns.map((column) => {
+      const arrow = sort.column === column.name ? (sort.dir === "asc" ? "▲" : "▼") : "";
+      const label = el("button", { type: "button" }, [
+        column.title || column.name,
+        ...(column.unit ? [el("span", { className: "unit", textContent: column.unit })] : []),
+        el("span", { className: "arrow", textContent: arrow })
+      ]);
+      label.addEventListener("click", () => {
+        sort = sort.column === column.name
+          ? { column: column.name, dir: sort.dir === "asc" ? "desc" : "asc" }
+          : { column: column.name, dir: "asc" };
+        loadRows();
+      });
+      const th = el("th", { className: column.type === "number" ? "number" : "" }, [label]);
+      th.setAttribute("aria-sort", arrow ? (sort.dir === "asc" ? "ascending" : "descending") : "none");
+      return th;
+    }));
+    const body = rowList.rows.map((row) => el("tr", {}, columns.map((column) =>
+      el("td", { className: column.type === "number" ? "number" : "", textContent: formatCell(column, row.values[column.name]) }))));
+    const nodes = [el("div", { className: "grid" }, [el("table", {}, [el("thead", {}, [head]), el("tbody", {}, body)])])];
+    if (rowList.truncated) nodes.push(el("p", { className: "meta", textContent: t.truncated(rowList.count, current.rows) }));
+    $("content").replaceChildren(...nodes);
+  }
+
+  async function loadRows() {
+    if (!current) return;
+    status(t.loading);
+    try {
+      const args = { sheet: current.name, limit: LIMIT };
+      if (sort.column) { args.sortBy = sort.column; args.sortDir = sort.dir; }
+      renderTable(await callTool("query", args));
+      status("");
+    } catch (e) {
+      status(t.failed + e.message, true);
+    }
+  }
+
+  async function loadSheets() {
+    status(t.loading);
+    try {
+      sheets = (await callTool("list_sheets")).sheets || [];
+      current = sheets.find((s) => current && s.name === current.name) || sheets[0] || null;
+      renderSheetChooser();
+      if (!current) {
+        $("count").textContent = "";
+        $("content").replaceChildren(el("p", { className: "empty", textContent: t.noSheets }));
+        status("");
+        return;
+      }
+      await loadRows();
+    } catch (e) {
+      status(t.failed + e.message, true);
+    }
+  }
+
+  select.addEventListener("change", () => {
+    current = sheets.find((s) => s.name === select.value) || null;
+    sort = { column: null, dir: "asc" };
+    loadRows();
+  });
+  $("reload").addEventListener("click", loadSheets);
+
+  new ResizeObserver(() => {
+    notify("ui/notifications/size-changed", { height: Math.ceil(document.documentElement.scrollHeight) });
+  }).observe(document.body);
+
+  (async () => {
+    const init = await request("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      appInfo: { name: "agimate-sheets", version: "1" },
+      appCapabilities: {}
+    });
+    const context = (init && init.hostContext) || {};
+    locale = String(context.locale || navigator.language || "en");
+    t = TEXTS[locale.slice(0, 2).toLowerCase()] || TEXTS.en;
+    if (context.theme === "dark") document.documentElement.dataset.theme = "dark";
+    const variables = (context.styles && context.styles.variables) || {};
+    Object.entries(variables).forEach(([name, value]) => document.documentElement.style.setProperty(name, value));
+    document.querySelectorAll("[data-t]").forEach((node) => { node.textContent = t[node.dataset.t]; });
+    notify("ui/notifications/initialized", {});
+    await loadSheets();
+  })().catch((e) => status(t.failed + e.message, true));
+})();
+</script>
+</body>
+</html>

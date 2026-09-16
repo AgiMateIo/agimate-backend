@@ -9,6 +9,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
+import ru.agimate.controlapi.connectors.core.annotation.ToolVisibility;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.AddResult;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.AggregateResult;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.ChartResult;
@@ -48,6 +49,9 @@ public class SheetsToolService {
     /** An export dumps the whole sheet, without the cap applied to an agent. */
     private static final int EXPORT_ROW_CAP = 50_000;
 
+    /** The owner's read-only view of the agent's sheets: the list and a sortable grid by the declared schema. */
+    public static final String SHEETS_VIEW = "ui://sheets/table";
+
     private final SheetsService sheetsService;
     private final SheetChartService chartService;
     private final SheetFileService fileService;
@@ -58,7 +62,8 @@ public class SheetsToolService {
             description = "List your sheets with their columns (name, title, type, unit) and row counts. "
                     + "Call it when you are unsure what data you already keep — column names from here "
                     + "are the only ones other tools accept.",
-            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = SHEETS_VIEW)
     public SheetList listSheets() {
         return new SheetList(sheetsService.listSheets(scopeId()));
     }
@@ -139,7 +144,8 @@ public class SheetsToolService {
                     + "('value' for scalar ops, 'values' for in/between). Returns row ids needed by "
                     + "update_rows/delete_rows. Capped at 500 rows — if 'truncated' is true, narrow the "
                     + "filter or use aggregate instead of pulling everything.",
-            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = SHEETS_VIEW)
     public RowList query(
             @ToolParam("Sheet name") String sheet,
             @ToolParam(value = "Conditions: [{\"column\":\"amount\",\"op\":\"gte\",\"value\":\"100\"}]",
