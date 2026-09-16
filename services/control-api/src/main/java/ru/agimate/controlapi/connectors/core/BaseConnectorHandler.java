@@ -1,5 +1,8 @@
 package ru.agimate.controlapi.connectors.core;
 
+import java.util.Arrays;
+import ru.agimate.controlapi.connectors.core.dto.ToolUi;
+import ru.agimate.controlapi.connectors.core.annotation.ToolVisibility;
 import com.fasterxml.jackson.databind.JavaType;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.annotation.ToolMeta;
@@ -29,10 +32,11 @@ import java.util.Map;
  * {@link ConnectorEnvHolder} (set/clear happens only here). Connectors without a tool service
  * (webchat, MCP) do not use this base — they implement the interfaces they need directly.
  *
- * <p>A declarative job ({@link Job}) and an internal method ({@code @Tool(internal = true)}) are
- * hidden from the LLM — they are absent from {@link #getTools()} and unreachable through
- * {@link #executeTool}; {@link #executeJob}, however, dispatches into any {@code @Tool} method, so a
- * job can also be «a tool call on a schedule».
+ * <p>A declarative job ({@link Job}) and a method nobody may call ({@code @Tool(visibility = {})}) are
+ * job-only — absent from {@link #getTools()} and unreachable through {@link #executeTool};
+ * {@link #executeJob}, however, dispatches into any {@code @Tool} method, so a job can also be «a tool
+ * call on a schedule». Every other tool is listed with its declared visibility in {@code ui}, and the
+ * listing decides who sees it.
  */
 public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProvider, JobProvider {
 
@@ -87,7 +91,7 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
     private static Map<String, ConnectorToolSpec> buildToolSpecs(Map<String, Method> methodsByName) {
         Map<String, ConnectorToolSpec> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
-            if (!hiddenFromLlm(method)) {
+            if (!jobOnly(method)) {
                 specs.put(name, toToolSpec(name, method));
             }
         });
@@ -114,7 +118,8 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
                     case INHERIT -> null;
                     case EAGER -> Disclosure.EAGER;
                     case LAZY -> Disclosure.LAZY;
-                });
+                },
+                new ToolUi(null, Arrays.stream(tool.visibility()).map(ToolVisibility::wireValue).toList()));
     }
 
     private static ToolAnnotationsSpec toAnnotationsSpec(ToolAnnotations a) {
@@ -166,21 +171,20 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
     @Override
     public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {
         Method method = methodsByName.get(toolName);
-        if (method == null || hiddenFromLlm(method)) {
+        if (method == null || jobOnly(method)) {
             throw new ConnectorException("Unknown tool: " + toolName);
         }
         return invoke(env, method, args);
     }
 
     /**
-     * A method is hidden from the LLM (absent from {@link #getTools()}, unreachable through
-     * {@link #executeTool}) when it is a declarative job ({@link Job}) or an internal dispatch target
-     * ({@code @Tool(internal = true)}). In both cases the method is still callable through
-     * {@link #executeJob}, by name or on a schedule.
+     * A method is job-only (absent from {@link #getTools()}, unreachable through {@link #executeTool})
+     * when it is a declarative job ({@link Job}) or declares no visibility at all. In both cases it is
+     * still callable through {@link #executeJob}, by name or on a schedule.
      */
-    private static boolean hiddenFromLlm(Method method) {
+    private static boolean jobOnly(Method method) {
         return method.isAnnotationPresent(Job.class)
-                || method.getAnnotation(Tool.class).internal();
+                || method.getAnnotation(Tool.class).visibility().length == 0;
     }
 
     @Override

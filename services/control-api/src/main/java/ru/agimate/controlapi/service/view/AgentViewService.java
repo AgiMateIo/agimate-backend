@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.view;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -73,7 +74,7 @@ public class AgentViewService {
         Agent agent = ownedAgent(agentId, userId);
         record Key(UUID connectionId, String uri) {}
         Map<Key, List<McpToolCatalog.ToolEntry>> views = new LinkedHashMap<>();
-        for (McpToolCatalog.ToolEntry entry : toolCatalog.forAgent(agent).values()) {
+        for (McpToolCatalog.ToolEntry entry : toolCatalog.forAgent(agent, ToolAudience.ALL).values()) {
             ToolUi ui = entry.spec().ui();
             if (ui != null && ui.resourceUri() != null && servesViews(entry.connectorCode())) {
                 views.computeIfAbsent(new Key(entry.connectionId(), ui.resourceUri()), k -> new ArrayList<>())
@@ -101,7 +102,7 @@ public class AgentViewService {
      */
     public AgentViewContentResponse content(UUID agentId, UUID userId, UUID connectionId, String uri) {
         Agent agent = ownedAgent(agentId, userId);
-        boolean declared = toolCatalog.forAgent(agent).values().stream()
+        boolean declared = toolCatalog.forAgent(agent, ToolAudience.ALL).values().stream()
                 .anyMatch(entry -> entry.connectionId().equals(connectionId)
                         && servesViews(entry.connectorCode())
                         && entry.spec().ui() != null
@@ -133,20 +134,21 @@ public class AgentViewService {
 
     /**
      * Two gates on top of the agent's own: the tool must be one of this connection in the agent's
-     * catalog (bindings and ABAC), and its server must have declared it callable from a view.
+     * catalog (bindings and ABAC), and its visibility must admit views. The catalog is listed wide so a
+     * tool declared for the model only is a 403 the host can tell apart from a missing one.
      */
     public ViewToolCallResponse call(UUID agentId, UUID userId, ViewToolCallRequest request) {
         Agent agent = ownedAgent(agentId, userId);
         if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.VIEW_CALL, agent.getId())) {
             throw new TooManyRequestsStatusException("View call rate limit exceeded");
         }
-        McpToolCatalog.ToolEntry entry = toolCatalog.forAgent(agent).values().stream()
+        McpToolCatalog.ToolEntry entry = toolCatalog.forAgent(agent, ToolAudience.ALL).values().stream()
                 .filter(e -> e.connectionId().equals(request.connectionId())
                         && e.toolName().equals(request.name()))
                 .findFirst()
                 .orElseThrow(() -> new NotFoundStatusException("Tool not found"));
         ToolUi ui = entry.spec().ui();
-        if (ui == null || !ui.callableFromView()) {
+        if (!ToolUi.visibleTo(ui, ToolAudience.VIEW)) {
             throw new ForbiddenStatusException("Tool '" + request.name() + "' is not callable from a view");
         }
 

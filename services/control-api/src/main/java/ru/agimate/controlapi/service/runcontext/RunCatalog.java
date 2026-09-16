@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.runcontext;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -362,7 +363,7 @@ public class RunCatalog {
                     .orElse(false);
             Map<String, ConnectorToolSpec> specs = sessionOnly && !ownSession
                     ? Map.of()
-                    : toolDefinitionService.getTools(connection, listingEnv);
+                    : toolDefinitionService.getTools(connection, listingEnv, ToolAudience.MODEL);
             String namespace = namespaceOf(connection);
             Disclosure connectorAxis = connector.getDisclosure() != null ? connector.getDisclosure() : Disclosure.EAGER;
             specs.forEach((name, spec) -> {

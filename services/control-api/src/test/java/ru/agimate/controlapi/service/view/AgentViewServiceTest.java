@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.view;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -90,7 +91,7 @@ class AgentViewServiceTest {
     void setUp() {
         Agent agent = Agent.builder().id(AGENT_ID).userId(USER_ID).build();
         when(agentService.findById(AGENT_ID)).thenReturn(agent);
-        when(toolCatalog.forAgent(agent)).thenReturn(catalog);
+        when(toolCatalog.forAgent(agent, ToolAudience.ALL)).thenReturn(catalog);
         when(rateLimiter.tryAcquire(any(), any())).thenReturn(true);
         when(connectionRepository.findByIdNotDeleted(CONNECTION_ID))
                 .thenReturn(Optional.of(Connection.builder().id(CONNECTION_ID).name("Everything").build()));
@@ -195,12 +196,23 @@ class AgentViewServiceTest {
         }
 
         @Test
-        @DisplayName("без явной видимости app → 403, вызов не создаётся")
+        @DisplayName("тул, объявленный только для модели → 403, вызов не создаётся")
         void notCallableFromView() {
-            tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, null));
+            tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, List.of("model")));
 
             assertThrows(ForbiddenStatusException.class, () -> service.call(AGENT_ID, USER_ID, request));
             verify(agentToolCallService, never()).authorizeToolCall(any(), any());
+        }
+
+        @Test
+        @DisplayName("по спеке: тул без объявленной видимости вью вызвать может")
+        void undeclaredVisibilityIsCallable() {
+            tool(CONNECTION_ID, "mcp", "show", null);
+            when(agentToolCallService.authorizeToolCall(eq(AGENT_ID), any())).thenReturn(ToolCallLog.builder().build());
+            when(toolExecutionService.executeWithTimeout(any(), any())).thenReturn(new WaitOutcome.Completed(
+                    new ToolResult("x", "mcp", "{\"content\":[],\"isError\":false}", null)));
+
+            assertFalse(service.call(AGENT_ID, USER_ID, request).isError());
         }
 
         @Test
@@ -209,7 +221,7 @@ class AgentViewServiceTest {
             when(rateLimiter.tryAcquire(InboundRateLimiter.Scope.VIEW_CALL, AGENT_ID)).thenReturn(false);
 
             assertThrows(TooManyRequestsStatusException.class, () -> service.call(AGENT_ID, USER_ID, request));
-            verify(toolCatalog, never()).forAgent(any());
+            verify(toolCatalog, never()).forAgent(any(), any());
         }
 
         @Test

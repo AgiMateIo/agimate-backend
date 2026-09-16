@@ -1,5 +1,7 @@
 package ru.agimate.controlapi.service.tool;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolUi;
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,10 @@ import java.util.UUID;
  * agent's available names, channel validation and the HTTP listings, so the branching and the cache read
  * live here once.
  *
+ * <p>Every listing names its audience ({@link ToolAudience}): the model must not see a tool declared
+ * for views only, and filtering here rather than at each consumer is what keeps one of them from
+ * forgetting — a tool leaked by the source reaches {@code /mcp}, outside the perimeter.
+ *
  * <p>What differs between callers stays with them. The HTTP listings are owner-scoped here
  * ({@code connectionId} must belong to {@code userId}, otherwise it is an IDOR); callers that already
  * hold the connection pass it together with the env they list under — the run context lists a
@@ -50,15 +56,16 @@ public class ToolDefinitionService {
      * The tools of a connection the caller already holds — no owner check. Empty for a connector that
      * exposes no tool definitions at all (a pure channel).
      */
-    public Map<String, ConnectorToolSpec> getTools(Connection connection, ConnectorEnv env) {
+    public Map<String, ConnectorToolSpec> getTools(Connection connection, ConnectorEnv env, ToolAudience audience) {
         return connectorRepository.findById(connection.getConnectorCode())
                 .filter(connector -> connector.getDefinitionBinding() != null)
-                .map(connector -> toolsOf(connector, connection.getId(), env))
+                .map(connector -> toolsOf(connector, connection.getId(), env, audience))
                 .orElseGet(Map::of);
     }
 
     /** Owner-scoped listing for the HTTP surfaces; a STATIC connector may be listed without an instance. */
-    public Map<String, ConnectorToolSpec> getTools(UUID userId, String connectorCode, UUID connectionId) {
+    public Map<String, ConnectorToolSpec> getTools(UUID userId, String connectorCode, UUID connectionId,
+                                                   ToolAudience audience) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
         if (connector.getDefinitionBinding() == null) {
@@ -72,15 +79,7 @@ public class ToolDefinitionService {
             connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
                     .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
         }
-        return toolsOf(connector, connectionId, ConnectorEnvFactory.listing(connectionId));
-    }
-
-    public ConnectorToolSpec getTool(UUID userId, String connectorCode, String toolName, UUID connectionId) {
-        ConnectorToolSpec tool = getTools(userId, connectorCode, connectionId).get(toolName);
-        if (tool == null) {
-            throw new NotFoundStatusException("Tool not found: " + toolName);
-        }
-        return tool;
+        return toolsOf(connector, connectionId, ConnectorEnvFactory.listing(connectionId), audience);
     }
 
     /** Type-level (catalog) tools of a connector: STATIC → reflection; DYNAMIC → empty (no type tools). */
@@ -90,7 +89,7 @@ public class ToolDefinitionService {
         if (connector.getDefinitionBinding() == null) {
             throw new BadRequestStatusException("Connector does not expose tool definitions: " + connectorCode);
         }
-        return toolsOf(connector, null, ConnectorEnvFactory.listing(null));
+        return toolsOf(connector, null, ConnectorEnvFactory.listing(null), ToolAudience.ALL);
     }
 
     /** Schema of a single catalog (type-level) tool. */
@@ -102,11 +101,11 @@ public class ToolDefinitionService {
         return tool;
     }
 
-    /** Tools of a specific owned connection instance (connector code resolved from the connection). */
+    /** Tools of a specific owned connection instance, all of them — for the policy editor and the catalogue. */
     public Map<String, ConnectorToolSpec> getConnectionTools(UUID userId, UUID connectionId) {
         Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
-        return getTools(userId, connection.getConnectorCode(), connectionId);
+        return getTools(userId, connection.getConnectorCode(), connectionId, ToolAudience.ALL);
     }
 
     /**
@@ -115,13 +114,24 @@ public class ToolDefinitionService {
      * rather than through its provider because connected apps have none — their tools are written by
      * the app link.
      */
-    private Map<String, ConnectorToolSpec> toolsOf(Connector connector, UUID connectionId, ConnectorEnv env) {
-        return switch (connector.getDefinitionBinding()) {
+    private Map<String, ConnectorToolSpec> toolsOf(Connector connector, UUID connectionId, ConnectorEnv env,
+                                                   ToolAudience audience) {
+        Map<String, ConnectorToolSpec> tools = switch (connector.getDefinitionBinding()) {
             case STATIC -> connectorRegistry.findCapability(connector.getCode(), ToolProvider.class)
                     .map(provider -> provider.getTools(env))
                     .orElseGet(Map::of);
             case DYNAMIC -> connectionId == null ? Map.of() : cachedTools(connectionId);
         };
+        if (audience == ToolAudience.ALL) {
+            return tools;
+        }
+        Map<String, ConnectorToolSpec> visible = new LinkedHashMap<>();
+        tools.forEach((name, spec) -> {
+            if (ToolUi.visibleTo(spec.ui(), audience)) {
+                visible.put(name, spec);
+            }
+        });
+        return visible;
     }
 
     private Map<String, ConnectorToolSpec> cachedTools(UUID connectionId) {

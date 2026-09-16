@@ -234,8 +234,10 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
   заводит на каждую строку `connector_jobs` (`kind=SYSTEM`, по одной на connection_id). `@Job` всегда скрыт от
   LLM (нет в `getTools()`, недоступен через `executeTool`) — это фоновый процесс, а не тула.
   Скрытую **цель динамического диспатча** (строки `kind=AGENT`, напр. `time.fire`) `@Job` помечать нельзя
-  (reconcile завёл бы её как SYSTEM без агента-инициатора) — для этого обычный `@Tool(internal = true)`:
-  скрыт от LLM, но остаётся целью `executeJob`.
+  (reconcile завёл бы её как SYSTEM без агента-инициатора) — для этого обычный `@Tool(visibility = {})`:
+  его никто не вызывает, но он остаётся целью `executeJob`. Видимость вообще — `@Tool(visibility)`,
+  по умолчанию `{MODEL}`; `APP` делает тул вызываемым из вью коннектора, а листинги
+  (`ToolDefinitionService.getTools`) фильтруют по аудитории `MODEL`/`VIEW`/`ALL`.
 
 Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
@@ -447,7 +449,7 @@ USER/AGENT; схемы — в OpenAPI, `/control/manage/connector-jobs`). Lifecy
   (`ONETIME`/`PERIODIC`/`CRON`), `name = time.fire`, `args = {prompt}`; в строку снимаются `channel_id`
   и `session_id` prompt-канала вызова. Возвращает `id`.
 - `time.scheduled_tasks` / `time.cancel_scheduled(id)` — список/отмена своих задач.
-- `time.fire` — скрытая (`@Tool(internal = true)`) цель диспатча: на срок порождает триггер
+- `time.fire` — скрытая (`@Tool(visibility = {})`) цель диспатча: на срок порождает триггер
   `due` (agent-facing `time.due`, data `{prompt}`), адресованный агенту-инициатору через `TriggerAudience`;
   снимки канала/сессии уезжают проактивными `progress`/`answer`-ссылками. Сессию перерезолвливает
   `ChannelRouteResolver`: снапшот, пока открыт, иначе активная сессия канала (симметрично фолбэку

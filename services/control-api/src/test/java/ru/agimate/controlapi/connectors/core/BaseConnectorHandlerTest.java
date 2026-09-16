@@ -1,5 +1,8 @@
 package ru.agimate.controlapi.connectors.core;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolUi;
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
+import ru.agimate.controlapi.connectors.core.annotation.ToolVisibility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,11 +69,22 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("исключает @Tool(internal = true)-метод")
+        @DisplayName("исключает @Tool(visibility = {})-метод")
         void excludesInternalTools() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
             assertFalse(tools.containsKey("test.internal_target"));
+        }
+
+        @Test
+        @DisplayName("видимость всегда явная в ui: по умолчанию только модель, APP — только вью")
+        void carriesExplicitVisibility() {
+            Map<String, ConnectorToolSpec> tools = handler.getTools();
+
+            assertEquals(List.of("model"), tools.get("test.echo").ui().visibility());
+            assertEquals(List.of("app"), tools.get("test.view_only").ui().visibility());
+            assertFalse(ToolUi.visibleTo(tools.get("test.view_only").ui(), ToolAudience.MODEL));
+            assertFalse(ToolUi.visibleTo(tools.get("test.echo").ui(), ToolAudience.VIEW));
         }
 
         @Test
@@ -178,7 +192,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("не содержит @Tool(internal = true)-метод (это не декларативная джоба)")
+        @DisplayName("не содержит @Tool(visibility = {})-метод (это не декларативная джоба)")
         void excludesInternalTarget() {
             assertFalse(handler.getJobs().containsKey("test.internal_target"));
         }
@@ -234,7 +248,13 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("отклоняет @Tool(internal = true)-метод")
+        @DisplayName("тул только для вью исполним: отказ модели — дело листинга, а не диспатча")
+        void executesViewOnlyTool() {
+            assertEquals(Map.of("ok", true), handler.executeTool(CONTEXT, "test.view_only", Map.of()));
+        }
+
+        @Test
+        @DisplayName("отклоняет @Tool(visibility = {})-метод")
         void rejectsInternalTool() {
             assertThrows(ConnectorException.class,
                     () -> handler.executeTool(CONTEXT, "test.internal_target", Map.of()));
@@ -292,7 +312,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("диспатчит @Tool(internal = true)-метод (паттерн time.fire)")
+        @DisplayName("диспатчит @Tool(visibility = {})-метод (паттерн time.fire)")
         void invokesInternalTargetAsJob() {
             Map<String, Object> result = handler.executeJob(CONTEXT, "test.internal_target", Map.of());
 
@@ -423,10 +443,16 @@ class BaseConnectorHandlerTest {
         }
 
         @Tool(name = "test.internal_target", description = "Hidden dispatch target (job-scheduled, not an LLM tool)",
-                internal = true)
+                visibility = {})
         public void internalTarget() {
             observedContext = ConnectorEnvHolder.current();
             internalRuns++;
+        }
+
+        @Tool(name = "test.view_only", description = "Called by a view, never by the model",
+                visibility = ToolVisibility.APP)
+        public Map<String, Object> viewOnly() {
+            return Map.of("ok", true);
         }
 
         @Tool(name = "test.typed", description = "Non-String typed params")

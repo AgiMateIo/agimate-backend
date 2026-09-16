@@ -1,7 +1,7 @@
 package ru.agimate.controlapi.connectors.core.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import ru.agimate.controlapi.connectors.core.annotation.ToolVisibility;
 
 import java.util.List;
 
@@ -12,19 +12,22 @@ import java.util.List;
  * host, which is the one able to serve it.
  *
  * @param resourceUri the {@code ui://} resource of the view; {@code null} — the tool has no view of its own
- * @param visibility  {@code "model"} and/or {@code "app"} as declared; {@code null} — not declared
+ * @param visibility  {@code "model"} and/or {@code "app"} as declared; {@code null} — not declared, see {@link #visibleTo}
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ToolUi(String resourceUri, List<String> visibility) {
 
-    public static final String VISIBILITY_APP = "app";
-
     /**
-     * Stricter than the spec, where an absent {@code visibility} means both: a view may call a tool
-     * only when the server said so explicitly, since the call runs as the agent.
+     * Absent {@code visibility} means both, as MCP Apps defines it: the author of an external server
+     * wrote its tools for its own views. Internal tools always carry an explicit one, so our stricter
+     * default lives on {@code @Tool}, not here. A tool with no {@code ui} at all is judged the same way.
      */
-    @JsonIgnore
-    public boolean callableFromView() {
-        return visibility != null && visibility.contains(VISIBILITY_APP);
+    public static boolean visibleTo(ToolUi ui, ToolAudience audience) {
+        List<String> visibility = ui == null ? null : ui.visibility();
+        return switch (audience) {
+            case ALL -> true;
+            case MODEL -> visibility == null || visibility.contains(ToolVisibility.MODEL.wireValue());
+            case VIEW -> visibility == null || visibility.contains(ToolVisibility.APP.wireValue());
+        };
     }
 }

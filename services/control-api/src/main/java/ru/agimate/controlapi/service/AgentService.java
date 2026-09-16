@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import lombok.RequiredArgsConstructor;
@@ -260,7 +261,8 @@ public class AgentService {
 
     private Set<String> namesFor(Connector connector, Connection connection, PolicyKind kind) {
         if (kind == PolicyKind.TOOL) {
-            return toolDefinitionService.getTools(connection, ConnectorEnvFactory.listing(connection.getId())).keySet();
+            return toolDefinitionService.getTools(connection, ConnectorEnvFactory.listing(connection.getId()),
+                    ToolAudience.MODEL).keySet();
         }
         return switch (connector.getDefinitionBinding()) {
             case STATIC -> connectorRegistry.findCapability(connector.getCode(), TriggerProvider.class)

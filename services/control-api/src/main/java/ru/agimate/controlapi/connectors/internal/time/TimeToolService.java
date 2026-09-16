@@ -189,11 +189,11 @@ public class TimeToolService {
      * Hidden dispatch target: executed by the scheduler when a dynamic {@code connector_jobs} row
      * ({@code kind=AGENT}) created by {@link #schedule} comes due. The context is reconstructed from
      * the row (the initiator's {@code userId}/{@code agentId}/{@code channelId}), so the trigger is
-     * addressed back to that agent through the audience. {@code internal = true} — invisible to the
+     * addressed back to that agent through the audience. {@code visibility = {}} — invisible to the
      * LLM, yet still a target of {@code executeJob}; deliberately NOT {@code @Job}, otherwise
      * reconcile would create a background SYSTEM row with no initiating agent.
      */
-    @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent", internal = true)
+    @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent", visibility = {})
     public void fire(@ToolParam("Prompt to deliver to the agent") String prompt,
                      @ToolParam(value = "Reply address of the scheduling conversation", required = false)
                      Map<String, Object> replyAddress) {

@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.mcp;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -97,7 +98,7 @@ class McpServiceTest {
     }
 
     private void catalogWith(ConnectorToolSpec spec) {
-        when(toolCatalog.forAgent(agent)).thenReturn(Map.of("telegram_bot__send",
+        when(toolCatalog.forAgent(agent, ToolAudience.MODEL)).thenReturn(Map.of("telegram_bot__send",
                 new McpToolCatalog.ToolEntry(CONNECTION_ID, "telegram", "send", spec)));
     }
 
@@ -202,7 +203,7 @@ class McpServiceTest {
         @Test
         @DisplayName("тула нет в каталоге → -32602, ничего не исполняется")
         void unknownTool() {
-            when(toolCatalog.forAgent(agent)).thenReturn(Map.of());
+            when(toolCatalog.forAgent(agent, ToolAudience.MODEL)).thenReturn(Map.of());
 
             JsonRpcResponse response = call("tools/call", Map.of("name", "nope", "arguments", Map.of()));
 
@@ -277,7 +278,7 @@ class McpServiceTest {
 
             assertThrows(TooManyRequestsStatusException.class,
                     () -> call("tools/call", Map.of("name", "telegram_bot__send")));
-            verify(toolCatalog, never()).forAgent(any());
+            verify(toolCatalog, never()).forAgent(any(), any());
         }
     }
 
@@ -437,7 +438,7 @@ class McpServiceTest {
         @DisplayName("завершён без отмены → completed с инлайненным результатом")
         void getCompleted() {
             task(LocalDateTime.now(), null);
-            when(toolCatalog.forAgent(agent)).thenReturn(Map.of());
+            when(toolCatalog.forAgent(agent, ToolAudience.MODEL)).thenReturn(Map.of());
 
             TaskResult result = (TaskResult) call("tasks/get", taskParams("task-1")).result();
 

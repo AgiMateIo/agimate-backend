@@ -39,7 +39,7 @@ class TimeConnectorServiceTest {
         assertNotNull(tools.get("schedule"));
         assertNotNull(tools.get("scheduled_tasks"));
         assertNotNull(tools.get("cancel_scheduled"));
-        // fire — @Tool(internal = true): скрыта от LLM, но это цель динамического диспатча, НЕ
+        // fire — @Tool(visibility = {}): скрыта от LLM, но это цель динамического диспатча, НЕ
         // декларативная джоба, иначе reconcile завёл бы фоновую SYSTEM-строку без агента-инициатора.
         assertNull(tools.get("fire"));
         assertTrue(handler.getJobs().isEmpty());

@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.mcp;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,7 +101,7 @@ class McpToolCatalogTest {
         for (String name : names) {
             tools.put(name, spec(name));
         }
-        when(toolDefinitionService.getTools(USER_ID, "mcp", CONNECTION_ID)).thenReturn(tools);
+        when(toolDefinitionService.getTools(USER_ID, "mcp", CONNECTION_ID, ToolAudience.MODEL)).thenReturn(tools);
     }
 
     @Test
@@ -108,7 +109,7 @@ class McpToolCatalogTest {
     void namesArePrefixedAndSanitized() {
         connectionTools("resolve-library-id", "tool.device.tts.speak");
 
-        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent);
+        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent, ToolAudience.MODEL);
 
         assertTrue(result.containsKey("mcp_context7__resolve-library-id"));
         assertTrue(result.containsKey("mcp_context7__tool_device_tts_speak"));
@@ -123,7 +124,7 @@ class McpToolCatalogTest {
         when(accessEvaluator.evaluate(AGENT_ID, CONNECTION_ID, PolicyKind.TOOL, "delete-everything"))
                 .thenReturn(AccessDecision.deny("nope"));
 
-        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent);
+        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent, ToolAudience.MODEL);
 
         assertTrue(result.containsKey("mcp_context7__get-docs"));
         assertFalse(result.containsKey("mcp_context7__delete-everything"));
@@ -135,7 +136,7 @@ class McpToolCatalogTest {
         connection.setAuthStatus(ConnectionAuthStatus.PENDING_AUTH);
         connectionTools("get-docs");
 
-        assertTrue(catalog.forAgent(agent).isEmpty());
+        assertTrue(catalog.forAgent(agent, ToolAudience.MODEL).isEmpty());
     }
 
     @Test
@@ -143,7 +144,7 @@ class McpToolCatalogTest {
     void nameClashKeepsTheFirst() {
         connectionTools("get.docs", "get_docs");
 
-        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent);
+        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent, ToolAudience.MODEL);
 
         assertEquals(1, result.size());
         assertEquals("get.docs", result.get("mcp_context7__get_docs").toolName());
@@ -176,10 +177,10 @@ class McpToolCatalogTest {
         for (String name : List.of("delete_agent", "create_channel", "list_llm_providers", "list_runs")) {
             platformTools.put(name, spec(name));
         }
-        when(toolDefinitionService.getTools(USER_ID, "platform", platformConnectionId))
+        when(toolDefinitionService.getTools(USER_ID, "platform", platformConnectionId, ToolAudience.MODEL))
                 .thenReturn(platformTools);
 
-        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent);
+        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent, ToolAudience.MODEL);
 
         // Internal mode rows are named by connector code (like in the agent's own context) — so the
         // platform admin tools keep their plain names over MCP instead of a truncated uuid-prefixed form.
@@ -201,7 +202,7 @@ class McpToolCatalogTest {
                 .build()));
         connectionTools("resolve-library-id");
 
-        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent);
+        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent, ToolAudience.MODEL);
 
         assertEquals(JsonSchema.any(null), result.get("mcp_context7__resolve-library-id").spec().inputSchema());
     }

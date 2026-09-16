@@ -43,10 +43,11 @@ public @interface Tool {
     int timeoutSeconds() default 0;
 
     /**
-     * {@code true} — the method is hidden from the LLM (absent from {@code getTools()}, unreachable
-     * through {@code executeTool}) but remains a dispatch target for {@code executeJob} (dynamic
-     * {@code connector_jobs} rows, e.g. {@code time.fire}). For declarative background jobs use
-     * {@link Job} — those are hidden on their own.
+     * Who may call the tool. The default is the model only — the opposite of the MCP Apps default,
+     * because one set of tools serves the agent, {@code /mcp} and views, and a silent widening costs
+     * more than a declaration. {@code {}} — nobody: the method is only a dispatch target for
+     * {@code executeJob} (dynamic {@code connector_jobs} rows, e.g. {@code time.fire}); declarative
+     * background jobs use {@link Job}, which hides them on its own.
      */
-    boolean internal() default false;
+    ToolVisibility[] visibility() default {ToolVisibility.MODEL};
 }

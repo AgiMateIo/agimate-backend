@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.channel;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import lombok.RequiredArgsConstructor;
@@ -333,7 +334,8 @@ public class ChannelService {
     /** Source by definitionBinding: STATIC — from the handler (SPI), DYNAMIC — from connection_tools. */
     private Set<String> lookupToolNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
-        return toolDefinitionService.getTools(connection, ConnectorEnvFactory.listing(connection.getId())).keySet();
+        return toolDefinitionService.getTools(connection, ConnectorEnvFactory.listing(connection.getId()),
+                ToolAudience.ALL).keySet();
     }
 
     private Connection loadConnection(UUID userId, String connectionId) {

@@ -117,8 +117,8 @@ class ToolSafetyHintsTest {
         for (Class<?> service : TOOL_SERVICES) {
             for (Method method : service.getDeclaredMethods()) {
                 Tool tool = method.getAnnotation(Tool.class);
-                // Джобы и internal-тулы модели не видны: подсказки для них смысла не имеют.
-                if (tool == null || tool.internal() || method.isAnnotationPresent(Job.class)) {
+                // Джобы и тулы без видимости никто не вызывает: подсказки для них смысла не имеют.
+                if (tool == null || tool.visibility().length == 0 || method.isAnnotationPresent(Job.class)) {
                     continue;
                 }
                 if (matches.test(tool.annotations())) {

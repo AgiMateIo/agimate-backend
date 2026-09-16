@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.tool;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -80,7 +81,7 @@ class ToolDefinitionServiceTest {
         @DisplayName("DYNAMIC: кэш connection_tools, без повторной проверки владельца")
         void dynamicReadsCache() {
             Map<String, ConnectorToolSpec> tools =
-                    service.getTools(connection("mcp"), ConnectorEnvFactory.listing(CONNECTION_ID));
+                    service.getTools(connection("mcp"), ConnectorEnvFactory.listing(CONNECTION_ID), ToolAudience.ALL);
 
             assertEquals(List.of("search"), List.copyOf(tools.keySet()));
             verify(connectionRepository, never()).findByIdAndUserIdNotDeleted(any(), any());
@@ -95,14 +96,30 @@ class ToolDefinitionServiceTest {
                     new ConnectorToolSpec("schedule", null, null, null, null, null, null, null));
             when(((ToolProvider) staticHandler).getTools(sessionEnv)).thenReturn(expected);
 
-            assertSame(expected, service.getTools(connection("time"), sessionEnv));
+            assertSame(expected, service.getTools(connection("time"), sessionEnv, ToolAudience.ALL));
         }
 
         @Test
         @DisplayName("коннектор без определений тулов (канал) — пусто, а не ошибка")
         void channelConnectorIsEmpty() {
-            assertTrue(service.getTools(connection("webchat"), ConnectorEnvFactory.listing(CONNECTION_ID)).isEmpty());
+            assertTrue(service.getTools(connection("webchat"), ConnectorEnvFactory.listing(CONNECTION_ID), ToolAudience.ALL).isEmpty());
         }
+    }
+
+    @Test
+    @DisplayName("аудитория режет в источнике: тул только для вью не виден модели, но есть в ALL")
+    void audienceFiltersAtTheSource() {
+        when(connectionToolRepository.findActiveByConnectionId(CONNECTION_ID)).thenReturn(List.of(
+                ConnectionTool.builder().connectionId(CONNECTION_ID).name("search").build(),
+                ConnectionTool.builder().connectionId(CONNECTION_ID).name("refresh")
+                        .meta("{\"ui\":{\"visibility\":[\"app\"]}}").build()));
+        ConnectorEnv env = ConnectorEnvFactory.listing(CONNECTION_ID);
+
+        assertEquals(List.of("search"),
+                List.copyOf(service.getTools(connection("mcp"), env, ToolAudience.MODEL).keySet()));
+        // search declares nothing, so by the spec a view may call it too
+        assertEquals(2, service.getTools(connection("mcp"), env, ToolAudience.VIEW).size());
+        assertEquals(2, service.getTools(connection("mcp"), env, ToolAudience.ALL).size());
     }
 
     @Test
@@ -110,7 +127,7 @@ class ToolDefinitionServiceTest {
     void ownerScopedListing() {
         when(connectionRepository.findByIdAndUserIdNotDeleted(CONNECTION_ID, USER_ID)).thenReturn(Optional.empty());
 
-        assertThrows(NotFoundStatusException.class, () -> service.getTools(USER_ID, "mcp", CONNECTION_ID));
+        assertThrows(NotFoundStatusException.class, () -> service.getTools(USER_ID, "mcp", CONNECTION_ID, ToolAudience.ALL));
         verify(connectionToolRepository, never()).findActiveByConnectionId(any());
     }
 }

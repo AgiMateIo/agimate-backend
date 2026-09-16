@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.controller.agent;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -54,6 +55,7 @@ public class AgentToolsController {
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable("connectorCode") String connectorCode,
             @RequestParam(required = false) UUID connectionId) {
-        return SuccessResponse.ok(toolDefinitionService.getTools(principal.userId(), connectorCode, connectionId));
+        return SuccessResponse.ok(toolDefinitionService.getTools(
+                principal.userId(), connectorCode, connectionId, ToolAudience.MODEL));
     }
 }

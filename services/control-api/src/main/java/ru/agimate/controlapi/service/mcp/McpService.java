@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.mcp;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -159,7 +160,7 @@ public class McpService {
 
     private ToolsListResult listTools(AgentPrincipal principal) {
         Agent agent = agentService.findById(principal.agentId());
-        List<McpTool> tools = toolCatalog.forAgent(agent).entrySet().stream()
+        List<McpTool> tools = toolCatalog.forAgent(agent, ToolAudience.MODEL).entrySet().stream()
                 .map(entry -> McpTool.of(entry.getKey(), entry.getValue().spec()))
                 .toList();
         log.debug("MCP tools/list for agent {}: {} tools", agent.getId(), tools.size());
@@ -179,7 +180,7 @@ public class McpService {
         }
 
         Agent agent = agentService.findById(principal.agentId());
-        McpToolCatalog.ToolEntry entry = toolCatalog.forAgent(agent).get(toolName);
+        McpToolCatalog.ToolEntry entry = toolCatalog.forAgent(agent, ToolAudience.MODEL).get(toolName);
         if (entry == null) {
             // Includes tools denied by policy: they are not in the listing, and saying why would map
             // the policy for a client that is not entitled to it.
@@ -309,7 +310,7 @@ public class McpService {
      */
     private ToolCallResult completedResult(AgentPrincipal principal, ToolCallLog task) {
         Agent agent = agentService.findById(principal.agentId());
-        ConnectorToolSpec spec = toolCatalog.forAgent(agent).values().stream()
+        ConnectorToolSpec spec = toolCatalog.forAgent(agent, ToolAudience.MODEL).values().stream()
                 .filter(e -> e.connectionId().toString().equals(task.getConnectionId())
                         && e.toolName().equals(task.getName()))
                 .map(McpToolCatalog.ToolEntry::spec)

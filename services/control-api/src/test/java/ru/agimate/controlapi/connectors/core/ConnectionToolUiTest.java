@@ -2,6 +2,7 @@ package ru.agimate.controlapi.connectors.core;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import ru.agimate.controlapi.connectors.core.dto.ToolUi;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 
@@ -13,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("ConnectionToolMapper — _meta.ui вью MCP Apps")
+@DisplayName("ConnectionToolMapper и ToolUi — _meta.ui вью MCP Apps")
 class ConnectionToolUiTest {
 
     private static ToolUi ui(String meta) {
@@ -31,7 +32,7 @@ class ConnectionToolUiTest {
 
         assertEquals("ui://s/weather", ui.resourceUri());
         assertEquals(List.of("model", "app"), ui.visibility());
-        assertTrue(ui.callableFromView());
+        assertTrue(ToolUi.visibleTo(ui, ToolAudience.VIEW));
     }
 
     @Test
@@ -53,13 +54,28 @@ class ConnectionToolUiTest {
         ToolUi ui = ui("{\"ui\":{\"visibility\":[\"app\"]}}");
 
         assertNull(ui.resourceUri());
-        assertTrue(ui.callableFromView());
+        assertTrue(ToolUi.visibleTo(ui, ToolAudience.VIEW));
     }
 
     @Test
-    @DisplayName("строже спеки: без объявленной видимости вью тул не зовёт")
-    void undeclaredVisibilityIsNotCallable() {
-        assertFalse(ui("{\"ui\":{\"resourceUri\":\"ui://s/weather\"}}").callableFromView());
+    @DisplayName("по спеке: без объявленной видимости тул доступен и модели, и вью")
+    void undeclaredVisibilityMeansBoth() {
+        ToolUi ui = ui("{\"ui\":{\"resourceUri\":\"ui://s/weather\"}}");
+
+        assertTrue(ToolUi.visibleTo(ui, ToolAudience.MODEL));
+        assertTrue(ToolUi.visibleTo(ui, ToolAudience.VIEW));
+        assertTrue(ToolUi.visibleTo(null, ToolAudience.VIEW));
+    }
+
+    @Test
+    @DisplayName("объявленная видимость режет: app — не модели, model — не вью; ALL видит всё")
+    void declaredVisibilityRestricts() {
+        ToolUi appOnly = ui("{\"ui\":{\"visibility\":[\"app\"]}}");
+        ToolUi modelOnly = ui("{\"ui\":{\"visibility\":[\"model\"]}}");
+
+        assertFalse(ToolUi.visibleTo(appOnly, ToolAudience.MODEL));
+        assertFalse(ToolUi.visibleTo(modelOnly, ToolAudience.VIEW));
+        assertTrue(ToolUi.visibleTo(appOnly, ToolAudience.ALL));
     }
 
     @Test

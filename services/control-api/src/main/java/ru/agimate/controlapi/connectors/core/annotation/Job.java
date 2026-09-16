@@ -17,7 +17,7 @@ import java.lang.annotation.Target;
  * <p>A declarative job is always hidden from the LLM (absent from {@code getTools()}, unreachable
  * through {@code executeTool}) — it is a background process, not an agent's tool. For a hidden
  * dispatch target that is scheduled dynamically (rows with {@code kind=AGENT}, e.g. {@code time.fire})
- * {@code @Job} is not needed — mark the ordinary {@code @Tool} as {@code @Tool(internal = true)},
+ * {@code @Job} is not needed — mark the ordinary {@code @Tool} as {@code @Tool(visibility = {})},
  * otherwise reconcile would create a background SYSTEM row for it with no initiator.
  *
  * <p>{@code executeJob} can call any {@code @Tool} method, so «a tool call on a schedule» needs no

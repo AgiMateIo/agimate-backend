@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.mcp;
 
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -64,7 +65,8 @@ public class McpToolCatalog {
     /** One tool of one connection, under the name the client sees. */
     public record ToolEntry(UUID connectionId, String connectorCode, String toolName, ConnectorToolSpec spec) {}
 
-    public Map<String, ToolEntry> forAgent(Agent agent) {
+    /** {@link ToolAudience#MODEL} for {@code /mcp}, where the client is a model; views list wider. */
+    public Map<String, ToolEntry> forAgent(Agent agent, ToolAudience audience) {
         Map<String, ToolEntry> catalog = new LinkedHashMap<>();
         for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agent.getId())) {
             Connection connection = connectionRepository.findByIdNotDeleted(binding.getConnectionId()).orElse(null);
@@ -76,14 +78,14 @@ public class McpToolCatalog {
             if (connector == null || connector.getDefinitionBinding() == null) {
                 continue;
             }
-            addTools(catalog, agent, connection);
+            addTools(catalog, agent, connection, audience);
         }
         return catalog;
     }
 
-    private void addTools(Map<String, ToolEntry> catalog, Agent agent, Connection connection) {
+    private void addTools(Map<String, ToolEntry> catalog, Agent agent, Connection connection, ToolAudience audience) {
         Map<String, ConnectorToolSpec> tools = toolDefinitionService.getTools(
-                agent.getUserId(), connection.getConnectorCode(), connection.getId());
+                agent.getUserId(), connection.getConnectorCode(), connection.getId(), audience);
 
         // The same handle the worker uses ({@code RunContextService.namespaceOf}): an internal mode
         // row is named by its connector code, an external instance by its {@code full_code}. Aligning
