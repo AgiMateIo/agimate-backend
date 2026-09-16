@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
@@ -22,7 +21,6 @@ import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedEx
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthSetup;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
-import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 
 import java.net.URI;
 import java.util.LinkedHashMap;
@@ -36,10 +34,9 @@ import java.util.UUID;
  * {@code secrets}) reports its own set through {@code tools/list}. So we implement
  * {@link ToolProvider} directly (without {@code BaseConnectorHandler} and {@code @Tool} methods):
  * <ul>
- *   <li>{@link #getTools()} — there are no static tools (empty);</li>
- *   <li>{@link #getTools(ConnectorEnv)} — the list from the {@code connection_tools} cache by
- *       {@code connectionId} (populated by {@link McpToolDiscoveryListener} on integration
- *       create/modify);</li>
+ *   <li>{@link #getTools()} — there are no static tools (empty); the per-instance list lives in
+ *       {@code connection_tools} (populated by {@link McpToolDiscoveryListener} on integration
+ *       create/modify) and is listed by {@code ToolDefinitionService}, like every DYNAMIC connector's;</li>
  *   <li>{@link #executeTool} — proxying into {@code tools/call}.</li>
  * </ul>
  * Its one background job is {@code oauth_refresh}: for servers that authorise over OAuth the access
@@ -60,7 +57,6 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     private static final long REFRESH_INTERVAL_SECONDS = 300;
 
     private final McpClient mcpClient;
-    private final ConnectionToolRepository connectionToolRepository;
     private final McpAuthDiscovery authDiscovery;
     private final McpOAuthService oauthService;
 
@@ -165,28 +161,10 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
                                 + "provide a static token instead"));
     }
 
-    /** MCP has no static tools — the set is always per instance, see {@link #getTools(ConnectorEnv)}. */
+    /** MCP has no static tools — the set is always per instance, in {@code connection_tools}. */
     @Override
     public Map<String, ConnectorToolSpec> getTools() {
         return Map.of();
-    }
-
-    /** The instance's tool list from the {@code connection_tools} cache; connectionId is {@code connections.id}. */
-    @Override
-    public Map<String, ConnectorToolSpec> getTools(ConnectorEnv env) {
-        if (env == null || env.connectionId() == null) {
-            return Map.of();
-        }
-        UUID connectionId;
-        try {
-            connectionId = UUID.fromString(env.connectionId());
-        } catch (IllegalArgumentException e) {
-            return Map.of();
-        }
-        Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
-        connectionToolRepository.findActiveByConnectionId(connectionId)
-                .forEach(tool -> tools.put(tool.getName(), ConnectionToolMapper.toSpec(tool)));
-        return tools;
     }
 
     /**

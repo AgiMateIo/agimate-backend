@@ -9,7 +9,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpAuthDiscovery;
@@ -18,8 +17,6 @@ import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedEx
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthSetup;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
-import ru.agimate.controlapi.database.entities.ConnectionTool;
-import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -46,8 +43,6 @@ class McpConnectorServiceTest {
     @Mock
     private McpClient mcpClient;
     @Mock
-    private ConnectionToolRepository connectionToolRepository;
-    @Mock
     private McpAuthDiscovery authDiscovery;
     @Mock
     private McpOAuthService oauthService;
@@ -56,7 +51,7 @@ class McpConnectorServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new McpConnectorService(mcpClient, connectionToolRepository, authDiscovery, oauthService);
+        service = new McpConnectorService(mcpClient, authDiscovery, oauthService);
     }
 
     private ConnectorEnv ctx(String connectionId, Map<String, String> credentials) {
@@ -169,34 +164,13 @@ class McpConnectorServiceTest {
     }
 
     @Nested
-    @DisplayName("getTools(ctx)")
+    @DisplayName("getTools")
     class GetTools {
-
-        @Test
-        @DisplayName("читает кэш connection_tools по connectionId")
-        void readsCacheByIdentity() {
-            when(connectionToolRepository.findActiveByConnectionId(IDENTITY)).thenReturn(List.of(
-                    ConnectionTool.builder().connectionId(IDENTITY).name("search").build(),
-                    ConnectionTool.builder().connectionId(IDENTITY).name("fetch").build()));
-
-            Map<String, ConnectorToolSpec> tools = service.getTools(ctx(IDENTITY.toString(), Map.of()));
-
-            assertEquals(2, tools.size());
-            assertTrue(tools.containsKey("search"));
-            assertTrue(tools.containsKey("fetch"));
-        }
 
         @Test
         @DisplayName("нет статических тулов: getTools() пуст")
         void noStaticTools() {
             assertTrue(service.getTools().isEmpty());
-        }
-
-        @Test
-        @DisplayName("connectionId отсутствует/невалиден: пусто")
-        void blankIdentity() {
-            assertTrue(service.getTools(ctx(null, Map.of())).isEmpty());
-            assertTrue(service.getTools(ctx("not-a-uuid", Map.of())).isEmpty());
         }
     }
 

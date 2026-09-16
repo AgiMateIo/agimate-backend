@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.runcontext;
 
+import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -119,7 +120,8 @@ class RunContextServiceTest {
         ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler, subagentsHandler));
         ConnectorEnvFactory envFactory = new ConnectorEnvFactory(null, null);
         catalog = new RunCatalog(agentRunRepository, agentSessionRepository, agentRepository, agentSkillRepository,
-                agentSkillService, skillRepository, connectionRepository, connectorRepository, connectionToolRepository,
+                agentSkillService, skillRepository, connectionRepository, connectorRepository,
+                new ToolDefinitionService(connectorRepository, registry, connectionRepository, connectionToolRepository),
                 registry, envFactory, channelRepository, channelHandlerRegistry);
         // Язык-первоисточник: переводов нет, блоки промпта совпадают с константами в коде.
         PromptTexts promptTexts = new PromptTexts(new ContentProperties());

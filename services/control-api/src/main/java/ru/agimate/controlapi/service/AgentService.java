@@ -1,5 +1,7 @@
 package ru.agimate.controlapi.service;
 
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
+import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -13,7 +15,6 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
-import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.controlapi.controller.agent.dto.AgentContextResponse;
@@ -29,7 +30,6 @@ import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.AgentType;
@@ -44,7 +44,6 @@ import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
-import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -78,7 +77,7 @@ public class AgentService {
     private final ConnectionRepository connectionRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
-    private final ConnectionToolRepository connectionToolRepository;
+    private final ToolDefinitionService toolDefinitionService;
     private final ConnectionTriggerRepository connectionTriggerRepository;
     private final ConnectionAccessEvaluator accessEvaluator;
     private final ConnectionBindingService connectionBindingService;
@@ -260,17 +259,14 @@ public class AgentService {
     }
 
     private Set<String> namesFor(Connector connector, Connection connection, PolicyKind kind) {
+        if (kind == PolicyKind.TOOL) {
+            return toolDefinitionService.getTools(connection, ConnectorEnvFactory.listing(connection.getId())).keySet();
+        }
         return switch (connector.getDefinitionBinding()) {
-            case STATIC -> kind == PolicyKind.TOOL
-                    ? connectorRegistry.findCapability(connector.getCode(), ToolProvider.class)
-                            .map(p -> p.getTools().keySet()).orElse(Set.of())
-                    : connectorRegistry.findCapability(connector.getCode(), TriggerProvider.class)
-                            .map(p -> p.getTriggers().keySet()).orElse(Set.of());
-            case DYNAMIC -> kind == PolicyKind.TOOL
-                    ? connectionToolRepository.findActiveByConnectionId(connection.getId()).stream()
-                            .map(ConnectionTool::getName).collect(Collectors.toSet())
-                    : connectionTriggerRepository.findActiveByConnectionId(connection.getId()).stream()
-                            .map(ConnectionTrigger::getName).collect(Collectors.toSet());
+            case STATIC -> connectorRegistry.findCapability(connector.getCode(), TriggerProvider.class)
+                    .map(p -> p.getTriggers().keySet()).orElse(Set.of());
+            case DYNAMIC -> connectionTriggerRepository.findActiveByConnectionId(connection.getId()).stream()
+                    .map(ConnectionTrigger::getName).collect(Collectors.toSet());
         };
     }
 

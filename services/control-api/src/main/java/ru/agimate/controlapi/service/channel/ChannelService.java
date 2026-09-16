@@ -1,5 +1,7 @@
 package ru.agimate.controlapi.service.channel;
 
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
+import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,21 +12,18 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
-import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelHandlerResponse;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
-import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
@@ -54,7 +53,7 @@ public class ChannelService {
     private final AgentRepository agentRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectionRepository connectionRepository;
-    private final ConnectionToolRepository connectionToolRepository;
+    private final ToolDefinitionService toolDefinitionService;
     private final ConnectionTriggerRepository connectionTriggerRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ChannelHandlerRegistry channelHandlerRegistry;
@@ -334,13 +333,7 @@ public class ChannelService {
     /** Source by definitionBinding: STATIC — from the handler (SPI), DYNAMIC — from connection_tools. */
     private Set<String> lookupToolNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
-        return switch (connector.getDefinitionBinding()) {
-            case STATIC -> connectorRegistry.findCapability(connector.getCode(), ToolProvider.class)
-                    .map(provider -> provider.getTools().keySet()).orElse(Set.of());
-            case DYNAMIC -> connectionToolRepository.findActiveByConnectionId(connection.getId()).stream()
-                    .map(ConnectionTool::getName).collect(Collectors.toSet());
-            case null -> Set.of();
-        };
+        return toolDefinitionService.getTools(connection, ConnectorEnvFactory.listing(connection.getId())).keySet();
     }
 
     private Connection loadConnection(UUID userId, String connectionId) {

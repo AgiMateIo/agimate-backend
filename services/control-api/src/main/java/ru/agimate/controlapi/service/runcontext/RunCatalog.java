@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.runcontext;
 
+import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -7,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.agentworker.ToolNames;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
@@ -30,7 +30,6 @@ import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
-import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
@@ -44,7 +43,6 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -127,7 +125,7 @@ public class RunCatalog {
     private final SkillRepository skillRepository;
     private final ConnectionRepository connectionRepository;
     private final ConnectorRepository connectorRepository;
-    private final ConnectionToolRepository connectionToolRepository;
+    private final ToolDefinitionService toolDefinitionService;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorEnvFactory envFactory;
     private final ChannelRepository channelRepository;
@@ -359,14 +357,12 @@ public class RunCatalog {
             ConnectorEnv listingEnv = ownSession
                     ? envFactory.internal(connection.getId().toString(), null, null, null, null, promptSessionId)
                     : ConnectorEnvFactory.listing(connection.getId());
-            Map<String, ConnectorToolSpec> specs = switch (connector.getDefinitionBinding()) {
-                case STATIC -> connectorRegistry
-                        .findCapability(connection.getConnectorCode(), ToolProvider.class)
-                        .filter(p -> ownSession || !p.sessionScopedTools())
-                        .map(p -> p.getTools(listingEnv))
-                        .orElse(Map.of());
-                case DYNAMIC -> dynamicTools(connection.getId());
-            };
+            boolean sessionOnly = connectorRegistry.findCapability(connection.getConnectorCode(), ToolProvider.class)
+                    .map(ToolProvider::sessionScopedTools)
+                    .orElse(false);
+            Map<String, ConnectorToolSpec> specs = sessionOnly && !ownSession
+                    ? Map.of()
+                    : toolDefinitionService.getTools(connection, listingEnv);
             String namespace = namespaceOf(connection);
             Disclosure connectorAxis = connector.getDisclosure() != null ? connector.getDisclosure() : Disclosure.EAGER;
             specs.forEach((name, spec) -> {
@@ -378,13 +374,6 @@ public class RunCatalog {
                         namespace, llmName, axis, null));
             });
         }
-        return tools;
-    }
-
-    private Map<String, ConnectorToolSpec> dynamicTools(UUID connectionId) {
-        Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
-        connectionToolRepository.findActiveByConnectionId(connectionId)
-                .forEach(tool -> tools.put(tool.getName(), ConnectionToolMapper.toSpec(tool)));
         return tools;
     }
 
