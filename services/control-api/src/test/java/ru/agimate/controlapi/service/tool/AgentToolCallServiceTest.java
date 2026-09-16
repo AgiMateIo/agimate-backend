@@ -9,24 +9,35 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.ConflictStatusException;
+import ru.agimate.controlapi.abac.AccessDecision;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
+import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
+import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService.WaitOutcome;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.ConnectorService;
+import ru.agimate.controlapi.service.dto.ToolResult;
+import ru.agimate.controlapi.service.tool.AgentToolCallService.CallOutcome;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AgentToolCallService — повтор того же tool_call_id")
+@DisplayName("AgentToolCallService")
 class AgentToolCallServiceTest {
 
     private static final UUID AGENT_ID = UUID.randomUUID();
@@ -40,6 +51,8 @@ class AgentToolCallServiceTest {
     private ConnectionAccessEvaluator accessEvaluator;
     @Mock
     private ConnectorService connectorService;
+    @Mock
+    private ToolExecutionService toolExecutionService;
 
     @InjectMocks
     private AgentToolCallService service;
@@ -110,6 +123,53 @@ class AgentToolCallServiceTest {
 
             assertThrows(ConflictStatusException.class,
                     () -> service.checkToolCall(AGENT_ID, request("current_datetime", Map.of())));
+        }
+    }
+    @Nested
+    @DisplayName("вызов на месте — callAsAgent")
+    class CallAsAgent {
+
+        private static final UUID CONNECTION_ID = UUID.randomUUID();
+        private final ToolCallLog log = ToolCallLog.builder().agentId(AGENT_ID).externalId("x").build();
+
+        private CallOutcome call() {
+            return service.callAsAgent(AGENT_ID, "mcp", CONNECTION_ID, "show", Map.of(), Duration.ofSeconds(5));
+        }
+
+        private void decision(AccessDecision decision) {
+            when(accessEvaluator.evaluate(eq(AGENT_ID), eq(CONNECTION_ID.toString()), any(), eq("show")))
+                    .thenReturn(decision);
+            when(toolCallLogService.createLog(any(), any(), any(), any(), any(), any())).thenReturn(log);
+        }
+
+        @Test
+        @DisplayName("отказ правил — Refused, тул не запускается")
+        void refused() {
+            decision(AccessDecision.deny("denied"));
+
+            assertInstanceOf(CallOutcome.Refused.class, call());
+            verify(toolExecutionService, never()).executeWithTimeout(any(), any());
+        }
+
+        @Test
+        @DisplayName("результат в пределах ожидания — Completed")
+        void completed() {
+            decision(AccessDecision.allow(null));
+            ToolResult result = new ToolResult("x", "mcp", "{}", null);
+            when(toolExecutionService.executeWithTimeout(log, Duration.ofSeconds(5)))
+                    .thenReturn(new WaitOutcome.Completed(result));
+
+            assertEquals(new CallOutcome.Completed(result), call());
+        }
+
+        @Test
+        @DisplayName("ожидание вышло — StillRunning с логом, по которому вызов можно отцепить")
+        void stillRunning() {
+            decision(AccessDecision.allow(null));
+            when(toolExecutionService.executeWithTimeout(log, Duration.ofSeconds(5)))
+                    .thenReturn(new WaitOutcome.StillRunning());
+
+            assertEquals(new CallOutcome.StillRunning(log), call());
         }
     }
 }

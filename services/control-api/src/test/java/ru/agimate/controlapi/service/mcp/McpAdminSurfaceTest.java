@@ -9,7 +9,6 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
 import ru.agimate.controlapi.connectors.internal.platform.PlatformAgentToolService;
 import ru.agimate.controlapi.connectors.internal.platform.PlatformConnectionToolService;
 import ru.agimate.controlapi.connectors.internal.platform.PlatformConnectorService;
@@ -25,7 +24,6 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.PolicyKind;
@@ -147,12 +145,11 @@ class McpAdminSurfaceTest {
 
     private final AgentService agentService = mock(AgentService.class);
     private final AgentToolCallService agentToolCallService = mock(AgentToolCallService.class);
-    private final ToolExecutionService toolExecutionService = mock(ToolExecutionService.class);
     private final ToolCallLogService toolCallLogService = mock(ToolCallLogService.class);
     private final InboundRateLimiter rateLimiter = mock(InboundRateLimiter.class);
 
     private final McpService mcpService = new McpService(
-            agentService, catalog, agentToolCallService, toolExecutionService, toolCallLogService, rateLimiter);
+            agentService, catalog, agentToolCallService, toolCallLogService, rateLimiter);
 
     private final Agent agent = Agent.builder()
             .id(AGENT_ID).userId(USER_ID).name("mcp-admin").type(AgentType.MCP).build();
@@ -244,40 +241,29 @@ class McpAdminSurfaceTest {
     }
 
     /**
-     * The executor is the one piece the test does not reconstruct: its answer runs the real
-     * connector instead, with a {@link ConnectorEnv} assembled from the call log — mirroring what
+     * The in-place call is the one piece the test does not reconstruct: its answer runs the real
+     * connector instead, with a {@link ConnectorEnv} of the call — mirroring what
      * {@code ToolExecutionService} does for a BACKEND connector.
      */
     private void stubExecution(String toolName, Map<String, Object> arguments) {
-        when(agentToolCallService.authorizeToolCall(eq(AGENT_ID), any())).thenAnswer(inv -> {
-            var request = inv.getArgument(1, ru.agimate.controlapi.controller.agent.dto.ToolCallRequest.class);
-            return ToolCallLog.builder()
-                    .id(UUID.randomUUID())
-                    .userId(USER_ID)
-                    .agentId(AGENT_ID)
-                    .connectorCode("platform")
-                    .connectionId(CONNECTION_ID.toString())
-                    .name(request.getName())
-                    .build();
-        });
-        when(toolExecutionService.executeWithTimeout(any(), any())).thenAnswer(inv -> {
-            ToolCallLog log = inv.getArgument(0);
-            ConnectorEnv env = new ConnectorEnv(log.getConnectionId(), USER_ID, AGENT_ID,
+        when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any())).thenAnswer(inv -> {
+            String connectorCode = inv.getArgument(1);
+            UUID connectionId = inv.getArgument(2);
+            String name = inv.getArgument(3);
+            ConnectorEnv env = new ConnectorEnv(connectionId.toString(), USER_ID, AGENT_ID,
                     null, null, null, Map.of(), null);
-            var provider = registry.findCapability(log.getConnectorCode(),
+            var provider = registry.findCapability(connectorCode,
                     ru.agimate.controlapi.connectors.core.ToolProvider.class).orElseThrow();
             // The real executor turns a ConnectorException into a failed tool result instead of
             // letting it escape — mirrored here so the MCP layer sees the same shape as in prod.
             try {
-                Map<String, Object> output = provider.executeTool(env, log.getName(), arguments);
+                Map<String, Object> output = provider.executeTool(env, name, arguments);
                 String json = ru.agimate.common.util.JsonUtils.writeValueAsString(output);
-                return new ToolExecutionService.WaitOutcome.Completed(
-                        new ToolResult(log.getExternalId() == null ? "ext" : log.getExternalId(),
-                                log.getConnectorCode(), json, null));
+                return new AgentToolCallService.CallOutcome.Completed(
+                        new ToolResult("ext", connectorCode, json, null));
             } catch (ru.agimate.controlapi.connectors.core.ConnectorException e) {
-                return new ToolExecutionService.WaitOutcome.Completed(
-                        new ToolResult(log.getExternalId() == null ? "ext" : log.getExternalId(),
-                                log.getConnectorCode(), null, e.getMessage()));
+                return new AgentToolCallService.CallOutcome.Completed(
+                        new ToolResult("ext", connectorCode, null, e.getMessage()));
             }
         });
     }

@@ -4,13 +4,9 @@ import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
-import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.controller.mcp.dto.DiscoverResult;
 import ru.agimate.controlapi.controller.mcp.dto.EmptyResult;
 import ru.agimate.controlapi.controller.mcp.dto.InitializeResult;
@@ -106,7 +102,6 @@ public class McpService {
     private final AgentService agentService;
     private final McpToolCatalog toolCatalog;
     private final AgentToolCallService agentToolCallService;
-    private final ToolExecutionService toolExecutionService;
     private final ToolCallLogService toolCallLogService;
     private final InboundRateLimiter rateLimiter;
 
@@ -187,15 +182,6 @@ public class McpService {
             return JsonRpcResponse.error(request.id(), JsonRpcError.INVALID_PARAMS, "Unknown tool: " + toolName);
         }
 
-        Object arguments = params.get("arguments");
-        ToolCallRequest call = ToolCallRequest.builder()
-                .id(UUIDUtils.generateUUIDv8().toString())
-                .connectorCode(entry.connectorCode())
-                .connectionId(entry.connectionId().toString())
-                .name(entry.toolName())
-                .input(arguments instanceof Map<?, ?> map ? asArguments(map) : Map.of())
-                .build();
-
         // Before the row is created and the tool starts: after the grace it is too late to refuse.
         boolean tasksCapable = declaresTasks(request);
         if (tasksCapable && toolCallLogService.countLiveDetached(
@@ -205,19 +191,20 @@ public class McpService {
                             + "); wait for one to complete or cancel it"));
         }
 
+        Object arguments = params.get("arguments");
+        AgentToolCallService.CallOutcome outcome = agentToolCallService.callAsAgent(agent.getId(),
+                entry.connectorCode(), entry.connectionId(), entry.toolName(),
+                arguments instanceof Map<?, ?> map ? asArguments(map) : Map.of(),
+                tasksCapable ? TASK_GRACE : TOOL_TIMEOUT);
         ToolCallLog toolCallLog;
-        try {
-            toolCallLog = agentToolCallService.authorizeToolCall(agent.getId(), call);
-        } catch (ForbiddenStatusException e) {
-            // The tool was listed a moment ago, so this is params_filter or a policy changed mid-flight —
-            // the model can act on that, unlike on a transport error.
-            return JsonRpcResponse.ok(request.id(), ToolCallResult.error(e.getMessage()));
-        }
-
-        ToolExecutionService.WaitOutcome outcome = toolExecutionService.executeWithTimeout(
-                toolCallLog, tasksCapable ? TASK_GRACE : TOOL_TIMEOUT);
-        if (outcome instanceof ToolExecutionService.WaitOutcome.Completed completed) {
-            return JsonRpcResponse.ok(request.id(), toCallResult(completed.result(), entry.spec()));
+        switch (outcome) {
+            case AgentToolCallService.CallOutcome.Refused(var message) -> {
+                return JsonRpcResponse.ok(request.id(), ToolCallResult.error(message));
+            }
+            case AgentToolCallService.CallOutcome.Completed(var result) -> {
+                return JsonRpcResponse.ok(request.id(), toCallResult(result, entry.spec()));
+            }
+            case AgentToolCallService.CallOutcome.StillRunning(var pending) -> toolCallLog = pending;
         }
         if (!tasksCapable) {
             // The pre-tasks contract: the call runs to the end and records its outcome in the log,

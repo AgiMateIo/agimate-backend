@@ -6,9 +6,11 @@ import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.abac.AccessDecision;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
+import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
@@ -17,7 +19,10 @@ import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.ConnectorService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.dto.IToolResult;
+import ru.agimate.controlapi.service.dto.ToolResult;
 
+import java.time.Duration;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -29,6 +34,7 @@ public class AgentToolCallService {
     private final ToolCallLogService toolCallLogService;
     private final ConnectionAccessEvaluator accessEvaluator;
     private final ConnectorService connectorService;
+    private final ToolExecutionService toolExecutionService;
 
     private sealed interface EvaluationResult {
         record Created(ToolCallLog log, AccessDecision decision) implements EvaluationResult {}
@@ -125,6 +131,45 @@ public class AgentToolCallService {
                 }
                 yield log;
             }
+        };
+    }
+
+    /** How a call run in place by {@link #callAsAgent} ended for its caller. */
+    public sealed interface CallOutcome {
+        record Completed(ToolResult result) implements CallOutcome {}
+        /** ABAC or {@code params_filter} said no; the message is fit for the caller's user or model. */
+        record Refused(String message) implements CallOutcome {}
+        /** The wait ran out; the execution goes on and records its outcome in {@code log}. */
+        record StillRunning(ToolCallLog log) implements CallOutcome {}
+    }
+
+    /**
+     * Authorise a call as the agent and run it in place, waiting up to {@code timeout} — for callers that
+     * answer with the result themselves ({@code /mcp}, views) rather than delivering it to the agent later.
+     * Each call gets a fresh id: these callers have no retry identity of their own.
+     *
+     * <p>Outside an active transaction, as {@link #authorizeToolCall}.
+     */
+    public CallOutcome callAsAgent(UUID agentId, String connectorCode, UUID connectionId, String toolName,
+                                   Map<String, Object> arguments, Duration timeout) {
+        ToolCallRequest call = ToolCallRequest.builder()
+                .id(UUIDUtils.generateUUIDv8().toString())
+                .connectorCode(connectorCode)
+                .connectionId(connectionId.toString())
+                .name(toolName)
+                .input(arguments == null ? Map.of() : arguments)
+                .build();
+        ToolCallLog log;
+        try {
+            log = authorizeToolCall(agentId, call);
+        } catch (ForbiddenStatusException e) {
+            // The caller resolved the tool from a listing a moment ago, so this is params_filter or a policy
+            // changed mid-flight — something to show, unlike a transport error.
+            return new CallOutcome.Refused(e.getMessage());
+        }
+        return switch (toolExecutionService.executeWithTimeout(log, timeout)) {
+            case ToolExecutionService.WaitOutcome.Completed(var result) -> new CallOutcome.Completed(result);
+            case ToolExecutionService.WaitOutcome.StillRunning() -> new CallOutcome.StillRunning(log);
         };
     }
 
