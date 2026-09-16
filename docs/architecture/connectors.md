@@ -175,6 +175,7 @@ TriggerProvider  — getTriggers
 JobProvider      — getJobs, getJobs(ctx), executeJob
 PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 ViewProvider     — readView(ctx, uri), toViewResult(output) — вью MCP Apps
+  └── ClasspathViewProvider — страница внутреннего коннектора из views/<code>/<name>.html
 ```
 
 Потребители достают capability через `findCapability(code, X.class)` (листинги, `Optional`) или —
@@ -190,6 +191,14 @@ ViewProvider     — readView(ctx, uri), toViewResult(output) — вью MCP App
 Инвариант: блок O(1) от объёма данных коннектора; растущие листинги — через тулы, не блоки.
 Пример — persist-memory: cold-память → SYSTEM-блок `memory` (attr `version` для CAS в
 `update_memory`), hot-заметки → USER-блок `memory_notes`.
+
+**`ViewProvider`** — вью (страницы MCP Apps), на которые ссылаются тулы через `ToolUi.resourceUri`:
+отдаёт страницу по `uri` и приводит вывод своего тула к `CallToolResult` для вью. Какие `uri` читать и
+какие тулы звать, решает `AgentViewService` по каталогу агента. Внутренний коннектор реализует
+`ClasspathViewProvider` — страница `ui://<code>/<name>` лежит в `resources/views/<code>/<name>.html` и
+едет с деплоем, — а тул ссылается на неё `@Tool(view = "ui://<code>/<name>")`. Тулам, которые зовёт
+сама страница, нужна видимость `ToolVisibility.VIEW`. См.
+[../decisions/connector-views.md](../decisions/connector-views.md).
 
 **Директивы контекста триггера (`ContextDirectives` в `TriggerSpec`).** Триггер статически
 декларирует, какой контекст нужен его рану, — overlay поверх route-пресета `ContextSpec`

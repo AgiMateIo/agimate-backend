@@ -119,7 +119,8 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
                     case EAGER -> Disclosure.EAGER;
                     case LAZY -> Disclosure.LAZY;
                 },
-                new ToolUi(null, Arrays.stream(tool.visibility()).map(ToolVisibility::wireValue).toList()));
+                new ToolUi(tool.view().isBlank() ? null : tool.view(),
+                        Arrays.stream(tool.visibility()).map(ToolVisibility::wireValue).toList()));
     }
 
     private static ToolAnnotationsSpec toAnnotationsSpec(ToolAnnotations a) {

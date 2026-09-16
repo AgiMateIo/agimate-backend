@@ -50,4 +50,11 @@ public @interface Tool {
      * background jobs use {@link Job}, which hides them on its own.
      */
     ToolVisibility[] visibility() default {ToolVisibility.MODEL};
+
+    /**
+     * The view this tool renders into — a full {@code ui://<connector code>/<name>} uri, as an external
+     * server writes {@code _meta.ui.resourceUri}; empty — none. The connector must serve it
+     * ({@code ClasspathViewProvider}); the tools the page itself calls need {@link ToolVisibility#VIEW}.
+     */
+    String view() default "";
 }

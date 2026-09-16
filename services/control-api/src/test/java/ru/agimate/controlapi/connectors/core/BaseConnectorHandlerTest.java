@@ -77,7 +77,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("видимость всегда явная в ui: по умолчанию только модель, APP — только вью")
+        @DisplayName("видимость всегда явная в ui: по умолчанию только модель, VIEW — только вью; ссылка на вью — из view")
         void carriesExplicitVisibility() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
@@ -85,6 +85,8 @@ class BaseConnectorHandlerTest {
             assertEquals(List.of("app"), tools.get("test.view_only").ui().visibility());
             assertFalse(ToolUi.visibleTo(tools.get("test.view_only").ui(), ToolAudience.MODEL));
             assertFalse(ToolUi.visibleTo(tools.get("test.echo").ui(), ToolAudience.VIEW));
+            assertEquals("ui://test/panel", tools.get("test.view_only").ui().resourceUri());
+            assertNull(tools.get("test.echo").ui().resourceUri());
         }
 
         @Test
@@ -450,7 +452,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Tool(name = "test.view_only", description = "Called by a view, never by the model",
-                visibility = ToolVisibility.VIEW)
+                visibility = ToolVisibility.VIEW, view = "ui://test/panel")
         public Map<String, Object> viewOnly() {
             return Map.of("ok", true);
         }
