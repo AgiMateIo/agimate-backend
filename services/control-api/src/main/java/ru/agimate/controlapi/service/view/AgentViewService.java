@@ -1,30 +1,26 @@
 package ru.agimate.controlapi.service.view;
 
-import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.CustomResponseStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.TooManyRequestsStatusException;
-import ru.agimate.common.util.JsonUtils;
-import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.ViewProvider;
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import ru.agimate.controlapi.connectors.core.dto.ToolUi;
-import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
-import ru.agimate.controlapi.connectors.integrations.mcp.McpClient;
-import ru.agimate.controlapi.connectors.integrations.mcp.McpConnectorService;
-import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
+import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
+import ru.agimate.controlapi.connectors.core.dto.ViewPage;
 import ru.agimate.controlapi.controller.manage.dto.AgentViewContentResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentViewResponse;
 import ru.agimate.controlapi.controller.manage.dto.ViewToolCallRequest;
 import ru.agimate.controlapi.controller.manage.dto.ViewToolCallResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.dto.ToolResult;
@@ -37,20 +33,22 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Connector views of an agent (docs/decisions/connector-views.md): which views its bindings give it,
  * the page of one, and the tool calls that page makes. Everything is derived from
  * {@link McpToolCatalog}, so bindings and ABAC decide here exactly as they do for the agent itself,
- * and a call from a view runs <i>as the agent</i> — the same {@link AgentToolCallService} path as
- * {@code /mcp}.
+ * and a call from a view runs <i>as the agent</i> — {@link AgentToolCallService#callAsAgent}, the same
+ * path as {@code /mcp}.
  *
  * <p>Not transactional: reading a view and calling a tool go over the network, and the pieces that
  * touch the database carry their own transactions.
  */
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
 public class AgentViewService {
 
@@ -63,10 +61,9 @@ public class AgentViewService {
     private final AgentService agentService;
     private final McpToolCatalog toolCatalog;
     private final ConnectionRepository connectionRepository;
+    private final ConnectorRegistry connectorRegistry;
     private final ConnectorEnvFactory connectorEnvFactory;
-    private final McpConnectorService mcpConnectorService;
     private final AgentToolCallService agentToolCallService;
-    private final ToolExecutionService toolExecutionService;
     private final InboundRateLimiter rateLimiter;
 
     /** Grouped by {@code (connection, uri)}: several tools of one server commonly render into one view. */
@@ -74,105 +71,82 @@ public class AgentViewService {
         Agent agent = ownedAgent(agentId, userId);
         record Key(UUID connectionId, String uri) {}
         Map<Key, List<McpToolCatalog.ToolEntry>> views = new LinkedHashMap<>();
-        for (McpToolCatalog.ToolEntry entry : toolCatalog.forAgent(agent, ToolAudience.ALL).values()) {
-            ToolUi ui = entry.spec().ui();
-            if (ui != null && ui.resourceUri() != null && servesViews(entry.connectorCode())) {
-                views.computeIfAbsent(new Key(entry.connectionId(), ui.resourceUri()), k -> new ArrayList<>())
-                        .add(entry);
+        for (McpToolCatalog.ToolEntry entry : viewCatalog(agent)) {
+            if (linksView(entry)) {
+                views.computeIfAbsent(new Key(entry.connectionId(), entry.spec().ui().resourceUri()),
+                        k -> new ArrayList<>()).add(entry);
             }
         }
+        Map<UUID, String> names = connectionRepository.findByIdInNotDeleted(
+                        views.keySet().stream().map(Key::connectionId).distinct().toList()).stream()
+                .filter(connection -> connection.getName() != null)
+                .collect(Collectors.toMap(Connection::getId, Connection::getName));
         return views.entrySet().stream()
                 .map(view -> new AgentViewResponse(
                         view.getKey().connectionId(),
                         view.getValue().getFirst().connectorCode(),
-                        connectionRepository.findByIdNotDeleted(view.getKey().connectionId())
-                                .map(Connection::getName)
-                                .orElse(null),
+                        names.get(view.getKey().connectionId()),
                         view.getKey().uri(),
                         view.getValue().stream().map(McpToolCatalog.ToolEntry::toolName).toList()))
                 .toList();
     }
 
     /**
-     * The server's {@code _meta.ui.csp} is dropped: a foreign page inside our interface gets no external
-     * domains at all — neither to connect to nor to load from, since an image URL leaks as well as a fetch.
-     *
-     * <p>Only a uri some allowed tool of this connection links to is read: the endpoint must not become
-     * a proxy for arbitrary {@code resources/read} on a server holding the user's credentials.
+     * Only a uri some allowed tool of this connection links to is read: the endpoint must not become
+     * a proxy for arbitrary reads on a server holding the user's credentials.
      */
     public AgentViewContentResponse content(UUID agentId, UUID userId, UUID connectionId, String uri) {
         Agent agent = ownedAgent(agentId, userId);
-        boolean declared = toolCatalog.forAgent(agent, ToolAudience.ALL).values().stream()
-                .anyMatch(entry -> entry.connectionId().equals(connectionId)
-                        && servesViews(entry.connectorCode())
-                        && entry.spec().ui() != null
-                        && uri.equals(entry.spec().ui().resourceUri()));
-        if (!declared) {
-            throw new NotFoundStatusException("View not found");
-        }
+        McpToolCatalog.ToolEntry entry = viewCatalog(agent).stream()
+                .filter(e -> e.connectionId().equals(connectionId)
+                        && linksView(e)
+                        && uri.equals(e.spec().ui().resourceUri()))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundStatusException("View not found"));
         Connection connection = connectionRepository.findByIdNotDeleted(connectionId)
                 .orElseThrow(() -> new NotFoundStatusException("View not found"));
 
-        McpClient.Resource resource;
+        ViewPage page;
         try {
-            resource = mcpConnectorService.readResource(
+            page = viewProvider(entry).readView(
                     connectorEnvFactory.forConnection(connection, agent.getId(), null, null), uri);
         } catch (ConnectorException e) {
-            throw badGateway(e.getMessage());
+            throw new CustomResponseStatusException(502, e.getMessage(), CustomResponseStatusException.LoggingLevel.WARN);
         }
-        if (!isViewMimeType(resource.mimeType())) {
-            throw badGateway("The server returned " + resource.mimeType() + " instead of an MCP App page");
-        }
-        JsonNode ui = resource.meta() == null ? null : resource.meta().get("ui");
-        return new AgentViewContentResponse(
-                uri,
-                resource.mimeType(),
-                resource.text(),
-                objectOrNull(ui, "permissions"),
-                ui != null && ui.path("prefersBorder").isBoolean() ? ui.get("prefersBorder").asBoolean() : null);
+        return new AgentViewContentResponse(uri, page.mimeType(), page.html(), page.permissions(), page.prefersBorder());
     }
 
     /**
-     * Two gates on top of the agent's own: the tool must be one of this connection in the agent's
-     * catalog (bindings and ABAC), and its visibility must admit views. The catalog is listed wide so a
-     * tool declared for the model only is a 403 the host can tell apart from a missing one.
+     * Gates on top of the agent's own: the tool must be one of this connection in the agent's catalog
+     * (bindings and ABAC), the connection must serve a view at all, and the tool's visibility must admit
+     * views. The catalog is listed wide so a tool declared for the model only is a 403 the host can tell
+     * apart from a missing one.
      */
     public ViewToolCallResponse call(UUID agentId, UUID userId, ViewToolCallRequest request) {
         Agent agent = ownedAgent(agentId, userId);
         if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.VIEW_CALL, agent.getId())) {
             throw new TooManyRequestsStatusException("View call rate limit exceeded");
         }
-        McpToolCatalog.ToolEntry entry = toolCatalog.forAgent(agent, ToolAudience.ALL).values().stream()
-                .filter(e -> e.connectionId().equals(request.connectionId())
-                        && e.toolName().equals(request.name()))
+        List<McpToolCatalog.ToolEntry> connectionTools = viewCatalog(agent).stream()
+                .filter(e -> e.connectionId().equals(request.connectionId()))
+                .toList();
+        McpToolCatalog.ToolEntry entry = connectionTools.stream()
+                .filter(e -> e.toolName().equals(request.name()))
                 .findFirst()
+                // A connection without views has no page that could be asking, whatever its tools declare.
+                .filter(e -> connectionTools.stream().anyMatch(AgentViewService::linksView))
                 .orElseThrow(() -> new NotFoundStatusException("Tool not found"));
-        ToolUi ui = entry.spec().ui();
-        if (!ToolUi.visibleTo(ui, ToolAudience.VIEW)) {
+        if (!ToolUi.visibleTo(entry.spec().ui(), ToolAudience.VIEW)) {
             throw new ForbiddenStatusException("Tool '" + request.name() + "' is not callable from a view");
         }
 
-        ToolCallRequest call = ToolCallRequest.builder()
-                .id(UUIDUtils.generateUUIDv8().toString())
-                .connectorCode(entry.connectorCode())
-                .connectionId(entry.connectionId().toString())
-                .name(entry.toolName())
-                .input(request.arguments() == null ? Map.of() : request.arguments())
-                .build();
-
-        ToolCallLog toolCallLog;
-        try {
-            toolCallLog = agentToolCallService.authorizeToolCall(agent.getId(), call);
-        } catch (ForbiddenStatusException e) {
-            // params_filter refused these arguments: the view asked for something the agent may not do.
-            return ViewToolCallResponse.error(e.getMessage());
-        }
-
-        ToolExecutionService.WaitOutcome outcome = toolExecutionService.executeWithTimeout(toolCallLog, CALL_TIMEOUT);
-        if (outcome instanceof ToolExecutionService.WaitOutcome.Completed completed) {
-            return toResponse(completed.result());
-        }
-        return ViewToolCallResponse.error("Tool execution timed out after " + CALL_TIMEOUT.toSeconds() + "s");
+        return switch (agentToolCallService.callAsAgent(agent.getId(), entry.connectorCode(),
+                entry.connectionId(), entry.toolName(), request.arguments(), CALL_TIMEOUT)) {
+            case AgentToolCallService.CallOutcome.Refused(var message) -> ViewToolCallResponse.of(ViewCallResult.error(message));
+            case AgentToolCallService.CallOutcome.Completed(var result) -> ViewToolCallResponse.of(toViewResult(entry, result));
+            case AgentToolCallService.CallOutcome.StillRunning(var ignored) -> ViewToolCallResponse.of(ViewCallResult.error(
+                    "Tool execution timed out after " + CALL_TIMEOUT.toSeconds() + "s"));
+        };
     }
 
     private Agent ownedAgent(UUID agentId, UUID userId) {
@@ -183,43 +157,27 @@ public class AgentViewService {
         return agent;
     }
 
-    /** Only MCP servers serve views so far; internal connectors will get their own reader. */
-    private static boolean servesViews(String connectorCode) {
-        return McpConnectorService.CONNECTOR_CODE.equals(connectorCode);
+    /** The agent's tools of connections whose connector serves views; listed wide, see {@link #call}. */
+    private List<McpToolCatalog.ToolEntry> viewCatalog(Agent agent) {
+        Map<String, Optional<ViewProvider>> providers = new LinkedHashMap<>();
+        return toolCatalog.forAgent(agent, ToolAudience.ALL).values().stream()
+                .filter(entry -> providers.computeIfAbsent(entry.connectorCode(),
+                        code -> connectorRegistry.findCapability(code, ViewProvider.class)).isPresent())
+                .toList();
     }
 
-    static boolean isViewMimeType(String mimeType) {
-        return mimeType != null
-                && mimeType.replace(" ", "").toLowerCase().startsWith("text/html;")
-                && mimeType.replace(" ", "").toLowerCase().contains("profile=mcp-app");
+    private static boolean linksView(McpToolCatalog.ToolEntry entry) {
+        return entry.spec().ui() != null && entry.spec().ui().resourceUri() != null;
     }
 
-    /**
-     * The MCP connector records the whole {@code CallToolResult} as the log's output, so the view gets
-     * {@code structuredContent} back instead of the text flattening the agent sees.
-     */
-    static ViewToolCallResponse toResponse(ToolResult result) {
-        if (result.getError() != null) {
-            return ViewToolCallResponse.error(result.getError());
-        }
-        JsonNode output = result.getOutput() == null ? null : JsonUtils.toJsonNodeOrNull(result.getOutput());
-        if (output == null || !output.isObject() || !output.has("content")) {
-            String text = result.getOutput() == null ? "" : result.getOutput();
-            return new ViewToolCallResponse(List.of(Map.of("type", "text", "text", text)), null, false);
-        }
-        Map<String, Object> map = JsonUtils.MAPPER.convertValue(output, JsonUtils.MAP_TYPE_REFERENCE);
-        return new ViewToolCallResponse(
-                map.get("content") instanceof List<?> content ? new ArrayList<>(content) : List.of(),
-                map.get("structuredContent"),
-                Boolean.TRUE.equals(map.get("isError")));
+    private ViewProvider viewProvider(McpToolCatalog.ToolEntry entry) {
+        return connectorRegistry.findCapability(entry.connectorCode(), ViewProvider.class)
+                .orElseThrow(() -> new NotFoundStatusException("View not found"));
     }
 
-    private static Map<String, Object> objectOrNull(JsonNode ui, String field) {
-        JsonNode node = ui == null ? null : ui.get(field);
-        return node != null && node.isObject() ? JsonUtils.MAPPER.convertValue(node, JsonUtils.MAP_TYPE_REFERENCE) : null;
-    }
-
-    private static CustomResponseStatusException badGateway(String message) {
-        return new CustomResponseStatusException(502, message, CustomResponseStatusException.LoggingLevel.WARN);
+    private ViewCallResult toViewResult(McpToolCatalog.ToolEntry entry, ToolResult result) {
+        return result.getError() != null
+                ? ViewCallResult.error(result.getError())
+                : viewProvider(entry).toViewResult(result.getOutput());
     }
 }

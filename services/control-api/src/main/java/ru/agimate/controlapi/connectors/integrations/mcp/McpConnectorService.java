@@ -1,19 +1,24 @@
 package ru.agimate.controlapi.connectors.integrations.mcp;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.JobProvider;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
+import ru.agimate.controlapi.connectors.core.ViewProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.CredentialField.Type;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
+import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
+import ru.agimate.controlapi.connectors.core.dto.ViewPage;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpAuthDiscovery;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpOAuthService;
@@ -23,7 +28,10 @@ import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthSetup;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,7 +54,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class McpConnectorService implements IntegrationConnectorHandler, ToolProvider, JobProvider {
+public class McpConnectorService implements IntegrationConnectorHandler, ToolProvider, JobProvider, ViewProvider {
 
     public static final String CONNECTOR_CODE = McpUtils.CONNECTOR_CODE;
 
@@ -182,14 +190,70 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         }
     }
 
-    /** A view of this instance ({@code resources/read} of a {@code ui://} uri); authorisation failures as in {@link #executeTool}. */
-    public McpClient.Resource readResource(ConnectorEnv env, String uri) {
-        McpClient.ServerConfig config = McpUtils.toServerConfig(env.credentials());
+    /** {@code resources/read} of a {@code ui://} uri; authorisation failures as in {@link #executeTool}. */
+    @Override
+    public ViewPage readView(ConnectorEnv env, String uri) {
+        McpClient.Resource resource;
         try {
-            return mcpClient.readResource(config, uri);
+            resource = mcpClient.readResource(McpUtils.toServerConfig(env.credentials()), uri);
         } catch (McpUnauthorizedException e) {
             throw reauthorizationNeeded(env, e);
         }
+        if (!isViewMimeType(resource.mimeType())) {
+            throw new ConnectorException("The server returned " + resource.mimeType() + " instead of an MCP App page");
+        }
+        JsonNode ui = resource.meta() == null ? null : resource.meta().get("ui");
+        return new ViewPage(
+                resource.mimeType(),
+                resource.text(),
+                objectOrNull(ui == null ? null : ui.get("permissions")),
+                ui != null && ui.path("prefersBorder").isBoolean() ? ui.get("prefersBorder").asBoolean() : null);
+    }
+
+    /**
+     * {@link #executeTool} records the server's whole {@code CallToolResult}, so a view gets its
+     * {@code structuredContent} back instead of the text flattening the agent sees.
+     */
+    @Override
+    public ViewCallResult toViewResult(String output) {
+        JsonNode node = output == null ? null : JsonUtils.toJsonNodeOrNull(output);
+        if (node == null || !node.isObject() || !node.path("content").isArray()) {
+            return ViewCallResult.text(output == null ? "" : output);
+        }
+        Map<String, Object> result = JsonUtils.MAPPER.convertValue(node, JsonUtils.MAP_TYPE_REFERENCE);
+        return new ViewCallResult(
+                new ArrayList<>((List<?>) result.get("content")),
+                result.get("structuredContent"),
+                Boolean.TRUE.equals(result.get("isError")));
+    }
+
+    /** {@code text/html} with the parameter {@code profile=mcp-app}, whatever the spacing, case or quoting. */
+    static boolean isViewMimeType(String mimeType) {
+        if (mimeType == null) {
+            return false;
+        }
+        String[] parts = mimeType.split(";");
+        if (!parts[0].trim().equalsIgnoreCase("text/html")) {
+            return false;
+        }
+        for (int i = 1; i < parts.length; i++) {
+            String[] parameter = parts[i].split("=", 2);
+            if (parameter.length == 2 && parameter[0].trim().equalsIgnoreCase("profile")
+                    && unquote(parameter[1].trim()).toLowerCase(Locale.ROOT).equals("mcp-app")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String unquote(String value) {
+        return value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")
+                ? value.substring(1, value.length() - 1)
+                : value;
+    }
+
+    private static Map<String, Object> objectOrNull(JsonNode node) {
+        return node != null && node.isObject() ? JsonUtils.MAPPER.convertValue(node, JsonUtils.MAP_TYPE_REFERENCE) : null;
     }
 
     private ConnectorException reauthorizationNeeded(ConnectorEnv env, McpUnauthorizedException failure) {

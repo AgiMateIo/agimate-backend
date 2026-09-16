@@ -8,9 +8,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
+import ru.agimate.controlapi.connectors.core.dto.ViewPage;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpAuthDiscovery;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpOAuthService;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedException;
@@ -25,6 +28,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -214,6 +218,68 @@ class McpConnectorServiceTest {
 
             verify(oauthService, never()).markExpired(any());
             assertTrue(e.getMessage().contains("files:write"));
+        }
+    }
+
+    @Nested
+    @DisplayName("вью")
+    class Views {
+
+        private static final String VIEW = "ui://server-everything/weather-dashboard";
+
+        @Test
+        @DisplayName("страница с prefersBorder из _meta.ui; объявленные сервером домены не отдаются")
+        void readsPage() {
+            when(mcpClient.readResource(any(), eq(VIEW))).thenReturn(new McpClient.Resource(VIEW,
+                    "text/html;profile=mcp-app", "<html></html>", JsonUtils.toJsonNodeOrNull(
+                    "{\"ui\":{\"csp\":{\"connectDomains\":[\"https://evil.example\"]},\"prefersBorder\":true}}")));
+
+            ViewPage page = service.readView(ctx(IDENTITY.toString(), Map.of(McpUtils.FIELD_URL, URL)), VIEW);
+
+            assertEquals("<html></html>", page.html());
+            assertTrue(page.prefersBorder());
+            assertNull(page.permissions());
+            assertFalse(JsonUtils.writeValueAsString(page).contains("evil.example"));
+        }
+
+        @Test
+        @DisplayName("не страница MCP App → ConnectorException")
+        void rejectsOtherMimeType() {
+            when(mcpClient.readResource(any(), eq(VIEW)))
+                    .thenReturn(new McpClient.Resource(VIEW, "text/html", "<html></html>", null));
+
+            assertThrows(ConnectorException.class,
+                    () -> service.readView(ctx(IDENTITY.toString(), Map.of(McpUtils.FIELD_URL, URL)), VIEW));
+        }
+
+        @Test
+        @DisplayName("MIME вью: пробелы, регистр и кавычки не важны, похожий профиль не проходит")
+        void viewMimeType() {
+            assertTrue(McpConnectorService.isViewMimeType("text/html;profile=mcp-app"));
+            assertTrue(McpConnectorService.isViewMimeType("Text/HTML; charset=utf-8; Profile=\"MCP-App\""));
+            assertFalse(McpConnectorService.isViewMimeType("text/html;profile=mcp-app-x"));
+            assertFalse(McpConnectorService.isViewMimeType("text/plain;profile=mcp-app"));
+            assertFalse(McpConnectorService.isViewMimeType(null));
+        }
+
+        @Test
+        @DisplayName("результат вызова: CallToolResult сервера доходит до вью со structuredContent")
+        void callToolResultPassesThrough() {
+            ViewCallResult result = service.toViewResult("""
+                    {"content":[{"type":"text","text":"12°C"}],"structuredContent":{"temp":12},"isError":false}""");
+
+            assertEquals(List.of(Map.of("type", "text", "text", "12°C")), result.content());
+            assertEquals(Map.of("temp", 12), result.structuredContent());
+            assertFalse(result.isError());
+        }
+
+        @Test
+        @DisplayName("вывод не в форме CallToolResult — текстом")
+        void otherOutputIsText() {
+            ViewCallResult result = service.toViewResult("{\"content\":\"not a list\"}");
+
+            assertEquals(List.of(Map.of("type", "text", "text", "{\"content\":\"not a list\"}")), result.content());
+            assertNull(result.structuredContent());
         }
     }
 

@@ -3,9 +3,9 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
 
 import java.util.List;
-import java.util.Map;
 
 /** Handed to the view unchanged as the JSON-RPC {@code result} of its {@code tools/call}. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -22,7 +22,7 @@ public record ViewToolCallResponse(
         boolean isError
 ) {
 
-    public static ViewToolCallResponse error(String message) {
-        return new ViewToolCallResponse(List.of(Map.of("type", "text", "text", message)), null, true);
+    public static ViewToolCallResponse of(ViewCallResult result) {
+        return new ViewToolCallResponse(result.content(), result.structuredContent(), result.isError());
     }
 }

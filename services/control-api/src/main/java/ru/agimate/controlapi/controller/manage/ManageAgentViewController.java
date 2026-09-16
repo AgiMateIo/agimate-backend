@@ -50,7 +50,7 @@ public class ManageAgentViewController {
     }
 
     @Operation(summary = "Call a tool on behalf of the agent from an open view",
-            description = "Only tools whose server declared visibility \"app\". Tool errors, policy refusals "
+            description = "Tools of a connection serving views, unless declared for the model only. Tool errors, policy refusals "
                     + "and timeouts come back as isError with 200 — the view shows them")
     @PostMapping("/tools/call")
     public SuccessResponse<ViewToolCallResponse> callTool(
