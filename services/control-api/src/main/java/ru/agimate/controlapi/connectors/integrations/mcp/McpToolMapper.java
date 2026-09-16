@@ -28,6 +28,7 @@ public class McpToolMapper {
                 .inputSchema(rawOrNull(tool.get("inputSchema")))
                 .outputSchema(rawOrNull(tool.get("outputSchema")))
                 .annotations(rawOrNull(tool.get("annotations")))
+                .meta(rawOrNull(tool.get("_meta")))
                 .build();
     }
 

@@ -56,6 +56,10 @@ public class ConnectionTool extends BaseEntity {
     @Column(name = "annotations", columnDefinition = "TEXT")
     private String annotations;
 
+    /** Raw {@code _meta} of the tool; the view link is derived from it on read, see {@code ConnectionToolMapper}. */
+    @Column(name = "meta", columnDefinition = "TEXT")
+    private String meta;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 }

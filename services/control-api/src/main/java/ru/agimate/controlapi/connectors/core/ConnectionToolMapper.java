@@ -6,7 +6,11 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
+import ru.agimate.controlapi.connectors.core.dto.ToolUi;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Shared mapping of dynamic tools: a cache row {@link ConnectionTool} (raw JSON schemas as text) →
@@ -29,7 +33,9 @@ public class ConnectionToolMapper {
                 parseSchema(tool.getOutputSchema()),
                 parseAnnotations(tool.getAnnotations()),
                 null,
-                null);
+                null,
+                null,
+                parseUi(tool.getMeta()));
     }
 
     /**
@@ -91,6 +97,38 @@ public class ConnectionToolMapper {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * {@code _meta.ui} of MCP Apps. Servers written against the draft put the link under the flat key
+     * {@code "ui/resourceUri"}; both shapes are live, the nested one wins when a server sends both.
+     * A tool may declare visibility without a view of its own — a helper only its server's views call.
+     * {@code null} when neither a {@code ui://} link nor a visibility is declared.
+     */
+    static ToolUi parseUi(String rawMeta) {
+        JsonNode meta = rawMeta == null || rawMeta.isBlank() ? null : JsonUtils.toJsonNodeOrNull(rawMeta);
+        if (meta == null || !meta.isObject()) {
+            return null;
+        }
+        JsonNode ui = meta.path("ui");
+        String resourceUri = textOrNull(ui.get("resourceUri"));
+        if (resourceUri == null) {
+            resourceUri = textOrNull(meta.get("ui/resourceUri"));
+        }
+        if (resourceUri != null && !resourceUri.startsWith("ui://")) {
+            resourceUri = null;
+        }
+        List<String> visibility = null;
+        JsonNode visibilityNode = ui.get("visibility");
+        if (visibilityNode != null && visibilityNode.isArray()) {
+            visibility = new ArrayList<>();
+            for (JsonNode item : visibilityNode) {
+                if (item.isTextual()) {
+                    visibility.add(item.asText());
+                }
+            }
+        }
+        return resourceUri == null && visibility == null ? null : new ToolUi(resourceUri, visibility);
     }
 
     private static String textOrNull(JsonNode node) {

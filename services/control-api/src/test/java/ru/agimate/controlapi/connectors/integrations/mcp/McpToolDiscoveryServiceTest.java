@@ -128,6 +128,19 @@ class McpToolDiscoveryServiceTest {
         }
 
         @Test
+        @DisplayName("существующий тул получает свежий _meta: иначе вью не появится до пересоздания коннекции")
+        void refreshesMeta() {
+            ConnectionTool existing = cached("show");
+            when(connectionToolRepository.findActiveByConnectionId(IDENTITY)).thenReturn(List.of(existing));
+            ConnectionTool fresh = cached("show");
+            fresh.setMeta("{\"ui\":{\"resourceUri\":\"ui://s/view\"}}");
+
+            service.reconcile(IDENTITY, List.of(fresh));
+
+            assertEquals("{\"ui\":{\"resourceUri\":\"ui://s/view\"}}", existing.getMeta());
+        }
+
+        @Test
         @DisplayName("пустой tools/list: всё существующее удаляется")
         void emptyListRemovesAll() {
             when(connectionToolRepository.findActiveByConnectionId(IDENTITY))

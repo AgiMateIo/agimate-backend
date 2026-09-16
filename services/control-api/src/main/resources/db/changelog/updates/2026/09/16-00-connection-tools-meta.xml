@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Connector views (docs/decisions/connector-views.md): the link from a tool to its view lives only
+      in the tool's _meta from tools/list (_meta.ui.resourceUri, visibility), so discovery has to keep it.
+
+      Raw JSON as it came from the server, like input_schema and annotations: _meta is an open bag, and
+      servers disagree even on the key's shape (nested ui.resourceUri and flat "ui/resourceUri" are both
+      in the wild). What we understand of it is derived on read, not frozen into columns.
+      Existing rows stay NULL until the connection's tools are discovered again.
+    -->
+    <changeSet id="add-connection-tools-meta" author="agimate">
+        <addColumn tableName="connection_tools">
+            <column name="meta" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

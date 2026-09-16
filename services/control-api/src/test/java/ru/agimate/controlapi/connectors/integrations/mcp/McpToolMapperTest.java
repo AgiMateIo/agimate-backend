@@ -43,6 +43,15 @@ class McpToolMapperTest {
     }
 
     @Test
+    @DisplayName("_meta сохраняется сырым: ссылка на вью живёт только в нём")
+    void keepsRawMeta() {
+        ConnectionTool entity = McpToolMapper.toEntity(IDENTITY, tool("""
+                {"name": "show", "_meta": {"ui": {"resourceUri": "ui://s/view", "visibility": ["app"]}}}"""));
+
+        assertEquals("{\"ui\":{\"resourceUri\":\"ui://s/view\",\"visibility\":[\"app\"]}}", entity.getMeta());
+    }
+
+    @Test
     @DisplayName("тул без имени отбрасывается (null)")
     void skipsNamelessTool() {
         assertNull(McpToolMapper.toEntity(IDENTITY, tool("{\"description\": \"x\"}")));

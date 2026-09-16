@@ -84,6 +84,7 @@ public class McpToolDiscoveryService {
                 row.setInputSchema(tool.getInputSchema());
                 row.setOutputSchema(tool.getOutputSchema());
                 row.setAnnotations(tool.getAnnotations());
+                row.setMeta(tool.getMeta());
                 connectionToolRepository.save(row);
             }
         }
