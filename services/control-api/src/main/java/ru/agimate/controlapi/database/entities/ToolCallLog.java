@@ -8,6 +8,7 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.abac.AccessEffect;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.service.dto.IToolResult;
 
 import java.time.LocalDateTime;
@@ -63,6 +64,11 @@ public class ToolCallLog extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "access_effect", columnDefinition = "TEXT")
     private AccessEffect accessEffect;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "initiator", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private ToolCallInitiator initiator = ToolCallInitiator.AGENT;
 
     @Column(name = "finish_at")
     private LocalDateTime finishAt;

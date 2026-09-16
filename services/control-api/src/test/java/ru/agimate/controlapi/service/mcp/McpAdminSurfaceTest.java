@@ -246,7 +246,7 @@ class McpAdminSurfaceTest {
      * {@code ToolExecutionService} does for a BACKEND connector.
      */
     private void stubExecution(String toolName, Map<String, Object> arguments) {
-        when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any())).thenAnswer(inv -> {
+        when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(), any())).thenAnswer(inv -> {
             String connectorCode = inv.getArgument(1);
             UUID connectionId = inv.getArgument(2);
             String name = inv.getArgument(3);

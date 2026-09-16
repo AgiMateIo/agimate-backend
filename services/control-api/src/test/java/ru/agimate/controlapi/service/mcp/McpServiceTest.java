@@ -24,6 +24,7 @@ import ru.agimate.controlapi.controller.mcp.dto.ToolCallResult;
 import ru.agimate.controlapi.controller.mcp.dto.ToolsListResult;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.AgentService;
@@ -204,14 +205,14 @@ class McpServiceTest {
             JsonRpcResponse response = call("tools/call", Map.of("name", "nope", "arguments", Map.of()));
 
             assertEquals(JsonRpcError.INVALID_PARAMS, response.error().code());
-            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any());
+            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
         @DisplayName("успех → content с выводом; structuredContent только при outputSchema")
         void success() {
             catalogWith(spec(null));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class)))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class), any()))
                     .thenReturn(new CallOutcome.Completed(new ToolResult("ext-1", "telegram", "{\"ok\":true}", null)));
 
             ToolCallResult result = (ToolCallResult) call("tools/call",
@@ -226,7 +227,7 @@ class McpServiceTest {
         @DisplayName("тул с outputSchema → structuredContent разобран")
         void structuredOutput() {
             catalogWith(spec(JsonSchema.any(null)));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class)))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class), any()))
                     .thenReturn(new CallOutcome.Completed(new ToolResult("ext-1", "telegram", "{\"messageId\":7}", null)));
 
             ToolCallResult result = (ToolCallResult) call("tools/call",
@@ -240,7 +241,7 @@ class McpServiceTest {
         @DisplayName("ошибка тула → isError, а не транспортная ошибка")
         void toolFailureIsResult() {
             catalogWith(spec(null));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class)))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class), any()))
                     .thenReturn(new CallOutcome.Completed(new ToolResult("ext-1", "telegram", null, "chat not found")));
 
             ToolCallResult result = (ToolCallResult) call("tools/call",
@@ -254,7 +255,7 @@ class McpServiceTest {
         @DisplayName("запрет политики на вызове (params_filter) → isError с причиной")
         void deniedByPolicy() {
             catalogWith(spec(null));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any()))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new CallOutcome.Refused("Tool arguments rejected by params_filter"));
 
             ToolCallResult result = (ToolCallResult) call("tools/call",
@@ -317,7 +318,8 @@ class McpServiceTest {
         @DisplayName("клиент без капабилити на таймауте получает isError, а не таск")
         void withoutCapabilityKeepsTheOldTimeout() {
             catalogWith(spec(null));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), eq(Duration.ofSeconds(60))))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), eq(Duration.ofSeconds(60)),
+                    eq(ToolCallInitiator.AGENT)))
                     .thenReturn(new CallOutcome.StillRunning(pending));
 
             ToolCallResult result = (ToolCallResult) call("tools/call",
@@ -332,7 +334,7 @@ class McpServiceTest {
         @DisplayName("объявивший капабилити после grace получает CreateTaskResult")
         void slowCapableCallBecomesTask() {
             catalogWith(spec(null));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), eq(Duration.ofSeconds(10))))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), eq(Duration.ofSeconds(10)), any()))
                     .thenReturn(new CallOutcome.StillRunning(pending));
             ToolCallLog detached = task(null, null);
             when(toolCallLogService.detach(AGENT_ID, "ext-1")).thenReturn(detached);
@@ -350,7 +352,7 @@ class McpServiceTest {
         @DisplayName("тул успел на границе grace: гонку выиграл результат, таска нет")
         void graceRaceHandsBackThePlainResult() {
             catalogWith(spec(null));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class)))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(Duration.class), any()))
                     .thenReturn(new CallOutcome.StillRunning(pending));
             ToolCallLog finished = ToolCallLog.builder()
                     .id(pending.getId()).agentId(AGENT_ID).externalId("ext-1")
@@ -375,7 +377,7 @@ class McpServiceTest {
 
             assertTrue(result.isError());
             assertTrue(result.content().get(0).text().contains("Too many running tasks"));
-            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any());
+            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test

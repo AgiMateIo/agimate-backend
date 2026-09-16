@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      A call from a connector view runs as the agent (docs/decisions/connector-views.md), so without
+      this column the log shows the owner's button press as the agent's own act. AGENT for every
+      existing row is exact, not a guess: views did not exist before this column. An MCP client is not
+      told apart from the worker — both are a model acting as the agent.
+    -->
+    <changeSet id="add-tool-call-logs-initiator" author="agimate">
+        <addColumn tableName="tool_call_logs">
+            <column name="initiator" type="TEXT" defaultValue="AGENT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE tool_call_logs
+                ADD CONSTRAINT chk_tool_call_logs_initiator CHECK (initiator IN ('AGENT', 'VIEW'));
+        </sql>
+    </changeSet>
+</databaseChangeLog>

@@ -3,6 +3,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.abac.AccessEffect;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 
 import java.time.LocalDateTime;
@@ -38,6 +39,9 @@ public record ToolCallLogResponse(
         @Schema(description = "Access effect (ALLOW/DENY)")
         AccessEffect accessEffect,
 
+        @Schema(description = "Who started the call: AGENT — the agent's model, VIEW — the owner from a connector view")
+        ToolCallInitiator initiator,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the output was received")
         LocalDateTime finishAt,
@@ -63,6 +67,7 @@ public record ToolCallLogResponse(
                 toolCallLog.getName(),
                 toolCallLog.getInput(),
                 toolCallLog.getAccessEffect(),
+                toolCallLog.getInitiator(),
                 toolCallLog.getFinishAt(),
                 toolCallLog.getOutput(),
                 toolCallLog.getError(),

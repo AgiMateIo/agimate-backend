@@ -15,6 +15,7 @@ import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.enums.PolicyKind;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.ConnectorService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
@@ -43,7 +44,7 @@ public class AgentToolCallService {
     }
 
     /** Idempotency check + ABAC evaluate + create log */
-    private EvaluationResult evaluate(UUID agentId, ToolCallRequest request) {
+    private EvaluationResult evaluate(UUID agentId, ToolCallRequest request, ToolCallInitiator initiator) {
         Agent agent = agentService.findById(agentId);
 
         var existing = toolCallLogService.findByExternalIdAndAgentId(request.getId(), agent.getId());
@@ -61,7 +62,7 @@ public class AgentToolCallService {
 
         try {
             ToolCallLog log = toolCallLogService.createLog(agent, request,
-                    request.getAgentSessionId(), request.getRunId(), decision.accessEffect(), decision.reason());
+                    request.getAgentSessionId(), request.getRunId(), decision.accessEffect(), decision.reason(), initiator);
             return new EvaluationResult.Created(log, decision);
         } catch (DataIntegrityViolationException e) {
             // Concurrent insert with the same (agent_id, tool_call_id) — race lost.
@@ -95,7 +96,7 @@ public class AgentToolCallService {
      * so the execution dispatch sees an already-committed row.
      */
     public String processToolCall(UUID agentId, ToolCallRequest request) {
-        return switch (evaluate(agentId, request)) {
+        return switch (evaluate(agentId, request, ToolCallInitiator.AGENT)) {
             case EvaluationResult.Replay(var log) -> {
                 // A retry with the same id and input: there is no result yet — we carry the execution through to
                 // the end (a crash or disconnect between committing the log and the dispatch); a rare duplicate
@@ -122,7 +123,11 @@ public class AgentToolCallService {
      * returned as-is: the caller re-executes, same as the dispatching path does.
      */
     public ToolCallLog authorizeToolCall(UUID agentId, ToolCallRequest request) {
-        return switch (evaluate(agentId, request)) {
+        return authorizeToolCall(agentId, request, ToolCallInitiator.AGENT);
+    }
+
+    private ToolCallLog authorizeToolCall(UUID agentId, ToolCallRequest request, ToolCallInitiator initiator) {
+        return switch (evaluate(agentId, request, initiator)) {
             case EvaluationResult.Replay(var log) -> log;
             case EvaluationResult.IdConflict(var ignored) -> throw idConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> {
@@ -151,7 +156,7 @@ public class AgentToolCallService {
      * <p>Outside an active transaction, as {@link #authorizeToolCall}.
      */
     public CallOutcome callAsAgent(UUID agentId, String connectorCode, UUID connectionId, String toolName,
-                                   Map<String, Object> arguments, Duration timeout) {
+                                   Map<String, Object> arguments, Duration timeout, ToolCallInitiator initiator) {
         ToolCallRequest call = ToolCallRequest.builder()
                 .id(UUIDUtils.generateUUIDv8().toString())
                 .connectorCode(connectorCode)
@@ -161,7 +166,7 @@ public class AgentToolCallService {
                 .build();
         ToolCallLog log;
         try {
-            log = authorizeToolCall(agentId, call);
+            log = authorizeToolCall(agentId, call, initiator);
         } catch (ForbiddenStatusException e) {
             // The caller resolved the tool from a listing a moment ago, so this is params_filter or a policy
             // changed mid-flight — something to show, unlike a transport error.
@@ -175,7 +180,7 @@ public class AgentToolCallService {
 
     /** Evaluate permission without execution */
     public AccessEffect checkToolCall(UUID agentId, ToolCallRequest request) {
-        return switch (evaluate(agentId, request)) {
+        return switch (evaluate(agentId, request, ToolCallInitiator.AGENT)) {
             case EvaluationResult.Replay(var log) -> log.getAccessEffect();
             case EvaluationResult.IdConflict(var ignored) -> throw idConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> decision.accessEffect();

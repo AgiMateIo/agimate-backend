@@ -29,6 +29,7 @@ import ru.agimate.controlapi.controller.manage.dto.ViewToolCallRequest;
 import ru.agimate.controlapi.controller.manage.dto.ViewToolCallResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.dto.ToolResult;
@@ -195,7 +196,7 @@ class AgentViewServiceTest {
             tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, List.of("model")));
 
             assertThrows(ForbiddenStatusException.class, () -> service.call(AGENT_ID, USER_ID, request));
-            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any());
+            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -214,7 +215,7 @@ class AgentViewServiceTest {
             tool(CONNECTION_ID, "mcp", "show", null);
 
             assertThrows(NotFoundStatusException.class, () -> service.call(AGENT_ID, USER_ID, request));
-            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any());
+            verify(agentToolCallService, never()).callAsAgent(any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
@@ -238,7 +239,7 @@ class AgentViewServiceTest {
         @DisplayName("отказ правил на вызове → isError, а не транспортная ошибка")
         void policyRefusal() {
             tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, List.of("app")));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any()))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new CallOutcome.Refused("denied"));
 
             ViewToolCallResponse response = service.call(AGENT_ID, USER_ID, request);
@@ -248,12 +249,12 @@ class AgentViewServiceTest {
         }
 
         @Test
-        @DisplayName("вызов от имени агента; результат разбирает коннектор вью")
+        @DisplayName("вызов от имени агента с инициатором VIEW; результат разбирает коннектор вью")
         void completedCall() {
             tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, List.of("app")));
             ToolResult result = new ToolResult("x", "mcp", "raw", null);
             when(agentToolCallService.callAsAgent(AGENT_ID, "mcp", CONNECTION_ID, "show",
-                    Map.of("location", "Tokyo"), java.time.Duration.ofSeconds(30)))
+                    Map.of("location", "Tokyo"), java.time.Duration.ofSeconds(30), ToolCallInitiator.VIEW))
                     .thenReturn(new CallOutcome.Completed(result));
             when(viewProvider.toViewResult("raw")).thenReturn(new ViewCallResult(List.of(), Map.of("temp", 12), false));
 
@@ -280,14 +281,14 @@ class AgentViewServiceTest {
         @DisplayName("таймаут → isError, исполнение дописывает лог само")
         void timeout() {
             tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, List.of("app")));
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any()))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new CallOutcome.StillRunning(null));
 
             assertTrue(service.call(AGENT_ID, USER_ID, request).isError());
         }
 
         private void completes(ToolResult result) {
-            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any()))
+            when(agentToolCallService.callAsAgent(eq(AGENT_ID), any(), any(), any(), any(), any(), any()))
                     .thenReturn(new CallOutcome.Completed(result));
             when(viewProvider.toViewResult(any())).thenReturn(ViewCallResult.text("ok"));
         }

@@ -19,6 +19,7 @@ import ru.agimate.controlapi.controller.mcp.dto.ToolCallResult;
 import ru.agimate.controlapi.controller.mcp.dto.ToolsListResult;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.dto.ToolResult;
@@ -195,7 +196,7 @@ public class McpService {
         AgentToolCallService.CallOutcome outcome = agentToolCallService.callAsAgent(agent.getId(),
                 entry.connectorCode(), entry.connectionId(), entry.toolName(),
                 arguments instanceof Map<?, ?> map ? asArguments(map) : Map.of(),
-                tasksCapable ? TASK_GRACE : TOOL_TIMEOUT);
+                tasksCapable ? TASK_GRACE : TOOL_TIMEOUT, ToolCallInitiator.AGENT);
         ToolCallLog toolCallLog;
         switch (outcome) {
             case AgentToolCallService.CallOutcome.Refused(var message) -> {

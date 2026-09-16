@@ -17,6 +17,7 @@ import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService.Wait
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.ConnectorService;
 import ru.agimate.controlapi.service.dto.ToolResult;
@@ -133,13 +134,15 @@ class AgentToolCallServiceTest {
         private final ToolCallLog log = ToolCallLog.builder().agentId(AGENT_ID).externalId("x").build();
 
         private CallOutcome call() {
-            return service.callAsAgent(AGENT_ID, "mcp", CONNECTION_ID, "show", Map.of(), Duration.ofSeconds(5));
+            return service.callAsAgent(AGENT_ID, "mcp", CONNECTION_ID, "show", Map.of(), Duration.ofSeconds(5),
+                    ToolCallInitiator.VIEW);
         }
 
         private void decision(AccessDecision decision) {
             when(accessEvaluator.evaluate(eq(AGENT_ID), eq(CONNECTION_ID.toString()), any(), eq("show")))
                     .thenReturn(decision);
-            when(toolCallLogService.createLog(any(), any(), any(), any(), any(), any())).thenReturn(log);
+            when(toolCallLogService.createLog(any(), any(), any(), any(), any(), any(), eq(ToolCallInitiator.VIEW)))
+                    .thenReturn(log);
         }
 
         @Test
@@ -152,7 +155,7 @@ class AgentToolCallServiceTest {
         }
 
         @Test
-        @DisplayName("результат в пределах ожидания — Completed")
+        @DisplayName("результат в пределах ожидания — Completed; лог пишется с инициатором вызывающего")
         void completed() {
             decision(AccessDecision.allow(null));
             ToolResult result = new ToolResult("x", "mcp", "{}", null);

@@ -21,6 +21,7 @@ import ru.agimate.controlapi.controller.manage.dto.ViewToolCallRequest;
 import ru.agimate.controlapi.controller.manage.dto.ViewToolCallResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.dto.ToolResult;
@@ -141,7 +142,7 @@ public class AgentViewService {
         }
 
         return switch (agentToolCallService.callAsAgent(agent.getId(), entry.connectorCode(),
-                entry.connectionId(), entry.toolName(), request.arguments(), CALL_TIMEOUT)) {
+                entry.connectionId(), entry.toolName(), request.arguments(), CALL_TIMEOUT, ToolCallInitiator.VIEW)) {
             case AgentToolCallService.CallOutcome.Refused(var message) -> ViewToolCallResponse.of(ViewCallResult.error(message));
             case AgentToolCallService.CallOutcome.Completed(var result) -> ViewToolCallResponse.of(toViewResult(entry, result));
             case AgentToolCallService.CallOutcome.StillRunning(var ignored) -> ViewToolCallResponse.of(ViewCallResult.error(

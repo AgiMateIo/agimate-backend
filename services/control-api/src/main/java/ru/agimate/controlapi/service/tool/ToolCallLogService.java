@@ -16,6 +16,7 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.enums.ToolCallInitiator;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.dto.IToolResult;
@@ -55,7 +56,7 @@ public class ToolCallLogService {
 
     @Transactional
     public ToolCallLog createLog(Agent agent, IToolCall toolCall, String agentSessionId,
-                                String runId, AccessEffect effect, String error) {
+                                String runId, AccessEffect effect, String error, ToolCallInitiator initiator) {
         var toolCallLog = ToolCallLog.builder()
                 .agentId(agent.getId())
                 .userId(agent.getUserId())
@@ -68,6 +69,7 @@ public class ToolCallLogService {
                 .runId(parseUuidOrNull(runId))
                 .accessEffect(effect)
                 .error(error)
+                .initiator(initiator)
                 .build();
 
         return toolCallLogRepository.save(toolCallLog);
