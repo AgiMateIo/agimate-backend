@@ -4,7 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Map;
 
-@Schema(description = "A view page to render in a sandboxed iframe (srcdoc, no allow-same-origin)")
+@Schema(description = "A view page to render in a sandboxed iframe (srcdoc, no allow-same-origin) under the "
+        + "strictest CSP: no external domains of any kind, whatever the server declares")
 public record AgentViewContentResponse(
         @Schema(description = "View resource")
         String uri,
@@ -14,10 +15,6 @@ public record AgentViewContentResponse(
 
         @Schema(description = "The page itself")
         String html,
-
-        @Schema(nullable = true, description = "_meta.ui.csp of the resource: connectDomains, resourceDomains, "
-                + "frameDomains, baseUriDomains; null — the strictest policy")
-        Map<String, Object> csp,
 
         @Schema(nullable = true, description = "_meta.ui.permissions the view asks for (camera, microphone, …)")
         Map<String, Object> permissions,

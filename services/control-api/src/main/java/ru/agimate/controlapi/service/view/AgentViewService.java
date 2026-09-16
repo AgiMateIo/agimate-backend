@@ -93,7 +93,10 @@ public class AgentViewService {
     }
 
     /**
-     * Only a uri some allowed tool of this connection links to is read: the endpoint must not become
+     * The server's {@code _meta.ui.csp} is dropped: a foreign page inside our interface gets no external
+     * domains at all — neither to connect to nor to load from, since an image URL leaks as well as a fetch.
+     *
+     * <p>Only a uri some allowed tool of this connection links to is read: the endpoint must not become
      * a proxy for arbitrary {@code resources/read} on a server holding the user's credentials.
      */
     public AgentViewContentResponse content(UUID agentId, UUID userId, UUID connectionId, String uri) {
@@ -124,7 +127,6 @@ public class AgentViewService {
                 uri,
                 resource.mimeType(),
                 resource.text(),
-                objectOrNull(ui, "csp"),
                 objectOrNull(ui, "permissions"),
                 ui != null && ui.path("prefersBorder").isBoolean() ? ui.get("prefersBorder").asBoolean() : null);
     }

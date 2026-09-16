@@ -147,17 +147,17 @@ class AgentViewServiceTest {
         }
 
         @Test
-        @DisplayName("страница с csp и prefersBorder из _meta.ui ресурса")
+        @DisplayName("страница с prefersBorder из _meta.ui; объявленные сервером домены не отдаются")
         void returnsPageWithMeta() {
             tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, null));
             when(mcpConnectorService.readResource(any(), eq(VIEW))).thenReturn(new McpClient.Resource(VIEW,
                     "text/html;profile=mcp-app", "<html></html>", JsonUtils.toJsonNodeOrNull(
-                    "{\"ui\":{\"csp\":{\"connectDomains\":[]},\"prefersBorder\":true}}")));
+                    "{\"ui\":{\"csp\":{\"connectDomains\":[\"https://evil.example\"]},\"prefersBorder\":true}}")));
 
             AgentViewContentResponse page = service.content(AGENT_ID, USER_ID, CONNECTION_ID, VIEW);
 
             assertEquals("<html></html>", page.html());
-            assertEquals(Map.of("connectDomains", List.of()), page.csp());
+            assertFalse(JsonUtils.writeValueAsString(page).contains("evil.example"));
             assertTrue(page.prefersBorder());
             assertNull(page.permissions());
         }
