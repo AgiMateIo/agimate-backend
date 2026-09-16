@@ -15,11 +15,10 @@ public interface ToolProvider {
 
     /**
      * Tool specs for one particular connector instance. By default they equal the static
-     * {@link #getTools()} — most connectors do not depend on the instance. Dynamic connectors (MCP,
-     * for example) override this: their tool set is discovered at runtime per connectionId, so here
-     * they return the list for {@code env.connectionId()} (for MCP, out of the
-     * {@code connection_tools} cache). The context carries connectionId; listing needs no decrypted
-     * credentials.
+     * {@link #getTools()} — most connectors do not depend on the instance. A STATIC connector whose set
+     * still varies per instance overrides it (the IDE connector). DYNAMIC connectors (MCP) do not: their
+     * cached {@code connection_tools} are read by {@code ToolDefinitionService} itself. The context
+     * carries connectionId; listing needs no decrypted credentials.
      */
     default Map<String, ConnectorToolSpec> getTools(ConnectorEnv env) {
         return getTools();

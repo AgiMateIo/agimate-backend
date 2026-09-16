@@ -174,6 +174,7 @@ ToolProvider     — getTools, getTools(ctx), executeTool, sessionScopedTools
 TriggerProvider  — getTriggers
 JobProvider      — getJobs, getJobs(ctx), executeJob
 PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
+ViewProvider     — readView(ctx, uri), toViewResult(output) — вью MCP Apps
 ```
 
 Потребители достают capability через `findCapability(code, X.class)` (листинги, `Optional`) или —
@@ -253,7 +254,7 @@ gRPC-листинг (`GetConnectionTools(connection_id)`) единообразн
 
 **Именование тулов и триггеров (единая форма).** Хранимое имя (`@Tool(name=…)`, ключи `getTriggers()`,
 `@Job`) — **голый локальный идентификатор** в `snake_case` без префиксов: `schedule`, `get_tasks`,
-`message_received`, `consolidate`, `daily`. Глобальную уникальность для LLM даёт `namespace`, который бэк
+`message_received`, `consolidate`, `consolidation`. Глобальную уникальность для LLM даёт `namespace`, который бэк
 выводит на экземпляр: `connector_code` для контекстных синглтонов (time/board/persist-memory — у агента ровно
 один) и `full_code` для multi-instance (`mcp_context7`, `telegram_<bot>`). Воркер строит agent-facing имя как
 `{namespace}.{name}` (`time.schedule`, `persist-memory.save_memory_note`, `mcp_context7.resolve-library-id`),
@@ -295,14 +296,18 @@ PNG-графики, импорт/выгрузка xlsx/csv, см. `docs/connecto
 auth — статический Bearer-токен/произвольные заголовки либо OAuth, см. ниже). Особенность: тулы
 **динамические и per-instance** — каждый экземпляр (строка `connections` = `url` + auth в `secrets`)
 отдаёт свой набор через `tools/list`. Поэтому
-`McpConnectorService implements IntegrationConnectorHandler, ToolProvider, JobProvider` напрямую
+`McpConnectorService implements IntegrationConnectorHandler, ToolProvider, JobProvider, ViewProvider` напрямую
 (без `BaseConnectorHandler` и `@Tool`-методов; единственная джоба — обновление OAuth-токена):
 
-- `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из `connection_tools` по `ctx.connectionId()`.
+- `getTools()` пуст (статических тулов нет); тулы экземпляра читает из `connection_tools` сам
+  `ToolDefinitionService`, как у любого DYNAMIC-коннектора. Сырой `_meta` тула хранится в
+  `connection_tools.meta`, из него при чтении выводится `ui` (вью и видимость MCP Apps).
 - `validateCredentials` = хендшейк `initialize` (доступность + auth); `identifier` = URL сервера (канонический
   ключ экземпляра, идёт в `sub_code`).
 - `executeTool` проксирует в `tools/call`; путь исполнения (`ToolExecutionService`, свежие credentials по
   `connection_id`) — общий, без изменений.
+- `readView` — `resources/read` страницы вью (клиент объявляет расширение `io.modelcontextprotocol/ui`),
+  см. [../decisions/connector-views.md](../decisions/connector-views.md).
 
 **SSRF-guard.** URL задаёт пользователь, а запрос делает бэкенд — цель проверяется общим гардом
 исходящих вызовов (`PublicOnlyHttp`, см. [outbound-http.md](outbound-http.md)): перед каждым
@@ -319,12 +324,12 @@ upsert + удаление пропавших; на delete — чистка по 
 Manage-API: `POST /manage/integrations/credentials/{id}/test` — единый «тест интеграции»: валидация
 credentials (для всех типов — доступность/auth платформы) + для MCP синхронная пересборка кэша тулов
 (возвращает `toolsDiscovered`/`toolsError`, не роняя сам тест). Тулы экземпляра (для UI политик) —
-`GET /manage/integrations/credentials/{id}/tools/`: отдаёт через SPI `getTools(ctx)` (MCP — из кэша,
+`GET /manage/integrations/credentials/{id}/tools/`: отдаёт через `ToolDefinitionService` (MCP — из кэша,
 статические коннекторы — их штатный набор), без спец-кейсов.
 
 ABAC: доступ к MCP-серверу — binding агента на его connection; правила `agent_connection_policies`
 скоупятся по `(binding, kind, name)`, имена тулов берутся из `connection_tools`. Периодический refresh по
-расписанию и MCP `resources`/`prompts` — вне scope (YAGNI).
+расписанию, MCP `prompts` и `resources` помимо страниц вью — вне scope (YAGNI).
 
 **OAuth** (подпакет `integrations/mcp/oauth/`, решение — [../decisions/mcp-oauth.md](../decisions/mcp-oauth.md)).
 Режим определяется не настройкой, а поведением сервера: `validateCredentials` получает 401, разбирает

@@ -28,9 +28,9 @@ import java.util.UUID;
 /**
  * The single place that lists an instance's tools — the source is decided by {@code definitionBinding}:
  * STATIC → the handler's {@link ToolProvider}; DYNAMIC → {@code connection_tools} by connectionId. Every
- * listing goes through {@link #getTools(Connection, ConnectorEnv)}: the run context, the MCP surface, the
- * agent's available names, channel validation and the HTTP listings, so the branching and the cache read
- * live here once.
+ * listing goes through {@link #getTools(Connection, ConnectorEnv, ToolAudience)}: the run context, the MCP
+ * surface, the agent's available names, channel validation and the HTTP listings, so the branching and the
+ * cache read live here once.
  *
  * <p>Every listing names its audience ({@link ToolAudience}): the model must not see a tool declared
  * for views only, and filtering here rather than at each consumer is what keeps one of them from
