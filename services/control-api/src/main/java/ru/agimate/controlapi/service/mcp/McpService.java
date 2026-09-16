@@ -90,6 +90,18 @@ public class McpService {
 
     private static final int POLL_INTERVAL_MS = 5000;
 
+    /** The same answer for every caller, changing only with a deploy — safe for a shared cache. */
+    private static final long DISCOVER_TTL_MS = Duration.ofHours(1).toMillis();
+
+    /**
+     * Bindings and policies change at runtime and no {@code list_changed} is ever sent, so the
+     * listing is stale as soon as it is received — the same as before the hint existed.
+     */
+    private static final long TOOLS_LIST_TTL_MS = 0;
+
+    private static final String CACHE_PUBLIC = "public";
+    private static final String CACHE_PRIVATE = "private";
+
     private final AgentService agentService;
     private final McpToolCatalog toolCatalog;
     private final AgentToolCallService agentToolCallService;
@@ -139,6 +151,8 @@ public class McpService {
         return new DiscoverResult(
                 List.of(PROTOCOL_VERSION),
                 CAPABILITIES,
+                DISCOVER_TTL_MS,
+                CACHE_PUBLIC,
                 Map.of(SERVER_INFO_META,
                         Map.of("name", SERVER_NAME, "version", SERVER_VERSION)));
     }
@@ -149,7 +163,8 @@ public class McpService {
                 .map(entry -> McpTool.of(entry.getKey(), entry.getValue().spec()))
                 .toList();
         log.debug("MCP tools/list for agent {}: {} tools", agent.getId(), tools.size());
-        return new ToolsListResult(tools);
+        // Private: the listing is this agent's bindings under its policies.
+        return new ToolsListResult(tools, TOOLS_LIST_TTL_MS, CACHE_PRIVATE);
     }
 
     private JsonRpcResponse callTool(AgentPrincipal principal, JsonRpcRequest request) {
@@ -228,7 +243,7 @@ public class McpService {
      */
     private JsonRpcResponse taskMethod(AgentPrincipal principal, JsonRpcRequest request, TaskMethod method) {
         if (!declaresTasks(request)) {
-            return JsonRpcResponse.error(request.id(), JsonRpcError.MISSING_CLIENT_CAPABILITY,
+            return JsonRpcResponse.error(request.id(), JsonRpcError.MISSING_REQUIRED_CLIENT_CAPABILITY,
                     "Missing required client capability",
                     Map.of("requiredCapabilities", Map.of("extensions", Map.of(TASKS_EXTENSION, Map.of()))));
         }

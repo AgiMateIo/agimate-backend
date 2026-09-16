@@ -17,6 +17,9 @@ import ru.agimate.controlapi.controller.mcp.dto.JsonRpcResponse;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.mcp.McpService;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * The MCP endpoint, stateless Streamable HTTP of the {@code 2026-07-28} revision: one JSON-RPC
  * request per POST, and nothing else. Sessions and resumable streams are gone from the revision, so
@@ -25,8 +28,9 @@ import ru.agimate.controlapi.service.mcp.McpService;
  * that does not keep state for it.
  *
  * <p>Responses are not wrapped in {@code SuccessResponse}: the envelope here belongs to JSON-RPC.
- * Authentication is the agent's key ({@code Authorization: Bearer}), and only an agent of type
- * {@code MCP} reaches this path — see {@code AgentAuthFilter} and the api-key chain.
+ * Authentication is the agent's key ({@code Authorization: Bearer}); every external agent type
+ * ({@code MCP}, {@code CENTRIFUGO}, {@code WEBHOOK}) reaches this path, {@code GENERIC} does not —
+ * its loop is already run by our worker. See {@code AgentAuthFilter} and the api-key chain.
  */
 @Slf4j
 @RestController
@@ -48,15 +52,26 @@ public class McpController {
 
         if (protocolVersion != null && !McpService.PROTOCOL_VERSION.equals(protocolVersion)) {
             return ResponseEntity.badRequest().body(JsonRpcResponse.error(request.id(),
-                    JsonRpcError.INVALID_REQUEST,
-                    "Unsupported protocol version: " + protocolVersion
-                            + "; this server speaks " + McpService.PROTOCOL_VERSION));
+                    JsonRpcError.UNSUPPORTED_PROTOCOL_VERSION,
+                    "Unsupported protocol version",
+                    Map.of("supported", List.of(McpService.PROTOCOL_VERSION), "requested", protocolVersion)));
         }
 
         return mcpService.handle(principal, request)
-                .map(ResponseEntity::ok)
+                .map(response -> ResponseEntity.status(statusOf(response)).body(response))
                 // A notification is answered by the transport, not by a body.
                 .orElseGet(() -> ResponseEntity.accepted().build());
+    }
+
+    /**
+     * The revision pins an HTTP status to some protocol errors; the rest travel as 200, because a
+     * tool failure or a policy denial is an answer the model has to read, not a transport fault.
+     */
+    private static HttpStatus statusOf(JsonRpcResponse response) {
+        return response.error() != null
+                && response.error().code() == JsonRpcError.MISSING_REQUIRED_CLIENT_CAPABILITY
+                ? HttpStatus.BAD_REQUEST
+                : HttpStatus.OK;
     }
 
     @RequestMapping(method = {RequestMethod.GET, RequestMethod.DELETE})

@@ -143,6 +143,15 @@ class McpServiceTest {
         }
 
         @Test
+        @DisplayName("server/discover кэшируем всеми: одинаков для любого вызывающего")
+        void serverDiscoverIsPubliclyCacheable() {
+            DiscoverResult result = (DiscoverResult) call("server/discover", Map.of()).result();
+
+            assertEquals("public", result.cacheScope());
+            assertTrue(result.ttlMs() > 0);
+        }
+
+        @Test
         @DisplayName("ping — пустой результат, а не голая мапа")
         void ping() {
             assertInstanceOf(EmptyResult.class, call("ping", Map.of()).result());
@@ -169,6 +178,17 @@ class McpServiceTest {
             assertEquals(1, result.tools().size());
             assertEquals("telegram_bot__send", result.tools().get(0).name());
             assertEquals("Send a message", result.tools().get(0).description());
+        }
+
+        @Test
+        @DisplayName("листинг приватен и сразу несвеж: привязки агента меняются, list_changed не шлём")
+        void listingIsPrivateAndImmediatelyStale() {
+            catalogWith(spec(null));
+
+            ToolsListResult result = (ToolsListResult) call("tools/list", Map.of()).result();
+
+            assertEquals("private", result.cacheScope());
+            assertEquals(0, result.ttlMs());
         }
     }
 
@@ -369,11 +389,11 @@ class McpServiceTest {
         }
 
         @Test
-        @DisplayName("tasks/get без капабилити → -32003 с requiredCapabilities в data")
+        @DisplayName("tasks/get без капабилити → -32021 с requiredCapabilities в data")
         void taskMethodWithoutCapability() {
             JsonRpcResponse response = call("tasks/get", Map.of("taskId", "task-1"));
 
-            assertEquals(JsonRpcError.MISSING_CLIENT_CAPABILITY, response.error().code());
+            assertEquals(-32021, response.error().code());
             assertNotNull(response.error().data());
         }
 

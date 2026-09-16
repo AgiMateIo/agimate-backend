@@ -51,8 +51,8 @@ class McpResultJsonTest {
     void everyResultCarriesTheDiscriminator() {
         List<McpResult> results = List.of(
                 new InitializeResult("2026-07-28", Map.of(), new InitializeResult.ServerInfo("agimate", "1")),
-                new DiscoverResult(List.of("2026-07-28"), Map.of(), Map.of()),
-                new ToolsListResult(List.of()),
+                new DiscoverResult(List.of("2026-07-28"), Map.of(), 3_600_000L, "public", Map.of()),
+                new ToolsListResult(List.of(), 0, "private"),
                 ToolCallResult.text("ok", null),
                 ToolCallResult.error("boom"));
 
@@ -61,5 +61,18 @@ class McpResultJsonTest {
             assertTrue(json.contains("\"resultType\":\"complete\""),
                     result.getClass().getSimpleName() + " должен нести дискриминатор: " + json);
         }
+    }
+
+    @Test
+    @DisplayName("CacheableResult: ttlMs и cacheScope на проводе, нулевой ttl не выпадает")
+    void cacheableResultsCarryTheHint() {
+        String tools = mapper.writeValueAsString(new ToolsListResult(List.of(), 0, "private"));
+        String discover = mapper.writeValueAsString(
+                new DiscoverResult(List.of("2026-07-28"), Map.of(), 3_600_000L, "public", Map.of()));
+
+        assertTrue(tools.contains("\"ttlMs\":0"), "обязательное поле, ноль — тоже значение: " + tools);
+        assertTrue(tools.contains("\"cacheScope\":\"private\""), tools);
+        assertTrue(discover.contains("\"ttlMs\":3600000"), discover);
+        assertTrue(discover.contains("\"cacheScope\":\"public\""), discover);
     }
 }
