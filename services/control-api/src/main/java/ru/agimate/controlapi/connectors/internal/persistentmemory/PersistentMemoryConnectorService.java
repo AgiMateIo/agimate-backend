@@ -2,6 +2,7 @@ package ru.agimate.controlapi.connectors.internal.persistentmemory;
 
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ClasspathViewProvider;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
@@ -29,13 +30,16 @@ import java.util.UUID;
  * <p>The one trigger, {@code consolidate}, is addressed to the bound agents (audience): fold the
  * accumulated notes into cold.
  *
+ * <p>{@link ClasspathViewProvider}: the memory panel ({@link PersistentMemoryToolService#MEMORY_VIEW}) — the
+ * owner reads both layers, edits cold under the same CAS and adds notes.
+ *
  * <p>{@link PromptBlockProvider}: cold memory is the SYSTEM block {@code memory} (with the attr
  * {@code version} for the CAS in {@code update_memory}), and hot notes are the USER block
  * {@code memory_notes}.
  */
 @Component
 public class PersistentMemoryConnectorService extends BaseConnectorHandler
-        implements InternalConnectorHandler, TriggerProvider, PromptBlockProvider {
+        implements InternalConnectorHandler, TriggerProvider, PromptBlockProvider, ClasspathViewProvider {
 
     public static final String CONNECTOR_CODE = "persist-memory";
 

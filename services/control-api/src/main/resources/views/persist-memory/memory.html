@@ -1,0 +1,249 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memory</title>
+<style>
+  :root {
+    --bg: var(--color-background-primary, #ffffff);
+    --bg-soft: var(--color-background-secondary, #f4f5f7);
+    --text: var(--color-text-primary, #1c1f24);
+    --text-soft: var(--color-text-secondary, #5f6672);
+    --line: var(--color-border-primary, #dfe2e7);
+    --accent: var(--color-text-info, #2f6fdd);
+    --danger: var(--color-text-danger, #c2362f);
+    --font: var(--font-sans, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+    --radius: var(--border-radius-md, 8px);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --bg: var(--color-background-primary, #17191d);
+    --bg-soft: var(--color-background-secondary, #22252b);
+    --text: var(--color-text-primary, #e8eaed);
+    --text-soft: var(--color-text-secondary, #9aa1ac);
+    --line: var(--color-border-primary, #343841);
+    --accent: var(--color-text-info, #7aa7f5);
+    --danger: var(--color-text-danger, #f08a84);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+  main { display: grid; gap: 20px; padding: 16px; }
+  section { display: grid; gap: 8px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .hint { margin: 0; color: var(--text-soft); font-size: 12px; }
+  .meta { color: var(--text-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+  textarea, input {
+    width: 100%; font: inherit; color: var(--text); background: var(--bg-soft);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px;
+  }
+  textarea { min-height: 160px; resize: vertical; }
+  textarea:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row input { flex: 1 1 200px; width: auto; }
+  button {
+    font: inherit; border-radius: var(--radius); padding: 6px 14px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--bg);
+  }
+  button.quiet { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { font-size: 12px; color: var(--text-soft); min-height: 18px; }
+  .status.error { color: var(--danger); }
+  ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  li { background: var(--bg-soft); border-radius: var(--radius); padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .empty { color: var(--text-soft); font-style: italic; }
+</style>
+</head>
+<body>
+<main>
+  <section aria-labelledby="cold-title">
+    <header>
+      <h2 id="cold-title" data-t="coldTitle"></h2>
+      <span class="meta" id="cold-version"></span>
+    </header>
+    <p class="hint" data-t="coldHint"></p>
+    <textarea id="cold" aria-labelledby="cold-title" disabled></textarea>
+    <div class="row">
+      <button id="save" disabled data-t="save"></button>
+      <button id="reload" class="quiet" data-t="reload"></button>
+      <span class="status" id="cold-status" role="status"></span>
+    </div>
+  </section>
+
+  <section aria-labelledby="hot-title">
+    <header>
+      <h2 id="hot-title" data-t="hotTitle"></h2>
+      <span class="meta" id="hot-count"></span>
+    </header>
+    <p class="hint" data-t="hotHint"></p>
+    <ol id="notes"></ol>
+    <form class="row" id="add-form">
+      <input id="note" autocomplete="off" aria-labelledby="hot-title">
+      <button id="add" type="submit" disabled data-t="add"></button>
+    </form>
+    <span class="status" id="hot-status" role="status"></span>
+  </section>
+</main>
+
+<script>
+(() => {
+  const TEXTS = {
+    en: {
+      coldTitle: "Long-term memory", coldHint: "What the agent remembers across conversations. Edit it the way the agent would.",
+      hotTitle: "Pending notes", hotHint: "Facts captured in conversations. Once an hour they are folded into long-term memory.",
+      save: "Save", reload: "Reload", add: "Add note", notePlaceholder: "A fact worth remembering",
+      version: "version", notes: (n) => n + (n === 1 ? " note" : " notes"), noNotes: "No pending notes",
+      saved: "Saved", added: "Note added", loading: "Loading…",
+      conflict: "Memory changed while you were editing. Reload to see the current text; your edit is still in the field.",
+      failed: "Failed: "
+    },
+    ru: {
+      coldTitle: "Долговременная память", coldHint: "То, что агент помнит между разговорами. Правьте так, как правил бы сам агент.",
+      hotTitle: "Заметки", hotHint: "Факты из разговоров. Раз в час они сворачиваются в долговременную память.",
+      save: "Сохранить", reload: "Обновить", add: "Добавить", notePlaceholder: "Факт, который стоит запомнить",
+      version: "версия", notes: (n) => n + " " + plural(n, "заметка", "заметки", "заметок"), noNotes: "Заметок нет",
+      saved: "Сохранено", added: "Заметка добавлена", loading: "Загрузка…",
+      conflict: "Память изменилась, пока вы правили. Обновите, чтобы увидеть текущий текст; ваша правка осталась в поле.",
+      failed: "Ошибка: "
+    }
+  };
+  function plural(n, one, few, many) {
+    const d = n % 10, h = n % 100;
+    if (d === 1 && h !== 11) return one;
+    if (d >= 2 && d <= 4 && (h < 12 || h > 14)) return few;
+    return many;
+  }
+  let t = TEXTS.en;
+
+  // --- MCP Apps bridge: JSON-RPC over postMessage to the host ---
+  let nextId = 1;
+  const pending = new Map();
+  function request(method, params) {
+    const id = nextId++;
+    window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+  }
+  function notify(method, params) {
+    window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+  }
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const message = event.data;
+    if (!message || message.jsonrpc !== "2.0" || message.id == null || !pending.has(message.id)) return;
+    const { resolve, reject } = pending.get(message.id);
+    pending.delete(message.id);
+    message.error ? reject(new Error(message.error.message)) : resolve(message.result);
+  });
+
+  async function callTool(name, args) {
+    const result = await request("tools/call", { name, arguments: args || {} });
+    if (result.isError) {
+      const text = (result.content || []).map((block) => block.text || "").join("\n");
+      throw new Error(text || name);
+    }
+    return result.structuredContent || {};
+  }
+
+  // --- UI ---
+  const $ = (id) => document.getElementById(id);
+  const cold = $("cold"), save = $("save"), note = $("note"), add = $("add");
+  let version = 0, loadedText = "";
+
+  function status(el, text, isError) {
+    el.textContent = text || "";
+    el.classList.toggle("error", !!isError);
+  }
+
+  function applyTexts() {
+    document.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t[el.dataset.t]; });
+    note.placeholder = t.notePlaceholder;
+  }
+
+  async function loadCold() {
+    const memory = await callTool("get_memory");
+    version = memory.version || 0;
+    loadedText = memory.content || "";
+    cold.value = loadedText;
+    cold.disabled = false;
+    $("cold-version").textContent = t.version + " " + version;
+    save.disabled = true;
+  }
+
+  async function loadNotes() {
+    const { notes = [] } = await callTool("get_memory_notes");
+    const list = $("notes");
+    list.replaceChildren(...(notes.length
+      ? notes.map((n) => Object.assign(document.createElement("li"), { textContent: n.content }))
+      : [Object.assign(document.createElement("li"), { textContent: t.noNotes, className: "empty" })]));
+    $("hot-count").textContent = t.notes(notes.length);
+  }
+
+  async function reload() {
+    status($("cold-status"), t.loading);
+    try {
+      await Promise.all([loadCold(), loadNotes()]);
+      status($("cold-status"), "");
+    } catch (e) {
+      status($("cold-status"), t.failed + e.message, true);
+    }
+  }
+
+  cold.addEventListener("input", () => { save.disabled = cold.value === loadedText; });
+  note.addEventListener("input", () => { add.disabled = !note.value.trim(); });
+  $("reload").addEventListener("click", reload);
+
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      await callTool("update_memory", { text: cold.value, version });
+      const edited = cold.value;
+      await loadCold();
+      status($("cold-status"), cold.value === edited ? t.saved : "");
+    } catch (e) {
+      save.disabled = false;
+      status($("cold-status"), /version conflict/i.test(e.message) ? t.conflict : t.failed + e.message, true);
+    }
+  });
+
+  $("add-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = note.value.trim();
+    if (!text) return;
+    add.disabled = true;
+    try {
+      await callTool("save_memory_note", { text });
+      note.value = "";
+      await loadNotes();
+      status($("hot-status"), t.added);
+    } catch (e) {
+      add.disabled = false;
+      status($("hot-status"), t.failed + e.message, true);
+    }
+  });
+
+  new ResizeObserver(() => {
+    notify("ui/notifications/size-changed", { height: Math.ceil(document.documentElement.scrollHeight) });
+  }).observe(document.body);
+
+  (async () => {
+    const init = await request("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      appInfo: { name: "agimate-memory", version: "1" },
+      appCapabilities: {}
+    });
+    const context = (init && init.hostContext) || {};
+    const lang = String(context.locale || navigator.language || "en").slice(0, 2).toLowerCase();
+    t = TEXTS[lang] || TEXTS.en;
+    if (context.theme === "dark") document.documentElement.dataset.theme = "dark";
+    const variables = (context.styles && context.styles.variables) || {};
+    Object.entries(variables).forEach(([name, value]) => document.documentElement.style.setProperty(name, value));
+    applyTexts();
+    notify("ui/notifications/initialized", {});
+    await reload();
+  })().catch((e) => status($("cold-status"), t.failed + e.message, true));
+})();
+</script>
+</body>
+</html>

@@ -26,8 +26,10 @@ updated: 2026-09-16
   вместе с публикацией. Мост при этом — **подмножество диалекта `ui/*` спеки**, а не свой: иначе не
   запускается ни одна чужая вью (проверено на `servereverything.dev`).
 - **Сделан шаг 0 — вью внешнего MCP-сервера** в режиме лаунчера, живой прогон прошёл; фронт — по
-  [../tmpspec/connector-views-frontend.md](../tmpspec/connector-views-frontend.md). Внутренние панели
-  ещё впереди.
+  [../tmpspec/connector-views-frontend.md](../tmpspec/connector-views-frontend.md).
+- **Фаза 1 — первая внутренняя панель, память агента** (`ui://persist-memory/memory`); фронт — по
+  [../tmpspec/connector-views-panels-frontend.md](../tmpspec/connector-views-panels-frontend.md).
+  Панель `sheets` впереди.
 
 ## Как это устроено в MCP Apps
 
@@ -382,8 +384,8 @@ origin) и по нашему же разбору в [deferred/page-publishing.md
   Либо они получают человеческий актор, когда понадобятся, либо панель адресуется коннекции без
   агента, и тогда гейтом остаётся только видимость. Не решаем заранее.
 - Потолок `VIEW_CALL` взят как у `MCP_CALL` — 120 в минуту на агента; пересмотреть по живым цифрам.
-- Правит ли панель памяти горячие заметки (`save_memory_note`) или только консолидированную часть.
-  Вопрос продуктовый: hot — это сырьё для консолидации, и ручная правка может конфликтовать с джобой.
+- Панель памяти заметки только добавляет. Удаление ошибочной заметки потребует нового тула и
+  обхода уже захваченной консолидацией партии — вернуться, если попросят.
 
 ## План
 
@@ -402,17 +404,18 @@ origin) и по нашему же разбору в [deferred/page-publishing.md
 - [x] Капабилити `ViewProvider`, реализация у MCP; вызов из вью — общим с `/mcp` путём
       `AgentToolCallService.callAsAgent`
 - [x] `ToolUi` для внутренних коннекторов из `@Tool` в `BaseConnectorHandler` — пока только видимость
-- [ ] Ссылка на вью на `@Tool` и `ViewProvider` внутренних коннекторов: страница — ресурс classpath
+- [x] Ссылка на вью `@Tool(view)` и `ClasspathViewProvider` внутренних коннекторов: страница — ресурс classpath
 - [x] Один источник тулов коннекции: `RunCatalog`, `AgentService`, `ChannelService` — через
       `ToolDefinitionService.getTools(Connection, ConnectorEnv, ToolAudience)`
 - [x] Видимость тула: `@Tool(visibility)` вместо `internal`, дефолт `{MODEL}`; у внешних — дефолт спеки;
       **аудитория (`MODEL`/`VIEW`/`ALL`) как параметр** этого метода
 - [ ] Признак инициатора в `tool_call_logs` (миграция) — эндпойнт вызова уже есть с шага 0
-- [ ] Проставить `app` входным тулам двух панелей — новых тулов фаза 1 не заводит
-- [ ] Панель `persist-memory`: чтение cold и hot, правка cold через `update_memory` с его CAS
+- [ ] Проставить `app` входным тулам двух панелей — новых тулов фаза 1 не заводит (память — сделано)
+- [x] Панель `persist-memory`: чтение cold и hot, правка cold через `update_memory` с его CAS,
+      добавление заметок; удаления и правки заметок нет
 - [ ] Панель `sheets`: сетка по объявленной схеме
-- [ ] Дельта для фронта в `tmpspec/`; `docs/connectors/persistent-memory.md`, `sheets.md` и строка
-      в `docs/README.md`
+- [ ] Дельта для фронта — [../tmpspec/connector-views-panels-frontend.md](../tmpspec/connector-views-panels-frontend.md)
+      (память — есть); `docs/connectors/persistent-memory.md` (есть), `sheets.md`
 
 Фаза 2 — inline (вью рядом с результатом вызова в переписке):
 

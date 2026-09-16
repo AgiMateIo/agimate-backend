@@ -9,6 +9,7 @@ import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
+import ru.agimate.controlapi.connectors.core.annotation.ToolVisibility;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
@@ -41,6 +42,8 @@ public class PersistentMemoryToolService {
 
     static final String CONSOLIDATION_JOB = "consolidation";
     static final String CONSOLIDATE_TRIGGER = "consolidate";
+    /** The owner's panel: both layers to read, cold to edit, notes to add — the same tools the agent uses. */
+    public static final String MEMORY_VIEW = "ui://persist-memory/memory";
 
     /** How long to wait before reclaiming an abandoned consolidation (the lease on claimed notes). */
     private static final long CONSOLIDATION_LEASE_SECONDS = 1_800;
@@ -56,7 +59,8 @@ public class PersistentMemoryToolService {
 
     @Tool(name = "get_memory", description = "Get your consolidated (cold) memory with its version. "
             + "Pass the returned version to update_memory when you rewrite it.",
-            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
+            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false),
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = MEMORY_VIEW)
     public Map<String, Object> getMemory() {
         UUID scopeId = resolveScopeId(ConnectorEnvHolder.current());
         PersistentMemoryCold cold = memoryService.getCold(scopeId).orElse(null);
@@ -68,7 +72,8 @@ public class PersistentMemoryToolService {
 
     @Tool(name = "get_memory_notes", description = "Get your pending (hot) memory notes — facts captured "
             + "but not yet consolidated into cold memory.",
-            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
+            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false),
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = MEMORY_VIEW)
     public Map<String, Object> getMemoryNotes() {
         UUID scopeId = resolveScopeId(ConnectorEnvHolder.current());
         List<Map<String, Object>> notes = memoryService.getNotes(scopeId).stream()
@@ -79,7 +84,8 @@ public class PersistentMemoryToolService {
 
     @Tool(name = "save_memory_note", description = "Append a note to your hot memory (a fact worth "
             + "remembering). Notes are later consolidated into your cold memory.",
-            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false),
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW})
     public Map<String, Object> saveMemoryNote(@ToolParam("The fact/note to remember") String text) {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID scopeId = resolveScopeId(ctx);
@@ -94,7 +100,8 @@ public class PersistentMemoryToolService {
     @Tool(name = "update_memory", description = "Rewrite your consolidated (cold) memory. Pass the version "
             + "from get_memory (optimistic lock — on conflict re-read and retry). When consolidating, pass "
             + "consolidationId to atomically drop the notes you folded in.",
-            annotations = @ToolAnnotations(destructiveHint = true, idempotentHint = false, openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, idempotentHint = false, openWorldHint = false),
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW})
     public Map<String, Object> updateMemory(
             @ToolParam("The full new content of your cold memory") String text,
             @ToolParam(value = "Expected current version from get_memory (required once memory exists)",

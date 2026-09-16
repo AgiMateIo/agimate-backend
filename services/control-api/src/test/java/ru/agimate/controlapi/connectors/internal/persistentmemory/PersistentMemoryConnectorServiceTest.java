@@ -8,6 +8,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
+import ru.agimate.controlapi.connectors.core.dto.ToolUi;
+import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
+import ru.agimate.controlapi.connectors.core.dto.ViewPage;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
@@ -18,6 +24,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +107,52 @@ class PersistentMemoryConnectorServiceTest {
         @DisplayName("нет агента в env (не agent-контекст) → пусто, без обращения к хранилищу")
         void noAgent() {
             assertTrue(handler.promptBlocks(env(null)).isEmpty());
+        }
+    }
+    @Nested
+    @DisplayName("панель памяти")
+    class Panel {
+
+        @Test
+        @DisplayName("страница панели лежит в classpath и отдаётся как MCP App")
+        void servesThePage() {
+            ViewPage page = handler.readView(env(AGENT_ID), PersistentMemoryToolService.MEMORY_VIEW);
+
+            assertEquals("text/html;profile=mcp-app", page.mimeType());
+            assertTrue(page.html().contains("ui/initialize"));
+        }
+
+        @Test
+        @DisplayName("чужая схема, чужой коннектор, выход из каталога и несуществующая вью — отказ")
+        void rejectsForeignUris() {
+            for (String uri : List.of("ui://sheets/memory", "ui://persist-memory/../sheets/table",
+                    "https://persist-memory/memory", "ui://persist-memory/missing")) {
+                assertThrows(ConnectorException.class, () -> handler.readView(env(AGENT_ID), uri), uri);
+            }
+        }
+
+        @Test
+        @DisplayName("чтение ссылается на панель, чтение и запись доступны и модели, и панели")
+        void toolsOpenToThePanel() {
+            Map<String, ConnectorToolSpec> tools = handler.getTools();
+
+            assertEquals(PersistentMemoryToolService.MEMORY_VIEW, tools.get("get_memory").ui().resourceUri());
+            assertEquals(PersistentMemoryToolService.MEMORY_VIEW, tools.get("get_memory_notes").ui().resourceUri());
+            for (String name : List.of("get_memory", "get_memory_notes", "save_memory_note", "update_memory")) {
+                assertTrue(ToolUi.visibleTo(tools.get(name).ui(), ToolAudience.MODEL), name);
+                assertTrue(ToolUi.visibleTo(tools.get(name).ui(), ToolAudience.VIEW), name);
+            }
+        }
+
+        @Test
+        @DisplayName("вывод тула уходит во вью structuredContent, текстом — рядом")
+        void toolOutputAsStructuredContent() {
+            ViewCallResult result = handler.toViewResult("{\"content\":\"likes tea\",\"version\":3}");
+
+            assertEquals(Map.of("content", "likes tea", "version", 3), result.structuredContent());
+            assertEquals(List.of(Map.of("type", "text", "text", "{\"content\":\"likes tea\",\"version\":3}")),
+                    result.content());
+            assertNull(handler.toViewResult("not json").structuredContent());
         }
     }
 }
