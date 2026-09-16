@@ -37,7 +37,7 @@ class PersistentMemoryConnectorServiceTest {
     void setUp() {
         // toolService нужен BaseConnectorHandler только для скана @Tool-методов — зависимости не дёргаются.
         handler = new PersistentMemoryConnectorService(
-                new PersistentMemoryToolService(null, null, null), memoryService);
+                new PersistentMemoryToolService(null, null), memoryService);
     }
 
     private static ConnectorEnv env(UUID agentId) {

@@ -67,8 +67,8 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
     }
 
     /**
-     * Minimal context for the memory jobs: the material is already in {@code data}
-     * (messages/notes) — no history is needed; of the tools, memory alone suffices
+     * Minimal context for the memory job: the material is already in {@code data} (the notes) — no
+     * history is needed; of the tools, memory alone suffices
      * ({@code ownConnectionTools}, skill tools off). The bodies of the matching skills stay (the route
      * base) — the memory skill is itself the processing instruction.
      */
@@ -81,9 +81,6 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
     @Override
     public Map<String, TriggerSpec> getTriggers() {
         return Map.of(
-                PersistentMemoryToolService.NOTES_TRIGGER, new TriggerSpec(
-                        "Build memory notes from the messages of a session active in the last 24h",
-                        List.of("sessionId", "messages"), MEMORY_TASK_CONTEXT),
                 PersistentMemoryToolService.CONSOLIDATE_TRIGGER, new TriggerSpec(
                         "Consolidate accumulated hot notes into cold memory",
                         List.of("consolidationId", "notes"), MEMORY_TASK_CONTEXT));

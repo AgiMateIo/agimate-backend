@@ -1,7 +1,6 @@
 package ru.agimate.controlapi.connectors.internal.persistentmemory;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
@@ -13,16 +12,12 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
-import ru.agimate.controlapi.database.projections.SessionNoteLineProjection;
-import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,42 +30,31 @@ import java.util.UUID;
  * {@code save_memory_note} (appending a note to hot), {@code update_memory} (a CAS write of cold plus
  * atomic deletion of the consolidated batch's notes).
  *
- * <p>Hidden {@code @Job}s (per connection, {@code connection_id = connections.id}): {@code daily}
- * walks the agent's sessions of the past day and addresses a {@code notes_by_session} to it for each;
- * {@code consolidation} claims the accumulated notes single-flight once an hour and sends a
- * {@code consolidate} — hourly by cadence, not by the clock, see the declaration.
+ * <p>A hidden {@code @Job} per connection ({@code connection_id = connections.id}):
+ * {@code consolidation} claims the accumulated notes single-flight once a day and sends a
+ * {@code consolidate} — daily by cadence, not by the clock, see the declaration. Notes come only from
+ * the agent itself during a conversation; there is no second pass over the dialogues.
  */
 @Component
 @RequiredArgsConstructor
 public class PersistentMemoryToolService {
 
-    static final String DAILY_JOB = "daily";
     static final String CONSOLIDATION_JOB = "consolidation";
-    static final String NOTES_TRIGGER = "notes_by_session";
     static final String CONSOLIDATE_TRIGGER = "consolidate";
 
     /** How long to wait before reclaiming an abandoned consolidation (the lease on claimed notes). */
     private static final long CONSOLIDATION_LEASE_SECONDS = 1_800;
-    /** Window of the daily note collection. */
-    private static final int NOTES_LOOKBACK_HOURS = 24;
-    /** Ceiling on the lines of one session in a note request — a guard against a runaway chat, not a target. */
-    private static final int NOTES_MAX_LINES = 500;
     /**
-     * Ceiling on the text of one note request: the payload lands in {@code trigger_logs.input}, the
-     * workflow's arguments and the model's prompt, and the line cap bounds none of those — one pasted
-     * document is a single line. Counted from the newest line back.
+     * Cadence of the consolidation sweep. Once a day is enough because the pending notes already reach
+     * the agent's context as their own block: folding them only keeps that block short, it is not what
+     * makes a fact remembered.
      */
-    private static final int NOTES_MAX_CHARS = 60_000;
-    /** Cadence of the consolidation sweep. */
-    private static final long CONSOLIDATION_INTERVAL_SECONDS = 3_600;
-    /** The nightly sweep needs the night, not three o'clock — every connection takes its own hour of it. */
-    private static final long DAILY_SPREAD_SECONDS = 3_600;
+    private static final long CONSOLIDATION_INTERVAL_SECONDS = 86_400;
     /** Firing the job is only a database read plus publishing triggers; the iteration is short. */
     private static final int JOB_TIMEOUT_SECONDS = 120;
 
     private final PersistentMemoryService memoryService;
     private final TriggerRouterService triggerRouterService;
-    private final ChannelSessionMessageRepository messageRepository;
 
     // ===== Tools =====
 
@@ -134,33 +118,6 @@ public class PersistentMemoryToolService {
 
     // ===== Hidden background jobs (per connection, connectionId = connections.id) =====
 
-    @Tool(name = DAILY_JOB, description = "Internal: emit per-session note requests for the last 24h")
-    // The window is the point of the declaration, not a detail of it: this is the heavy job — every
-    // session of every bound agent for the last 24 hours, and a model run per session — so a shared
-    // 03:00:00 across an installation is the nightly counterpart of the :00 spike. Each connection sits
-    // somewhere in the hour after three and stays there.
-    @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", spreadSeconds = DAILY_SPREAD_SECONDS,
-            timeoutSeconds = JOB_TIMEOUT_SECONDS)
-    public void daily() {
-        ConnectorEnv ctx = ConnectorEnvHolder.current();
-        UUID connectionId = requireConnectionId(ctx);
-        LocalDateTime since = LocalDateTime.now().minusHours(NOTES_LOOKBACK_HOURS);
-        // Sessions are collected per bound agent; each session's notes are addressed to its agent and land in
-        // that agent's personal space (save_memory_note resolves the scope from the env).
-        for (UUID agentId : memoryService.boundAgents(connectionId)) {
-            for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
-                List<SessionNoteLineProjection> lines = messageRepository.findNoteLinesBySessionSince(
-                        sessionId, since, PageRequest.of(0, NOTES_MAX_LINES));
-                List<Map<String, Object>> messages = toChronologicalView(lines);
-                if (messages.isEmpty()) {
-                    continue;
-                }
-                routeToAgents(ctx, List.of(agentId), NOTES_TRIGGER,
-                        Map.of("sessionId", sessionId.toString(), "messages", messages));
-            }
-        }
-    }
-
     // PERIODIC rather than CRON on purpose. Nothing about consolidation is tied to the wall clock — only
     // the cadence matters — while a cron pins every row of every installation to the same second, so the
     // whole install woke up at :00 and spiked. A periodic row counts from its own completion, so the rows
@@ -195,29 +152,6 @@ public class PersistentMemoryToolService {
     }
 
     // ===== helpers =====
-
-    /**
-     * Newest-first rows into the chronological view the request carries, keeping what fits into
-     * {@link #NOTES_MAX_CHARS}. The newest line survives the budget always: one long message should
-     * shorten the request, not empty it.
-     */
-    private static List<Map<String, Object>> toChronologicalView(List<SessionNoteLineProjection> newestFirst) {
-        List<Map<String, Object>> view = new ArrayList<>(newestFirst.size());
-        int chars = 0;
-        for (SessionNoteLineProjection line : newestFirst) {
-            String text = line.getMessage();
-            chars += text == null ? 0 : text.length();
-            if (chars > NOTES_MAX_CHARS && !view.isEmpty()) {
-                break;
-            }
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("kind", line.getKind().name());
-            item.put("text", text);
-            view.add(item);
-        }
-        Collections.reverse(view);
-        return view;
-    }
 
     /** Addresses a directed trigger to the bound agents (audience, with no channel — it is a background job). */
     private void routeToAgents(ConnectorEnv ctx, List<UUID> agentIds, String triggerName,

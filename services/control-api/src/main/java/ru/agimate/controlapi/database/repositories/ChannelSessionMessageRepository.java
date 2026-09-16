@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
-import ru.agimate.controlapi.database.projections.SessionNoteLineProjection;
 
 import java.util.List;
 import java.util.Optional;
@@ -74,37 +73,4 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
 
     Optional<ChannelSessionMessage> findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(
             UUID sessionId);
-
-    /**
-     * Sessions of an agent with messages since {@code since} — for the daily note collection. A
-     * subagent's session is left out: its other side is the agent itself, and what it learned is
-     * already in the conversation it reported to.
-     */
-    @Query("""
-            SELECT DISTINCT m.sessionId FROM ChannelSessionMessage m
-            WHERE m.agentId = :agentId AND m.createdAt > :since
-              AND NOT EXISTS (SELECT 1 FROM AgentSession s
-                              WHERE s.id = m.sessionId AND s.parentSessionId IS NOT NULL)
-            """)
-    List<UUID> findSessionIdsByAgentSince(@Param("agentId") UUID agentId, @Param("since") java.time.LocalDateTime since);
-
-    /**
-     * The dialogue of one session for the daily note request — newest first, the caller reverses.
-     * A connection's session lives as long as the connection, so the note takes the window and not
-     * the session whole; {@code >} to agree with {@link #findSessionIdsByAgentSince}, or a session
-     * selected there could come back empty here. PROGRESS is dropped in SQL: those rows are the
-     * channel's own markup (💭, «🔧 name») and the bulk of a session. Ordering is by the uuidv7 key,
-     * not {@code created_at}: rows of one run share a timestamp.
-     */
-    @Query("""
-            SELECT m.kind AS kind, m.message AS message
-            FROM ChannelSessionMessage m
-            WHERE m.sessionId = :sessionId
-              AND m.createdAt > :since
-              AND m.kind <> ru.agimate.controlapi.database.enums.ChannelSessionMessageKind.PROGRESS
-            ORDER BY m.id DESC
-            """)
-    List<SessionNoteLineProjection> findNoteLinesBySessionSince(@Param("sessionId") UUID sessionId,
-                                                                @Param("since") java.time.LocalDateTime since,
-                                                                Pageable pageable);
 }
