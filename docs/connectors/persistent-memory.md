@@ -16,7 +16,7 @@
 |------|------------|
 | `get_memory()` → `{content, version}` | прочитать cold (version нужен для `update_memory`) |
 | `get_memory_notes()` → `{notes:[...]}` | прочитать ещё не сконсолидированные заметки |
-| `save_memory_note(text, sessionId?)` | добавить заметку в hot (append) |
+| `save_memory_note(text)` | добавить заметку в hot (append); сессия берётся из вызова |
 | `update_memory(text, version?, consolidationId?)` | CAS-запись cold; при `consolidationId` в той же транзакции удаляет заметки партии. Конфликт версии → ошибка «re-read and retry» |
 
 `version` обязателен, когда cold уже существует (опускается только для самой первой записи).

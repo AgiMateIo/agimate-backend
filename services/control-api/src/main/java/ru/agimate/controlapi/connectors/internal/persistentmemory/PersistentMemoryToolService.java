@@ -80,16 +80,14 @@ public class PersistentMemoryToolService {
     @Tool(name = "save_memory_note", description = "Append a note to your hot memory (a fact worth "
             + "remembering). Notes are later consolidated into your cold memory.",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
-    public Map<String, Object> saveMemoryNote(
-            @ToolParam("The fact/note to remember") String text,
-            @ToolParam(value = "Session this note came from (optional, for tracing)", required = false)
-            String sessionId) {
+    public Map<String, Object> saveMemoryNote(@ToolParam("The fact/note to remember") String text) {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID scopeId = resolveScopeId(ctx);
         if (text == null || text.isBlank()) {
             throw new ConnectorException("text is required");
         }
-        PersistentMemoryHot note = memoryService.addNote(scopeId, ctx.userId(), parseUuid(sessionId, "sessionId"), text);
+        // The session is the call's own: the model does not know its id, so it is not asked for.
+        PersistentMemoryHot note = memoryService.addNote(scopeId, ctx.userId(), ctx.sessionId(), text);
         return Map.of("id", note.getId().toString());
     }
 
