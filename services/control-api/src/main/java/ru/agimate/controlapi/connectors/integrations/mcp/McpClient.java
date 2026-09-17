@@ -18,6 +18,7 @@ import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedEx
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
 import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.CertPathBuilderException;
 import java.time.Duration;
@@ -191,14 +192,14 @@ public class McpClient {
                         "version", attribution.version()));
 
         long id = requestId.getAndIncrement();
-        ResponseEntity<String> response;
+        ResponseEntity<byte[]> response;
         try {
             response = restClient.post()
                     .uri(config.url())
                     .headers(h -> applyHeaders(h, config, null))
                     .body(jsonRpcRequest(id, "initialize", params))
                     .retrieve()
-                    .toEntity(String.class);
+                    .toEntity(byte[].class);
         } catch (RestClientResponseException e) {
             throw authorizationFailure(e).orElseGet(
                     () -> new ConnectorException("MCP initialize failed: " + e.getMessage()));
@@ -209,7 +210,7 @@ public class McpClient {
         }
 
         String sessionId = response.getHeaders().getFirst(HEADER_SESSION_ID);
-        JsonNode result = extractResult(response.getBody(), response.getHeaders().getContentType(), id);
+        JsonNode result = extractResult(decodeBody(response), response.getHeaders().getContentType(), id);
         JsonNode info = result.path("serverInfo");
         ServerInfo serverInfo = new ServerInfo(
                 info.path("name").asText(""), info.path("version").asText(""));
@@ -234,14 +235,14 @@ public class McpClient {
 
     private JsonNode rpc(ServerConfig config, String sessionId, String method, Map<String, Object> params) {
         long id = requestId.getAndIncrement();
-        ResponseEntity<String> response;
+        ResponseEntity<byte[]> response;
         try {
             response = restClient.post()
                     .uri(config.url())
                     .headers(h -> applyHeaders(h, config, sessionId))
                     .body(jsonRpcRequest(id, method, params))
                     .retrieve()
-                    .toEntity(String.class);
+                    .toEntity(byte[].class);
         } catch (RestClientResponseException e) {
             throw authorizationFailure(e).orElseGet(
                     () -> new ConnectorException("MCP " + method + " failed: " + e.getMessage()));
@@ -250,7 +251,26 @@ public class McpClient {
         } catch (Exception e) {
             throw new ConnectorException("MCP " + method + " failed: " + describe(e));
         }
-        return extractResult(response.getBody(), response.getHeaders().getContentType(), id);
+        return extractResult(decodeBody(response), response.getHeaders().getContentType(), id);
+    }
+
+    /**
+     * The body is taken as bytes and decoded here because Spring's String converter falls back to
+     * ISO-8859-1 for everything but JSON — and a streamable-HTTP server answers
+     * {@code text/event-stream}, which carries no charset parameter (SSE is UTF-8 by spec).
+     *
+     * @return {@code null} for an empty body — {@link #extractResult} is the one that refuses it
+     */
+    static String decodeBody(ResponseEntity<byte[]> response) {
+        byte[] body = response.getBody();
+        if (body == null) {
+            return null;
+        }
+        MediaType contentType = response.getHeaders().getContentType();
+        Charset charset = contentType == null || contentType.getCharset() == null
+                ? StandardCharsets.UTF_8
+                : contentType.getCharset();
+        return new String(body, charset);
     }
 
     /**

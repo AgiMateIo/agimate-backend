@@ -1,63 +1,109 @@
 package ru.agimate.controlapi.connectors.integrations.mcp;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("McpClient — SSRF-guard")
+@DisplayName("McpClient")
 class McpClientTest {
 
-    private final McpClient guarded = new McpClient(false);
+    @Nested
+    @DisplayName("SSRF-guard")
+    class SsrfGuard {
+        private final McpClient guarded = new McpClient(false);
 
-    private McpClient.ServerConfig cfg(String url) {
-        return new McpClient.ServerConfig(url, null, Map.of());
+        private McpClient.ServerConfig cfg(String url) {
+            return new McpClient.ServerConfig(url, null, Map.of());
+        }
+
+        private String probeError(McpClient client, String url) {
+            return assertThrows(ConnectorException.class, () -> client.probe(cfg(url))).getMessage();
+        }
+
+        @Test
+        @DisplayName("loopback-адрес блокируется до сетевого вызова")
+        void blocksLoopback() {
+            assertTrue(probeError(guarded, "http://127.0.0.1:8080/mcp").contains("not allowed"));
+        }
+
+        @Test
+        @DisplayName("cloud metadata 169.254.169.254 (link-local) блокируется")
+        void blocksMetadataEndpoint() {
+            assertTrue(probeError(guarded, "http://169.254.169.254/latest/meta-data/").contains("not allowed"));
+        }
+
+        @Test
+        @DisplayName("приватный диапазон 10.0.0.0/8 блокируется")
+        void blocksSiteLocal() {
+            assertTrue(probeError(guarded, "https://10.0.0.5/mcp").contains("not allowed"));
+        }
+
+        @Test
+        @DisplayName("не-http(s) схема отклоняется")
+        void rejectsNonHttpScheme() {
+            assertTrue(probeError(guarded, "ftp://example.com/mcp").contains("http or https"));
+        }
+
+        @Test
+        @DisplayName("с allow-private-targets=true guard пропускает loopback (падает уже на соединении)")
+        void allowFlagBypassesGuard() {
+            McpClient permissive = new McpClient(true);
+            // Порт 1 закрыт → быстрый отказ соединения; важно, что это НЕ ошибка SSRF-guard'а.
+            assertFalse(probeError(permissive, "http://127.0.0.1:1/mcp").contains("not allowed"));
+        }
+
+        @Test
+        @DisplayName("имя, резолвящееся в loopback, блокируется резолвером клиента, а не только проверкой URL")
+        void blocksNameResolvingToLoopback() {
+            assertTrue(probeError(guarded, "http://localhost:8080/mcp").contains("not allowed"));
+        }
     }
 
-    private String probeError(McpClient client, String url) {
-        return assertThrows(ConnectorException.class, () -> client.probe(cfg(url))).getMessage();
-    }
+    @Nested
+    @DisplayName("Декодирование ответа")
+    class BodyDecoding {
 
-    @Test
-    @DisplayName("loopback-адрес блокируется до сетевого вызова")
-    void blocksLoopback() {
-        assertTrue(probeError(guarded, "http://127.0.0.1:8080/mcp").contains("not allowed"));
-    }
+        private static final String CYRILLIC = "Километры по автомобильной дороге «ОСРМ»";
 
-    @Test
-    @DisplayName("cloud metadata 169.254.169.254 (link-local) блокируется")
-    void blocksMetadataEndpoint() {
-        assertTrue(probeError(guarded, "http://169.254.169.254/latest/meta-data/").contains("not allowed"));
-    }
+        private ResponseEntity<byte[]> response(String contentType, byte[] body) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType(contentType));
+            return new ResponseEntity<>(body, headers, HttpStatus.OK);
+        }
 
-    @Test
-    @DisplayName("приватный диапазон 10.0.0.0/8 блокируется")
-    void blocksSiteLocal() {
-        assertTrue(probeError(guarded, "https://10.0.0.5/mcp").contains("not allowed"));
-    }
+        @Test
+        @DisplayName("text/event-stream без charset читается как UTF-8, а не ISO-8859-1")
+        void sseIsUtf8() {
+            byte[] body = ("data: " + CYRILLIC).getBytes(StandardCharsets.UTF_8);
+            assertEquals("data: " + CYRILLIC, McpClient.decodeBody(response("text/event-stream", body)));
+        }
 
-    @Test
-    @DisplayName("не-http(s) схема отклоняется")
-    void rejectsNonHttpScheme() {
-        assertTrue(probeError(guarded, "ftp://example.com/mcp").contains("http or https"));
-    }
+        @Test
+        @DisplayName("объявленный charset уважается")
+        void declaredCharsetWins() {
+            byte[] body = CYRILLIC.getBytes(Charset.forName("windows-1251"));
+            assertEquals(CYRILLIC, McpClient.decodeBody(response("text/event-stream;charset=windows-1251", body)));
+        }
 
-    @Test
-    @DisplayName("с allow-private-targets=true guard пропускает loopback (падает уже на соединении)")
-    void allowFlagBypassesGuard() {
-        McpClient permissive = new McpClient(true);
-        // Порт 1 закрыт → быстрый отказ соединения; важно, что это НЕ ошибка SSRF-guard'а.
-        assertFalse(probeError(permissive, "http://127.0.0.1:1/mcp").contains("not allowed"));
-    }
-
-    @Test
-    @DisplayName("имя, резолвящееся в loopback, блокируется резолвером клиента, а не только проверкой URL")
-    void blocksNameResolvingToLoopback() {
-        assertTrue(probeError(guarded, "http://localhost:8080/mcp").contains("not allowed"));
+        @Test
+        @DisplayName("пустое тело — null, отказ даёт разбор результата")
+        void emptyBodyIsNull() {
+            assertNull(McpClient.decodeBody(response("application/json", null)));
+        }
     }
 }
