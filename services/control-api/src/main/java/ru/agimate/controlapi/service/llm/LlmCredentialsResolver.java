@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * configured produces a message addressed to them, not a capability search through the registry that
  * silently spends their money on a model they never chose.
  *
- * <p>Not {@code @Transactional}: it joins the caller's read-only transaction. The key is decrypted at
+ * <p>Not {@code @Transactional}: it only reads by id, so it needs no transaction of its own. The key is decrypted at
  * call time and leaves only inside the return value — the caller must not persist it (into DBOS
  * checkpoints included).
  */

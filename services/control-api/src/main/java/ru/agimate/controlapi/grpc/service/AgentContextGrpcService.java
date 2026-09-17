@@ -5,7 +5,6 @@ import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -57,9 +56,8 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
  * {@code ReportLlmUsage} (token usage accounting) and the steering pair
  * {@code ClaimSteering}/{@code MarkSteered} (the loop seam absorbing queued messages of the session).
  *
- * <p>Transactions are on the methods, NOT on the class: {@code ReportLlmUsage} writes, and a class-level
- * {@code readOnly = true} would wrap its INSERTs in a read-only transaction (the service's inner
- * {@code @Transactional} joins the outer one and does not clear readOnly).
+ * <p>No {@code @Transactional} here, the services own their transactions: a transactional bean gets a
+ * CGLIB proxy, which cannot intercept the generated {@code final bindService()}.
  */
 @Service
 @RequiredArgsConstructor
@@ -78,7 +76,6 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private static final int FILE_CHUNK_BYTES = 128 * 1024;
 
     @Override
-    @Transactional(readOnly = true)
     public void getRunContext(GetRunContextRequest request, StreamObserver<RunContext> responseObserver) {
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
@@ -227,7 +224,6 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     }
 
     @Override
-    @Transactional(readOnly = true)
     public void getLlmCredentials(GetLlmCredentialsRequest request, StreamObserver<LlmCredentials> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");

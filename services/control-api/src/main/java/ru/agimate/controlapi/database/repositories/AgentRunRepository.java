@@ -20,9 +20,8 @@ import java.util.UUID;
 
 public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
 
-    // REQUIRES_NEW: the calls arrive both from bare gRPC threads (Hibernate rejects @Modifying with no TX) and
-    // from the facades' readOnly transactions (AgentContextGrpcService) — a short writing TX of its own is
-    // correct from either context.
+    // REQUIRES_NEW: the calls arrive from bare gRPC threads (Hibernate rejects @Modifying with no TX) and must
+    // not inherit a caller's readOnly transaction — a short writing TX of its own is correct from any context.
     /** The run's sign of life: any of its RPCs extends the activity mark (only while RUNNING). */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying
