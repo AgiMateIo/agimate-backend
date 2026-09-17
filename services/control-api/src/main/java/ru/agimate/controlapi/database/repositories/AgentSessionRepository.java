@@ -78,7 +78,8 @@ public interface AgentSessionRepository
 
     /**
      * Subagents of a conversation that still owe a report: a live run that is neither absorbed nor
-     * stopped, or — for a session created a moment ago — no run yet, since the run is routed after
+     * stopped, a detached tool call still to be delivered (its result wakes the subagent again), or —
+     * for a session created a moment ago — no run yet, since the run is routed after
      * the session's transaction commits. Both liveness conditions share the stale-run window, past
      * which nothing is believed alive: a queue that stalled, or a request that never became a run,
      * must not hold the conversation's count up forever.
@@ -92,6 +93,13 @@ public interface AgentSessionRepository
                              AND r.cancel_requested_at IS NULL
                              AND (r.status = 'RUNNING'
                                   OR (r.status = 'ENQUEUED' AND r.created_at > :liveSince)))
+                   OR EXISTS (SELECT 1 FROM tool_call_logs t
+                              JOIN agent_runs r ON r.id = t.run_id
+                              WHERE r.session_id = s.id
+                                AND r.cancel_requested_at IS NULL
+                                AND t.detached_at IS NOT NULL
+                                AND t.delivered_at IS NULL
+                                AND t.created_at > :liveSince)
                    OR (s.created_at > :liveSince
                        AND NOT EXISTS (SELECT 1 FROM agent_runs r WHERE r.session_id = s.id)))
             """, nativeQuery = true)

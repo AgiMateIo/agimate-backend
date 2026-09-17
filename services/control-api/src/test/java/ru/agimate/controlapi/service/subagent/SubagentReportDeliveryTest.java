@@ -107,6 +107,41 @@ class SubagentReportDeliveryTest {
         verify(agentRunRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("сессия ребёнка ещё занята (тула в фоне) — промежуточный ответ не отчитывается")
+    void interimAnswerWhileSessionBusy() {
+        childSession(CONVERSATION);
+        when(agentRunRepository.isSessionBusyExcept(eq(CHILD_SESSION), eq(CHILD_RUN), any())).thenReturn(true);
+
+        assertTrue(delivery.prepare(CHILD_RUN, false, "генерация идёт в фоне").isEmpty());
+        verify(agentRunRepository, never()).claimReport(any(), any());
+        verify(agentRunRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("отчитывается tool_completed — адрес берётся у поручившего рана разговора, а не у рана ребёнка")
+    void toolCompletedReportsToTheAsker() {
+        childSession(CONVERSATION);
+        UUID requestRun = UUID.randomUUID();
+        child.setOriginRunId(requestRun);
+        AgentRun request = AgentRun.builder()
+                .sessionId(CHILD_SESSION)
+                .originRunId(ASKER_RUN)
+                .channels(ChannelsCodec.toMap(Channels.ofPrompt(
+                        new ChannelInfo(UUID.randomUUID(), CHILD_SESSION, null))))
+                .build();
+        request.setId(requestRun);
+        when(agentRunRepository.findById(requestRun)).thenReturn(Optional.of(request));
+        when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
+        askedFromChat();
+
+        SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, false, "agf_1").orElseThrow();
+
+        assertEquals(CHAT_CHANNEL, prepared.channels().answer().channelId());
+        assertEquals(CONVERSATION, prepared.channels().answer().sessionId());
+        assertEquals(CHILD_RUN, prepared.run().getOriginRunId());
+    }
+
     private void askerRun(Channels channels) {
         AgentRun asker = AgentRun.builder().channels(ChannelsCodec.toMap(channels)).build();
         when(agentRunRepository.findById(ASKER_RUN)).thenReturn(Optional.of(asker));

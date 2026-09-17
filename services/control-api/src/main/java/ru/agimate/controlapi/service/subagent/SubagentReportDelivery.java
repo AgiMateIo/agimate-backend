@@ -14,6 +14,7 @@ import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
+import ru.agimate.controlapi.service.trigger.RunActivityService;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerLogService;
 
@@ -43,6 +44,9 @@ public class SubagentReportDelivery {
     /** Cap on the report carried in the trigger's data — the same bound as a detached tool's output. */
     static final int REPORT_CAP = 20_000;
 
+    /** Bound on the origin chain inside one subagent session: each detached call that answers adds a hop. */
+    static final int MAX_ORIGIN_HOPS = 32;
+
     private final AgentRunRepository agentRunRepository;
     private final AgentSessionRepository agentSessionRepository;
     private final TriggerLogService triggerLogService;
@@ -70,6 +74,14 @@ public class SubagentReportDelivery {
         }
         if (child.getCancelRequestedAt() != null || child.getStatus() == RunStatus.CANCELLED) {
             log.info("subagent run {} was stopped — no report", childRunId);
+            return Optional.empty();
+        }
+        // An answer given while a detached call or another run is still pending is interim («the
+        // image is being generated»): it stays in the subagent's history, and the run that brings
+        // the rest reports.
+        if (agentRunRepository.isSessionBusyExcept(child.getSessionId(), childRunId,
+                LocalDateTime.now().minus(RunActivityService.STALE_AFTER))) {
+            log.info("subagent run {} answered while its session is still busy — interim, no report", childRunId);
             return Optional.empty();
         }
         if (agentRunRepository.claimReport(childRunId, LocalDateTime.now()) == 0) {
@@ -117,10 +129,30 @@ public class SubagentReportDelivery {
      * carries that conversation on the way a detached tool's result does, into the same chat.
      */
     private Optional<Channels> askerChannels(AgentRun child) {
-        return Optional.ofNullable(child.getOriginRunId())
-                .flatMap(agentRunRepository::findById)
+        return asker(child)
                 .map(asker -> ChannelsCodec.fromMap(asker.getChannels()))
                 .map(Channels::continuation);
+    }
+
+    /**
+     * The run outside the subagent's session that asked for this work. The reporting run is not
+     * always the one the request started: a {@code tool_completed} run's origin is the subagent run
+     * whose call it was, so the chain is followed until it leaves the session — stopping at the
+     * direct origin would answer the conversation into the subagent's own channel and history.
+     */
+    private Optional<AgentRun> asker(AgentRun child) {
+        UUID originId = child.getOriginRunId();
+        for (int hop = 0; originId != null && hop < MAX_ORIGIN_HOPS; hop++) {
+            AgentRun origin = agentRunRepository.findById(originId).orElse(null);
+            if (origin == null) {
+                return Optional.empty();
+            }
+            if (!child.getSessionId().equals(origin.getSessionId())) {
+                return Optional.of(origin);
+            }
+            originId = origin.getOriginRunId();
+        }
+        return Optional.empty();
     }
 
     /**

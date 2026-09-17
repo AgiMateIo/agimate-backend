@@ -241,22 +241,57 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     List<UUID> findHistoryRunIds(@Param("sessionId") UUID sessionId, Pageable pageable);
 
     /**
-     * Which of these sessions have a live run right now — the «agent is working» mark of a listing.
+     * Which of these sessions are busy right now — the «agent is working» mark of a listing: a live
+     * run, or a run whose loop has ended while a detached tool call is still to be delivered (the
+     * result comes back as a {@code tool_completed} run, so the work is not over).
      *
      * <p>{@code RUNNING} is taken at face value: a run gone silent is swept into FAILED. {@code
-     * ENQUEUED} is trusted only while it is young — nothing sweeps a run the worker never took, so
-     * without the window a queue that stalled once would leave the mark burning forever. The window
-     * is the sweeper's own threshold: past it we stop believing a run is alive, whatever its status.
+     * ENQUEUED} and a pending detached call are trusted only while young — nothing sweeps a run the
+     * worker never took or a call orphaned by a restart, so without the window the mark would burn
+     * forever. The window is the sweeper's own threshold. A stopped run's delivery is suppressed and
+     * never lands, so its pending calls do not count. {@link #isSessionBusyExcept} and
+     * {@code AgentSessionRepository.countWorkingChildren} apply the same rule.
      */
-    @Query("""
-            SELECT DISTINCT t.sessionId FROM AgentRun t
-            WHERE t.sessionId IN :sessionIds
-              AND (t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
-                   OR (t.status = ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED
-                       AND t.createdAt > :enqueuedSince))
-            """)
+    @Query(value = """
+            SELECT DISTINCT r.session_id FROM agent_runs r
+            WHERE r.session_id IN (:sessionIds)
+              AND (r.status = 'RUNNING'
+                   OR (r.status = 'ENQUEUED' AND r.created_at > :liveSince)
+                   OR (r.cancel_requested_at IS NULL
+                       AND EXISTS (SELECT 1 FROM tool_call_logs t
+                                   WHERE t.run_id = r.id
+                                     AND t.detached_at IS NOT NULL
+                                     AND t.delivered_at IS NULL
+                                     AND t.created_at > :liveSince)))
+            """, nativeQuery = true)
     List<UUID> findLiveSessionIds(@Param("sessionIds") Collection<UUID> sessionIds,
-                                  @Param("enqueuedSince") LocalDateTime enqueuedSince);
+                                  @Param("liveSince") LocalDateTime liveSince);
+
+    /**
+     * Whether a session has work left besides {@code runId}: another live run (not absorbed, not
+     * stopped), or a pending detached call of any of its runs — {@code runId}'s own included, since a
+     * run that detached a call and then answered has not finished its work. A subagent's answer
+     * given while its session is busy is an interim one and is not reported.
+     */
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM agent_runs r
+                           WHERE r.session_id = :sessionId
+                             AND r.id <> :runId
+                             AND r.steered_at IS NULL
+                             AND r.cancel_requested_at IS NULL
+                             AND (r.status = 'RUNNING'
+                                  OR (r.status = 'ENQUEUED' AND r.created_at > :liveSince)))
+                OR EXISTS (SELECT 1 FROM tool_call_logs t
+                           JOIN agent_runs r ON r.id = t.run_id
+                           WHERE r.session_id = :sessionId
+                             AND r.cancel_requested_at IS NULL
+                             AND t.detached_at IS NOT NULL
+                             AND t.delivered_at IS NULL
+                             AND t.created_at > :liveSince)
+            """, nativeQuery = true)
+    boolean isSessionBusyExcept(@Param("sessionId") UUID sessionId,
+                                @Param("runId") UUID runId,
+                                @Param("liveSince") LocalDateTime liveSince);
 
     /**
      * The same liveness folded per agent and narrowed to one connector: a contact row of the

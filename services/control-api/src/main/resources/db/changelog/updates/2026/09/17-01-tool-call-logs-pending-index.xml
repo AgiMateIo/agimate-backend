@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      «Session is busy» counts a run whose loop has ended while a detached call is still to be
+      delivered (docs/decisions/subagents.md): the listing of sessions, the subagents' count and the
+      interim-report check all ask it per run. Partial on purpose — `_pending` = detached and not yet
+      delivered, a handful of rows at any moment against a log that only grows.
+    -->
+    <changeSet id="add-tool-call-logs-run-id-pending-index" author="agimate">
+        <sql>
+            CREATE INDEX idx_tool_call_logs_run_id_pending
+                ON tool_call_logs (run_id)
+                WHERE detached_at IS NOT NULL AND delivered_at IS NULL;
+        </sql>
+    </changeSet>
+</databaseChangeLog>
