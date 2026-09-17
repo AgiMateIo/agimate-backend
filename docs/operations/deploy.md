@@ -108,6 +108,20 @@ one is sent through.
 worker's DBOS runtime migrates the shared system schema at launch; control-api's `DBOSClient` never
 migrates and fails enqueues until the schema is current.
 
+### Outbound TLS trust (control-api, agent-worker)
+
+Extra trust anchors on top of the JDK set for calls to user-chosen addresses (MCP, LLM providers,
+webhooks). Set both services together — control-api lists the provider's models, the worker calls
+them. See `docs/architecture/outbound-http.md`.
+
+| Variable                                  | Description                                                    |
+|-------------------------------------------|----------------------------------------------------------------|
+| `APP_NET_TRUSTED_CA` / `AGENT_NET_TRUSTED_CA` | Comma-separated Spring resources, empty by default. Production: `classpath:certs/russian-trusted-root.pem`; an installation's own root goes as `file:/path.pem` |
+
+An unreadable resource stops the start. Check the startup log for
+`Outbound TLS trust: … 1 added from [...]`; `platform anchors only` means the variable did not reach
+the pod.
+
 ### agent-worker
 
 Full list with defaults: `services/agent-worker/.env.example`.

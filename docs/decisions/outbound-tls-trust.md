@@ -1,7 +1,7 @@
 ---
-status: partial
+status: implemented
 created: 2026-09-12
-implemented: 2026-09-12
+implemented: 2026-09-15
 ---
 
 # Якорь доверия для исходящего TLS: штатный набор плюс наш, а не вместо
@@ -166,8 +166,7 @@ app.net.trusted-ca: classpath:certs/russian-trusted-root.pem,file:/etc/agimate/c
 
 ## План
 
-Сделано 2026-09-12, кроме чарта: он живёт в `agimate-infra`, и до его правки прод поднимается со
-штатным набором якорей — то есть ровно как сегодня.
+Код сделан 2026-09-12, чарт в `agimate-infra` — 2026-09-15.
 
 - [x] `libs/common`: `OutboundTrust` — слияние платформенных якорей с переданными потоками в одном
       `KeyStore`; тест на прибавление, на сохранение публичных центров, на штатный
@@ -185,7 +184,7 @@ app.net.trusted-ca: classpath:certs/russian-trusted-root.pem,file:/etc/agimate/c
       экземпляра; фабрика остаётся обёрнутой в `PublicOnlySslSocketFactory`
 - [x] `McpClient`: распознавание `CertPath*` в цепочке причин → внятное сообщение вместо текста JDK
 - [x] `ops/compose.yaml` и `ops/templates/*.application-local.yaml`: включить classpath-ресурс
-- [ ] Чарт в `agimate-infra` — вне этого репозитория
+- [x] Чарт в `agimate-infra`: `APP_NET_TRUSTED_CA` и `AGENT_NET_TRUSTED_CA`
 - [x] [outbound-http.md](../architecture/outbound-http.md): раздел про гард доверия рядом с гардом
       адреса
 

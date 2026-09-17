@@ -1,7 +1,7 @@
 ---
-status: partial
+status: implemented
 created: 2026-09-12
-implemented: 2026-09-12
+implemented: 2026-09-14
 ---
 
 # Требования навыка к коннекторам: экземпляр, параметры, правила доступа
@@ -254,7 +254,7 @@ URL — нормализация (сейчас это `trim()`) живёт в о
 
 ## План
 
-Бэкенд сделан 2026-09-12; мастер на фронте — по [`tmpspec/skill-wizard-frontend.md`](../tmpspec/skill-wizard-frontend.md).
+Бэкенд сделан 2026-09-12, мастер на фронте — к 2026-09-14.
 
 - [x] `SkillFrontmatterParser`: объектная форма, `key`, `params`, `tools`/`triggers` с проверками формы;
       тесты на обе формы и на ошибки разбора

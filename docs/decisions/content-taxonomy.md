@@ -1,7 +1,7 @@
 ---
-status: partial
+status: implemented
 created: 2026-09-12
-implemented: 2026-09-12
+implemented: 2026-09-14
 ---
 
 # Категории и теги пресетов и навыков
@@ -234,7 +234,7 @@ tags: [personal, advice, own-token, read-only]
 
 ## План
 
-Бэкенд сделан 2026-09-12; фронт — по [`tmpspec/content-taxonomy-frontend.md`](../tmpspec/content-taxonomy-frontend.md).
+Бэкенд сделан 2026-09-12, навигация на фронте — к 2026-09-14.
 
 - [x] `ContentCategory`, `ContentTag` (+ группа) с английскими подписями; `seed/texts/ru/taxonomy.properties`
       и тест паритета по образцу `ConnectorTextsTest`
