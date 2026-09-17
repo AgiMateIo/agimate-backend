@@ -54,7 +54,7 @@ agent:
     # Бюджеты вокруг одного вызова модели: до первого чанка, между чанками, потолок всего вызова.
     # Что они значат и какой инвариант связывает их с control-api — javadoc AgentProperties.Llm.
     first-chunk-timeout: 90s
-    idle-timeout: 60s
+    idle-timeout: 180s
     call-timeout: 5m
   concurrency:
     llm: 3
