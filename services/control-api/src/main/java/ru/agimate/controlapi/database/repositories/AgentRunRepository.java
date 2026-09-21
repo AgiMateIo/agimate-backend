@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.RunStatus;
+import ru.agimate.controlapi.database.projections.AgentRequestExchangeProjection;
+import ru.agimate.controlapi.database.projections.AgentRequestRunProjection;
 import ru.agimate.controlapi.database.projections.AgentRunProjection;
 
 import java.time.LocalDateTime;
@@ -239,6 +241,37 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             ORDER BY t.createdAt DESC
             """)
     List<UUID> findHistoryRunIds(@Param("sessionId") UUID sessionId, Pageable pageable);
+
+    /**
+     * Runs of request threads, oldest first — what a listing of requests folds into a state. Every
+     * run of the thread is taken, not only {@code request_received}: an answer given while a
+     * detached call is pending is interim, and the report then rides the {@code tool_completed} run
+     * that finishes the work.
+     */
+    @Query("""
+            SELECT r.sessionId AS sessionId, r.id AS id, tl.name AS name, r.status AS status,
+                   r.steeredAt AS steeredAt, r.cancelRequestedAt AS cancelRequestedAt,
+                   r.reportedAt AS reportedAt, r.createdAt AS createdAt,
+                   r.lastActivityAt AS lastActivityAt, r.updatedAt AS updatedAt,
+                   r.result AS result, r.error AS error
+            FROM AgentRun r JOIN r.triggerLog tl
+            WHERE r.sessionId IN :sessionIds
+            ORDER BY r.createdAt, r.id
+            """)
+    List<AgentRequestRunProjection> findRequestRuns(@Param("sessionIds") Collection<UUID> sessionIds);
+
+    /** The same runs of one thread, with the trigger payload — the request as it was handed over. */
+    @Query("""
+            SELECT r.sessionId AS sessionId, r.id AS id, tl.name AS name, r.status AS status,
+                   r.steeredAt AS steeredAt, r.cancelRequestedAt AS cancelRequestedAt,
+                   r.reportedAt AS reportedAt, r.createdAt AS createdAt,
+                   r.lastActivityAt AS lastActivityAt, r.updatedAt AS updatedAt,
+                   r.result AS result, r.error AS error, tl.input AS input
+            FROM AgentRun r JOIN r.triggerLog tl
+            WHERE r.sessionId = :sessionId
+            ORDER BY r.createdAt, r.id
+            """)
+    List<AgentRequestExchangeProjection> findExchangeRuns(@Param("sessionId") UUID sessionId);
 
     /**
      * Which of these sessions are busy right now — the «agent is working» mark of a listing: a live

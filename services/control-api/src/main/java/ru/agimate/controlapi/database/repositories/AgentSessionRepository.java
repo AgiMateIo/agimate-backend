@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.database.repositories;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.AgentSession;
+import ru.agimate.controlapi.database.projections.AgentRequestProjection;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -113,6 +115,59 @@ public interface AgentSessionRepository
             ORDER BY s.lastActivityAt DESC, s.id DESC
             """)
     List<AgentSession> findChildren(@Param("parentSessionId") UUID parentSessionId, Pageable pageable);
+
+    /**
+     * Requests handed to the agents of a team: threads of the {@code agents} connector whose callee
+     * is in the team, freshest activity first. The conversation the thread works for is joined for
+     * both the asker ({@code p.agentId} — a thread carries only its callee) and the place the answer
+     * went back to.
+     *
+     * <p>Every filter but {@code userId} is optional; {@code teamId} is null only for the event
+     * payload of a single {@code threadId}, where the team is what the row reports rather than what
+     * it is narrowed by. A deleted agent is not filtered out: its past requests are still history.
+     */
+    @Query(value = """
+            SELECT s.id AS id, s.userId AS userId, a.agenticTeamId AS teamId, s.title AS title,
+                   s.agentId AS toAgentId, p.agentId AS fromAgentId,
+                   p.id AS originSessionId, p.title AS originTitle,
+                   p.connectorCode AS originConnectorCode,
+                   s.createdAt AS createdAt, s.lastActivityAt AS lastActivityAt,
+                   s.closedAt AS closedAt
+            FROM AgentSession s, AgentSession p, Agent a
+            WHERE s.connectorCode = :connectorCode
+              AND s.userId = :userId
+              AND p.id = s.parentSessionId
+              AND a.id = s.agentId
+              AND (:teamId IS NULL OR a.agenticTeamId = :teamId)
+              AND (:threadId IS NULL OR s.id = :threadId)
+              AND (:toAgentId IS NULL OR s.agentId = :toAgentId)
+              AND (:fromAgentId IS NULL OR p.agentId = :fromAgentId)
+              AND (:agentId IS NULL OR s.agentId = :agentId OR p.agentId = :agentId)
+              AND (CAST(:since AS LocalDateTime) IS NULL OR s.lastActivityAt >= :since)
+            ORDER BY s.lastActivityAt DESC, s.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(s) FROM AgentSession s, AgentSession p, Agent a
+            WHERE s.connectorCode = :connectorCode
+              AND s.userId = :userId
+              AND p.id = s.parentSessionId
+              AND a.id = s.agentId
+              AND (:teamId IS NULL OR a.agenticTeamId = :teamId)
+              AND (:threadId IS NULL OR s.id = :threadId)
+              AND (:toAgentId IS NULL OR s.agentId = :toAgentId)
+              AND (:fromAgentId IS NULL OR p.agentId = :fromAgentId)
+              AND (:agentId IS NULL OR s.agentId = :agentId OR p.agentId = :agentId)
+              AND (CAST(:since AS LocalDateTime) IS NULL OR s.lastActivityAt >= :since)
+            """)
+    Page<AgentRequestProjection> findRequests(@Param("connectorCode") String connectorCode,
+                                              @Param("userId") UUID userId,
+                                              @Param("teamId") UUID teamId,
+                                              @Param("threadId") UUID threadId,
+                                              @Param("agentId") UUID agentId,
+                                              @Param("fromAgentId") UUID fromAgentId,
+                                              @Param("toAgentId") UUID toAgentId,
+                                              @Param("since") LocalDateTime since,
+                                              Pageable pageable);
 
     /** Activity of a session that is not loaded: bulk update, so {@code updated_at} is stamped here. */
     @Modifying

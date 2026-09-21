@@ -16,8 +16,11 @@ import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
+import ru.agimate.controlapi.service.runcontext.RunCatalog;
+import ru.agimate.controlapi.service.team.AgentRequestEventPublisher;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,12 +47,14 @@ class RunCancellationServiceTest {
     @Mock private AgentRunRepository agentRunRepository;
     @Mock private AgentSessionRepository agentSessionRepository;
     @Mock private ChannelRepository channelRepository;
+    @Mock private AgentRequestEventPublisher eventPublisher;
 
     private RunCancellationService service;
 
     @BeforeEach
     void setUp() {
-        service = new RunCancellationService(agentRunRepository, agentSessionRepository, channelRepository);
+        service = new RunCancellationService(agentRunRepository, agentSessionRepository, channelRepository,
+                eventPublisher);
     }
 
     private AgentRun run(RunStatus status, UUID ownerId) {
@@ -150,6 +155,29 @@ class RunCancellationServiceTest {
 
             assertThrows(NotFoundStatusException.class, () -> service.cancelSession(SESSION_ID, USER_ID));
             verify(agentRunRepository, never()).requestCancelBySession(any(), any());
+        }
+
+        @Test
+        @DisplayName("работавшее поручение другому агенту получает событие «прервано», субагентское — нет")
+        void publishesForWorkingRequestThreads() {
+            stubSession(USER_ID);
+            UUID thread = UUID.randomUUID();
+            UUID subagent = UUID.randomUUID();
+            when(agentSessionRepository.findChildren(eq(SESSION_ID), any())).thenReturn(List.of(
+                    child(thread, RunCatalog.AGENTS), child(subagent, RunCatalog.SUBAGENTS)));
+            when(agentRunRepository.findLiveSessionIds(eq(List.of(thread)), any()))
+                    .thenReturn(List.of(thread));
+
+            service.cancelSession(SESSION_ID, USER_ID);
+
+            verify(eventPublisher).publish(thread, AgentRequestEventPublisher.CANCELLED);
+            verify(eventPublisher, never()).publish(eq(subagent), any());
+        }
+
+        private AgentSession child(UUID id, String connectorCode) {
+            AgentSession child = AgentSession.builder().connectorCode(connectorCode).build();
+            child.setId(id);
+            return child;
         }
     }
 }

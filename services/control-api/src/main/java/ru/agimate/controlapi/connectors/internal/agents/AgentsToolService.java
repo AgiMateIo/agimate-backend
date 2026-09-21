@@ -14,6 +14,7 @@ import ru.agimate.controlapi.service.channel.handler.AgentsChannelHandler;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
 import ru.agimate.controlapi.service.subagent.SubagentService;
 import ru.agimate.controlapi.service.subagent.TeammateService;
+import ru.agimate.controlapi.service.team.AgentRequestEventPublisher;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -43,6 +44,7 @@ public class AgentsToolService {
     private final TeammateService teammateService;
     private final AgentRepository agentRepository;
     private final TriggerRouterService triggerRouterService;
+    private final AgentRequestEventPublisher eventPublisher;
 
     @Tool(name = "ask_agent",
             description = "Hand a request to another agent of your team and get its answer as a separate "
@@ -114,10 +116,14 @@ public class AgentsToolService {
                         Channels.ofPrompt(new ChannelInfo(target.channelId(), target.childSessionId(), null)),
                         env.runId())));
 
+        boolean started = target.mode() == SubagentService.Mode.NEW;
+        eventPublisher.publish(target.childSessionId(),
+                started ? AgentRequestEventPublisher.STARTED : AgentRequestEventPublisher.APPENDED);
+
         Map<String, Object> receipt = new LinkedHashMap<>();
         receipt.put("threadId", target.childSessionId().toString());
         receipt.put("agentName", callee.getName());
-        receipt.put("status", target.mode() == SubagentService.Mode.NEW ? "started" : "appended");
+        receipt.put("status", started ? "started" : "appended");
         receipt.put("note", callee.getName() + " is working on it. The report arrives as a separate message "
                 + "after your turn ends. Do not wait or poll; finish your turn.");
         return receipt;

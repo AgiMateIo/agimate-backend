@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.trigger;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -13,8 +14,11 @@ import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
+import ru.agimate.controlapi.service.runcontext.RunCatalog;
+import ru.agimate.controlapi.service.team.AgentRequestEventPublisher;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -37,6 +41,7 @@ public class RunCancellationService {
     private final AgentRunRepository agentRunRepository;
     private final AgentSessionRepository agentSessionRepository;
     private final ChannelRepository channelRepository;
+    private final AgentRequestEventPublisher eventPublisher;
 
     /**
      * @param status    the run's status when the request landed; the terminal one arrives later
@@ -96,9 +101,31 @@ public class RunCancellationService {
 
     /** The conversation's runs and its subagents' runs: a stopped conversation owes no one its delegated work. */
     private int requestCancel(UUID sessionId) {
+        // Read before the update, published after it: these are the threads that were working, and
+        // the payload must already show them stopped.
+        List<UUID> threads = workingRequestThreads(sessionId);
         LocalDateTime now = LocalDateTime.now();
-        return agentRunRepository.requestCancelBySession(sessionId, now)
+        int updated = agentRunRepository.requestCancelBySession(sessionId, now)
                 + agentRunRepository.requestCancelByParentSession(sessionId, now);
+        threads.forEach(threadId -> eventPublisher.publish(threadId, AgentRequestEventPublisher.CANCELLED));
+        return updated;
+    }
+
+    /**
+     * Requests to other agents that this conversation is stopping. Only the working ones: a thread
+     * that has already reported is not being cancelled, and the screen showing the team's requests
+     * has nothing to redraw for it.
+     */
+    private List<UUID> workingRequestThreads(UUID sessionId) {
+        List<UUID> threads = agentSessionRepository.findChildren(sessionId, Pageable.unpaged()).stream()
+                .filter(child -> RunCatalog.AGENTS.equals(child.getConnectorCode()))
+                .map(AgentSession::getId)
+                .toList();
+        if (threads.isEmpty()) {
+            return List.of();
+        }
+        return agentRunRepository.findLiveSessionIds(threads,
+                LocalDateTime.now().minus(RunActivityService.STALE_AFTER));
     }
 
     /** Someone else's run reads as absent, not forbidden: their existence is not disclosed. */
