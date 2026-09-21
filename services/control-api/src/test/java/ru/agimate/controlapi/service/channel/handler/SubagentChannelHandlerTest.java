@@ -12,7 +12,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
-import ru.agimate.controlapi.service.subagent.SubagentOutput;
+import ru.agimate.controlapi.service.subagent.ChildOutput;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.LinkedHashMap;
@@ -124,7 +124,7 @@ class SubagentChannelHandlerTest {
         void answerAnnounced() {
             handler.handleOutput(config, OutboundMessage.text("готово"), dispatch("answer", RUN_ID));
 
-            verify(eventPublisher).publishEvent(new SubagentOutput(RUN_ID, false, "готово"));
+            verify(eventPublisher).publishEvent(new ChildOutput(RUN_ID, false, "готово"));
         }
 
         @Test
@@ -132,7 +132,7 @@ class SubagentChannelHandlerTest {
         void errorAnnounced() {
             handler.handleOutput(config, OutboundMessage.text("упал"), dispatch("error", RUN_ID));
 
-            verify(eventPublisher).publishEvent(new SubagentOutput(RUN_ID, true, "упал"));
+            verify(eventPublisher).publishEvent(new ChildOutput(RUN_ID, true, "упал"));
         }
 
         @Test

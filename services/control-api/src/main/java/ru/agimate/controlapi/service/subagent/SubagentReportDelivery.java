@@ -5,10 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.enums.RunStatus;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
@@ -26,10 +28,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * The persistence half of a subagent's report: turns the end of a subagent run into a
- * {@code subagents.report_received} trigger and a run of the conversation the subagent works for —
- * by provenance, like a detached tool's result, with no recipient discovery. Enqueueing is the
- * caller's.
+ * The persistence half of a child's report: turns the end of a child run — a subagent's or another
+ * agent's — into a {@code report_received} trigger of the child's connector and a run of the
+ * conversation the child works for — by provenance, like a detached tool's result, with no recipient
+ * discovery. Enqueueing is the caller's.
  *
  * <p>Every report run answers where the run that asked answered; {@code remaining} in the data tells the
  * agent whether to note progress or bring the reports together. No history-only slot for the reports
@@ -44,11 +46,12 @@ public class SubagentReportDelivery {
     /** Cap on the report carried in the trigger's data — the same bound as a detached tool's output. */
     static final int REPORT_CAP = 20_000;
 
-    /** Bound on the origin chain inside one subagent session: each detached call that answers adds a hop. */
+    /** Bound on the origin chain inside one child session: each detached call that answers adds a hop. */
     static final int MAX_ORIGIN_HOPS = 32;
 
     private final AgentRunRepository agentRunRepository;
     private final AgentSessionRepository agentSessionRepository;
+    private final AgentRepository agentRepository;
     private final TriggerLogService triggerLogService;
     private final SubagentService subagentService;
 
@@ -57,7 +60,7 @@ public class SubagentReportDelivery {
 
     /**
      * Claims the report of {@code childRunId} and creates the conversation's run; empty when it is
-     * not ours to deliver — not a subagent's run, stopped by the user, or already reported.
+     * not ours to deliver — not a child's run, stopped by the user, or already reported.
      *
      * <p>{@code REQUIRES_NEW}: one caller is an after-commit listener, where joining the finished
      * transaction would silently drop every write.
@@ -73,50 +76,70 @@ public class SubagentReportDelivery {
             return Optional.empty();
         }
         if (child.getCancelRequestedAt() != null || child.getStatus() == RunStatus.CANCELLED) {
-            log.info("subagent run {} was stopped — no report", childRunId);
+            log.info("child run {} was stopped — no report", childRunId);
             return Optional.empty();
         }
         // An answer given while a detached call or another run is still pending is interim («the
-        // image is being generated»): it stays in the subagent's history, and the run that brings
+        // image is being generated»): it stays in the child's history, and the run that brings
         // the rest reports.
         if (agentRunRepository.isSessionBusyExcept(child.getSessionId(), childRunId,
                 LocalDateTime.now().minus(RunActivityService.STALE_AFTER))) {
-            log.info("subagent run {} answered while its session is still busy — interim, no report", childRunId);
+            log.info("child run {} answered while its session is still busy — interim, no report", childRunId);
+            return Optional.empty();
+        }
+        // The report run belongs to the conversation's agent — the child's own when it is a subagent,
+        // another agent's when it is a thread of a2a. The conversation's session says whose it is even
+        // when the run that asked is gone (the history-only branch below).
+        UUID conversationId = childSession.getParentSessionId();
+        Agent agent = agentSessionRepository.findById(conversationId)
+                .flatMap(conversation -> agentRepository.findById(conversation.getAgentId()))
+                .orElse(null);
+        if (agent == null) {
+            log.warn("child run {}: conversation {} or its agent is gone — no report", childRunId, conversationId);
             return Optional.empty();
         }
         if (agentRunRepository.claimReport(childRunId, LocalDateTime.now()) == 0) {
-            log.debug("subagent run {} already reported", childRunId);
+            log.debug("child run {} already reported", childRunId);
             return Optional.empty();
         }
 
-        UUID conversationId = childSession.getParentSessionId();
         long remaining = subagentService.countWorking(conversationId);
         Trigger trigger = Trigger.fromSource(
-                SubagentService.CONNECTOR_CODE,
+                childSession.getConnectorCode(),
                 childSession.getConnectionId().toString(),
                 SubagentService.REPORT_TRIGGER,
                 childRunId.toString(),
-                data(childSession, failed, text, remaining),
+                data(child, childSession, failed, text, remaining),
                 Instant.now());
         TriggerLog triggerLog = triggerLogService.createTriggerLog(childSession.getUserId(), trigger);
 
         Channels channels = askerChannels(child).orElseGet(() -> historyOnly(conversationId));
         AgentRun run = agentRunRepository.save(AgentRun.builder()
                 .triggerLog(triggerLog)
-                .agent(child.getAgent())
-                .destination(child.getAgent().getType().name())
+                .agent(agent)
+                .destination(agent.getType().name())
                 .sessionId(conversationId)
                 .originRunId(childRunId)
                 .channels(ChannelsCodec.toMap(channels))
                 .build());
-        log.info("subagent run {} reported into conversation {} ({} still working)",
+        log.info("child run {} reported into conversation {} ({} still working)",
                 childRunId, conversationId, remaining);
         return Optional.of(new Prepared(run, trigger, channels));
     }
 
-    private static Map<String, Object> data(AgentSession childSession, boolean failed, String text, long remaining) {
+    /**
+     * The report as the conversation's connector declared it: a subagent's names the child session as
+     * {@code subagentId}; another agent's names it as {@code threadId} and says who worked.
+     */
+    private static Map<String, Object> data(AgentRun child, AgentSession childSession, boolean failed,
+                                            String text, long remaining) {
+        boolean subagent = SubagentService.CONNECTOR_CODE.equals(childSession.getConnectorCode());
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("subagentId", childSession.getId().toString());
+        data.put(subagent ? "subagentId" : "threadId", childSession.getId().toString());
+        if (!subagent) {
+            data.put("agentId", child.getAgent().getId().toString());
+            data.put("agentName", child.getAgent().getName());
+        }
         data.put("title", childSession.getTitle());
         data.put("status", failed ? "failed" : "done");
         data.put(failed ? "error" : "report", cap(text));
@@ -135,10 +158,10 @@ public class SubagentReportDelivery {
     }
 
     /**
-     * The run outside the subagent's session that asked for this work. The reporting run is not
-     * always the one the request started: a {@code tool_completed} run's origin is the subagent run
+     * The run outside the child's session that asked for this work. The reporting run is not
+     * always the one the request started: a {@code tool_completed} run's origin is the child run
      * whose call it was, so the chain is followed until it leaves the session — stopping at the
-     * direct origin would answer the conversation into the subagent's own channel and history.
+     * direct origin would answer the conversation into the child's own channel and history.
      */
     private Optional<AgentRun> asker(AgentRun child) {
         UUID originId = child.getOriginRunId();

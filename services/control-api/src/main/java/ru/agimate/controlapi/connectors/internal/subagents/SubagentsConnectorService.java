@@ -86,9 +86,11 @@ public class SubagentsConnectorService extends BaseConnectorHandler
     }
 
     /**
-     * A subagent's own run gets its role; a conversation with subagents gets the list of them — the
-     * ids to add a request to, and how many still work. Both in the user turn and not persisted: the
-     * system prompt stays the agent's own, byte for byte, and the list is stale by the next run.
+     * A subagent's own run gets its role; a conversation with children gets the list of them —
+     * subagents and agents asked through {@code ask_agent} alike: the ids to add a request to, and
+     * how many still work. Both in the user turn and not persisted: the system prompt stays the
+     * agent's own, byte for byte, and the list is stale by the next run. The role is read off the
+     * session's connector: another agent's thread has a parent too, and its runs are not subagents.
      */
     @Override
     public List<PromptBlock> promptBlocks(ConnectorEnv env) {
@@ -96,7 +98,7 @@ public class SubagentsConnectorService extends BaseConnectorHandler
         if (sessionId == null) {
             return List.of();
         }
-        if (subagentService.conversationOf(sessionId) != null) {
+        if (subagentService.isChildOf(sessionId, SubagentService.CONNECTOR_CODE)) {
             return List.of(PromptBlock.user(SUBAGENT_BLOCK, SUBAGENT_DIRECTIVE));
         }
         List<SubagentService.Child> children = subagentService.children(sessionId);
@@ -106,10 +108,11 @@ public class SubagentsConnectorService extends BaseConnectorHandler
         long working = children.stream().filter(SubagentService.Child::working).count();
         String lines = children.stream()
                 // The title is the model's own words, possibly lifted from a page: one line, no tags.
-                .map(child -> "- " + child.sessionId() + " «" + PromptEscaping.attribute(child.title())
-                        + "» " + (child.working() ? "working" : "finished"))
+                .map(child -> "- " + child.sessionId() + " «" + PromptEscaping.attribute(child.title()) + "»"
+                        + (child.agentName() != null ? " asked of " + PromptEscaping.attribute(child.agentName()) : "")
+                        + " " + (child.working() ? "working" : "finished"))
                 .collect(Collectors.joining("\n"));
         return List.of(PromptBlock.user(CHILDREN_BLOCK,
-                "Subagents of this conversation (" + working + " still working):\n" + lines));
+                "Subagents and agents asked in this conversation (" + working + " still working):\n" + lines));
     }
 }

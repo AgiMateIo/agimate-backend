@@ -15,7 +15,7 @@
 | Часть | Где | Что делает |
 |---|---|---|
 | Тула `ask_subagent` | `SubagentsToolService` | проверки и сессия ребёнка через `SubagentService.open`, затем триггер `request_received` через роутер — тем же путём, что сообщение webchat |
-| Канал | `SubagentChannelHandler` | канал на агента, создаётся при первом поручении; `handleInput` рисует `<subagent_request>`; `handleOutput` на `answer`/`error` публикует `SubagentOutput` |
+| Канал | `SubagentChannelHandler` | канал на агента, создаётся при первом поручении; `handleInput` рисует `<subagent_request>`; `handleOutput` на `answer`/`error` публикует `ChildOutput` |
 | Отчёт | `SubagentReportListener` → `SubagentReportDelivery` | claim `agent_runs.reported_at`, триггер `report_received`, ран в сессии разговора с его каналами |
 | Умерший ребёнок | `RunActivityService` публикует `RunsSwept` | тот же отчёт со статусом `failed`; своих джоб и таймеров у коннектора нет |
 | Блоки промпта | `SubagentsConnectorService.promptBlocks` | ребёнку — `subagent` (роль), разговору — `subagents` (дети и сколько работает) |
@@ -89,7 +89,7 @@ ChannelInfo(channelId = null, sessionId = разговор)` и ответ пи�
 |---|---|---|---|
 | Пресет | `DIALOGUE` | `DIALOGUE` | `DIALOGUE_EVENT` |
 | Тела навыков | все | все, кроме навыков, требующих `subagents` | все |
-| Тулы | каталог агента | без тул коннектора `subagents` (`RunCatalog.withoutSubagents`) | каталог агента |
+| Тулы | каталог агента | без тул коннекторов `subagents` и `agents` (`RunCatalog.withoutDelegation`) | каталог агента |
 | История | сессия разговора | сессия ребёнка | сессия разговора |
 | Блоки хода | `subagents`, если есть дети | `subagent` | `subagents` |
 
@@ -108,5 +108,15 @@ ChannelInfo(channelId = null, sessionId = разговор)` и ответ пи�
 ## Отмена и память
 
 `/stop` в чате и отмена сессии из интерфейса отменяют и раны детей этого разговора
-(`requestCancelByParentSession`). Отменённый ребёнок отчёта не шлёт. Сессии субагентов не участвуют в
-ежедневных заметках памяти: всё, что ребёнок узнал, уже в отчёте разговору.
+(`requestCancelByParentSession`). Отменённый ребёнок отчёта не шлёт. Отдельного правила для памяти у
+детей нет: ночной сбор заметок по сессиям снят (2026-09-16), а заметки, которые ребёнок делает
+тулами памяти, консолидируются как из любой сессии.
+
+## Общее с поручениями агентам
+
+Ядро — сессии-дети, кап, роль рана, доставка отчёта — общее с коннектором `agents`
+([agents.md](agents.md)): `SubagentService.openFor` открывает ребёнка с другим агентом,
+`SubagentReportDelivery` берёт триггер по коду коннектора сессии ребёнка и агента рана отчёта из
+родительской сессии. Блок `subagents` перечисляет всех детей разговора, у поручений агентам — с
+именем адресата. Роль по блокам промпта — по коду коннектора сессии (`SubagentService.isChildOf`), не
+по одному наличию родителя: ветка `agents` тоже имеет родителя, а директива у неё своя.

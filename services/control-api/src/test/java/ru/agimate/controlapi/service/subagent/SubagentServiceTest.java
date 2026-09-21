@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -13,6 +14,7 @@ import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
@@ -51,6 +53,7 @@ class SubagentServiceTest {
     @Mock private AgentRunRepository agentRunRepository;
     @Mock private AgentSessionRepository agentSessionRepository;
     @Mock private AgentSessionService agentSessionService;
+    @Mock private AgentRepository agentRepository;
     @Mock private ChannelRepository channelRepository;
     @Mock private ChannelService channelService;
     @Mock private AgentDeliveryService agentDeliveryService;
@@ -62,7 +65,7 @@ class SubagentServiceTest {
     @BeforeEach
     void setUp() {
         service = new SubagentService(agentRunRepository, agentSessionRepository, agentSessionService,
-                channelRepository, channelService, agentDeliveryService);
+                agentRepository, channelRepository, channelService, agentDeliveryService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Bot").type(AgentType.GENERIC).build();
         run = AgentRun.builder()
                 .agent(agent)
@@ -148,6 +151,67 @@ class SubagentServiceTest {
         assertEquals(childId, target.childSessionId());
         assertEquals(CONVERSATION, target.conversationId());
         verify(channelService, never()).create(any(), any());
+    }
+
+    @Nested
+    @DisplayName("поручение другому агенту")
+    class OtherAgent {
+
+        private final Agent lawyer = Agent.builder().id(UUID.randomUUID()).userId(USER_ID).name("Юрист")
+                .type(AgentType.GENERIC).build();
+        private final SubagentService.Callee callee = new SubagentService.Callee(
+                lawyer, "agents", "agents", "Agents: Юрист");
+
+        private SubagentService.Target openFor(UUID childId) {
+            return service.openFor(callee, AGENT_ID, RUN_ID, CONNECTION_ID.toString(), "Договор", childId);
+        }
+
+        @Test
+        @DisplayName("новая ветка — сессия в канале agents адресата, канал создаётся у адресата")
+        void newThreadInCalleesChannel() {
+            when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                    lawyer.getId(), "agents", CONNECTION_ID)).thenReturn(Optional.empty());
+            Channel channel = Channel.builder().id(CHANNEL_ID).agentId(lawyer.getId()).build();
+            when(channelService.create(eq(USER_ID), any())).thenReturn(channel);
+            UUID threadId = UUID.randomUUID();
+            when(agentSessionService.createChild(channel, CONVERSATION, "Договор"))
+                    .thenReturn(AgentSession.builder().id(threadId).build());
+
+            SubagentService.Target target = openFor(null);
+
+            assertEquals(SubagentService.Mode.NEW, target.mode());
+            assertEquals(threadId, target.childSessionId());
+            ArgumentCaptor<ChannelService.CreateChannelData> data =
+                    ArgumentCaptor.forClass(ChannelService.CreateChannelData.class);
+            verify(channelService).create(eq(USER_ID), data.capture());
+            assertEquals(lawyer.getId(), data.getValue().agentId());
+            assertEquals("agents", data.getValue().connectorCode());
+            assertEquals("Agents: Юрист", data.getValue().name());
+        }
+
+        @Test
+        @DisplayName("дописать можно только в ветку этого адресата")
+        void appendOnlyToCalleesThread() {
+            UUID own = UUID.randomUUID();
+            when(agentSessionRepository.findById(own)).thenReturn(Optional.of(
+                    AgentSession.builder().id(own).agentId(AGENT_ID).parentSessionId(CONVERSATION).build()));
+            UUID lawyers = UUID.randomUUID();
+            when(agentSessionRepository.findById(lawyers)).thenReturn(Optional.of(
+                    AgentSession.builder().id(lawyers).agentId(lawyer.getId()).channelId(CHANNEL_ID)
+                            .parentSessionId(CONVERSATION).build()));
+
+            assertThrows(ConnectorException.class, () -> openFor(own));
+            assertEquals(SubagentService.Mode.APPEND, openFor(lawyers).mode());
+        }
+
+        @Test
+        @DisplayName("кап общий: субагенты и агенты считаются вместе")
+        void sharedCap() {
+            when(agentSessionRepository.countWorkingChildren(eq(CONVERSATION), any()))
+                    .thenReturn((long) SubagentService.MAX_WORKING);
+
+            assertThrows(ConnectorException.class, () -> openFor(null));
+        }
     }
 
     @Test

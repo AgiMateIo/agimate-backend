@@ -127,7 +127,8 @@ TriggerContext(audience = агент, Channels.ofPrompt(channelId, childSessionI
 
 `SubagentChannelHandler.deliverProgress = false`, поэтому `handleOutput` видит только `answer` и
 `error`. Обработчик не зовёт роутер и не создаёт ранов — javadoc `ChannelHandler` запрещает побочные
-эффекты из-за цикла бинов с входящим роутером. Он публикует событие `SubagentOutput`, а
+эффекты из-за цикла бинов с входящим роутером. Он публикует событие `ChildOutput` (до a2a —
+`SubagentOutput`), а
 `SubagentReportDelivery` (по образцу `DetachedToolResultDelivery`) в одной транзакции:
 
 1. claim-first: `UPDATE agent_runs SET reported_at = now WHERE id = :childRun AND reported_at IS NULL`;
@@ -293,8 +294,9 @@ API для фронта:
 
 ### Память
 
-`notes_by_session` собирает все сессии с `channel_session_messages` — дети получили бы свои заметки
-и консолидацию. Сессии с `parent_session_id` из выборки исключены.
+Ночной сбор заметок по сессиям (`notes_by_session`) снят 2026-09-16, раньше, чем субагенты дошли до
+него: исключать детей не из чего. Заметки, которые ребёнок делает тулами памяти, консолидируются как
+из любой сессии.
 
 ## Что изменилось при реализации
 

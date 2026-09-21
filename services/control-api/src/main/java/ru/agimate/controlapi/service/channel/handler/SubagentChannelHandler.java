@@ -12,7 +12,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.channel.handler.dto.TriggerDefinition;
-import ru.agimate.controlapi.service.subagent.SubagentOutput;
+import ru.agimate.controlapi.service.subagent.ChildOutput;
 import ru.agimate.controlapi.service.subagent.SubagentService;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -27,7 +27,7 @@ import java.util.Optional;
  * is the report owed to it.
  *
  * <p>The report is not delivered here. A handler has no side effects beyond its own channel — that
- * keeps it out of a bean cycle with the router — so the output is announced as {@link SubagentOutput}
+ * keeps it out of a bean cycle with the router — so the output is announced as {@link ChildOutput}
  * and {@code SubagentReportListener} turns it into a run of the conversation.
  */
 @Slf4j
@@ -100,7 +100,7 @@ public class SubagentChannelHandler implements ChannelHandler {
             log.warn("subagent output without a run (session {}) — nothing to report", dispatch.sessionId());
             return List.of();
         }
-        eventPublisher.publishEvent(new SubagentOutput(
+        eventPublisher.publishEvent(new ChildOutput(
                 dispatch.runId(), STREAM_ERROR.equals(stream), outbound.text()));
         return List.of();
     }

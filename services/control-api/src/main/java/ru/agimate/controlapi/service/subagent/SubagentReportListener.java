@@ -12,7 +12,7 @@ import ru.agimate.controlapi.service.trigger.RunsSwept;
 import java.util.UUID;
 
 /**
- * The two ways a subagent run ends: it says its last word into its channel ({@link SubagentOutput}),
+ * The two ways a child run ends: it says its last word into its channel ({@link ChildOutput}),
  * or it dies silently and the stale-run sweeper marks it failed ({@link RunsSwept}). Both become the
  * same report; the claim in {@link SubagentReportDelivery} keeps it to one.
  *
@@ -29,7 +29,7 @@ public class SubagentReportListener {
 
     /** Synchronous: published from the message log's delivery, which already runs after its commit. */
     @EventListener
-    public void onOutput(SubagentOutput output) {
+    public void onOutput(ChildOutput output) {
         report(output.runId(), output.failed(), output.text());
     }
 
@@ -45,7 +45,7 @@ public class SubagentReportListener {
             reportDelivery.prepare(childRunId, failed, text).ifPresent(prepared ->
                     agentDeliveryService.deliverTrigger(prepared.run(), prepared.trigger(), prepared.channels(), null));
         } catch (Exception e) {
-            log.error("report of subagent run {} was not delivered: {}", childRunId, e.getMessage(), e);
+            log.error("report of child run {} was not delivered: {}", childRunId, e.getMessage(), e);
         }
     }
 }

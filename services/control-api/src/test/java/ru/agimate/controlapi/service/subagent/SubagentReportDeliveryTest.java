@@ -13,6 +13,7 @@ import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.RunStatus;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
@@ -49,18 +50,21 @@ class SubagentReportDeliveryTest {
 
     @Mock private AgentRunRepository agentRunRepository;
     @Mock private AgentSessionRepository agentSessionRepository;
+    @Mock private AgentRepository agentRepository;
     @Mock private TriggerLogService triggerLogService;
     @Mock private SubagentService subagentService;
 
     private SubagentReportDelivery delivery;
+    private Agent conversationAgent;
     private AgentRun child;
 
     @BeforeEach
     void setUp() {
-        delivery = new SubagentReportDelivery(agentRunRepository, agentSessionRepository, triggerLogService,
-                subagentService);
+        delivery = new SubagentReportDelivery(agentRunRepository, agentSessionRepository, agentRepository,
+                triggerLogService, subagentService);
+        conversationAgent = Agent.builder().id(UUID.randomUUID()).name("Bot").type(AgentType.GENERIC).build();
         child = AgentRun.builder()
-                .agent(Agent.builder().id(UUID.randomUUID()).type(AgentType.GENERIC).build())
+                .agent(conversationAgent)
                 .sessionId(CHILD_SESSION)
                 .status(RunStatus.DONE)
                 .originRunId(ASKER_RUN)
@@ -69,13 +73,50 @@ class SubagentReportDeliveryTest {
         lenient().when(agentRunRepository.findById(CHILD_RUN)).thenReturn(Optional.of(child));
         lenient().when(agentRunRepository.save(any(AgentRun.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(triggerLogService.createTriggerLog(eq(USER_ID), any())).thenReturn(TriggerLog.builder().build());
+        lenient().when(agentSessionRepository.findById(CONVERSATION)).thenReturn(Optional.of(
+                AgentSession.builder().id(CONVERSATION).agentId(conversationAgent.getId()).userId(USER_ID).build()));
+        lenient().when(agentRepository.findById(conversationAgent.getId())).thenReturn(Optional.of(conversationAgent));
     }
 
     private void childSession(UUID parent) {
+        childSession(parent, "subagents");
+    }
+
+    private void childSession(UUID parent, String connectorCode) {
         AgentSession session = AgentSession.builder()
-                .id(CHILD_SESSION).userId(USER_ID).connectionId(UUID.randomUUID())
+                .id(CHILD_SESSION).userId(USER_ID).connectionId(UUID.randomUUID()).connectorCode(connectorCode)
                 .parentSessionId(parent).title("Банк В").build();
         when(agentSessionRepository.findById(CHILD_SESSION)).thenReturn(Optional.of(session));
+    }
+
+    @Test
+    @DisplayName("ветка другого агента — отчёт на триггере agents, ран у агента разговора, данные называют исполнителя")
+    void otherAgentsThreadReportsAsAgents() {
+        childSession(CONVERSATION, "agents");
+        Agent lawyer = Agent.builder().id(UUID.randomUUID()).name("Юрист").type(AgentType.GENERIC).build();
+        child.setAgent(lawyer);
+        when(agentRunRepository.claimReport(eq(CHILD_RUN), any())).thenReturn(1);
+        askedFromChat();
+
+        SubagentReportDelivery.Prepared prepared = delivery.prepare(CHILD_RUN, false, "готово").orElseThrow();
+
+        assertEquals("agents", prepared.trigger().connectorCode());
+        assertEquals("report_received", prepared.trigger().name());
+        assertEquals(conversationAgent, prepared.run().getAgent());
+        assertEquals(CHILD_SESSION.toString(), prepared.trigger().data().get("threadId"));
+        assertEquals(lawyer.getId().toString(), prepared.trigger().data().get("agentId"));
+        assertEquals("Юрист", prepared.trigger().data().get("agentName"));
+        assertNull(prepared.trigger().data().get("subagentId"));
+    }
+
+    @Test
+    @DisplayName("разговора или его агента нет — отчёт некому, claim не трогается")
+    void conversationGone() {
+        childSession(CONVERSATION);
+        when(agentSessionRepository.findById(CONVERSATION)).thenReturn(Optional.empty());
+
+        assertTrue(delivery.prepare(CHILD_RUN, false, "text").isEmpty());
+        verify(agentRunRepository, never()).claimReport(any(), any());
     }
 
     @Test
