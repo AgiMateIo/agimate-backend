@@ -67,7 +67,8 @@ public class SystemSkillBootstrap {
             "tool-loader",
             "tinvest",
             "docli",
-            "subagents");
+            "subagents",
+            "agents");
 
     private final SkillRepository skillRepository;
     private final SeedContentLocator seedContentLocator;

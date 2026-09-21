@@ -37,7 +37,7 @@ class ConnectorTextsTest {
     /** Все коды каталога: хендлеры из SPI плюс статические строки ConnectorBootstrap. */
     private static final List<String> CONNECTOR_CODES = List.of(
             "app", "claude-code",
-            "acp", "astro", "board", "divination", "files", "mcp", "media", "persist-memory",
+            "acp", "agents", "astro", "board", "divination", "files", "mcp", "media", "persist-memory",
             "platform", "sheets", "skill-loader", "subagents", "telegram", "time", "tool-loader", "webchat");
 
     private static Stream<ContentLanguage> translations() {
