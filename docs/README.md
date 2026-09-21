@@ -70,6 +70,7 @@
 | [persistent-memory.md](connectors/persistent-memory.md) · [sheets.md](connectors/sheets.md) | Долгая память и таблицы агента |
 | [context-loaders.md](connectors/context-loaders.md) | `skill-loader` и `tool-loader`: раскрытие навыков и схем тулов по требованию |
 | [subagents.md](connectors/subagents.md) | Субагенты: поручения своим копиям в сессиях канала, отчёт в разговор |
+| [agents.md](connectors/agents.md) | Агенты команды: поручения другому агенту по схеме субагентов, круг — команда |
 | [webchat.md](connectors/webchat.md) · [media.md](connectors/media.md) · [astro-divination.md](connectors/astro-divination.md) | Остальные коннекторы |
 
 ## Решения
@@ -98,7 +99,8 @@
 | [native-auth.md](decisions/native-auth.md) | Вход нативного клиента: одноразовый код с PKCE вместо cookie, реестр сессий устройств |
 | [push-notifications.md](decisions/push-notifications.md) | Пуш-уведомления: устройства и транспорт у user-api, содержание у control-api, между ними реле |
 | [push-second-channel.md](decisions/push-second-channel.md) | Второй канал уведомлений: FCM тем же универсальным API, параллельно RuStore, а не вместо |
-| [agent-to-agent-internal.md](decisions/agent-to-agent-internal.md) | Агенты одного пользователя разговаривают друг с другом: коннектор по шаблону поверх механизма ожидания, построенного для долгих тулов |
+| [agent-to-agent-internal.md](decisions/agent-to-agent-internal.md) | Агенты одного пользователя поручают друг другу работу: коннектор `agents` по схеме субагентов, круг — команда, как у доски; привязка — участие, ABAC — исключения |
+| [agent-rooms.md](decisions/agent-rooms.md) | Рой агентов в общем чате: лента комнаты — надсистема, сессия участника — его подробности; будит только адрес, «увидеть» отделено от «проснуться» |
 | [subagents.md](decisions/subagents.md) | Агент поручает подзадачу своей копии: ребёнок — сессия канала `subagents`, квитанция сразу, отчёт триггером в разговор, цепочка ранов в `origin_run_id` |
 | [email-password-auth.md](decisions/email-password-auth.md) | Пароль рядом с четырьмя OAuth-провайдерами: чужая установка не должна зависеть от регистрации приложения в Google |
 | [platform-admin-mcp.md](decisions/platform-admin-mcp.md) | Мета-агент и MCP-клиент умеют всё, что веб-панель: коннектор `platform` покрывает `/manage/**` целиком |
