@@ -49,6 +49,7 @@ import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
+import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.secret.SecretService;
@@ -72,6 +73,8 @@ public class AgentService {
     public static final String AGENT_KEY_PREFIX = "agnt";
     /** The Authorization header of outbound webhooks (a single value, AAD owner = agent.id). */
     public static final String WEBHOOK_AUTH_SECRET_ENTITY = "agent_webhook_auth";
+    /** The system skill every agent created in a team gets: taking part in the team's requests is the default. */
+    static final String TEAM_SKILL_NAME = "agents";
 
     private final AgentRepository agentRepository;
     private final AgentConnectionRepository agentConnectionRepository;
@@ -94,6 +97,7 @@ public class AgentService {
     private final AgentDeliveryService agentDeliveryService;
     private final SecretRepository secretRepository;
     private final SecretService secretService;
+    private final SkillRepository skillRepository;
 
     public Page<AgentResponse> getAllForUser(UUID userId, UUID agenticTeamId, String search, int page, int size) {
         if (agenticTeamId != null) {
@@ -337,14 +341,31 @@ public class AgentService {
         applyWebhookAuthHeader(agent, command.webhookAuthHeader());
 
         // The wizard's skills go in the same transaction: the agent is created with its final set at once.
-        if (command.skillIds() != null) {
-            for (UUID skillId : new LinkedHashSet<>(command.skillIds())) {
-                agentSkillService.create(agent.getId(), skillId, userId);
-            }
+        Set<UUID> skillIds = command.skillIds() != null ? new LinkedHashSet<>(command.skillIds()) : new LinkedHashSet<>();
+        if (team != null) {
+            teamSkill().filter(skillId -> !skillIds.contains(skillId)).ifPresent(skillIds::add);
+        }
+        for (UUID skillId : skillIds) {
+            agentSkillService.create(agent.getId(), skillId, userId);
         }
 
         log.info("Created agent id={}, user={}, preset={}", agent.getId(), userId, presetName);
         return new AgentCreateResult(agent, team, generatedKey.fullKey());
+    }
+
+    /**
+     * An agent created in a team takes part in the team's requests from the start — the agents skill
+     * is bound as if the wizard had chosen it; the team is the user's consent. Absent from the
+     * catalogue (a seed that has not run) it is skipped, never a failure of the creation.
+     */
+    private Optional<UUID> teamSkill() {
+        Optional<UUID> skill = skillRepository
+                .findByUserIdAndNameNotDeleted(SystemSkillBootstrap.SYSTEM_USER_ID, TEAM_SKILL_NAME)
+                .map(s -> s.getId());
+        if (skill.isEmpty()) {
+            log.warn("System skill '{}' is not seeded — an agent joins its team without it", TEAM_SKILL_NAME);
+        }
+        return skill;
     }
 
     /** A preset is only a funnel label, but the label must exist: a typo is a BadRequest. */

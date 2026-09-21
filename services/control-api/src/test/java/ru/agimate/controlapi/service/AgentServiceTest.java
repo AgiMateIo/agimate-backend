@@ -16,12 +16,17 @@ import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.controlapi.controller.manage.dto.PatchAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.controlapi.database.entities.Agent;
+import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.Channel;
+import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
+import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.service.dto.agent.AgentCreateCommand;
 import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
 import java.util.List;
@@ -38,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +68,12 @@ class AgentServiceTest {
     private AgentLlmService agentLlmService;
     @Mock
     private SecretRepository secretRepository;
+    @Mock
+    private SkillRepository skillRepository;
+    @Mock
+    private AgentSkillService agentSkillService;
+    @Mock
+    private AgenticTeamRepository agenticTeamRepository;
     /** Настоящий, не мок: гард адреса — часть проверяемого здесь поведения, и он ничего не стоит. */
     @Spy
     private PublicOnlyHttp publicOnlyHttp = new PublicOnlyHttp(false);
@@ -86,6 +98,62 @@ class AgentServiceTest {
         when(agentDeliveryService.supportsPush(AgentType.WEBHOOK)).thenReturn(true);
         when(channelRepository.findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(AGENT_ID))
                 .thenReturn(List.of());
+    }
+
+    @Nested
+    @DisplayName("create — агент в команде")
+    class CreateInTeam {
+
+        private final UUID teamId = UUID.randomUUID();
+        private final UUID agentsSkillId = UUID.randomUUID();
+        private final UUID otherSkillId = UUID.randomUUID();
+
+        @BeforeEach
+        void team() {
+            when(agenticTeamRepository.findById(teamId)).thenReturn(Optional.of(
+                    AgenticTeam.builder().id(teamId).userId(USER_ID).build()));
+            when(agentRepository.save(any(Agent.class))).thenAnswer(invocation -> {
+                Agent saved = invocation.getArgument(0);
+                saved.setId(AGENT_ID);
+                return saved;
+            });
+            when(skillRepository.findByUserIdAndNameNotDeleted(SystemSkillBootstrap.SYSTEM_USER_ID, "agents"))
+                    .thenReturn(Optional.of(Skill.builder().id(agentsSkillId).name("agents").build()));
+        }
+
+        private AgentCreateCommand command(UUID team, List<UUID> skillIds) {
+            return new AgentCreateCommand("agent", null, null, AgentType.GENERIC, null, null, team, skillIds, null);
+        }
+
+        @Test
+        @DisplayName("созданный в команде получает навык agents вместе с навыками мастера")
+        void teamAgentGetsAgentsSkill() {
+            service.create(USER_ID, command(teamId, List.of(otherSkillId)));
+
+            verify(agentSkillService).create(AGENT_ID, otherSkillId, USER_ID);
+            verify(agentSkillService).create(AGENT_ID, agentsSkillId, USER_ID);
+        }
+
+        @Test
+        @DisplayName("мастер уже выбрал agents — второй раз не привязывается")
+        void noDuplicateWhenChosen() {
+            service.create(USER_ID, command(teamId, List.of(agentsSkillId)));
+
+            verify(agentSkillService, times(1)).create(any(), any(), any());
+            verify(agentSkillService).create(AGENT_ID, agentsSkillId, USER_ID);
+        }
+
+        @Test
+        @DisplayName("без команды навык не привязывается; без сида — создание не падает")
+        void withoutTeamOrSeed() {
+            service.create(USER_ID, command(null, null));
+            verify(agentSkillService, never()).create(any(), any(), any());
+
+            when(skillRepository.findByUserIdAndNameNotDeleted(SystemSkillBootstrap.SYSTEM_USER_ID, "agents"))
+                    .thenReturn(Optional.empty());
+            service.create(USER_ID, command(teamId, null));
+            verify(agentSkillService, never()).create(any(), any(), any());
+        }
     }
 
     @Nested
