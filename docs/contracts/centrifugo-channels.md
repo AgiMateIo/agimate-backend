@@ -34,6 +34,7 @@ Client connection and subscription tokens are ES256 JWTs signed by control-api w
 | Тип | Когда | Теги | Полезная нагрузка |
 |---|---|---|---|
 | `board.task.*` | изменения задач доски | `entity=board.task`, `boardId` | задача |
+| `agent.request.*` | поручения между агентами команды: `started`, `appended`, `reported`, `cancelled` | `entity=agent.request`, `teamId` | строка поручения, как в `GET /manage/agentic-teams/{teamId}/requests/` |
 | `webchat_activity` | агент доставил сообщение в веб-чат (`answer`/`error`, но не `progress`) | `entity=webchat.message`, `agentId` | `agentId`, `sessionId`, `messageId`, `stream`, `preview`, `createdAt` |
 
 `webchat_activity` намеренно тонкое: оно поднимает бейдж в списке контактов, пока клиент не открыл

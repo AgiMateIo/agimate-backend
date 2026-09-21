@@ -100,6 +100,7 @@
 | [push-notifications.md](decisions/push-notifications.md) | Пуш-уведомления: устройства и транспорт у user-api, содержание у control-api, между ними реле |
 | [push-second-channel.md](decisions/push-second-channel.md) | Второй канал уведомлений: FCM тем же универсальным API, параллельно RuStore, а не вместо |
 | [agent-to-agent-internal.md](decisions/agent-to-agent-internal.md) | Агенты одного пользователя поручают друг другу работу: коннектор `agents` по схеме субагентов, круг — команда, как у доски; привязка — участие, ABAC — исключения |
+| [agent-requests-view.md](decisions/agent-requests-view.md) | Поручения команды глазами пользователя: единица — ветка адресата, статус считается по её ранам, список и переписка под командой |
 | [agent-rooms.md](decisions/agent-rooms.md) | Рой агентов в общем чате: лента комнаты — надсистема, сессия участника — его подробности; будит только адрес, «увидеть» отделено от «проснуться» |
 | [subagents.md](decisions/subagents.md) | Агент поручает подзадачу своей копии: ребёнок — сессия канала `subagents`, квитанция сразу, отчёт триггером в разговор, цепочка ранов в `origin_run_id` |
 | [email-password-auth.md](decisions/email-password-auth.md) | Пароль рядом с четырьмя OAuth-провайдерами: чужая установка не должна зависеть от регистрации приложения в Google |

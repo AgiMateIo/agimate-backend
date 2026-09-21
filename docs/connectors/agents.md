@@ -109,6 +109,18 @@
 `GET /manage/sessions/?parentSessionId=` возвращает и ветки других агентов — у них свой `agentId`.
 Канал `Agents: <имя>` появляется у адресата после первого поручения ему.
 
+Поручения команды целиком — свой ресурс под командой, см.
+[decisions/agent-requests-view.md](../decisions/agent-requests-view.md):
+
+- `GET /manage/agentic-teams/{teamId}/requests/` — список: кто кому, заголовок, статус, откуда
+  родилось, превью отчёта. Фильтры `agentId`, `fromAgentId`, `toAgentId`, `since`;
+- `GET /manage/agentic-teams/{teamId}/requests/{threadId}` — ветка: поручения и отчёты по времени,
+  у каждого `runId` для `GET /manage/runs/{runId}/turns/`;
+- событие `agent.request.*` в `user:{userId}` — started, appended, reported, cancelled.
+
+Статус ветки нигде не хранится, а считается по её ранам (`AgentRequestQueryService`); субагентские
+ветки в этот ресурс не попадают.
+
 ## Отмена и память
 
 `/stop` в разговоре и отмена его сессии отменяют и раны веток (`requestCancelByParentSession`).
