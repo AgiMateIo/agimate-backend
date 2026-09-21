@@ -15,6 +15,7 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
+import ru.agimate.controlapi.service.team.TeamCircleService;
 
 import java.util.List;
 import java.util.Map;
@@ -46,7 +47,9 @@ class TeammateServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TeammateService(agentRepository, agentDeliveryService, accessEvaluator);
+        // The circle is real: its filtering is part of what these refusals prove.
+        service = new TeammateService(new TeamCircleService(agentRepository, agentDeliveryService),
+                agentRepository, agentDeliveryService, accessEvaluator);
         asker = agent("Менеджер", TEAM_ID);
         lawyer = agent("Юрист", TEAM_ID);
         lenient().when(agentDeliveryService.supportsPush(any(Agent.class))).thenReturn(true);

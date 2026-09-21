@@ -27,6 +27,7 @@ import ru.agimate.controlapi.service.dto.board.BoardTaskResponse;
 import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangedEvent;
 import ru.agimate.controlapi.service.dto.board.BoardTasksByStatusResponse;
+import ru.agimate.controlapi.service.team.TeamCircleService;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
@@ -63,6 +64,7 @@ public class BoardService {
     private final ConnectionRepository connectionRepository;
     private final TriggerRouterService triggerRouterService;
     private final CentrifugoService centrifugoService;
+    private final TeamCircleService teamCircleService;
 
     // ---- Board CRUD ----
 
@@ -484,7 +486,7 @@ public class BoardService {
 
     /** The board's team roster — a broadcast addressee (the bindings and ABAC narrow it in the router). */
     private List<UUID> teamRosterIds(UUID userId, Board board) {
-        return agentRepository.findByUserIdAndAgenticTeamId(userId, board.getAgenticTeam().getId()).stream()
+        return teamCircleService.roster(userId, board.getAgenticTeam().getId()).stream()
                 .map(Agent::getId)
                 .toList();
     }
@@ -513,10 +515,11 @@ public class BoardService {
         }
     }
 
+    /** An actor or assignee must be in the board's circle — the team, as {@link TeamCircleService} defines it. */
     private Agent resolveTeamAgent(Board board, UUID agentId) {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        if (agent.getAgenticTeamId() == null || !agent.getAgenticTeamId().equals(board.getAgenticTeam().getId())) {
+        if (!teamCircleService.isMember(board.getAgenticTeam().getId(), agent)) {
             throw new BadRequestStatusException("Agent does not belong to the board's agentic team");
         }
         return agent;

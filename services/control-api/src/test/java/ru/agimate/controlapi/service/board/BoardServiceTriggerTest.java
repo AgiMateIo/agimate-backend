@@ -24,6 +24,7 @@ import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskEditCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
+import ru.agimate.controlapi.service.team.TeamCircleService;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
@@ -64,6 +65,7 @@ class BoardServiceTriggerTest {
     @Mock private ConnectionRepository connectionRepository;
     @Mock private TriggerRouterService triggerRouterService;
     @Mock private CentrifugoService centrifugoService;
+    @Mock private TeamCircleService teamCircleService;
 
     @InjectMocks
     private BoardService service;
@@ -80,6 +82,8 @@ class BoardServiceTriggerTest {
         worker = Agent.builder().id(WORKER_ID).userId(USER_ID).agenticTeamId(TEAM_ID).name("worker").build();
 
         lenient().when(boardRepository.findById(BOARD_ID)).thenReturn(Optional.of(board));
+        // Membership is a pure check; the mock only has to answer it the real way.
+        lenient().when(teamCircleService.isMember(any(), any())).thenCallRealMethod();
         lenient().when(agentRepository.findById(LEAD_ID)).thenReturn(Optional.of(lead));
         lenient().when(agentRepository.findById(WORKER_ID)).thenReturn(Optional.of(worker));
         lenient().when(agentRepository.findAllById(any())).thenReturn(List.of(lead, worker));
@@ -133,8 +137,7 @@ class BoardServiceTriggerTest {
         @DisplayName("без assignee: targets = ростер команды (никогда не пустые)")
         void withoutAssigneeTargetsRoster() {
             modeConnectionExists();
-            when(agentRepository.findByUserIdAndAgenticTeamId(USER_ID, TEAM_ID))
-                    .thenReturn(List.of(lead, worker));
+            when(teamCircleService.roster(USER_ID, TEAM_ID)).thenReturn(List.of(lead, worker));
 
             service.createTask(BOARD_ID, USER_ID, new BoardTaskCreateCommand(
                     BoardTaskType.TASK, "t", null, LEAD_ID, null, null));

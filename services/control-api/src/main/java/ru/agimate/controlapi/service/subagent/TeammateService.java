@@ -11,6 +11,7 @@ import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
+import ru.agimate.controlapi.service.team.TeamCircleService;
 
 import java.util.List;
 import java.util.Map;
@@ -19,19 +20,18 @@ import java.util.stream.Collectors;
 
 /**
  * Who an agent may ask through {@code ask_agent} (docs/decisions/agent-to-agent-internal.md): a
- * member of its own {@code agentic_team} — the circle the board already uses — that takes part by
- * being bound to the agents connection and can be pushed to. An ABAC rule of the callee on
+ * participant of the agents connector in its own team — the circle {@link TeamCircleService}
+ * computes for every team connector — other than itself. An ABAC rule of the callee on
  * {@code request_received} is the exception layer, checked per request over the request's data.
  *
- * <p>The checks mirror {@code TriggerRouterService.findRecipients} — the same binding query, the same
- * push and ABAC tests — so a request the tool accepts is one the router delivers. Refusals are
- * {@link ConnectorException}s and name who can be asked instead.
+ * <p>Refusals are {@link ConnectorException}s and name who can be asked instead.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TeammateService {
 
+    private final TeamCircleService teamCircleService;
     private final AgentRepository agentRepository;
     private final AgentDeliveryService agentDeliveryService;
     private final ConnectionAccessEvaluator accessEvaluator;
@@ -39,7 +39,7 @@ public class TeammateService {
     /** A team member the agent may ask now. */
     public record Teammate(UUID id, String name, String description) {}
 
-    /** Members of the asker's team that are bound to the connection, can be pushed to, and are not the asker. */
+    /** Participants of the agents connector in the asker's team, other than the asker. */
     public List<Teammate> eligible(Agent asker, UUID connectionId) {
         return candidates(asker, connectionId).stream()
                 .map(a -> new Teammate(a.getId(), a.getName(), a.getDescription()))
@@ -63,7 +63,7 @@ public class TeammateService {
         List<Agent> candidates = candidates(asker, connectionId);
         Agent callee = candidates.stream().filter(a -> a.getId().equals(calleeId)).findFirst().orElse(null);
         if (callee == null) {
-            throw new ConnectorException(whyNot(asker, connectionId, calleeId) + ". " + youCanAsk(candidates));
+            throw new ConnectorException(whyNot(asker, calleeId) + ". " + youCanAsk(candidates));
         }
         AccessDecision decision = accessEvaluator.evaluate(
                 callee.getId(), connectionId, PolicyKind.TRIGGER, SubagentService.REQUEST_TRIGGER);
@@ -75,25 +75,20 @@ public class TeammateService {
     }
 
     private List<Agent> candidates(Agent asker, UUID connectionId) {
-        if (asker.getAgenticTeamId() == null) {
-            return List.of();
-        }
-        return agentRepository.findBoundToConnection(asker.getUserId(), connectionId).stream()
-                .filter(a -> asker.getAgenticTeamId().equals(a.getAgenticTeamId()))
+        return teamCircleService.participants(asker.getUserId(), asker.getAgenticTeamId(), connectionId).stream()
                 .filter(a -> !a.getId().equals(asker.getId()))
-                .filter(agentDeliveryService::supportsPush)
                 .toList();
     }
 
     /** Which of the three conditions the agent misses — the user has to fix it, so the tool says which. */
-    private String whyNot(Agent asker, UUID connectionId, UUID calleeId) {
+    private String whyNot(Agent asker, UUID calleeId) {
         Agent agent = agentRepository.findById(calleeId)
                 .filter(a -> a.getUserId().equals(asker.getUserId()))
                 .orElse(null);
         if (agent == null) {
             return "No agent " + calleeId + " among your agents";
         }
-        if (!asker.getAgenticTeamId().equals(agent.getAgenticTeamId())) {
+        if (!teamCircleService.isMember(asker.getAgenticTeamId(), agent)) {
             return agent.getName() + " is not in your team";
         }
         if (!agentDeliveryService.supportsPush(agent)) {

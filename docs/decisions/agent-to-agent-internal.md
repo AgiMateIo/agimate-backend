@@ -63,7 +63,9 @@ a2a, без правок ядра исполнения тулов. Субаге�
      Доска уже живёт в этом круге: исполнитель задачи — только агент команды
      (`BoardService.resolveTeamAgent`), задачу без исполнителя получает состав команды. Два разных круга
      собеседников у одного агента — через доску одни, через `ask_agent` другие — были бы непоследовательны.
-     Пользователь, собравший агентов в команду, этим и дал согласие.
+     Пользователь, собравший агентов в команду, этим и дал согласие. С 2026-09-21 круг считает один
+     сервис для обоих коннекторов — `TeamCircleService`; сами коннекторы независимы: у команды может
+     быть только доска, только поручения, оба или ни одного.
    - *Участие — привязка.* Навык `agents` привязывает коннектор: поручающему он даёт `ask_agent`,
      адресату — возможность получить поручение (роутер доставляет только привязанным) и правила его
      обработки. Адресат должен принимать пуш. С 2026-09-21 участие — по умолчанию: агент, созданный в
@@ -300,7 +302,9 @@ title="…">` с `<context>` и `<instructions>`, значения экрани�
 
 - `connectors/internal/agents/AgentsToolService.java`, `AgentsConnectorService.java` — тула и фасад;
   образец — `connectors/internal/subagents/`.
-- `service/subagent/TeammateService.java` — кому можно поручить; `SubagentService.java` (`openFor`,
+- `service/team/TeamCircleService.java` — круг команды, общий с доской (`isMember`, `roster`,
+  `participants`); `service/subagent/TeammateService.java` — кому можно поручить поверх него;
+  `SubagentService.java` (`openFor`,
   `isChildOf`, кап), `SubagentReportDelivery.java` (агент отчёта из родительской сессии),
   `SubagentReportListener.java`, `ChildOutput`.
 - `service/channel/handler/AgentsChannelHandler.java` — канал адресата; `PromptEscaping`.
