@@ -62,6 +62,19 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
                                     @Param("connectorCode") String connectorCode,
                                     Pageable pageable);
 
+    /** One row of {@link #findChatContacts}, in the same shape — for the live event of one agent. */
+    @Query(value = """
+            SELECT a.id, a.name, a.description, a.enabled, MAX(s.last_activity_at) AS chat_activity_at
+            FROM agents a
+            LEFT JOIN channels c ON c.agent_id = a.id
+                 AND c.connector_code = :connectorCode AND c.deleted_at IS NULL
+            LEFT JOIN agent_sessions s ON s.channel_id = c.id
+            WHERE a.id = :agentId AND a.deleted_at IS NULL
+            GROUP BY a.id
+            """, nativeQuery = true)
+    List<Object[]> findChatContact(@Param("agentId") UUID agentId,
+                                   @Param("connectorCode") String connectorCode);
+
     /**
      * Candidate recipients of a trigger: the user's agents with an active binding to the connection
      * (= the trigger's connectionId). Finer filtering (effect/params_filter) happens in

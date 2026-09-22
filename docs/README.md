@@ -120,6 +120,7 @@
 | [connector-views.md](decisions/connector-views.md) | Интерактивная панель вместо текста: формат вью из MCP Apps, место лаунчера диктует ось владельца данных, а тулы панель зовёт от имени агента — второй поверхности исполнения не заводим |
 | [context-compaction.md](decisions/context-compaction.md) | Длинное окно истории сжимается сводкой: SYSTEM-ход журнала у первого дословного рана, порог по первому вызову модели, считает control-api разовым вызовом `ROUTINE`, а не агент |
 | [agent-sessions-connector.md](decisions/agent-sessions-connector.md) | Коннектор `sessions`: параллельные сессии блоком в user-prompt, `search_messages` по журналу ходов, скрытый `compact` ставит сводку и заголовок — модели `set_title` не дан |
+| [session-events.md](decisions/session-events.md) | Живые события сессий в `user:{userId}`: `session.created`/`session.updated` и строка контакта `webchat.agent.updated` — строка целиком после коммита вместо прибавочного `webchat_activity` |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md) |
 
 ## Как ведётся документация

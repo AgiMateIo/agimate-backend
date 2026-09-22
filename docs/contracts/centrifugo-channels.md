@@ -35,8 +35,16 @@ Client connection and subscription tokens are ES256 JWTs signed by control-api w
 |---|---|---|---|
 | `board.task.*` | изменения задач доски | `entity=board.task`, `boardId` | задача |
 | `agent.request.*` | поручения между агентами команды: `started`, `appended`, `reported`, `cancelled` | `entity=agent.request`, `teamId` | строка поручения, как в `GET /manage/agentic-teams/{teamId}/requests/` |
-| `webchat_activity` | агент доставил сообщение в веб-чат (`answer`/`error`, но не `progress`) | `entity=webchat.message`, `agentId` | `agentId`, `sessionId`, `messageId`, `stream`, `preview`, `createdAt` |
+| `session.created` | появилась сессия: новый веб-чат, первое событие коннекции, субагент | `entity=session`, `agentId` | строка, как в `GET /manage/sessions/` |
+| `session.updated` | изменилась строка сессии: заголовок, закрытие, прочтение, сообщение веб-чата, начало и конец рана | `entity=session`, `agentId` | строка, как в `GET /manage/sessions/` |
+| `webchat.agent.updated` | то же, если сессия веб-чата | `entity=webchat.agent`, `agentId` | строка, как в `GET /manage/webchat/contacts/` |
+| `webchat_activity` **(устарело)** | агент доставил сообщение в веб-чат (`answer`/`error`, но не `progress`) | `entity=webchat.message`, `agentId` | `agentId`, `sessionId`, `messageId`, `stream`, `preview`, `createdAt` |
 
-`webchat_activity` намеренно тонкое: оно поднимает бейдж в списке контактов, пока клиент не открыл
-ни одной переписки. Само сообщение едет своим каналом `webchat:{sessionId}` — клиент с открытым
-чатом рисует его оттуда и дедуплицирует по `messageId`.
+События сессий несут строку целиком, собранную после коммита: клиент заменяет строку по `id`
+(контакт — по `agentId`), что бы ни поменялось, а повтор доставки ничего не портит. Когда какое из
+них публикуется — [decisions/session-events.md](../decisions/session-events.md).
+
+`webchat_activity` — тонкое прибавочное событие для бейджа: «пришло ещё одно, вот превью». Его
+заменяют `session.updated` и `webchat.agent.updated`; публикуется параллельно, пока веб-фронт и
+Android не перейдут, потом удаляется. Само сообщение в любом случае едет своим каналом
+`webchat:{sessionId}` — клиент с открытым чатом рисует его оттуда и дедуплицирует по `messageId`.

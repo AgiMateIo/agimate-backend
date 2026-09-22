@@ -8,6 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import ru.agimate.controlapi.service.session.SessionChanged;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
@@ -30,6 +31,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +66,19 @@ class WebchatMessagePublisherTest {
         assertEquals(SESSION_ID, captor.getValue().sessionId());
         assertEquals("m1", captor.getValue().messageId());
         assertEquals("готово", captor.getValue().text());
+    }
+
+    @Test
+    @DisplayName("строку сессии двигают ответ и своё сообщение, progress — нет")
+    void sessionChangedForAnswersAndEcho() {
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "answer", "m1", "готово", null);
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "progress", "m2", "думаю", null);
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.USER, null, "m3", "привет", null);
+
+        verify(eventPublisher, times(2)).publishEvent(SessionChanged.updated(SESSION_ID));
     }
 
     @Test

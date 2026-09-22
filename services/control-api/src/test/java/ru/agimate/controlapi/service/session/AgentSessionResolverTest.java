@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.springframework.context.ApplicationEventPublisher;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.entities.AgentSession;
@@ -32,6 +33,8 @@ class AgentSessionResolverTest {
 
     @Mock
     private AgentSessionRepository agentSessionRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private AgentSessionResolver resolver;
@@ -74,6 +77,7 @@ class AgentSessionResolverTest {
                 eq(CONNECTION), any())).thenReturn(1);
 
         assertEquals(id, resolver.forConnection(AGENT, USER, CONNECTOR, CONNECTION));
+        verify(eventPublisher).publishEvent(SessionChanged.created(id));
     }
 
     @Test
@@ -87,5 +91,7 @@ class AgentSessionResolverTest {
                 eq(CONNECTION), any())).thenReturn(0);
 
         assertEquals(winner, resolver.forConnection(AGENT, USER, CONNECTOR, CONNECTION));
+        // The winner announces its own session.
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
     }
 }

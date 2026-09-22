@@ -21,6 +21,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
+import ru.agimate.controlapi.service.session.SessionChanged;
 import ru.agimate.controlapi.service.trigger.RunFinished;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 
@@ -145,6 +146,8 @@ class MessageLogServiceTest {
                     ChannelSessionMessageKind.PROGRESS, "TOOL_CALL", "🔧 get_tasks", null);
 
             assertTrue(result.duplicate());
+            // Progress changes no status, so the chat list has nothing to redraw.
+            verify(eventPublisher, never()).publishEvent(any(SessionChanged.class));
         }
 
         @Test
@@ -160,6 +163,8 @@ class MessageLogServiceTest {
             assertEquals("done", run.getResult());
             // The session's upkeep is decided here, after the answer.
             verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, null, SESSION_ID));
+            // The finish takes «working now» off the chat list.
+            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
         }
 
         @Test

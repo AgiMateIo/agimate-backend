@@ -4,6 +4,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.springframework.context.ApplicationEventPublisher;
+import ru.agimate.controlapi.service.session.SessionChanged;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
@@ -31,6 +33,7 @@ class SessionCompactionWriterTest {
 
     @Mock private AgentRunTurnRepository turnRepository;
     @Mock private AgentSessionRepository sessionRepository;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @InjectMocks private SessionCompactionWriter writer;
 
     @Test
@@ -56,11 +59,23 @@ class SessionCompactionWriterTest {
     }
 
     @Test
-    @DisplayName("только заголовок — журнал не трогается")
+    @DisplayName("только заголовок — журнал не трогается, заголовок объявляется событием")
     void titleOnly() {
+        when(sessionRepository.writeGeneratedTitle(eq(SESSION_ID), eq("T"), any())).thenReturn(1);
+
         writer.write(SESSION_ID, AGENT_ID, null, null, "m", "T");
 
         verifyNoInteractions(turnRepository);
-        verify(sessionRepository).writeGeneratedTitle(eq(SESSION_ID), eq("T"), any());
+        verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
+    }
+
+    @Test
+    @DisplayName("пользователь переименовал сам — заголовок не лёг, события нет")
+    void userTitleNotAnnounced() {
+        when(sessionRepository.writeGeneratedTitle(eq(SESSION_ID), eq("T"), any())).thenReturn(0);
+
+        writer.write(SESSION_ID, AGENT_ID, null, null, "m", "T");
+
+        verifyNoInteractions(eventPublisher);
     }
 }

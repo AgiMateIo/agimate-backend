@@ -34,9 +34,10 @@
 - **Коннектор `sessions` и компакция окна истории.** Агент видит свои параллельные разговоры блоком
   в user-prompt и ищет по прошлым (`search_messages`); длинное окно сжимается сводкой — SYSTEM-ходом
   журнала, — и та же скрытая джоба ставит заголовок сессии. Считает control-api разовым вызовом
-  модели `ROUTINE`, без агентного рана.
+  модели `ROUTINE`, без агентного рана. Заголовок и прочие изменения строки доезжают до клиентов
+  живыми событиями `session.*` в `user:{userId}`; `webchat_activity` устаревает.
   → [agent-sessions-connector.md](decisions/agent-sessions-connector.md),
-  [context-compaction.md](decisions/context-compaction.md)
+  [context-compaction.md](decisions/context-compaction.md), [session-events.md](decisions/session-events.md)
 
 ## Следующее
 

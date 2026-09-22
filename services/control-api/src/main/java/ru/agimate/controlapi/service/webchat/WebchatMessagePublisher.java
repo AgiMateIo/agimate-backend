@@ -10,6 +10,7 @@ import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
+import ru.agimate.controlapi.service.session.SessionChanged;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.time.Instant;
@@ -39,6 +40,12 @@ public class WebchatMessagePublisher {
     public static final String CENTRIFUGO_CHANNEL_PREFIX = "webchat:";
     public static final String EVENT_TYPE = "webchat_message";
     public static final String USER_CHANNEL_PREFIX = "user:";
+    /**
+     * @deprecated superseded by {@code session.updated} and {@code webchat.agent.updated}
+     * ({@link ru.agimate.controlapi.service.session.SessionEventPublisher}); published in parallel
+     * until the web and Android clients have moved over (docs/decisions/session-events.md).
+     */
+    @Deprecated
     public static final String ACTIVITY_EVENT_TYPE = "webchat_activity";
     /** The stream that is work in progress, not an answer — it neither raises a badge nor previews a chat. */
     static final String STREAM_PROGRESS = "progress";
@@ -68,6 +75,10 @@ public class WebchatMessagePublisher {
                         WebchatAttachment.fromStored(storedParts, userId, signedFileUrlService::issue),
                         Instant.now().toString()));
 
+        if (!STREAM_PROGRESS.equals(stream)) {
+            // The preview moves whoever spoke: one's own message sent from another device included.
+            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+        }
         if (direction == WebchatMessageDirection.AGENT && !STREAM_PROGRESS.equals(stream)) {
             publishActivity(userId, agentId, sessionId, messageId, stream, text);
             // Delivery to a closed application. An event rather than a call: the push leaves after
@@ -82,7 +93,10 @@ public class WebchatMessagePublisher {
      * more in the user's own channel. Failure is swallowed on purpose — a lost badge is repaired by
      * the next listing, while letting the exception out would fail a message that has already been
      * written and published.
+     *
+     * @deprecated see {@link #ACTIVITY_EVENT_TYPE}
      */
+    @Deprecated
     private void publishActivity(UUID userId, UUID agentId, UUID sessionId, String messageId,
                                  String stream, String text) {
         try {

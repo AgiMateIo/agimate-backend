@@ -12,7 +12,9 @@ import java.util.UUID;
  * there; this one only has to make a number grow.
  *
  * @param preview the message text, truncated — a badge never needs the whole answer
+ * @deprecated see {@link WebchatMessagePublisher#ACTIVITY_EVENT_TYPE}
  */
+@Deprecated
 public record WebchatActivityEvent(
         UUID agentId,
         UUID sessionId,

@@ -66,6 +66,11 @@ public class ManageSessionService {
         return enricher(List.of(session)).apply(session);
     }
 
+    /** The listing row of a session with no caller to check — the payload of its live event. */
+    public SessionResponse row(AgentSession session) {
+        return enricher(List.of(session)).apply(session);
+    }
+
     @Transactional
     public SessionResponse rename(UUID userId, UUID sessionId, String title) {
         AgentSession session = requireOwned(userId, sessionId);

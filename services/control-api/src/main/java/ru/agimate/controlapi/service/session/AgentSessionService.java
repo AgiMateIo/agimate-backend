@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.session;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -43,6 +44,7 @@ public class AgentSessionService {
 
     private final AgentSessionRepository agentSessionRepository;
     private final WebchatMessageRepository webchatMessageRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AgentSession getById(UUID id) {
         return agentSessionRepository.findById(id)
@@ -128,6 +130,7 @@ public class AgentSessionService {
                 .build();
         AgentSession saved = agentSessionRepository.save(session);
         log.info("Created new channel session id={} for channel id={}", saved.getId(), channel.getId());
+        eventPublisher.publishEvent(SessionChanged.created(saved.getId()));
         return saved;
     }
 
@@ -148,6 +151,7 @@ public class AgentSessionService {
                 .build();
         AgentSession saved = agentSessionRepository.save(session);
         log.info("Created subagent session id={} for conversation {}", saved.getId(), parentSessionId);
+        eventPublisher.publishEvent(SessionChanged.created(saved.getId()));
         return saved;
     }
 
@@ -174,7 +178,9 @@ public class AgentSessionService {
         }
         session.setTitle(trimmed);
         session.setTitleSource(SessionTitleSource.USER);
-        return agentSessionRepository.save(session);
+        AgentSession saved = agentSessionRepository.save(session);
+        eventPublisher.publishEvent(SessionChanged.updated(saved.getId()));
+        return saved;
     }
 
     /** Set the title from the first message, if it is still empty. */
@@ -184,6 +190,7 @@ public class AgentSessionService {
             session.setTitle(buildTitle(hint));
             session.setTitleSource(SessionTitleSource.HINT);
             agentSessionRepository.save(session);
+            eventPublisher.publishEvent(SessionChanged.updated(session.getId()));
         }
     }
 
@@ -226,11 +233,14 @@ public class AgentSessionService {
 
     /**
      * Move the session's read pointer to {@code messageId}. Never rewinds — see
-     * {@code AgentSessionRepository.advanceReadPointer}.
+     * {@code AgentSessionRepository.advanceReadPointer}. Only a pointer that moved is announced:
+     * reopening a read chat would otherwise send an event every time.
      */
     @Transactional
     public void advanceReadPointer(UUID sessionId, UUID messageId) {
-        agentSessionRepository.advanceReadPointer(sessionId, messageId, LocalDateTime.now());
+        if (agentSessionRepository.advanceReadPointer(sessionId, messageId, LocalDateTime.now()) > 0) {
+            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+        }
     }
 
     @Transactional
@@ -239,6 +249,7 @@ public class AgentSessionService {
         if (session.getClosedAt() == null) {
             session.setClosedAt(LocalDateTime.now());
             agentSessionRepository.save(session);
+            eventPublisher.publishEvent(SessionChanged.updated(id));
         }
         return session;
     }

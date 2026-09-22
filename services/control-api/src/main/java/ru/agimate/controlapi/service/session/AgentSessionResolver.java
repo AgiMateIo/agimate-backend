@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.session;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class AgentSessionResolver {
 
     private final AgentSessionRepository agentSessionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * The live session of this connection, created if there is none. Its own transaction: routing
@@ -50,6 +52,7 @@ public class AgentSessionResolver {
         if (created > 0) {
             log.info("Created connection session id={} for agent {} connection {}",
                     session.getId(), agentId, connectionId);
+            eventPublisher.publishEvent(SessionChanged.created(session.getId()));
         }
         return session.getId();
     }

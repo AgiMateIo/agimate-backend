@@ -17,6 +17,7 @@ import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
+import ru.agimate.controlapi.service.session.SessionChanged;
 import ru.agimate.controlapi.service.trigger.RunFinished;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -70,6 +71,7 @@ public class MessageLogPersistence {
         // Computed only at the ack: it costs a read of the main's row, and by the queue's contract
         // the answer cannot change later in the run — a run that starts was not stood aside.
         boolean steered = kind == ChannelSessionMessageKind.INBOUND && standsAside(run);
+        RunStatus before = run.getStatus();
         projectStatus(run, kind, steered);
 
         // The run's outcome goes into the agent_runs row for ANY run (a self-sufficient run row: the final
@@ -89,6 +91,11 @@ public class MessageLogPersistence {
         // projection of a conversation, and a trigger run has no conversation to project into.
         UUID sessionId = Channels.sessionIdOf(channels);
         boolean duplicate = false;
+        // «Working now» in the chat list: a row built mid-run says so, and only this keeps it from
+        // saying so forever. A session with no channel is left out — an event per trigger run is noise.
+        if (sessionId != null && run.getStatus() != before) {
+            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+        }
 
         // A channel run: those same ANSWER/ERROR are additionally projected into channel_session_messages
         // (delivery). A direct run with no channel: there is no history row, and the outcome is already recorded

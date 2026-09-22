@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
@@ -33,6 +34,8 @@ class AgentSessionServiceTest {
     private AgentSessionRepository agentSessionRepository;
     @Mock
     private WebchatMessageRepository webchatMessageRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private AgentSessionService agentSessionService;
 
@@ -40,7 +43,7 @@ class AgentSessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        agentSessionService = new AgentSessionService(agentSessionRepository, webchatMessageRepository);
+        agentSessionService = new AgentSessionService(agentSessionRepository, webchatMessageRepository, eventPublisher);
         session = AgentSession.builder().id(SESSION_ID).build();
     }
 
@@ -57,6 +60,30 @@ class AgentSessionServiceTest {
             agentSessionService.markRead(SESSION_ID, messageRowId);
 
             verify(agentSessionRepository).advanceReadPointer(eq(SESSION_ID), eq(messageRowId), any());
+        }
+
+        @Test
+        @DisplayName("сдвинутый указатель объявляется событием сессии")
+        void movedPointerAnnounced() {
+            UUID messageRowId = UUID.randomUUID();
+            when(webchatMessageRepository.existsByIdAndSessionId(messageRowId, SESSION_ID)).thenReturn(true);
+            when(agentSessionRepository.advanceReadPointer(eq(SESSION_ID), eq(messageRowId), any())).thenReturn(1);
+
+            agentSessionService.markRead(SESSION_ID, messageRowId);
+
+            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
+        }
+
+        @Test
+        @DisplayName("указатель уже стоял там — события нет")
+        void unmovedPointerSilent() {
+            UUID messageRowId = UUID.randomUUID();
+            when(webchatMessageRepository.existsByIdAndSessionId(messageRowId, SESSION_ID)).thenReturn(true);
+            when(agentSessionRepository.advanceReadPointer(eq(SESSION_ID), eq(messageRowId), any())).thenReturn(0);
+
+            agentSessionService.markRead(SESSION_ID, messageRowId);
+
+            verify(eventPublisher, never()).publishEvent(any(Object.class));
         }
 
         @Test
@@ -105,6 +132,7 @@ class AgentSessionServiceTest {
             AgentSession renamed = agentSessionService.rename(session, "  Отпуск в июле  ");
 
             assertEquals("Отпуск в июле", renamed.getTitle());
+            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
         }
 
         @Test

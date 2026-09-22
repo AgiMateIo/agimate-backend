@@ -44,8 +44,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -111,12 +113,24 @@ public class WebchatService {
         Page<Object[]> rows = agentRepository.findChatContacts(
                 userId, WebchatChannelHandler.CONNECTOR_CODE, PageRequest.of(page, size));
 
-        List<UUID> agentIds = rows.getContent().stream().map(row -> (UUID) row[0]).toList();
+        return rows.map(contactMapper(rows.getContent()));
+    }
+
+    /** One contact row, as the listing would show it — the payload of the live event; empty for a deleted agent. */
+    @Transactional(readOnly = true)
+    public Optional<WebchatContactResponse> contact(UUID agentId) {
+        List<Object[]> rows = agentRepository.findChatContact(agentId, WebchatChannelHandler.CONNECTOR_CODE);
+        return rows.stream().findFirst().map(contactMapper(rows));
+    }
+
+    /** The three batch queries (unread, preview, «working now») for a page of contact rows. */
+    private Function<Object[], WebchatContactResponse> contactMapper(List<Object[]> rows) {
+        List<UUID> agentIds = rows.stream().map(row -> (UUID) row[0]).toList();
         Map<UUID, Long> unread = unreadByAgent(agentIds);
         Map<UUID, ContactPreview> previews = lastMessagesByAgent(agentIds);
         Set<UUID> live = agentRunQueryService.liveAgentIds(agentIds, WebchatChannelHandler.CONNECTOR_CODE);
 
-        return rows.map(row -> {
+        return row -> {
             UUID id = (UUID) row[0];
             ContactPreview preview = previews.get(id);
             return new WebchatContactResponse(
@@ -129,7 +143,7 @@ public class WebchatService {
                     preview != null ? preview.sessionId() : null,
                     SqlValues.localDateTime(row[4]),
                     live.contains(id));
-        });
+        };
     }
 
     private Map<UUID, Long> unreadByAgent(List<UUID> agentIds) {
