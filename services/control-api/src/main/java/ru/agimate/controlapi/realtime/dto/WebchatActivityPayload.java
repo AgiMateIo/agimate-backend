@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.webchat;
+package ru.agimate.controlapi.realtime.dto;
 
 import java.util.UUID;
 
@@ -12,10 +12,11 @@ import java.util.UUID;
  * there; this one only has to make a number grow.
  *
  * @param preview the message text, truncated — a badge never needs the whole answer
- * @deprecated see {@link WebchatMessagePublisher#ACTIVITY_EVENT_TYPE}
+ * @deprecated superseded by {@code webchat.agent.updated}; goes once the web and Android clients
+ *             have moved over (docs/decisions/realtime-notifications.md)
  */
 @Deprecated
-public record WebchatActivityEvent(
+public record WebchatActivityPayload(
         UUID agentId,
         UUID sessionId,
         String messageId,

@@ -11,7 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.security.AgentPrincipal;
-import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.realtime.CentrifugoTokens;
+import ru.agimate.controlapi.realtime.RealtimeChannels;
 
 @Slf4j
 @RestController
@@ -22,7 +23,7 @@ public class AgentCentrifugoTokenController {
 
     public static final String PATH = AgentController.PATH + "/centrifugo";
 
-    private final CentrifugoService centrifugoService;
+    private final CentrifugoTokens centrifugoTokens;
 
     @Operation(
             summary = "Get Centrifugo subscription token for agent",
@@ -33,8 +34,8 @@ public class AgentCentrifugoTokenController {
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         String agentId = principal.agentId().toString();
-        String channel = "agent:" + agentId;
+        String channel = RealtimeChannels.agent(principal.agentId());
         log.debug("Generated Centrifugo tokens for agent: {}, channel: {}", agentId, channel);
-        return SuccessResponse.ok(centrifugoService.issueTokens(agentId, channel));
+        return SuccessResponse.ok(centrifugoTokens.issueTokens(agentId, channel));
     }
 }

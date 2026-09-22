@@ -1,14 +1,11 @@
-package ru.agimate.controlapi.service.centrifugo;
+package ru.agimate.controlapi.realtime;
 
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.opensolutionlab.httpclients.clients.CentrifugoClient;
-import org.opensolutionlab.httpclients.models.requests.publication.PublishRequest;
-import org.springframework.stereotype.Service;
-import ru.agimate.common.rest.error.ServiceUnavailableStatusException;
+import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.config.CentrifugoProperties;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 
@@ -17,15 +14,16 @@ import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
 
-@Service
-@RequiredArgsConstructor
+/**
+ * Client tokens for Centrifugo. A subscription token is the access grant to a channel, so the channel
+ * name comes from {@link RealtimeChannels} and ownership is checked by the caller.
+ */
 @Slf4j
-public class CentrifugoService {
+@Component
+@RequiredArgsConstructor
+public class CentrifugoTokens {
 
-    private final CentrifugoClient centrifugoClient;
     private final CentrifugoProperties centrifugoProperties;
 
     /**
@@ -40,71 +38,6 @@ public class CentrifugoService {
         if (centrifugoProperties.getPrivateKey() == null || centrifugoProperties.getPrivateKey().isBlank()) {
             log.warn("centrifugo.privateKey is not set — client tokens cannot be signed. "
                     + "Run ops/dev-init.sh to generate the local configuration");
-        }
-        if (centrifugoProperties.getApiKey() == null || centrifugoProperties.getApiKey().isBlank()) {
-            log.warn("centrifugo.api-key is not set — server-side publishing will be rejected. "
-                    + "It must match http_api.key in ops/centrifugo/config.yaml");
-        }
-    }
-
-    /** Wraps {@code data} into a {@code CentrifugoMessage} envelope; see {@link #publish} for the raw form. */
-    public void publishMessage(String channel, String type, Object data) {
-        publish(channel, new CentrifugoMessage(type, data));
-    }
-
-    /**
-     * Publishes raw data to a Centrifugo channel without wrapping it into CentrifugoMessage.
-     * Used when the caller already owns the wire envelope (e.g. {@link ru.agimate.controlapi.service.dto.AgentMessage}).
-     */
-    public void publish(String channel, Object data) {
-        if (!centrifugoProperties.isEnabled()) {
-            log.warn("Centrifugo is disabled, skipping publish to channel: {}", channel);
-            return;
-        }
-
-        try {
-            log.debug("Publishing message to Centrifugo channel: {}", channel);
-
-            centrifugoClient.publish(channel, data);
-
-            log.info("Successfully published message to channel: {}", channel);
-        } catch (Exception e) {
-            log.error("Failed to publish message to Centrifugo channel '{}': {}",
-                    channel, e.getMessage(), e);
-            throw new ServiceUnavailableStatusException(
-                    "Failed to publish message to real-time service: " + e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Same, plus tags: Centrifugo filters deliveries by them on its side, so a subscriber receives
-     * only the matching subset instead of the whole channel.
-     */
-    public void publishMessage(String channel, String type, Object data, Map<String, String> tags) {
-        var centrifugoMessage = new CentrifugoMessage(type, data);
-
-        if (!centrifugoProperties.isEnabled()) {
-            log.warn("Centrifugo is disabled, skipping publish to channel: {}", channel);
-            return;
-        }
-
-        try {
-            log.debug("Publishing message to Centrifugo channel: {}, tags: {}", channel, tags);
-
-            PublishRequest<CentrifugoMessage> request = PublishRequest.<CentrifugoMessage>builder()
-                    .channel(channel)
-                    .data(centrifugoMessage)
-                    .tags(tags)
-                    .build();
-
-            centrifugoClient.publish(request);
-
-            log.info("Successfully published message to channel: {}", channel);
-        } catch (Exception e) {
-            log.error("Failed to publish message to Centrifugo channel '{}': {}",
-                    channel, e.getMessage(), e);
-            throw new ServiceUnavailableStatusException(
-                    "Failed to publish message to real-time service: " + e.getMessage(), e);
         }
     }
 

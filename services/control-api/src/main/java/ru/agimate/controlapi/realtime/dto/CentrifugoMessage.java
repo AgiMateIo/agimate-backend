@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.centrifugo;
+package ru.agimate.controlapi.realtime.dto;
 
 public record CentrifugoMessage<T>(
         String type,

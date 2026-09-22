@@ -6,7 +6,8 @@ import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.AgentRun;
-import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.realtime.RealtimeEvent.AgentDelivery;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
 import ru.agimate.controlapi.service.dto.IToolResult;
@@ -18,7 +19,7 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 @RequiredArgsConstructor
 public class CentrifugoTransport implements AgentTransport {
 
-    private final CentrifugoService centrifugoService;
+    private final RealtimePublisher realtime;
 
     @Override
     public AgentType getAgentType() {
@@ -33,7 +34,7 @@ public class CentrifugoTransport implements AgentTransport {
         String sessionId = agentRun.getSessionId().toString();
         AgentMessage<Trigger> message = new AgentMessage<>(
                 agentId, agentRun.getId().toString(), type, sessionId, channels, inbound, trigger);
-        centrifugoService.publish(agentChannel(agent), message);
+        realtime.publish(new AgentDelivery(agent.getId(), message));
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo",
                 agentRun.getTriggerLog().getName(), agent.getId());
     }
@@ -45,11 +46,8 @@ public class CentrifugoTransport implements AgentTransport {
         // would have two channels: one for receiving its own tasks, another for receiving tool call results (there
         // the AgentMessage wrapper is no longer needed)
         AgentMessage<IToolResult> message = new AgentMessage<>(agentId, null, "toolResult", null, null, null, toolResult);
-        centrifugoService.publish(agentChannel(agent), message);
+        realtime.publish(new AgentDelivery(agent.getId(), message));
         log.debug("Tool result '{}' sent to agent '{}' via centrifugo", toolResult.getId(), agent.getId());
     }
 
-    private static String agentChannel(Agent agent) {
-        return "agent:" + agent.getId();
-    }
 }

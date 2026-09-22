@@ -11,7 +11,8 @@ import ru.agimate.controlapi.database.entities.*;
 import ru.agimate.controlapi.database.enums.BoardTaskStatus;
 import ru.agimate.controlapi.database.enums.BoardTaskType;
 import ru.agimate.controlapi.database.repositories.*;
-import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.realtime.RealtimeEvent.BoardTaskChanged;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.controlapi.service.dto.board.BoardCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardEventType;
 import ru.agimate.controlapi.service.dto.board.BoardResponse;
@@ -63,7 +64,7 @@ public class BoardService {
     private final AgentRepository agentRepository;
     private final ConnectionRepository connectionRepository;
     private final TriggerRouterService triggerRouterService;
-    private final CentrifugoService centrifugoService;
+    private final RealtimePublisher realtime;
     private final TeamCircleService teamCircleService;
 
     // ---- Board CRUD ----
@@ -492,16 +493,7 @@ public class BoardService {
     }
 
     private void publishBoardEvent(UUID userId, UUID boardId, String eventType, Object eventData) {
-        String channel = "user:" + userId;
-        Map<String, String> tags = Map.of(
-                "entity", "board.task",
-                "boardId", boardId.toString()
-        );
-        try {
-            centrifugoService.publishMessage(channel, eventType, eventData, tags);
-        } catch (Exception e) {
-            log.warn("Failed to publish board event '{}' to user channel: {}", eventType, e.getMessage());
-        }
+        realtime.publish(new BoardTaskChanged(userId, boardId, eventType, eventData));
     }
 
     private Board findBoardById(UUID id) {

@@ -15,7 +15,8 @@ import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
-import ru.agimate.controlapi.service.team.AgentRequestEventPublisher;
+import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,7 +42,7 @@ public class RunCancellationService {
     private final AgentRunRepository agentRunRepository;
     private final AgentSessionRepository agentSessionRepository;
     private final ChannelRepository channelRepository;
-    private final AgentRequestEventPublisher eventPublisher;
+    private final RealtimePublisher realtime;
 
     /**
      * @param status    the run's status when the request landed; the terminal one arrives later
@@ -107,7 +108,7 @@ public class RunCancellationService {
         LocalDateTime now = LocalDateTime.now();
         int updated = agentRunRepository.requestCancelBySession(sessionId, now)
                 + agentRunRepository.requestCancelByParentSession(sessionId, now);
-        threads.forEach(threadId -> eventPublisher.publish(threadId, AgentRequestEventPublisher.CANCELLED));
+        threads.forEach(threadId -> realtime.publish(new AgentRequestChanged(threadId, AgentRequestChanged.CANCELLED)));
         return updated;
     }
 

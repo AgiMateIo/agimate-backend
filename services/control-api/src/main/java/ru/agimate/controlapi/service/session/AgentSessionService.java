@@ -3,7 +3,6 @@ package ru.agimate.controlapi.service.session;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -19,6 +18,8 @@ import ru.agimate.controlapi.database.enums.AgentSessionScope;
 import ru.agimate.controlapi.database.enums.SessionTitleSource;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
+import ru.agimate.controlapi.realtime.RealtimeEvent.SessionChanged;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -48,7 +49,7 @@ public class AgentSessionService {
 
     private final AgentSessionRepository agentSessionRepository;
     private final WebchatMessageRepository webchatMessageRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final RealtimePublisher realtime;
 
     public AgentSession getById(UUID id) {
         return agentSessionRepository.findById(id)
@@ -134,7 +135,7 @@ public class AgentSessionService {
                 .build();
         AgentSession saved = agentSessionRepository.save(session);
         log.info("Created new channel session id={} for channel id={}", saved.getId(), channel.getId());
-        eventPublisher.publishEvent(SessionChanged.created(saved.getId()));
+        realtime.publish(SessionChanged.created(saved.getId()));
         return saved;
     }
 
@@ -163,7 +164,7 @@ public class AgentSessionService {
         if (created > 0) {
             log.info("Created connection session id={} for agent {} connection {}",
                     session.getId(), agentId, connectionId);
-            eventPublisher.publishEvent(SessionChanged.created(session.getId()));
+            realtime.publish(SessionChanged.created(session.getId()));
         }
         return session.getId();
     }
@@ -185,7 +186,7 @@ public class AgentSessionService {
                 .build();
         AgentSession saved = agentSessionRepository.save(session);
         log.info("Created subagent session id={} for conversation {}", saved.getId(), parentSessionId);
-        eventPublisher.publishEvent(SessionChanged.created(saved.getId()));
+        realtime.publish(SessionChanged.created(saved.getId()));
         return saved;
     }
 
@@ -213,7 +214,7 @@ public class AgentSessionService {
         session.setTitle(trimmed);
         session.setTitleSource(SessionTitleSource.USER);
         AgentSession saved = agentSessionRepository.save(session);
-        eventPublisher.publishEvent(SessionChanged.updated(saved.getId()));
+        realtime.publish(SessionChanged.updated(saved.getId()));
         return saved;
     }
 
@@ -221,7 +222,7 @@ public class AgentSessionService {
     @Transactional
     public void writeGeneratedTitle(UUID sessionId, String title) {
         if (agentSessionRepository.writeGeneratedTitle(sessionId, title, LocalDateTime.now()) > 0) {
-            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+            realtime.publish(SessionChanged.updated(sessionId));
         }
     }
 
@@ -232,7 +233,7 @@ public class AgentSessionService {
             session.setTitle(buildTitle(hint));
             session.setTitleSource(SessionTitleSource.HINT);
             agentSessionRepository.save(session);
-            eventPublisher.publishEvent(SessionChanged.updated(session.getId()));
+            realtime.publish(SessionChanged.updated(session.getId()));
         }
     }
 
@@ -253,12 +254,12 @@ public class AgentSessionService {
 
     /** A message landed in the session's UI log: its preview and unread count moved. */
     public void messageRecorded(UUID sessionId) {
-        eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+        realtime.publish(SessionChanged.updated(sessionId));
     }
 
     /** A run of the session started or finished: «working now» in the listing moved. */
     public void runStateChanged(UUID sessionId) {
-        eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+        realtime.publish(SessionChanged.updated(sessionId));
     }
 
     /**
@@ -300,7 +301,7 @@ public class AgentSessionService {
     @Transactional
     public void advanceReadPointer(UUID sessionId, UUID messageId) {
         if (agentSessionRepository.advanceReadPointer(sessionId, messageId, LocalDateTime.now()) > 0) {
-            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+            realtime.publish(SessionChanged.updated(sessionId));
         }
     }
 
@@ -310,7 +311,7 @@ public class AgentSessionService {
         if (session.getClosedAt() == null) {
             session.setClosedAt(LocalDateTime.now());
             agentSessionRepository.save(session);
-            eventPublisher.publishEvent(SessionChanged.updated(id));
+            realtime.publish(SessionChanged.updated(id));
         }
         return session;
     }

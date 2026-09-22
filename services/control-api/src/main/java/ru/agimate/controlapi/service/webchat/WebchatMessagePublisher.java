@@ -8,10 +8,10 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
-import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.realtime.RealtimeEvent.WebchatMessageRecorded;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.session.AgentSessionService;
-import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -21,13 +21,11 @@ import java.util.UUID;
 
 /**
  * The single point of delivering a webchat message to the frontend: a row in
- * {@code webchat_messages} (the UI history) plus an event in Centrifugo
- * {@code webchat:{sessionId}} (live). Used both for the agent's output
- * ({@code WebchatChannelHandler.handleOutput}) and for echoing the user's messages.
+ * {@code webchat_messages} (the UI history) plus a live event after the commit. Used both for the
+ * agent's output ({@code WebchatChannelHandler.handleOutput}) and for echoing the user's messages.
  *
- * <p>The row is idempotent by {@code (session_id, message_id)}; the event is always published
- * (at-least-once, replays included) — the frontend deduplicates by {@code messageId}, so a retry after
- * a failed publication does not lose live delivery.
+ * <p>The row is idempotent by {@code (session_id, message_id)}; the event is published on a replay
+ * too (at-least-once) — the frontend deduplicates by {@code messageId}.
  *
  * <p>Attachments: into the row without the URL (it expires), into the event with a fresh signed link;
  * the history ({@code /manage/webchat}) issues its own links on read.
@@ -37,22 +35,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class WebchatMessagePublisher {
 
-    public static final String CENTRIFUGO_CHANNEL_PREFIX = "webchat:";
-    public static final String EVENT_TYPE = "webchat_message";
-    public static final String USER_CHANNEL_PREFIX = "user:";
-    /**
-     * @deprecated superseded by {@code session.updated} and {@code webchat.agent.updated}
-     * ({@link ru.agimate.controlapi.service.session.SessionEventPublisher}); published in parallel
-     * until the web and Android clients have moved over (docs/decisions/session-events.md).
-     */
-    @Deprecated
-    public static final String ACTIVITY_EVENT_TYPE = "webchat_activity";
     /** The stream that is work in progress, not an answer — it neither raises a badge nor previews a chat. */
-    static final String STREAM_PROGRESS = "progress";
+    public static final String STREAM_PROGRESS = "progress";
 
     private final WebchatMessageRepository webchatMessageRepository;
-    private final CentrifugoService centrifugoService;
-    private final SignedFileUrlService signedFileUrlService;
+    private final RealtimePublisher realtime;
     private final ApplicationEventPublisher eventPublisher;
     private final AgentSessionService agentSessionService;
 
@@ -68,47 +55,18 @@ public class WebchatMessagePublisher {
             log.debug("Webchat message {} already recorded in session {} (replay) - republishing event",
                     messageId, sessionId);
         }
-        centrifugoService.publishMessage(
-                CENTRIFUGO_CHANNEL_PREFIX + sessionId,
-                EVENT_TYPE,
-                new WebchatMessageEvent(sessionId, channelId, agentId, messageId,
-                        direction.name(), stream, text,
-                        WebchatAttachment.fromStored(storedParts, userId, signedFileUrlService::issue),
-                        Instant.now().toString()));
+        realtime.publish(new WebchatMessageRecorded(userId, agentId, channelId, sessionId, messageId,
+                direction.name(), stream, text, storedParts, Instant.now().toString()));
 
         if (!STREAM_PROGRESS.equals(stream)) {
             // The preview moves whoever spoke: one's own message sent from another device included.
             agentSessionService.messageRecorded(sessionId);
         }
         if (direction == WebchatMessageDirection.AGENT && !STREAM_PROGRESS.equals(stream)) {
-            publishActivity(userId, agentId, sessionId, messageId, stream, text);
             // Delivery to a closed application. An event rather than a call: the push leaves after
             // the commit and off this thread, and neither is this class's business.
             eventPublisher.publishEvent(
                     new WebchatAgentMessageEvent(userId, agentId, sessionId, messageId, text));
-        }
-    }
-
-    /**
-     * The badge of a client that is not inside any conversation: the same delivery, announced once
-     * more in the user's own channel. Failure is swallowed on purpose — a lost badge is repaired by
-     * the next listing, while letting the exception out would fail a message that has already been
-     * written and published.
-     *
-     * @deprecated see {@link #ACTIVITY_EVENT_TYPE}
-     */
-    @Deprecated
-    private void publishActivity(UUID userId, UUID agentId, UUID sessionId, String messageId,
-                                 String stream, String text) {
-        try {
-            centrifugoService.publishMessage(
-                    USER_CHANNEL_PREFIX + userId,
-                    ACTIVITY_EVENT_TYPE,
-                    new WebchatActivityEvent(agentId, sessionId, messageId, stream,
-                            WebchatPreviews.shorten(text), Instant.now().toString()),
-                    Map.of("entity", "webchat.message", "agentId", agentId.toString()));
-        } catch (Exception e) {
-            log.warn("Failed to publish webchat activity for session {}: {}", sessionId, e.getMessage());
         }
     }
 

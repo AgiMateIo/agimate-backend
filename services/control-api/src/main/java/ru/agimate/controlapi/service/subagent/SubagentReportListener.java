@@ -7,7 +7,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionalEventListener;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
-import ru.agimate.controlapi.service.team.AgentRequestEventPublisher;
+import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.controlapi.service.trigger.RunActivityService;
 import ru.agimate.controlapi.service.trigger.RunsSwept;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -29,7 +30,7 @@ public class SubagentReportListener {
 
     private final SubagentReportDelivery reportDelivery;
     private final AgentDeliveryService agentDeliveryService;
-    private final AgentRequestEventPublisher eventPublisher;
+    private final RealtimePublisher realtime;
 
     /** Synchronous: published from the message log's delivery, which already runs after its commit. */
     @EventListener
@@ -65,7 +66,7 @@ public class SubagentReportListener {
         }
         Object threadId = trigger.data().get("threadId");
         if (threadId != null) {
-            eventPublisher.publish(UUID.fromString(threadId.toString()), AgentRequestEventPublisher.REPORTED);
+            realtime.publish(new AgentRequestChanged(UUID.fromString(threadId.toString()), AgentRequestChanged.REPORTED));
         }
     }
 }

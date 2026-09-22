@@ -7,7 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
+import ru.agimate.controlapi.realtime.RealtimeEvent.SessionChanged;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.enums.AgentSessionScope;
@@ -37,7 +38,7 @@ class AgentSessionServiceTest {
     @Mock
     private WebchatMessageRepository webchatMessageRepository;
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private RealtimePublisher realtime;
 
     private AgentSessionService agentSessionService;
 
@@ -45,7 +46,7 @@ class AgentSessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        agentSessionService = new AgentSessionService(agentSessionRepository, webchatMessageRepository, eventPublisher);
+        agentSessionService = new AgentSessionService(agentSessionRepository, webchatMessageRepository, realtime);
         session = AgentSession.builder().id(SESSION_ID).build();
     }
 
@@ -73,7 +74,7 @@ class AgentSessionServiceTest {
 
             agentSessionService.markRead(SESSION_ID, messageRowId);
 
-            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
+            verify(realtime).publish(SessionChanged.updated(SESSION_ID));
         }
 
         @Test
@@ -85,7 +86,7 @@ class AgentSessionServiceTest {
 
             agentSessionService.markRead(SESSION_ID, messageRowId);
 
-            verify(eventPublisher, never()).publishEvent(any(Object.class));
+            verify(realtime, never()).publish(any());
         }
 
         @Test
@@ -134,7 +135,7 @@ class AgentSessionServiceTest {
             AgentSession renamed = agentSessionService.rename(session, "  Отпуск в июле  ");
 
             assertEquals("Отпуск в июле", renamed.getTitle());
-            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
+            verify(realtime).publish(SessionChanged.updated(SESSION_ID));
         }
 
         @Test
@@ -177,7 +178,7 @@ class AgentSessionServiceTest {
 
             verify(agentSessionRepository).touch(eq(id), any());
             verify(agentSessionRepository, never()).insertConnectionSession(any(), any(), any(), any(), any());
-            verifyNoInteractions(eventPublisher);
+            verifyNoInteractions(realtime);
         }
 
         @Test
@@ -191,7 +192,7 @@ class AgentSessionServiceTest {
                     .thenReturn(1);
 
             assertEquals(id, agentSessionService.forConnection(AGENT, USER, "board", CONNECTION));
-            verify(eventPublisher).publishEvent(SessionChanged.created(id));
+            verify(realtime).publish(SessionChanged.created(id));
         }
 
         @Test
@@ -205,7 +206,7 @@ class AgentSessionServiceTest {
                     .thenReturn(0);
 
             assertEquals(winner, agentSessionService.forConnection(AGENT, USER, "board", CONNECTION));
-            verifyNoInteractions(eventPublisher);
+            verifyNoInteractions(realtime);
         }
     }
 
@@ -220,7 +221,7 @@ class AgentSessionServiceTest {
 
             agentSessionService.writeGeneratedTitle(SESSION_ID, "T");
 
-            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
+            verify(realtime).publish(SessionChanged.updated(SESSION_ID));
         }
 
         @Test
@@ -230,7 +231,7 @@ class AgentSessionServiceTest {
 
             agentSessionService.writeGeneratedTitle(SESSION_ID, "T");
 
-            verifyNoInteractions(eventPublisher);
+            verifyNoInteractions(realtime);
         }
     }
 
@@ -240,6 +241,6 @@ class AgentSessionServiceTest {
         agentSessionService.touch(SESSION_ID);
 
         verify(agentSessionRepository).touch(eq(SESSION_ID), any());
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(realtime);
     }
 }

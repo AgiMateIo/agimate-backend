@@ -14,7 +14,8 @@ import ru.agimate.controlapi.service.channel.handler.AgentsChannelHandler;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
 import ru.agimate.controlapi.service.subagent.SubagentService;
 import ru.agimate.controlapi.service.subagent.TeammateService;
-import ru.agimate.controlapi.service.team.AgentRequestEventPublisher;
+import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -44,7 +45,7 @@ public class AgentsToolService {
     private final TeammateService teammateService;
     private final AgentRepository agentRepository;
     private final TriggerRouterService triggerRouterService;
-    private final AgentRequestEventPublisher eventPublisher;
+    private final RealtimePublisher realtime;
 
     @Tool(name = "ask_agent",
             description = "Hand a request to another agent of your team and get its answer as a separate "
@@ -117,8 +118,8 @@ public class AgentsToolService {
                         env.runId())));
 
         boolean started = target.mode() == SubagentService.Mode.NEW;
-        eventPublisher.publish(target.childSessionId(),
-                started ? AgentRequestEventPublisher.STARTED : AgentRequestEventPublisher.APPENDED);
+        realtime.publish(new AgentRequestChanged(target.childSessionId(),
+                started ? AgentRequestChanged.STARTED : AgentRequestChanged.APPENDED));
 
         Map<String, Object> receipt = new LinkedHashMap<>();
         receipt.put("threadId", target.childSessionId().toString());

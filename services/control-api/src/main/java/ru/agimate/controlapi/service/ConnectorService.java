@@ -13,8 +13,9 @@ import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
-import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
-import ru.agimate.controlapi.service.dto.ToolCallPayload;
+import ru.agimate.controlapi.realtime.RealtimeEvent.AppToolCall;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
+import ru.agimate.controlapi.realtime.dto.ToolCallPayload;
 
 import java.util.UUID;
 
@@ -29,7 +30,7 @@ public class ConnectorService {
 
     private final AppRepository appRepository;
 
-    private final CentrifugoService centrifugoService;
+    private final RealtimePublisher realtime;
 
     private final ToolExecutionService toolExecutionService;
 
@@ -73,7 +74,6 @@ public class ConnectorService {
         // The channel is addressed by app.id (= connectionId, globally unique) rather than by device_id:
         // device_id is set by the device itself and is not unique across tenants — a device_id shared by two
         // users would mean a shared channel and a toolCall leaking between them.
-        centrifugoService.publishMessage(
-                "app:" + app.getId(), "toolCall", ToolCallPayload.from(toolCallLog));
+        realtime.publish(new AppToolCall(app.getId(), ToolCallPayload.from(toolCallLog)));
     }
 }

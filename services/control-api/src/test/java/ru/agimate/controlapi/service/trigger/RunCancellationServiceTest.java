@@ -17,7 +17,8 @@ import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
-import ru.agimate.controlapi.service.team.AgentRequestEventPublisher;
+import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,14 +48,14 @@ class RunCancellationServiceTest {
     @Mock private AgentRunRepository agentRunRepository;
     @Mock private AgentSessionRepository agentSessionRepository;
     @Mock private ChannelRepository channelRepository;
-    @Mock private AgentRequestEventPublisher eventPublisher;
+    @Mock private RealtimePublisher realtime;
 
     private RunCancellationService service;
 
     @BeforeEach
     void setUp() {
         service = new RunCancellationService(agentRunRepository, agentSessionRepository, channelRepository,
-                eventPublisher);
+                realtime);
     }
 
     private AgentRun run(RunStatus status, UUID ownerId) {
@@ -170,8 +171,8 @@ class RunCancellationServiceTest {
 
             service.cancelSession(SESSION_ID, USER_ID);
 
-            verify(eventPublisher).publish(thread, AgentRequestEventPublisher.CANCELLED);
-            verify(eventPublisher, never()).publish(eq(subagent), any());
+            verify(realtime).publish(new AgentRequestChanged(thread, AgentRequestChanged.CANCELLED));
+            verify(realtime, never()).publish(new AgentRequestChanged(subagent, AgentRequestChanged.CANCELLED));
         }
 
         private AgentSession child(UUID id, String connectorCode) {

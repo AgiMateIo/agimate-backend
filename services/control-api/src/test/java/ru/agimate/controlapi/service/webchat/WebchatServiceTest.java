@@ -26,7 +26,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.AgentRunQueryService;
-import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.realtime.CentrifugoTokens;
 import ru.agimate.controlapi.service.channel.ChannelService;
 import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
@@ -89,7 +89,7 @@ class WebchatServiceTest {
     @Mock
     private WebchatMessageRepository webchatMessageRepository;
     @Mock
-    private CentrifugoService centrifugoService;
+    private CentrifugoTokens centrifugoTokens;
     @Mock
     private ru.agimate.controlapi.storage.FileStorageService fileStorageService;
 
@@ -104,7 +104,7 @@ class WebchatServiceTest {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
                 agentSessionService, new ContactRows(agentRepository, webchatMessageRepository, agentRunQueryService),
                 connectionBindingService, triggerRouterService,
-                webchatMessagePublisher, webchatMessageRepository, centrifugoService, fileStorageService);
+                webchatMessagePublisher, webchatMessageRepository, centrifugoTokens, fileStorageService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
         channel = Channel.builder()
                 .id(CHANNEL_ID)
@@ -321,7 +321,7 @@ class WebchatServiceTest {
             when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
             CentrifugoTokenResponse expected = new CentrifugoTokenResponse(
                     "conn", "sub", "webchat:" + SESSION_ID, "wss://c.example/connection/websocket");
-            when(centrifugoService.issueTokens(USER_ID.toString(), "webchat:" + SESSION_ID))
+            when(centrifugoTokens.issueTokens(USER_ID.toString(), "webchat:" + SESSION_ID))
                     .thenReturn(expected);
 
             CentrifugoTokenResponse response = webchatService.token(USER_ID, SESSION_ID);

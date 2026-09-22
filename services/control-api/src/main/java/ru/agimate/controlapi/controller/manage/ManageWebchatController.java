@@ -74,8 +74,12 @@ public class ManageWebchatController {
         return SuccessResponse.ok(PageResponse.from(webchatService.listContacts(userId, page, size)));
     }
 
-    @Operation(summary = "Get Centrifugo tokens for the session channel webchat:{sessionId}")
+    @Operation(summary = "Get Centrifugo tokens for the session channel webchat:{sessionId}",
+            description = "Deprecated: the conversation's messages come as webchat.message in the user's own "
+                    + "channel (POST /manage/centrifugo/token); this channel and endpoint go once clients move over",
+            deprecated = true)
     @PostMapping("/sessions/{id}/token")
+    @SuppressWarnings("deprecation")
     public SuccessResponse<CentrifugoTokenResponse> token(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id

@@ -19,7 +19,7 @@ import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.enums.BoardTaskStatus;
 import ru.agimate.controlapi.database.enums.BoardTaskType;
 import ru.agimate.controlapi.database.repositories.*;
-import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskEditCommand;
@@ -64,7 +64,7 @@ class BoardServiceTriggerTest {
     @Mock private AgentRepository agentRepository;
     @Mock private ConnectionRepository connectionRepository;
     @Mock private TriggerRouterService triggerRouterService;
-    @Mock private CentrifugoService centrifugoService;
+    @Mock private RealtimePublisher realtime;
     @Mock private TeamCircleService teamCircleService;
 
     @InjectMocks

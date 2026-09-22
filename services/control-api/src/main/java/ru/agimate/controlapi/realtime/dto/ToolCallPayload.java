@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.dto;
+package ru.agimate.controlapi.realtime.dto;
 
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 

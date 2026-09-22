@@ -7,7 +7,7 @@ import lombok.experimental.UtilityClass;
 public class WebchatPreviews {
 
     /** An agent's answer can be kilobytes long, and a listing row shows one line of it. */
-    static final int MAX_LENGTH = 160;
+    public static final int MAX_LENGTH = 160;
 
     public static String shorten(String text) {
         if (text == null) {

@@ -1,11 +1,14 @@
-package ru.agimate.controlapi.service.webchat;
+package ru.agimate.controlapi.realtime.dto;
+
+import ru.agimate.controlapi.service.webchat.WebchatAttachment;
 
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Payload of the {@code webchat_message} event in the Centrifugo channel {@code webchat:{sessionId}}.
- * Events are delivered at-least-once — the frontend deduplicates by {@code messageId}.
+ * Payload of a webchat message: {@code webchat.message} in {@code user:{userId}}, and
+ * {@code webchat_message} in {@code webchat:{sessionId}} until the clients move over. Delivered
+ * at-least-once — the frontend deduplicates by {@code messageId}.
  *
  * @param direction {@code USER} (an echo of the user's message) or {@code AGENT}
  * @param stream    the agent's output stream: {@code answer}/{@code progress}/{@code error}; null for USER
@@ -13,7 +16,7 @@ import java.util.UUID;
  *                  lives {@code app.files.url-ttl} — once it expires the frontend re-reads the history
  *                  and gets a new one
  */
-public record WebchatMessageEvent(
+public record WebchatMessagePayload(
         UUID sessionId,
         UUID channelId,
         UUID agentId,
