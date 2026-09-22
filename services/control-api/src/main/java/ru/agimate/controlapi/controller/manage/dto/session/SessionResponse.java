@@ -13,7 +13,7 @@ import java.util.UUID;
  */
 @Schema(description = "Agent session")
 public record SessionResponse(
-        @Schema(description = "Session id (subscribe to Centrifugo channel webchat:{id} for a webchat session)")
+        @Schema(description = "Session id; live messages of a webchat session come as webchat.message in the user's own channel, tagged with it")
         UUID id,
 
         @Schema(description = "Agent of this conversation")
