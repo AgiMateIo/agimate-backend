@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: partial
 created: 2026-09-22
 updated: 2026-09-22
 ---
@@ -165,13 +165,13 @@ realtime/
    только он — пока прежним механизмом.
 2. [x] **Строки листингов.** `SessionRows` и `ContactRows` из `ManageSessionService` и
    `WebchatService`; листинги пользуются ими.
-3. [ ] **Пакет `realtime`.** `RealtimeChannels`, `CentrifugoTokens` (контроллеры токенов — через них),
+3. [x] **Пакет `realtime`.** `RealtimeChannels`, `CentrifugoTokens` (контроллеры токенов — через них),
    `RealtimeEvent` и записи, `RealtimeMessages`, `RealtimePublisher`.
-4. [ ] **Перевод издателей.** Сессия, доска, поручения, сообщение веб-чата (в `user:` и параллельно
+4. [x] **Перевод издателей.** Сессия, доска, поручения, сообщение веб-чата (в `user:` и параллельно
    в `webchat:`), транспорты `agent:`/`app:` — через `RealtimePublisher`. Удаляются
    `CentrifugoService`, `SessionEventPublisher`, `AgentRequestEventPublisher`. Все публикации — после
    коммита.
-5. [ ] **Centrifugo.** История и `force_recovery` неймспейса `user` в
+5. [x] **Centrifugo.** История и `force_recovery` неймспейса `user` в
    `ops/templates/centrifugo.config.yaml`.
 6. [ ] **Документы.** `contracts/centrifugo-channels.md`, `connectors/webchat.md`; дельта клиентам в
    `docs/tmpspec/`.

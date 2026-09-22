@@ -32,10 +32,12 @@ progress-роль `Channels` тем же каналом, и worker шлёт и �
 
 `handleOutput` не вызывает тулов: `WebchatMessagePublisher` пишет строку в `webchat_messages`
 (идемпотентно по `(session_id, message_id)` — worker шлёт детерминированные id, DBOS-replay не
-дублирует) и публикует событие в Centrifugo-канал `webchat:{sessionId}`:
+дублирует) и после коммита публикует событие в личный канал пользователя `user:{userId}` — тип
+`webchat.message`, теги `entity=webchat.message`, `agentId`, `sessionId`. До перехода клиентов то же
+сообщение уходит и в прежний канал `webchat:{sessionId}` типом `webchat_message`:
 
 ```json
-{ "type": "webchat_message",
+{ "type": "webchat.message",
   "payload": { "sessionId": "...", "channelId": "...", "agentId": "...", "messageId": "...",
                "direction": "AGENT", "stream": "answer", "text": "...",
                "parts": [ { "type": "image", "fileId": "agf_…", "mime": "image/png",
@@ -44,8 +46,9 @@ progress-роль `Channels` тем же каналом, и worker шлёт и �
 ```
 
 События — at-least-once (replay переиздаёт), фронт дедуплицирует по `messageId`. Echo сообщений
-пользователя публикуется тем же типом с `direction=USER` (синхронизация вкладок). Namespace
-`webchat` в Centrifugo включает history+recovery — реконнект добирает пропущенное.
+пользователя публикуется тем же типом с `direction=USER` (синхронизация вкладок). Неймспейс `user`
+включает history+recovery — реконнект добирает пропущенное. Сбой публикации ни на что не влияет:
+строка уже в истории, и клиент увидит сообщение, перечитав её.
 
 ## Непрочитанное и бейджи
 
@@ -66,13 +69,11 @@ PostgreSQL совпадает с временным, поэтому сравне
 - отправка своего сообщения — написал, значит прочитал;
 - закрытие сессии: закрытая переписка хранит историю, но больше не просит внимания в списках.
 
-**Бейдж, когда открыт список, а не чат.** События `webchat_message` живут в канале
-`webchat:{sessionId}`, на который клиент в списке контактов не подписан. Поэтому сообщение, не
-`progress`, двигает строку сессии и строку контакта в собственном канале пользователя
-`user:{userId}` — события `session.updated` и `webchat.agent.updated` со строкой целиком
-([decisions/session-events.md](../decisions/session-events.md)). Прежнее тонкое `webchat_activity`
-публикуется параллельно до перехода клиентов (`docs/contracts/centrifugo-channels.md`). Публикации в
-`user:` не роняют доставку: потерянный бейдж чинится следующим листингом.
+**Бейдж, когда открыт список, а не чат.** Сообщение, не `progress`, двигает строку сессии и строку
+контакта — события `session.updated` и `webchat.agent.updated` в том же `user:{userId}` со строкой
+целиком ([decisions/session-events.md](../decisions/session-events.md)). Прежнее тонкое
+`webchat_activity` публикуется параллельно до перехода клиентов
+(`docs/contracts/centrifugo-channels.md`). Потерянный бейдж чинится следующим листингом.
 
 ## Списки: что несёт строка
 

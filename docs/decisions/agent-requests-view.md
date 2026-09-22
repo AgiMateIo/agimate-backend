@@ -99,10 +99,10 @@ updated: 2026-09-21
 
 Живое обновление — как у доски: событие `agent.request.*` в `user:{userId}` с тегами
 `entity=agent.request`, `teamId`; типы `started`, `appended`, `reported`, `cancelled`, полезная
-нагрузка — `AgentRequestResponse` той же формы, что в списке. Публикует `AgentRequestEventPublisher`,
-точки вызова: `AgentsToolService` (started/appended), `SubagentReportListener` после доставки отчёта
+нагрузка — `AgentRequestResponse` той же формы, что в списке. Публикуется событием `AgentRequestChanged`
+через `RealtimePublisher` ([realtime-notifications.md](realtime-notifications.md)), точки вызова: `AgentsToolService` (started/appended), `SubagentReportListener` после доставки отчёта
 (reported, только для веток `agents` — отчёт субагента ничьей строкой не является),
-`RunCancellationService` (cancelled, только по веткам, которые в этот момент работали). Сбой
+`RunCancellationService` (cancelled, только по веткам, которые в этот момент работали). Уходит после коммита, сбой
 публикации никогда не роняет то, из-за чего она случилась.
 
 ## Три варианта интерфейса

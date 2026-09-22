@@ -54,6 +54,11 @@ updated: 2026-09-22
 
 ### Как публикуется
 
+> Механизм ниже заменён пакетом `realtime`
+> ([realtime-notifications.md](realtime-notifications.md)): событие сессии публикует только
+> `AgentSessionService` через `RealtimePublisher`, `SessionEventPublisher` удалён. Правила — после
+> коммита, строка в новой read-only транзакции, сбой в лог — остались те же.
+
 Место изменения публикует `SessionChanged(sessionId, created)` через `ApplicationEventPublisher`;
 слушатель `SessionEventPublisher` — `@TransactionalEventListener(AFTER_COMMIT, fallbackExecution =
 true)`. После коммита — потому что строка собирается из базы, и до коммита она показала бы прежнее
