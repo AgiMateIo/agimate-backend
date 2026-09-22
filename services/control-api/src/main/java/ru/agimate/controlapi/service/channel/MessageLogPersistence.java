@@ -17,7 +17,7 @@ import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
-import ru.agimate.controlapi.service.session.SessionChanged;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.trigger.RunFinished;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -47,6 +47,7 @@ public class MessageLogPersistence {
     private final InboundTextResolver inboundTextResolver;
     private final AgentRunTurnService turnService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AgentSessionService agentSessionService;
 
     /**
      * @param cancelRequested rides back to the worker in the SaveMessage answer — the whole cancel transport
@@ -94,7 +95,7 @@ public class MessageLogPersistence {
         // «Working now» in the chat list: a row built mid-run says so, and only this keeps it from
         // saying so forever. A session with no channel is left out — an event per trigger run is noise.
         if (sessionId != null && run.getStatus() != before) {
-            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+            agentSessionService.runStateChanged(sessionId);
         }
 
         // A channel run: those same ANSWER/ERROR are additionally projected into channel_session_messages

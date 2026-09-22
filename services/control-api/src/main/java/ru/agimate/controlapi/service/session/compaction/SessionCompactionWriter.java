@@ -2,16 +2,13 @@ package ru.agimate.controlapi.service.session.compaction;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.AgentRunTurn;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
-import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
-import ru.agimate.controlapi.service.session.SessionChanged;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -24,8 +21,7 @@ import java.util.UUID;
 public class SessionCompactionWriter {
 
     private final AgentRunTurnRepository turnRepository;
-    private final AgentSessionRepository sessionRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final AgentSessionService sessionService;
 
     /**
      * The summary and the title in one transaction. A summary already standing on the anchor means a
@@ -45,9 +41,8 @@ public class SessionCompactionWriter {
                 return;
             }
         }
-        // A title the user gave is not written over, and then nothing changed to announce.
-        if (title != null && sessionRepository.writeGeneratedTitle(sessionId, title, LocalDateTime.now()) > 0) {
-            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+        if (title != null) {
+            sessionService.writeGeneratedTitle(sessionId, title);
         }
     }
 }

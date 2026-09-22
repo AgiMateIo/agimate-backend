@@ -159,7 +159,7 @@ realtime/
 
 Каждый шаг выкатывается отдельно и не меняет того, что видит клиент, кроме шагов 4 и 7.
 
-1. [ ] **Один владелец сессии.** В `AgentSessionService` переезжают `forConnection` (из
+1. [x] **Один владелец сессии.** В `AgentSessionService` переезжают `forConnection` (из
    `AgentSessionResolver`, удаляется), `writeGeneratedTitle` (из `SessionCompactionWriter`), `touch` (из
    `SubagentService`); появляются `messageRecorded` и `runStateChanged`. Событие сессии публикует
    только он — пока прежним механизмом.

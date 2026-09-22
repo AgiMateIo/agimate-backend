@@ -4,12 +4,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.springframework.context.ApplicationEventPublisher;
-import ru.agimate.controlapi.service.session.SessionChanged;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
-import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 
 import java.util.UUID;
 
@@ -32,8 +30,7 @@ class SessionCompactionWriterTest {
     private static final UUID ANCHOR = UUID.randomUUID();
 
     @Mock private AgentRunTurnRepository turnRepository;
-    @Mock private AgentSessionRepository sessionRepository;
-    @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private AgentSessionService sessionService;
     @InjectMocks private SessionCompactionWriter writer;
 
     @Test
@@ -44,7 +41,7 @@ class SessionCompactionWriterTest {
 
         writer.write(SESSION_ID, AGENT_ID, ANCHOR, "S", "m", "T");
 
-        verify(sessionRepository).writeGeneratedTitle(eq(SESSION_ID), eq("T"), any());
+        verify(sessionService).writeGeneratedTitle(SESSION_ID, "T");
     }
 
     @Test
@@ -55,27 +52,15 @@ class SessionCompactionWriterTest {
 
         writer.write(SESSION_ID, AGENT_ID, ANCHOR, "S", "m", "T");
 
-        verify(sessionRepository, never()).writeGeneratedTitle(any(), any(), any());
+        verify(sessionService, never()).writeGeneratedTitle(any(), any());
     }
 
     @Test
-    @DisplayName("только заголовок — журнал не трогается, заголовок объявляется событием")
+    @DisplayName("только заголовок — журнал не трогается")
     void titleOnly() {
-        when(sessionRepository.writeGeneratedTitle(eq(SESSION_ID), eq("T"), any())).thenReturn(1);
-
         writer.write(SESSION_ID, AGENT_ID, null, null, "m", "T");
 
         verifyNoInteractions(turnRepository);
-        verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
-    }
-
-    @Test
-    @DisplayName("пользователь переименовал сам — заголовок не лёг, события нет")
-    void userTitleNotAnnounced() {
-        when(sessionRepository.writeGeneratedTitle(eq(SESSION_ID), eq("T"), any())).thenReturn(0);
-
-        writer.write(SESSION_ID, AGENT_ID, null, null, "m", "T");
-
-        verifyNoInteractions(eventPublisher);
+        verify(sessionService).writeGeneratedTitle(SESSION_ID, "T");
     }
 }

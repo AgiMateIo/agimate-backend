@@ -21,7 +21,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.file.FileReferenceService;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.seed.ChannelTexts;
-import ru.agimate.controlapi.service.session.AgentSessionResolver;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +44,7 @@ public class TriggerRouterService {
     private final RunCancellationService runCancellationService;
     private final ChannelMessageOutboundService outboundService;
     private final ChannelTexts channelTexts;
-    private final AgentSessionResolver sessionResolver;
+    private final AgentSessionService agentSessionService;
 
     private final AgentRunRepository agentRunRepository;
     private final FileReferenceService fileReferenceService;
@@ -216,7 +216,7 @@ public class TriggerRouterService {
         UUID channelSessionId = route.sessionId();
         return channelSessionId != null
                 ? channelSessionId
-                : sessionResolver.forConnection(route.agent().getId(), triggerLog.getUserId(),
+                : agentSessionService.forConnection(route.agent().getId(), triggerLog.getUserId(),
                         triggerLog.getConnectorCode(), connectionId);
     }
 

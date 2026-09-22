@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -28,9 +29,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Channel sessions: the conversation a user is having with an agent. Sessions of other scopes are
- * resolved elsewhere — the TTL heuristic below is a property of a dialogue, which ends, and not of a
- * connection's event stream, which does not.
+ * The one writer of {@code agent_sessions} and the one place that announces a session's change. Other
+ * subsystems report what happened to a session through the methods here rather than writing the row
+ * or publishing themselves.
+ *
+ * <p>The TTL heuristic below is a property of a dialogue, which ends, and not of a connection's
+ * event stream, which does not — {@link #forConnection} ignores it.
  */
 @Slf4j
 @Service
@@ -134,6 +138,36 @@ public class AgentSessionService {
         return saved;
     }
 
+    /**
+     * The live session of a connection, created if there is none: one per {@code (agent, connection)},
+     * so the events of one connection share a writer and a queue partition
+     * (docs/decisions/agent-sessions.md). Its own transaction: routing itself runs outside one, and the
+     * unique index must not be held while the run is being enqueued into DBOS.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public UUID forConnection(UUID agentId, UUID userId, String connectorCode, UUID connectionId) {
+        LocalDateTime now = LocalDateTime.now();
+        AgentSession live = agentSessionRepository.findLiveConnectionSession(agentId, connectionId)
+                .orElse(null);
+        if (live != null) {
+            agentSessionRepository.touch(live.getId(), now);
+            return live.getId();
+        }
+        int created = agentSessionRepository.insertConnectionSession(
+                agentId, userId, connectorCode, connectionId, now);
+        AgentSession session = agentSessionRepository.findLiveConnectionSession(agentId, connectionId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Connection session vanished right after insert: agent=" + agentId
+                                + " connection=" + connectionId));
+        // Only the call that inserted announces it; the loser of a race reads the winner's row.
+        if (created > 0) {
+            log.info("Created connection session id={} for agent {} connection {}",
+                    session.getId(), agentId, connectionId);
+            eventPublisher.publishEvent(SessionChanged.created(session.getId()));
+        }
+        return session.getId();
+    }
+
     /** A subagent's session: a new conversation of the subagents channel that works for {@code parentSessionId}. */
     @Transactional
     public AgentSession createChild(Channel channel, UUID parentSessionId, String title) {
@@ -183,6 +217,14 @@ public class AgentSessionService {
         return saved;
     }
 
+    /** A title from the compaction job; a title the user gave is never written over, and then nothing changed. */
+    @Transactional
+    public void writeGeneratedTitle(UUID sessionId, String title) {
+        if (agentSessionRepository.writeGeneratedTitle(sessionId, title, LocalDateTime.now()) > 0) {
+            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+        }
+    }
+
     /** Set the title from the first message, if it is still empty. */
     @Transactional
     public void setTitleIfEmpty(AgentSession session, String hint) {
@@ -198,6 +240,25 @@ public class AgentSessionService {
     public void bumpLastActivityAt(AgentSession session) {
         session.setLastActivityAt(LocalDateTime.now());
         agentSessionRepository.save(session);
+    }
+
+    /**
+     * Activity of a session that is not loaded. Not announced: the activity of a connection's session
+     * moves with every trigger, and an event per trigger is noise.
+     */
+    @Transactional
+    public void touch(UUID sessionId) {
+        agentSessionRepository.touch(sessionId, LocalDateTime.now());
+    }
+
+    /** A message landed in the session's UI log: its preview and unread count moved. */
+    public void messageRecorded(UUID sessionId) {
+        eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+    }
+
+    /** A run of the session started or finished: «working now» in the listing moved. */
+    public void runStateChanged(UUID sessionId) {
+        eventPublisher.publishEvent(SessionChanged.updated(sessionId));
     }
 
     /**

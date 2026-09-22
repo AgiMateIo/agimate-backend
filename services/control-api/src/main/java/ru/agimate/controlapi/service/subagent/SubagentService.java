@@ -154,7 +154,7 @@ public class SubagentService {
                     .filter(s -> s.getClosedAt() == null)
                     .orElseThrow(() -> new ConnectorException(
                             "Unknown or closed child id for this conversation: " + childId));
-            agentSessionRepository.touch(child.getId(), LocalDateTime.now());
+            agentSessionService.touch(child.getId());
             return new Target(child.getChannelId(), child.getId(), conversation.getId(), Mode.APPEND);
         }
 

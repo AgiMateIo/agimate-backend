@@ -21,7 +21,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
-import ru.agimate.controlapi.service.session.SessionChanged;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.trigger.RunFinished;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 
@@ -65,6 +65,7 @@ class MessageLogServiceTest {
     @Mock private InboundTextResolver inboundTextResolver;
     @Mock private AgentRunTurnService turnService;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private AgentSessionService agentSessionService;
 
     private MessageLogService service;
 
@@ -72,7 +73,7 @@ class MessageLogServiceTest {
     void setUp() {
         service = new MessageLogService(
                 new MessageLogPersistence(agentRunRepository, messageRepository, inboundTextResolver, turnService,
-                        eventPublisher),
+                        eventPublisher, agentSessionService),
                 outboundService);
     }
 
@@ -147,7 +148,7 @@ class MessageLogServiceTest {
 
             assertTrue(result.duplicate());
             // Progress changes no status, so the chat list has nothing to redraw.
-            verify(eventPublisher, never()).publishEvent(any(SessionChanged.class));
+            verify(agentSessionService, never()).runStateChanged(any());
         }
 
         @Test
@@ -164,7 +165,7 @@ class MessageLogServiceTest {
             // The session's upkeep is decided here, after the answer.
             verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, null, SESSION_ID));
             // The finish takes «working now» off the chat list.
-            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
+            verify(agentSessionService).runStateChanged(SESSION_ID);
         }
 
         @Test

@@ -8,7 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import ru.agimate.controlapi.service.session.SessionChanged;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
@@ -48,6 +48,7 @@ class WebchatMessagePublisherTest {
     @Mock private CentrifugoService centrifugoService;
     @Mock private SignedFileUrlService signedFileUrlService;
     @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private AgentSessionService agentSessionService;
 
     @InjectMocks private WebchatMessagePublisher publisher;
 
@@ -78,7 +79,7 @@ class WebchatMessagePublisherTest {
         publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
                 WebchatMessageDirection.USER, null, "m3", "привет", null);
 
-        verify(eventPublisher, times(2)).publishEvent(SessionChanged.updated(SESSION_ID));
+        verify(agentSessionService, times(2)).messageRecorded(SESSION_ID);
     }
 
     @Test

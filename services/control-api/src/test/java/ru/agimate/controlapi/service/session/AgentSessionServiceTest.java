@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.entities.AgentSession;
+import ru.agimate.controlapi.database.enums.AgentSessionScope;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 
@@ -22,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -150,5 +152,94 @@ class AgentSessionServiceTest {
             assertThrows(BadRequestStatusException.class, () -> agentSessionService.rename(session, "   "));
             verify(agentSessionRepository, never()).save(any());
         }
+    }
+
+    @Nested
+    @DisplayName("forConnection — сессия коннекции")
+    class ForConnection {
+
+        private static final UUID AGENT = UUID.randomUUID();
+        private static final UUID USER = UUID.randomUUID();
+        private static final UUID CONNECTION = UUID.randomUUID();
+
+        private AgentSession live(UUID id) {
+            return AgentSession.builder().id(id).scope(AgentSessionScope.CONNECTION)
+                    .agentId(AGENT).userId(USER).connectorCode("board").connectionId(CONNECTION).build();
+        }
+
+        @Test
+        @DisplayName("живая сессия есть — берём её и двигаем активность, ничего не вставляя и не объявляя")
+        void reusesLiveSession() {
+            UUID id = UUID.randomUUID();
+            when(agentSessionRepository.findLiveConnectionSession(AGENT, CONNECTION)).thenReturn(Optional.of(live(id)));
+
+            assertEquals(id, agentSessionService.forConnection(AGENT, USER, "board", CONNECTION));
+
+            verify(agentSessionRepository).touch(eq(id), any());
+            verify(agentSessionRepository, never()).insertConnectionSession(any(), any(), any(), any(), any());
+            verifyNoInteractions(eventPublisher);
+        }
+
+        @Test
+        @DisplayName("живой нет — заводим, перечитываем и объявляем новую сессию")
+        void createsWhenMissing() {
+            UUID id = UUID.randomUUID();
+            when(agentSessionRepository.findLiveConnectionSession(AGENT, CONNECTION))
+                    .thenReturn(Optional.empty())
+                    .thenReturn(Optional.of(live(id)));
+            when(agentSessionRepository.insertConnectionSession(eq(AGENT), eq(USER), eq("board"), eq(CONNECTION), any()))
+                    .thenReturn(1);
+
+            assertEquals(id, agentSessionService.forConnection(AGENT, USER, "board", CONNECTION));
+            verify(eventPublisher).publishEvent(SessionChanged.created(id));
+        }
+
+        @Test
+        @DisplayName("гонку выиграл сосед (0 строк) — берём его сессию; объявляет её он, а не мы")
+        void losesTheRaceGracefully() {
+            UUID winner = UUID.randomUUID();
+            when(agentSessionRepository.findLiveConnectionSession(AGENT, CONNECTION))
+                    .thenReturn(Optional.empty())
+                    .thenReturn(Optional.of(live(winner)));
+            when(agentSessionRepository.insertConnectionSession(eq(AGENT), eq(USER), eq("board"), eq(CONNECTION), any()))
+                    .thenReturn(0);
+
+            assertEquals(winner, agentSessionService.forConnection(AGENT, USER, "board", CONNECTION));
+            verifyNoInteractions(eventPublisher);
+        }
+    }
+
+    @Nested
+    @DisplayName("writeGeneratedTitle — заголовок от компакции")
+    class GeneratedTitle {
+
+        @Test
+        @DisplayName("заголовок лёг — объявляем")
+        void writtenAnnounced() {
+            when(agentSessionRepository.writeGeneratedTitle(eq(SESSION_ID), eq("T"), any())).thenReturn(1);
+
+            agentSessionService.writeGeneratedTitle(SESSION_ID, "T");
+
+            verify(eventPublisher).publishEvent(SessionChanged.updated(SESSION_ID));
+        }
+
+        @Test
+        @DisplayName("пользователь переименовал сам — заголовок не лёг, события нет")
+        void userTitleKept() {
+            when(agentSessionRepository.writeGeneratedTitle(eq(SESSION_ID), eq("T"), any())).thenReturn(0);
+
+            agentSessionService.writeGeneratedTitle(SESSION_ID, "T");
+
+            verifyNoInteractions(eventPublisher);
+        }
+    }
+
+    @Test
+    @DisplayName("touch — активность двигается молча: у сессии коннекции она растёт с каждым триггером")
+    void touchIsSilent() {
+        agentSessionService.touch(SESSION_ID);
+
+        verify(agentSessionRepository).touch(eq(SESSION_ID), any());
+        verifyNoInteractions(eventPublisher);
     }
 }

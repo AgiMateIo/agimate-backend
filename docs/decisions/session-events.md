@@ -38,14 +38,14 @@ updated: 2026-09-22
 | Повод | Где | Условие |
 |---|---|---|
 | новая сессия канала | `AgentSessionService.createNew` / `createChild` | всегда (`session.created`) |
-| новая сессия коннекции | `AgentSessionResolver.forConnection` | строка вставлена этим вызовом (`session.created`) |
+| новая сессия коннекции | `AgentSessionService.forConnection` | строка вставлена этим вызовом (`session.created`) |
 | заголовок из первого сообщения | `AgentSessionService.setTitleIfEmpty` | заголовок был пуст |
 | переименование | `AgentSessionService.rename` | всегда |
-| заголовок от компакции | `SessionCompactionWriter.write` | `writeGeneratedTitle` что-то записал: переименованное пользователем не трогается, и события нет |
+| заголовок от компакции | `AgentSessionService.writeGeneratedTitle` (зовёт `SessionCompactionWriter`) | `writeGeneratedTitle` что-то записал: переименованное пользователем не трогается, и события нет |
 | закрытие | `AgentSessionService.close` | сессия ещё не была закрыта |
 | прочтение | `AgentSessionService.advanceReadPointer` | указатель сдвинулся — иначе каждое открытие чата сыпало бы событиями |
-| сообщение в веб-чате | `WebchatMessagePublisher.record` | не `progress`, обе стороны: своё сообщение с другого устройства тоже двигает превью |
-| ран начался или кончился | `MessageLogPersistence.persist` | статус сменился, и у рана есть сессия канала |
+| сообщение в веб-чате | `AgentSessionService.messageRecorded` (зовёт `WebchatMessagePublisher`) | не `progress`, обе стороны: своё сообщение с другого устройства тоже двигает превью |
+| ран начался или кончился | `AgentSessionService.runStateChanged` (зовёт `MessageLogPersistence`) | статус сменился, и у рана есть сессия канала |
 
 Последняя строка держит честным `isRunning`: строка, собранная посреди рана, говорит «работает», и
 без события на финише список так бы и показывал работу. Сессии коннекций (триггеры без канала) её не

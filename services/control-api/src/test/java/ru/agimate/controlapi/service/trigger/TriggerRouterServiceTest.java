@@ -70,7 +70,7 @@ class TriggerRouterServiceTest {
     @Mock
     private ru.agimate.controlapi.service.seed.ChannelTexts channelTexts;
     @Mock
-    private ru.agimate.controlapi.service.session.AgentSessionResolver sessionResolver;
+    private ru.agimate.controlapi.service.session.AgentSessionService agentSessionService;
     @Mock
     private ru.agimate.controlapi.service.file.FileReferenceService fileReferenceService;
 
@@ -183,7 +183,7 @@ class TriggerRouterServiceTest {
         void connectionSessionForChannellessRoute() {
             UUID connectionSession = UUID.randomUUID();
             Agent agent = boundGenericAgent();
-            when(sessionResolver.forConnection(agent.getId(), USER, "telegram", CONNECTION))
+            when(agentSessionService.forConnection(agent.getId(), USER, "telegram", CONNECTION))
                     .thenReturn(connectionSession);
 
             routerService.routeTrigger(USER, trigger);
@@ -208,7 +208,7 @@ class TriggerRouterServiceTest {
             ArgumentCaptor<AgentRun> saved = ArgumentCaptor.forClass(AgentRun.class);
             verify(agentRunRepository).save(saved.capture());
             assertEquals(channelSession, saved.getValue().getSessionId());
-            verifyNoInteractions(sessionResolver);
+            verifyNoInteractions(agentSessionService);
         }
     }
 

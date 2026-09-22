@@ -10,7 +10,7 @@ import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
-import ru.agimate.controlapi.service.session.SessionChanged;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.time.Instant;
@@ -54,6 +54,7 @@ public class WebchatMessagePublisher {
     private final CentrifugoService centrifugoService;
     private final SignedFileUrlService signedFileUrlService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AgentSessionService agentSessionService;
 
     @Transactional
     public void record(UUID userId, UUID agentId, UUID channelId, UUID sessionId,
@@ -77,7 +78,7 @@ public class WebchatMessagePublisher {
 
         if (!STREAM_PROGRESS.equals(stream)) {
             // The preview moves whoever spoke: one's own message sent from another device included.
-            eventPublisher.publishEvent(SessionChanged.updated(sessionId));
+            agentSessionService.messageRecorded(sessionId);
         }
         if (direction == WebchatMessageDirection.AGENT && !STREAM_PROGRESS.equals(stream)) {
             publishActivity(userId, agentId, sessionId, messageId, stream, text);
