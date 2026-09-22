@@ -422,4 +422,72 @@ class LlmCredentialsResolverTest {
             assertTrue(e.getMessage().contains("no models configured for CHAT"), e.getMessage());
         }
     }
+
+    @Nested
+    @DisplayName("resolveRoutine — модель для рутинной работы платформы")
+    class Routine {
+
+        private void stubChatBinding(LlmProvider chatBound) {
+            AgentLlm chatBinding = AgentLlm.builder()
+                    .agentId(agentId)
+                    .llmProviderId(chatBound.getId())
+                    .model("chat-model")
+                    .build();
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
+                    .thenReturn(Optional.of(chatBinding));
+            when(llmProviderRepository.findById(chatBound.getId())).thenReturn(Optional.of(chatBound));
+        }
+
+        @Test
+        @DisplayName("ROUTINE-список провайдера, через которого агент уже говорит")
+        void fromChatProviderList() {
+            LlmProvider p = provider("my-openrouter");
+            p.setPurposePriority(Map.of(LlmPurpose.ROUTINE, List.of("cheap-model")));
+            stubNoBinding(LlmPurpose.ROUTINE);
+            stubChatBinding(p);
+            stubRegistry(p);
+            when(llmProviderService.decryptApiKey(p)).thenReturn("sk-key");
+
+            ResolvedLlm resolved = resolver.resolveRoutine(agentId, userId);
+
+            assertEquals("cheap-model", resolved.model());
+            assertFalse(resolved.platformFallback());
+            verify(llmQuotaService).check(p, userId, agentId);
+            verify(llmProviderService, never()).findUsablePlatformProvider();
+        }
+
+        @Test
+        @DisplayName("списка нет — CHAT-модель агента, а не платформа за его спиной")
+        void fallsBackToChat() {
+            LlmProvider p = provider("my-deepseek");
+            p.setPurposePriority(Map.of(LlmPurpose.CHAT, List.of("chat-model")));
+            stubNoBinding(LlmPurpose.ROUTINE);
+            stubChatBinding(p);
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(p.getId(), "chat-model"))
+                    .thenReturn(Optional.empty());
+            when(llmProviderService.decryptApiKey(p)).thenReturn("sk-key");
+
+            ResolvedLlm resolved = resolver.resolveRoutine(agentId, userId);
+
+            assertEquals("chat-model", resolved.model());
+            assertEquals(p, resolved.provider());
+        }
+
+        @Test
+        @DisplayName("агент без биндингов — ROUTINE-список платформы")
+        void platformAgent() {
+            LlmProvider platform = platformProvider();
+            platform.setPurposePriority(Map.of(LlmPurpose.ROUTINE, List.of("cheap-model")));
+            stubNoBinding(LlmPurpose.ROUTINE);
+            stubNoBinding(LlmPurpose.CHAT);
+            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+            stubRegistry(platform);
+            when(llmProviderService.decryptApiKey(platform)).thenReturn("sk-platform");
+
+            ResolvedLlm resolved = resolver.resolveRoutine(agentId, userId);
+
+            assertEquals("cheap-model", resolved.model());
+            assertTrue(resolved.platformFallback());
+        }
+    }
 }

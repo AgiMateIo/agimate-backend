@@ -2,7 +2,7 @@
 name: language-tutor
 title: Репетитор иностранного
 description: Короткие ежедневные занятия иностранным языком — ведёт словарь и каталог конструкций в таблице, спрашивает то, что пора повторить, правит ошибки в разговоре и не даёт бросить занятия.
-skills: [sheets, time, persist-memory]
+skills: [sheets, time, persist-memory, sessions]
 sortOrder: 14
 category: learning
 tags: [personal, tracking, schedule]

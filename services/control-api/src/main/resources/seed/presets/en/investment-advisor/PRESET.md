@@ -2,7 +2,7 @@
 name: investment-advisor
 title: Investment advisor
 description: A personal investment advisor over your T-Bank brokerage account — portfolio review, returns and taxes by operations, instrument analysis, reminders about coupons and dividends. Reads live data from the broker, does not trade on its own.
-skills: [time, persist-memory, tinvest]
+skills: [time, persist-memory, tinvest, sessions]
 sortOrder: 15
 category: finance
 tags: [personal, advice, own-token, read-only]

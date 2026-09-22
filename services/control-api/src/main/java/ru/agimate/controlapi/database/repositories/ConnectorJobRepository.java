@@ -177,6 +177,26 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
             """)
     int release(@Param("id") UUID id, @Param("nextRunAt") LocalDateTime nextRunAt);
 
+    /** The one row a session keeps for a job of this name — see {@code ConnectorJobService.scheduleForSession}. */
+    Optional<ConnectorJob> findFirstByConnectorCodeAndSessionIdAndName(String connectorCode, UUID sessionId,
+                                                                      String name);
+
+    /**
+     * Arms a finished ONETIME again, due now. Only a COMPLETED row: a pending one is due already, and
+     * a running one will look at the session afresh when it runs.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ConnectorJob t
+            SET t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.PENDING,
+                t.nextRunAt = :now,
+                t.lastError = NULL,
+                t.updatedAt = :now
+            WHERE t.id = :id
+              AND t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.COMPLETED
+            """)
+    int rearm(@Param("id") UUID id, @Param("now") LocalDateTime now);
+
     @Modifying
     @Query("""
             UPDATE ConnectorJob t

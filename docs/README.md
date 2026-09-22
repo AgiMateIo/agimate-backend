@@ -70,6 +70,7 @@
 | [persistent-memory.md](connectors/persistent-memory.md) · [sheets.md](connectors/sheets.md) | Долгая память и таблицы агента |
 | [context-loaders.md](connectors/context-loaders.md) | `skill-loader` и `tool-loader`: раскрытие навыков и схем тулов по требованию |
 | [subagents.md](connectors/subagents.md) | Субагенты: поручения своим копиям в сессиях канала, отчёт в разговор |
+| [sessions.md](connectors/sessions.md) | `sessions`: параллельные разговоры блоком, поиск по сказанному, скрытая компакция окна и заголовок |
 | [agents.md](connectors/agents.md) | Агенты команды: поручения другому агенту по схеме субагентов, круг — команда |
 | [webchat.md](connectors/webchat.md) · [media.md](connectors/media.md) · [astro-divination.md](connectors/astro-divination.md) | Остальные коннекторы |
 
@@ -117,6 +118,8 @@
 | [egress-proxy.md](decisions/egress-proxy.md) | Заблокированные из России LLM, MCP и Telegram: системный HTTP-прокси только для хостов из списка оператора, и почему гард адреса для них проверяет прокси, а не цель |
 | [files-and-pages.md](decisions/files-and-pages.md) | `agf_` — документ, а не снимок: версии файла, закрепление отправленного и коннектор `files` |
 | [connector-views.md](decisions/connector-views.md) | Интерактивная панель вместо текста: формат вью из MCP Apps, место лаунчера диктует ось владельца данных, а тулы панель зовёт от имени агента — второй поверхности исполнения не заводим |
+| [context-compaction.md](decisions/context-compaction.md) | Длинное окно истории сжимается сводкой: SYSTEM-ход журнала у первого дословного рана, порог по первому вызову модели, считает control-api разовым вызовом `ROUTINE`, а не агент |
+| [agent-sessions-connector.md](decisions/agent-sessions-connector.md) | Коннектор `sessions`: параллельные сессии блоком в user-prompt, `search_messages` по журналу ходов, скрытый `compact` ставит сводку и заголовок — модели `set_title` не дан |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md) |
 
 ## Как ведётся документация

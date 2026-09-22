@@ -2,7 +2,7 @@
 name: personal-assistant
 title: Личный ассистент
 description: Персональный помощник на каждый день — помнит важное о тебе, отвечает на вопросы, ставит напоминания и работает по расписанию.
-skills: [time, persist-memory, files]
+skills: [time, persist-memory, files, sessions]
 category: home
 tags: [personal, reminders, schedule]
 ---

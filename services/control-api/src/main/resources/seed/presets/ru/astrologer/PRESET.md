@@ -2,7 +2,7 @@
 name: astrologer
 title: Астролог
 description: Персональный астролог и таролог Селена — натальная карта, Матрица судьбы, нумерология, Таро и ежедневная карта дня. Все расчёты настоящие, по эфемеридам.
-skills: [time, persist-memory, astro, divination]
+skills: [time, persist-memory, astro, divination, sessions]
 sortOrder: 10
 category: leisure
 tags: [personal, advice]

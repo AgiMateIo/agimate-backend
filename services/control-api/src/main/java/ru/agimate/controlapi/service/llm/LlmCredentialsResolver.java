@@ -154,6 +154,39 @@ public class LlmCredentialsResolver {
         return resolved(provider, pick, platformFallback);
     }
 
+    /**
+     * The model for the platform's chores ({@link LlmPurpose#ROUTINE}): the agent's ROUTINE binding,
+     * then the ROUTINE list of the provider the agent already talks through, then the agent's own
+     * CHAT model. Never the platform provider behind an agent that brought its own: a chore is not a
+     * reason to bill somebody else.
+     *
+     * @throws NoCapableModelException      the bound ROUTINE model is no longer listed
+     * @throws LlmProviderDisabledException the bound provider is disabled
+     * @throws NotFoundStatusException      no ROUTINE model and the CHAT fallback cannot resolve either
+     * @throws QuotaExceededException       the provider's quota is exhausted
+     */
+    public ResolvedLlm resolveRoutine(UUID agentId, UUID userId) {
+        AgentLlm binding = agentLlmRepository
+                .findByAgentIdAndPurpose(agentId, LlmPurpose.ROUTINE)
+                .orElse(null);
+        if (binding != null) {
+            return resolveForCapability(agentId, userId, LlmPurpose.ROUTINE);
+        }
+        Optional<LlmProvider> chatProvider = agentLlmRepository
+                .findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT)
+                .map(AgentLlm::getLlmProviderId)
+                .flatMap(llmProviderRepository::findById)
+                .or(llmProviderService::findUsablePlatformProvider)
+                .filter(LlmProvider::isEnabled);
+        Optional<Pick> pick = chatProvider.flatMap(provider -> pickModel(provider, LlmPurpose.ROUTINE));
+        if (pick.isEmpty()) {
+            return resolveChat(agentId, userId);
+        }
+        LlmProvider provider = chatProvider.get();
+        llmQuotaService.check(provider, userId, agentId);
+        return resolved(provider, pick.get(), LlmProviderService.isPlatform(provider));
+    }
+
     private record Candidate(LlmProvider provider, Pick pick) {
     }
 

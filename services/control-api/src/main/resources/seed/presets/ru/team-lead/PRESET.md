@@ -2,7 +2,7 @@
 name: team-lead
 title: Team Lead
 description: Руководитель команды агентов — принимает цель, раскладывает её в задачи на доске, распределяет по исполнителям и доводит до результата.
-skills: [board, time, persist-memory]
+skills: [board, time, persist-memory, sessions]
 sortOrder: 7
 category: work
 tags: [team, management]

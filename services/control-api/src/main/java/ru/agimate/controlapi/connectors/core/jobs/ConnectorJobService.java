@@ -195,6 +195,26 @@ public class ConnectorJobService {
         return connectorJobRepository.save(row);
     }
 
+    /**
+     * A ONETIME job due now that a session keeps one row of, however often it is asked for: a
+     * pending or running row absorbs the request, a completed one is armed again. The row doubles as
+     * the «one waiting job per session» rule and keeps the table from growing a row per request.
+     * Two requests racing on a session with no row yet may both insert — the job must be idempotent.
+     *
+     * <p>{@code REQUIRES_NEW}: the caller listens after a commit, where a joined transaction would
+     * never commit.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void scheduleForSession(String connectorCode, String connectionId, UUID userId, UUID agentId,
+                                   UUID channelId, UUID sessionId, JobSpec spec) {
+        LocalDateTime now = LocalDateTime.now();
+        connectorJobRepository.findFirstByConnectorCodeAndSessionIdAndName(connectorCode, sessionId, spec.name())
+                .ifPresentOrElse(
+                        row -> connectorJobRepository.rearm(row.getId(), now),
+                        () -> schedule(connectorCode, connectionId, userId, agentId, channelId, sessionId,
+                                spec, now));
+    }
+
     /** An agent's active (non-COMPLETED) jobs — for list. */
     public List<ConnectorJob> findActiveByAgent(String connectorCode, UUID userId, UUID agentId) {
         return connectorJobRepository.findActiveByAgent(connectorCode, userId, agentId);

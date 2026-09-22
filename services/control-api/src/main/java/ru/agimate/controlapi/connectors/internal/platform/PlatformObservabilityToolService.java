@@ -327,7 +327,7 @@ public class PlatformObservabilityToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public RunTurnList getRunTurns(@ToolParam("Run public ID") String runId) {
         AgentRunProjection run = ownedRun(runId);
-        List<RunTurnItem> turns = agentRunTurnRepository.findByRunIdOrderByTurnIndexAsc(run.getId())
+        List<RunTurnItem> turns = agentRunTurnRepository.findRunTurns(run.getId())
                 .stream().map(this::toRunTurnItem).toList();
         return new RunTurnList(turns);
     }

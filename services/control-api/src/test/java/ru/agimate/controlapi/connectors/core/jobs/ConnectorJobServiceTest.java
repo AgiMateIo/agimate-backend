@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -153,6 +154,41 @@ class ConnectorJobServiceTest {
 
             verify(repository, never()).deleteById(any());
             verify(repository, never()).updateSpec(any(), any(), any(), any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("scheduleForSession — одна строка на сессию")
+    class ScheduleForSession {
+
+        private final UUID sessionId = UUID.randomUUID();
+        private final JobSpec spec = new JobSpec("compact", ConnectorJobType.ONETIME, Map.of(), Map.of(), 300);
+
+        @Test
+        @DisplayName("строки нет — вставляется ONETIME к исполнению сейчас")
+        void insertsFirst() {
+            when(repository.findFirstByConnectorCodeAndSessionIdAndName("sessions", sessionId, "compact"))
+                    .thenReturn(java.util.Optional.empty());
+
+            service.scheduleForSession("sessions", "conn", UUID.randomUUID(), UUID.randomUUID(), null, sessionId, spec);
+
+            org.mockito.ArgumentCaptor<ConnectorJob> row = org.mockito.ArgumentCaptor.forClass(ConnectorJob.class);
+            verify(repository).save(row.capture());
+            assertEquals(sessionId, row.getValue().getSessionId());
+            assertEquals(ConnectorJobKind.AGENT, row.getValue().getKind());
+        }
+
+        @Test
+        @DisplayName("строка есть — она переиспользуется, новой не появляется")
+        void reusesRow() {
+            ConnectorJob existing = ConnectorJob.builder().id(UUID.randomUUID()).build();
+            when(repository.findFirstByConnectorCodeAndSessionIdAndName("sessions", sessionId, "compact"))
+                    .thenReturn(java.util.Optional.of(existing));
+
+            service.scheduleForSession("sessions", "conn", UUID.randomUUID(), UUID.randomUUID(), null, sessionId, spec);
+
+            verify(repository).rearm(eq(existing.getId()), any());
+            verify(repository, never()).save(any());
         }
     }
 }

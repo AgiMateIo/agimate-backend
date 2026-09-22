@@ -68,7 +68,8 @@ public class SystemSkillBootstrap {
             "tinvest",
             "docli",
             "subagents",
-            "agents");
+            "agents",
+            "sessions");
 
     private final SkillRepository skillRepository;
     private final SeedContentLocator seedContentLocator;

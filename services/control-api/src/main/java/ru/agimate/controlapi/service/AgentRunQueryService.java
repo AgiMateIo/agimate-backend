@@ -127,7 +127,7 @@ public class AgentRunQueryService {
      */
     public Page<AgentRunTurnResponse> listTurns(UUID runId, UUID userId, int page, int size) {
         AgentRun run = ownedRun(runId, userId);
-        Page<AgentRunTurn> turns = turnRepository.findByRunIdOrderByTurnIndexDesc(
+        Page<AgentRunTurn> turns = turnRepository.findRunTurnsNewestFirst(
                 run.getId(), PageRequest.of(page, size));
         Map<String, TurnUsageResponse> usage = turnUsage(turns);
         // The null check is not defensive: a user or tool turn has no call id, and an immutable map

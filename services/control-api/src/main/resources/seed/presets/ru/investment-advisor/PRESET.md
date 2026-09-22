@@ -2,7 +2,7 @@
 name: investment-advisor
 title: Инвестиционный консультант
 description: Личный инвестиционный консультант по вашему брокерскому счёту в Т-Банке — обзор портфеля, доходность и налоги по операциям, разбор инструментов, напоминания о купонах и дивидендах. Читает живые данные у брокера, сам не торгует.
-skills: [time, persist-memory, tinvest]
+skills: [time, persist-memory, tinvest, sessions]
 sortOrder: 15
 category: finance
 tags: [personal, advice, own-token, read-only]

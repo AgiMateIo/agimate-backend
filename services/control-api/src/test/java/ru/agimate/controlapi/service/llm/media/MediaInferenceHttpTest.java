@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.DataUri;
-import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.Usage;
+import ru.agimate.controlapi.service.llm.ChatCompletionsHttp.Usage;
 
 import java.util.Base64;
 import java.util.List;

@@ -2,7 +2,7 @@
 name: visual
 title: Visual designer
 description: Everything with images — draws from scratch, retouches your photos, builds collages and product cards, reviews mockups and screenshots. Remembers your brand style.
-skills: [media, persist-memory]
+skills: [media, persist-memory, sessions]
 sortOrder: 5
 category: content
 tags: [personal, images]

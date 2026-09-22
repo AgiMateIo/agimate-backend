@@ -11,7 +11,7 @@ import ru.agimate.controlapi.service.llm.LlmCredentialsResolver;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
 import ru.agimate.controlapi.service.llm.NoCapableModelException;
 import ru.agimate.controlapi.service.llm.QuotaExceededException;
-import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.Usage;
+import ru.agimate.controlapi.service.llm.ChatCompletionsHttp.Usage;
 import ru.agimate.controlapi.service.llm.media.MediaTransport.GeneratedImage;
 import ru.agimate.controlapi.service.llm.media.MediaTransport.GenerationRequest;
 import ru.agimate.controlapi.service.llm.media.MediaTransport.InputImage;

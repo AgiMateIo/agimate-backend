@@ -2,7 +2,7 @@
 name: creative
 title: Креативщик
 description: Всё про тексты — придумывает идеи и заголовки, пишет посты и рассылки, держит контент-план и напоминает о выходе публикаций. Помнит тон твоего канала.
-skills: [persist-memory, time, files]
+skills: [persist-memory, time, files, sessions]
 sortOrder: 6
 category: content
 tags: [personal, writing, schedule]

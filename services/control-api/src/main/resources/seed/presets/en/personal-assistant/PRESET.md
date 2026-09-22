@@ -2,7 +2,7 @@
 name: personal-assistant
 title: Personal assistant
 description: An everyday personal helper — remembers what matters about you, answers questions, sets reminders and works on a schedule.
-skills: [time, persist-memory, files]
+skills: [time, persist-memory, files, sessions]
 category: home
 tags: [personal, reminders, schedule]
 ---

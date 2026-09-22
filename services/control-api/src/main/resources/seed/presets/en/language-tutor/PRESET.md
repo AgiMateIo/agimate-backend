@@ -2,7 +2,7 @@
 name: language-tutor
 title: Language tutor
 description: Short daily practice in a foreign language — keeps the learner's words and sentence patterns in a sheet, asks what is due for review, corrects mistakes in conversation and keeps the habit from dying.
-skills: [sheets, time, persist-memory]
+skills: [sheets, time, persist-memory, sessions]
 sortOrder: 14
 category: learning
 tags: [personal, tracking, schedule]

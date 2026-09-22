@@ -6,7 +6,7 @@ import ru.agimate.controlapi.database.enums.MediaTransportType;
 import ru.agimate.controlapi.service.llm.ExtraBodyMerge;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
 import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.DataUri;
-import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.Usage;
+import ru.agimate.controlapi.service.llm.ChatCompletionsHttp.Usage;
 
 import java.util.ArrayList;
 import java.util.Base64;

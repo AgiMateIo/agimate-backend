@@ -2,7 +2,7 @@
 name: coder
 title: Программист
 description: Программист в твоём проекте из IDE — разбирается в коде, вносит правки, запускает сборку и тесты и отчитывается, что сделал. Помнит стек и договорённости проекта.
-skills: [acp, persist-memory]
+skills: [acp, persist-memory, sessions]
 sortOrder: 3
 category: development
 tags: [developer]

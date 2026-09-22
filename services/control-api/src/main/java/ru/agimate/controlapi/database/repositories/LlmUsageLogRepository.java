@@ -10,6 +10,7 @@ import ru.agimate.controlapi.database.projections.RunUsageProjection;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -58,6 +59,8 @@ public interface LlmUsageLogRepository extends JpaRepository<LlmUsageLog, UUID> 
             GROUP BY u.runId
             """)
     List<RunUsageProjection> sumByRunIds(@Param("runIds") Collection<UUID> runIds);
+
+    Optional<LlmUsageLog> findByCallId(String callId);
 
     /** Per-turn spend: a turn carries the id of the LLM call that produced it. */
     List<LlmUsageLog> findByCallIdIn(Collection<String> callIds);

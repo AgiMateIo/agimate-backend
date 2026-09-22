@@ -2,7 +2,7 @@
 name: coder
 title: Coder
 description: A programmer inside your project from the IDE — works out the code, makes the changes, runs the build and the tests and reports what it did. Remembers the stack and the project's conventions.
-skills: [acp, persist-memory]
+skills: [acp, persist-memory, sessions]
 sortOrder: 3
 category: development
 tags: [developer]

@@ -2,7 +2,7 @@
 name: health-diary
 title: Дневник здоровья
 description: Дневник давления, пульса, сахара и веса — записывает показатели с голоса и с фото прибора, напоминает измерить и готовит график к визиту врача.
-skills: [sheets, media, time, persist-memory, skill-loader, tool-loader]
+skills: [sheets, media, time, persist-memory, skill-loader, tool-loader, sessions]
 sortOrder: 12
 category: health
 tags: [personal, tracking, voice, photo, reminders]

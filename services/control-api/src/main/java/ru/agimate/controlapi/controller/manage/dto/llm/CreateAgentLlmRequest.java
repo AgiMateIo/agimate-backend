@@ -20,7 +20,8 @@ public record CreateAgentLlmRequest(
 
         @Schema(description = "Binding role (default CHAT), unique per agent. CHAT — the agent-loop "
                 + "model; IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings, override "
-                + "the capability-based auto-match")
+                + "the capability-based auto-match; ROUTINE — the platform's chores (conversation "
+                + "compaction, session titles), falls back to CHAT")
         LlmPurpose purpose
 ) {
 }

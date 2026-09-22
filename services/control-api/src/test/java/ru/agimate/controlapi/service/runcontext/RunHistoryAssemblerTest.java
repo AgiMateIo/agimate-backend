@@ -359,4 +359,68 @@ class RunHistoryAssemblerTest {
             assertEquals(RunHistoryAssembler.SKILL_BODY_CONTEXT_CAP + "…[truncated]".length(), fresh.length());
         }
     }
+
+    @Nested
+    @DisplayName("Компакция: окно от сводки")
+    class Compaction {
+
+        private AgentRunTurn summaryOn(UUID anchor) {
+            return turn(anchor, AgentRunTurn.SUMMARY_TURN_INDEX, AgentTurnRole.SYSTEM, "пересказ начала");
+        }
+
+        private final RunHistoryMessage summaryMessage = new RunHistoryMessage(ChannelSessionMessageKind.INBOUND,
+                "<conversation_summary>\nпересказ начала\n</conversation_summary>");
+
+        @Test
+        @DisplayName("сводка идёт первой, раны старше якоря не читаются, сама SYSTEM-строка в окно не попадает")
+        void summaryLeadsAndCutsOlderRuns() {
+            UUID older = UUID.randomUUID();
+            UUID anchor = UUID.randomUUID();
+            UUID newer = UUID.randomUUID();
+            AgentRunTurn summary = summaryOn(anchor);
+            when(turnRepository.findLatestSummary(SESSION_ID)).thenReturn(java.util.Optional.of(summary));
+            stubRuns(List.of(newer, anchor, older), List.of(
+                    summary,
+                    turn(anchor, 0, AgentTurnRole.USER, "вопрос у якоря"),
+                    turn(anchor, 1, AgentTurnRole.ASSISTANT, "ответ у якоря"),
+                    turn(newer, 0, AgentTurnRole.USER, "свежий вопрос")));
+
+            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages();
+
+            assertEquals(List.of(
+                    summaryMessage,
+                    new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "вопрос у якоря"),
+                    new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "ответ у якоря"),
+                    new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "свежий вопрос")),
+                    history);
+            verify(turnRepository).findByRunIdInOrderByRunIdAscTurnIndexAsc(List.of(anchor, newer));
+        }
+
+        @Test
+        @DisplayName("якорь отрезан лимитом ранов — сводка всё равно первой, остальные раны новее неё")
+        void anchorBeyondLimitKeepsSummary() {
+            UUID anchor = UUID.randomUUID();
+            UUID newer = UUID.randomUUID();
+            when(turnRepository.findLatestSummary(SESSION_ID)).thenReturn(java.util.Optional.of(summaryOn(anchor)));
+            stubRuns(List.of(newer), List.of(turn(newer, 0, AgentTurnRole.USER, "свежий вопрос")));
+
+            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 1, ALL_PARTS).messages();
+
+            assertEquals(List.of(summaryMessage,
+                    new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "свежий вопрос")), history);
+        }
+
+        @Test
+        @DisplayName("сводка без единого законченного рана после неё — окно из одной сводки")
+        void summaryAlone() {
+            when(turnRepository.findLatestSummary(SESSION_ID))
+                    .thenReturn(java.util.Optional.of(summaryOn(UUID.randomUUID())));
+            when(agentRunRepository.findHistoryRunIds(eq(SESSION_ID), any())).thenReturn(List.of());
+
+            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages();
+
+            assertEquals(List.of(summaryMessage), history);
+            verify(turnRepository, never()).findByRunIdInOrderByRunIdAscTurnIndexAsc(anyList());
+        }
+    }
 }

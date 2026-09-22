@@ -735,7 +735,7 @@ class PlatformObservabilityToolServiceTest {
                             "outputJson", "{\"error\":\"no channel\"}", "failed", true)))
                     .build();
             toolFailed.setCreatedAt(LocalDateTime.of(2025, 4, 4, 4, 3));
-            when(agentRunTurnRepository.findByRunIdOrderByTurnIndexAsc(runId))
+            when(agentRunTurnRepository.findRunTurns(runId))
                     .thenReturn(List.of(user, assistant, toolOk, toolFailed));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "get_run_turns",
@@ -786,7 +786,7 @@ class PlatformObservabilityToolServiceTest {
                     .role(AgentTurnRole.ASSISTANT)
                     .text("created, the key is agntapLrNHYBw8f3QtfDE9ueFPWbejAPskkSl21TwPYo9PHII1Oc6UfK_DD4CSDl keep it safe")
                     .build();
-            when(agentRunTurnRepository.findByRunIdOrderByTurnIndexAsc(runId))
+            when(agentRunTurnRepository.findRunTurns(runId))
                     .thenReturn(List.of(assistant));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "get_run_turns",
@@ -807,7 +807,7 @@ class PlatformObservabilityToolServiceTest {
             String key = "agnt" + "A".repeat(59) + "-";
             AgentRunTurn assistant = AgentRunTurn.builder().runId(runId).turnIndex(0)
                     .role(AgentTurnRole.ASSISTANT).text("key is " + key + " end").build();
-            when(agentRunTurnRepository.findByRunIdOrderByTurnIndexAsc(runId))
+            when(agentRunTurnRepository.findRunTurns(runId))
                     .thenReturn(List.of(assistant));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "get_run_turns",
@@ -848,7 +848,7 @@ class PlatformObservabilityToolServiceTest {
                     .toolResults(List.of(Map.of("id", "r1", "name", "create_agent",
                             "outputJson", "{\"id\":\"a1\",\"plaintextKey\":\"agnt_secret\"}", "failed", false)))
                     .build();
-            when(agentRunTurnRepository.findByRunIdOrderByTurnIndexAsc(runId))
+            when(agentRunTurnRepository.findRunTurns(runId))
                     .thenReturn(List.of(assistant, toolOk));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "get_run_turns",

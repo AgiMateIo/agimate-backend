@@ -25,7 +25,9 @@ import java.util.UUID;
  * <p>The USER row at {@code turn_index} 0 is the <b>persistent</b> part of the turn: the ephemeral
  * blocks (memory notes) that were prepended for the model alone stay out, and live in
  * {@code agent_runs.prompt} — that is the record of what the model saw, this one is the record of the
- * dialogue. SYSTEM turns are not written at all: static, large, and already in the prompt snapshot.
+ * dialogue. The worker writes no SYSTEM turns: the system prompt is static, large, and already in the
+ * prompt snapshot. The one SYSTEM turn is control-api's own — the session's compaction summary at
+ * {@link #SUMMARY_TURN_INDEX} (docs/decisions/context-compaction.md).
  */
 @Entity
 @Table(name = "agent_run_turns", uniqueConstraints =
@@ -36,6 +38,13 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AgentRunTurn extends BaseEntity {
+
+    /**
+     * Where a compaction summary sits on its anchor run — the first run the history window keeps
+     * verbatim. Below the worker's first index, so the ledger's own order puts it before the run's
+     * turns, and the unique key turns a second summary for the same anchor into a no-op.
+     */
+    public static final int SUMMARY_TURN_INDEX = -1;
 
     @Id
     @Generated

@@ -2,7 +2,7 @@
 name: astrologer
 title: Astrologer
 description: Selena, your personal astrologer and tarot reader — natal chart, Destiny Matrix, numerology, Tarot and a daily card. Every calculation is real, from ephemerides.
-skills: [time, persist-memory, astro, divination]
+skills: [time, persist-memory, astro, divination, sessions]
 sortOrder: 10
 category: leisure
 tags: [personal, advice]

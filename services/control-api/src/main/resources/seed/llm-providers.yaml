@@ -49,6 +49,13 @@ providers:
       AUDIO_OUT:
         - openai/gpt-audio-mini
         - openai/gpt-audio
+      # The platform's chores (compacting a long conversation, titling a session): a retelling, not
+      # a decision, so the cheap end of each vendor. A provider without this key falls back to the
+      # agent's CHAT model.
+      ROUTINE:
+        - google/gemini-3.5-flash-lite
+        - openai/gpt-5.6-luna
+        - anthropic/claude-haiku-4.5
 
   - code: polza
     name: Polza.ai

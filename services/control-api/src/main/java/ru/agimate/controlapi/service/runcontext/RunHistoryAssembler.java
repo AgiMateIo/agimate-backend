@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -38,6 +39,9 @@ import java.util.UUID;
  * <p>The wire format is unchanged: an assistant turn that called tools goes out as the calls record
  * and the following tool turn as the results record, which is exactly the adjacency the worker
  * already stitches into a native {@code tool_use}/{@code tool_result} pair.
+ *
+ * <p>A compacted session starts its window at the summary (docs/decisions/context-compaction.md): the
+ * newest SYSTEM turn of the session leads, and no run older than its anchor follows it.
  *
  * <p>The window is also where progressive disclosure keeps its state: every tool the window called
  * or had described is reported back ({@link RunHistory#disclosedTools}), and a {@code load_skill}
@@ -70,6 +74,9 @@ public class RunHistoryAssembler {
      */
     static final int MAX_HISTORY_TURNS = 300;
 
+    /** The tag the compaction summary reaches the model in; the {@code sessions} skill names it. */
+    static final String SUMMARY_TAG = "conversation_summary";
+
     private final AgentRunRepository agentRunRepository;
     private final AgentRunTurnRepository turnRepository;
 
@@ -81,8 +88,10 @@ public class RunHistoryAssembler {
         if (sessionId == null || limit <= 0) {
             return RunHistory.empty();
         }
-        List<UUID> newestFirst = agentRunRepository.findHistoryRunIds(sessionId, PageRequest.of(0, limit));
-        if (newestFirst.isEmpty()) {
+        Optional<AgentRunTurn> summary = turnRepository.findLatestSummary(sessionId);
+        List<UUID> newestFirst = sinceAnchor(
+                agentRunRepository.findHistoryRunIds(sessionId, PageRequest.of(0, limit)), summary);
+        if (newestFirst.isEmpty() && summary.isEmpty()) {
             return RunHistory.empty();
         }
         // The window is taken from the newest end, the transcript reads from the oldest.
@@ -98,6 +107,7 @@ public class RunHistoryAssembler {
         KeptBodies kept = tools ? keptBodies(turns) : new KeptBodies(Set.of(), DISCLOSED_BUDGET_BYTES);
 
         List<RunHistoryMessage> history = new ArrayList<>();
+        summary.ifPresent(turn -> history.add(summaryMessage(turn)));
         for (AgentRunTurn turn : turns) {
             RunHistoryMessage mapped = toHistoryMessage(turn, parts, kept.results());
             if (mapped != null) {
@@ -107,8 +117,33 @@ public class RunHistoryAssembler {
         return new RunHistory(history, tools ? disclosedTools(turns) : List.of(), kept.budgetLeft());
     }
 
+    /**
+     * The window stops at the summary's anchor run: everything older is already retold in the summary.
+     * An anchor the run limit has cut off changes nothing — every run left is newer than it.
+     */
+    public static List<UUID> sinceAnchor(List<UUID> newestFirst, Optional<AgentRunTurn> summary) {
+        if (summary.isEmpty()) {
+            return newestFirst;
+        }
+        int anchor = newestFirst.indexOf(summary.get().getRunId());
+        return anchor < 0 ? newestFirst : newestFirst.subList(0, anchor + 1);
+    }
+
+    /**
+     * The summary goes first and whole, apart from its anchor run: the turn budget may drop that run,
+     * and losing the summary with it would forget exactly what compaction exists to keep. A user
+     * message, so neither the worker nor the protocol learns anything new.
+     */
+    static RunHistoryMessage summaryMessage(AgentRunTurn summary) {
+        return new RunHistoryMessage(ChannelSessionMessageKind.INBOUND,
+                "<" + SUMMARY_TAG + ">\n" + summary.getText() + "\n</" + SUMMARY_TAG + ">");
+    }
+
     private Map<UUID, List<AgentRunTurn>> groupByRun(List<UUID> runIds) {
         Map<UUID, List<AgentRunTurn>> byRun = new LinkedHashMap<>();
+        if (runIds.isEmpty()) {
+            return byRun; // a summary with no run after it yet
+        }
         for (AgentRunTurn turn : turnRepository.findByRunIdInOrderByRunIdAscTurnIndexAsc(runIds)) {
             byRun.computeIfAbsent(turn.getRunId(), id -> new ArrayList<>()).add(turn);
         }
@@ -248,7 +283,7 @@ public class RunHistoryAssembler {
                     ? new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "",
                             new ToolTurnRecord(null, List.of(), results(turn, keptBodies)))
                     : null;
-            case SYSTEM -> null; // never written to the ledger, but the role exists in the enum
+            case SYSTEM -> null; // a compaction summary: the newest one leads the window, older ones are retold in it
         };
     }
 

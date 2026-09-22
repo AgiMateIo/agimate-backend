@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      The sessions connector and context compaction (docs/decisions/agent-sessions-connector.md,
+      docs/decisions/context-compaction.md).
+
+      title_source answers the one question the compact job asks before writing a title: may it.
+      HINT is the placeholder cut from the first message, GENERATED the job's own, USER a rename —
+      never overwritten. NULL only while the session has no title at all. Existing titles become
+      HINT: a rename made before the column existed cannot be told apart, and the cost of guessing
+      wrong is one regenerated title.
+    -->
+    <changeSet id="add-agent-sessions-title-source" author="agimate">
+        <addColumn tableName="agent_sessions">
+            <column name="title_source" type="TEXT"/>
+        </addColumn>
+        <sql>
+            UPDATE agent_sessions
+            SET title_source = 'HINT', updated_at = CURRENT_TIMESTAMP
+            WHERE title IS NOT NULL;
+
+            ALTER TABLE agent_sessions
+                ADD CONSTRAINT chk_agent_sessions_title_source
+                    CHECK (title_source IS NULL OR title_source IN ('HINT', 'GENERATED', 'USER'));
+        </sql>
+    </changeSet>
+
+    <!--
+      The compaction summary is a SYSTEM turn of the ledger, and the history window starts by asking
+      for the newest one of a session. Partial: SYSTEM rows are one per compaction, a sliver of the
+      table, and nothing else asks for turns by session.
+    -->
+    <changeSet id="add-agent-run-turns-summary-index" author="agimate">
+        <sql>
+            CREATE INDEX idx_agent_run_turns_session_id_created_at_system
+                ON agent_run_turns (session_id, created_at DESC)
+                WHERE role = 'SYSTEM';
+        </sql>
+    </changeSet>
+
+    <!--
+      search_messages scans one agent's turns newest first with an ILIKE on the text. The index
+      narrows the scan to the agent; the ILIKE itself stays a filter until a slow query asks for
+      pg_trgm. It also serves the ON DELETE CASCADE of fk_agent_run_turns_agent, which had no index.
+    -->
+    <changeSet id="add-agent-run-turns-agent-index" author="agimate">
+        <createIndex tableName="agent_run_turns" indexName="idx_agent_run_turns_agent_id_created_at">
+            <column name="agent_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+    <!--
+      Every preset an agent talks to people from gets the sessions skill. The MCP preset is left out:
+      its model is the client's own, and our history window never reaches it. Presets are
+      seed-only-if-missing, so this is the only way the list reaches a seeded environment. Agents
+      that already exist are not touched: a binding is the user's to give, not a migration's.
+    -->
+    <changeSet id="add-sessions-skill-to-presets" author="agimate">
+        <sql>
+            UPDATE agent_presets
+            SET skill_names = skill_names || ARRAY['sessions'],
+                updated_at = CURRENT_TIMESTAMP
+            WHERE (agent_type IS NULL OR agent_type != 'MCP')
+              AND NOT (skill_names @> ARRAY['sessions']);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -6,6 +6,7 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.AgentSessionScope;
+import ru.agimate.controlapi.database.enums.SessionTitleSource;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -68,6 +69,10 @@ public class AgentSession extends BaseEntity {
 
     @Column(name = "title", columnDefinition = "TEXT")
     private String title;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "title_source", columnDefinition = "TEXT")
+    private SessionTitleSource titleSource;
 
     /**
      * Last time the session did anything: a channel message, or a trigger routed into it. Apart from

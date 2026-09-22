@@ -2,7 +2,7 @@ package ru.agimate.controlapi.service.llm.media;
 
 import ru.agimate.controlapi.database.enums.MediaTransportType;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
-import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.Usage;
+import ru.agimate.controlapi.service.llm.ChatCompletionsHttp.Usage;
 
 import java.util.List;
 

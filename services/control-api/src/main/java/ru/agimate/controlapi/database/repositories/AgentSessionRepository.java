@@ -194,4 +194,37 @@ public interface AgentSessionRepository
     int advanceReadPointer(@Param("id") UUID id,
                            @Param("messageId") UUID messageId,
                            @Param("now") LocalDateTime now);
+
+    /**
+     * The agent's other conversations with a person that are alive right now — the {@code sessions}
+     * block. Children (subagents, requests from another agent) are out: the conversation that owns
+     * them lists them itself.
+     */
+    @Query("""
+            SELECT s FROM AgentSession s
+            WHERE s.agentId = :agentId
+              AND s.id <> :excludeId
+              AND s.scope = ru.agimate.controlapi.database.enums.AgentSessionScope.CHANNEL
+              AND s.parentSessionId IS NULL
+              AND s.closedAt IS NULL
+              AND s.lastActivityAt > :since
+            ORDER BY s.lastActivityAt DESC, s.id DESC
+            """)
+    List<AgentSession> findLiveSiblings(@Param("agentId") UUID agentId,
+                                        @Param("excludeId") UUID excludeId,
+                                        @Param("since") LocalDateTime since,
+                                        Pageable pageable);
+
+    /** A title from the compaction job; a rename by the user is never written over. */
+    @Modifying
+    @Query("""
+            UPDATE AgentSession s
+            SET s.title = :title,
+                s.titleSource = ru.agimate.controlapi.database.enums.SessionTitleSource.GENERATED,
+                s.updatedAt = :now
+            WHERE s.id = :id
+              AND (s.titleSource IS NULL
+                   OR s.titleSource <> ru.agimate.controlapi.database.enums.SessionTitleSource.USER)
+            """)
+    int writeGeneratedTitle(@Param("id") UUID id, @Param("title") String title, @Param("now") LocalDateTime now);
 }

@@ -103,7 +103,10 @@ channel projection (`channel_session_messages`, the dialogue «as the user saw i
 canonical turn ledger (`agent_run_turns`, the model's own message list, tool turns included).
 `GetRunContext.history` is assembled from the ledger, not the projection: finished runs whose
 ledger is intact, a window counted in runs, the parts (`DIALOG`/`TOOLS`/`REASONING`) chosen by
-the ContextSpec preset, tool turns handed back as native `tool_use`/`tool_result` pairs. Channel
-delivery is a backend-side projection of the same record. See
+the ContextSpec preset, tool turns handed back as native `tool_use`/`tool_result` pairs. A
+compacted conversation starts its window at the summary: the session's newest SYSTEM turn (written by
+control-api itself, not the worker) leads as a `<conversation_summary>` user message, and no run older
+than its anchor follows — see [`../decisions/context-compaction.md`](../decisions/context-compaction.md).
+Channel delivery is a backend-side projection of the same record. See
 [`../decisions/history-from-turn-ledger.md`](../decisions/history-from-turn-ledger.md) and
 [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).

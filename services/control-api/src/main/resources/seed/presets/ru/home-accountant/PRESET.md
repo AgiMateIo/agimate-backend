@@ -2,7 +2,7 @@
 name: home-accountant
 title: Домашний бухгалтер
 description: Личный учёт расходов и доходов — записывает траты с голоса и с фото чека, считает суммы по категориям и периодам, рисует графики и раз в месяц сам присылает отчёт.
-skills: [sheets, media, time, persist-memory]
+skills: [sheets, media, time, persist-memory, sessions]
 sortOrder: 11
 category: finance
 tags: [personal, tracking, voice, photo]

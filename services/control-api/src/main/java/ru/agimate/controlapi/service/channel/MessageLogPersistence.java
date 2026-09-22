@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.channel;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -16,6 +17,7 @@ import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
+import ru.agimate.controlapi.service.trigger.RunFinished;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.time.LocalDateTime;
@@ -43,6 +45,7 @@ public class MessageLogPersistence {
     private final ChannelSessionMessageRepository messageRepository;
     private final InboundTextResolver inboundTextResolver;
     private final AgentRunTurnService turnService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * @param cancelRequested rides back to the worker in the SaveMessage answer — the whole cancel transport
@@ -106,6 +109,9 @@ public class MessageLogPersistence {
             duplicate = inserted == 0;
             if (kind == ChannelSessionMessageKind.ANSWER) {
                 messageRepository.markRunCompleted(triggerId);
+                if (run.getStatus() == RunStatus.DONE) {
+                    eventPublisher.publishEvent(new RunFinished(triggerId, agentId, run.getAgent().getUserId(), sessionId));
+                }
             }
         }
 

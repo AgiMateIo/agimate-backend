@@ -205,7 +205,7 @@ class AgentRunQueryServiceTest {
                     .toolCalls(List.of(Map.of("id", "c1", "name", "board.get_tasks")))
                     .model("gpt-5-mini").callId("wf-llm-9")
                     .build();
-            when(turnRepository.findByRunIdOrderByTurnIndexDesc(eq(RUN_ID), any()))
+            when(turnRepository.findRunTurnsNewestFirst(eq(RUN_ID), any()))
                     .thenReturn(new PageImpl<>(List.of(turn)));
 
             List<AgentRunTurnResponse> turns = service.listTurns(RUN_ID, USER_ID, 0, 50).getContent();
@@ -225,7 +225,7 @@ class AgentRunQueryServiceTest {
                     .callId("wf-llm-9").build();
             AgentRunTurn tool = AgentRunTurn.builder()
                     .runId(RUN_ID).turnIndex(0).role(AgentTurnRole.TOOL).build();
-            when(turnRepository.findByRunIdOrderByTurnIndexDesc(eq(RUN_ID), any()))
+            when(turnRepository.findRunTurnsNewestFirst(eq(RUN_ID), any()))
                     .thenReturn(new PageImpl<>(List.of(assistant, tool)));
             when(usageLogRepository.findByCallIdIn(List.of("wf-llm-9"))).thenReturn(List.of(
                     LlmUsageLog.builder().callId("wf-llm-9").inputTokens(900).outputTokens(120)
@@ -243,7 +243,7 @@ class AgentRunQueryServiceTest {
         @DisplayName("вызова модели не было ни на одном ходе — за расходом не идём")
         void noCallsNoUsageQuery() {
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(USER_ID)));
-            when(turnRepository.findByRunIdOrderByTurnIndexDesc(eq(RUN_ID), any()))
+            when(turnRepository.findRunTurnsNewestFirst(eq(RUN_ID), any()))
                     .thenReturn(new PageImpl<>(List.of(AgentRunTurn.builder()
                             .runId(RUN_ID).turnIndex(0).role(AgentTurnRole.USER).text("вопрос").build())));
 
@@ -256,7 +256,7 @@ class AgentRunQueryServiceTest {
         @DisplayName("отчёт о расходе потерялся — null, а не нули: это «неизвестно», а не «даром»")
         void lostUsageReportIsNull() {
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(USER_ID)));
-            when(turnRepository.findByRunIdOrderByTurnIndexDesc(eq(RUN_ID), any()))
+            when(turnRepository.findRunTurnsNewestFirst(eq(RUN_ID), any()))
                     .thenReturn(new PageImpl<>(List.of(AgentRunTurn.builder()
                             .runId(RUN_ID).turnIndex(1).role(AgentTurnRole.ASSISTANT).text("ответ")
                             .callId("wf-llm-lost").build())));
@@ -271,7 +271,7 @@ class AgentRunQueryServiceTest {
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(OTHER_USER)));
 
             assertThrows(NotFoundStatusException.class, () -> service.listTurns(RUN_ID, USER_ID, 0, 50));
-            verify(turnRepository, never()).findByRunIdOrderByTurnIndexDesc(any(), any());
+            verify(turnRepository, never()).findRunTurnsNewestFirst(any(), any());
         }
     }
 

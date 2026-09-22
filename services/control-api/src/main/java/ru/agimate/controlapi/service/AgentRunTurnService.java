@@ -100,7 +100,7 @@ public class AgentRunTurnService {
             // No ledger at all: nothing to replay, and nothing broken either.
             return true;
         }
-        long count = turnRepository.countByRunId(runId);
+        long count = turnRepository.countRunTurns(runId);
         if (count != last.getTurnIndex() + 1) {
             log.warn("turn ledger has a gap run={} turns={} last={}", runId, count, last.getTurnIndex());
             return false;

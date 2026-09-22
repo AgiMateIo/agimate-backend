@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.TriggerLog;
@@ -20,6 +21,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
+import ru.agimate.controlapi.service.trigger.RunFinished;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 
 import java.time.LocalDateTime;
@@ -61,13 +63,15 @@ class MessageLogServiceTest {
     @Mock private ChannelMessageOutboundService outboundService;
     @Mock private InboundTextResolver inboundTextResolver;
     @Mock private AgentRunTurnService turnService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     private MessageLogService service;
 
     @BeforeEach
     void setUp() {
         service = new MessageLogService(
-                new MessageLogPersistence(agentRunRepository, messageRepository, inboundTextResolver, turnService),
+                new MessageLogPersistence(agentRunRepository, messageRepository, inboundTextResolver, turnService,
+                        eventPublisher),
                 outboundService);
     }
 
@@ -154,6 +158,8 @@ class MessageLogServiceTest {
 
             verify(messageRepository).markRunCompleted(TRIGGER_ID);
             assertEquals("done", run.getResult());
+            // The session's upkeep is decided here, after the answer.
+            verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, null, SESSION_ID));
         }
 
         @Test
@@ -370,6 +376,8 @@ class MessageLogServiceTest {
             assertEquals(RunStatus.CANCELLED, run.getStatus());
             // Сообщения рана всё равно помечаются завершёнными — иначе отменённый ран не увидит история.
             verify(messageRepository).markRunCompleted(TRIGGER_ID);
+            // Уход за сессией планируется только после ответа, дошедшего до DONE.
+            verify(eventPublisher, never()).publishEvent(any(RunFinished.class));
         }
 
         @Test

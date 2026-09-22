@@ -2,7 +2,7 @@
 name: visual
 title: Визуальщик
 description: Всё про картинки — рисует с нуля, дорабатывает твои фото, собирает коллажи и карточки товара, разбирает макеты и скриншоты. Помнит твой фирменный стиль.
-skills: [media, persist-memory]
+skills: [media, persist-memory, sessions]
 sortOrder: 5
 category: content
 tags: [personal, images]

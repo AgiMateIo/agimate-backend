@@ -14,6 +14,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.enums.AgentSessionScope;
+import ru.agimate.controlapi.database.enums.SessionTitleSource;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 
@@ -122,6 +123,7 @@ public class AgentSessionService {
                 .connectionId(channel.getConnectionId())
                 .channelId(channel.getId())
                 .title(buildTitle(firstMessageHint))
+                .titleSource(hintSource(firstMessageHint))
                 .lastActivityAt(LocalDateTime.now())
                 .build();
         AgentSession saved = agentSessionRepository.save(session);
@@ -141,6 +143,7 @@ public class AgentSessionService {
                 .channelId(channel.getId())
                 .parentSessionId(parentSessionId)
                 .title(buildTitle(title))
+                .titleSource(hintSource(title))
                 .lastActivityAt(LocalDateTime.now())
                 .build();
         AgentSession saved = agentSessionRepository.save(session);
@@ -170,6 +173,7 @@ public class AgentSessionService {
             throw new BadRequestStatusException("Title is longer than " + TITLE_MAX_LENGTH + " characters");
         }
         session.setTitle(trimmed);
+        session.setTitleSource(SessionTitleSource.USER);
         return agentSessionRepository.save(session);
     }
 
@@ -178,6 +182,7 @@ public class AgentSessionService {
     public void setTitleIfEmpty(AgentSession session, String hint) {
         if (session.getTitle() == null && hint != null && !hint.isBlank()) {
             session.setTitle(buildTitle(hint));
+            session.setTitleSource(SessionTitleSource.HINT);
             agentSessionRepository.save(session);
         }
     }
@@ -236,6 +241,10 @@ public class AgentSessionService {
             agentSessionRepository.save(session);
         }
         return session;
+    }
+
+    private static SessionTitleSource hintSource(String hint) {
+        return hint == null || hint.isBlank() ? null : SessionTitleSource.HINT;
     }
 
     private String buildTitle(String hint) {

@@ -2,7 +2,7 @@
 name: platform-admin
 title: Platform Admin
 description: Помощник-администратор платформы — по запросу создаёт и настраивает других агентов, пишет для них навыки, привязывает их и подключает интеграции.
-skills: [platform, skill-loader, tool-loader]
+skills: [platform, skill-loader, tool-loader, sessions]
 sortOrder: 2
 category: platform
 tags: [developer, management]

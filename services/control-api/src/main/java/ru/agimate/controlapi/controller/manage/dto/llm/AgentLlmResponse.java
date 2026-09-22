@@ -15,7 +15,7 @@ public record AgentLlmResponse(
         String model,
 
         @Schema(description = "Binding role, unique per agent: CHAT — agent-loop model, "
-                + "IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings")
+                + "IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings, ROUTINE — platform chores")
         LlmPurpose purpose,
 
         @Schema(description = "LLM provider public ID (null for the platform fallback)")

@@ -193,7 +193,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                    a.sessionId AS sessionId, a.mainRunId AS mainRunId, a.steeredAt AS steeredAt,
                    a.originRunId AS originRunId,
                    a.turnsIntact AS turnsIntact,
-                   (SELECT COUNT(t) FROM AgentRunTurn t WHERE t.runId = a.id) AS turnsCount,
+                   (SELECT COUNT(t) FROM AgentRunTurn t WHERE t.runId = a.id AND t.turnIndex >= 0) AS turnsCount,
                    CASE WHEN a.prompt IS NULL THEN false ELSE true END AS hasPrompt,
                    a.lastActivityAt AS lastActivityAt, a.createdAt AS createdAt
             FROM AgentRun a
@@ -351,4 +351,12 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
               AND t.status = ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED
             """)
     long countEnqueuedBySession(@Param("sessionId") UUID sessionId);
+
+    /** Which of these sessions have a run executing right now. */
+    @Query("""
+            SELECT DISTINCT r.sessionId FROM AgentRun r
+            WHERE r.sessionId IN :sessionIds
+              AND r.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
+            """)
+    List<UUID> findSessionsWithRunningRuns(@Param("sessionIds") Collection<UUID> sessionIds);
 }

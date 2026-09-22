@@ -171,7 +171,7 @@ class AgentRunTurnServiceTest {
         @DisplayName("непрерывный журнал, закрытый ответом — годен")
         void contiguousLedger() {
             stubLast(AgentTurnRole.ASSISTANT, 3, null);
-            when(turnRepository.countByRunId(RUN_ID)).thenReturn(4L);
+            when(turnRepository.countRunTurns(RUN_ID)).thenReturn(4L);
 
             assertTrue(service.isLedgerIntact(RUN_ID));
         }
@@ -180,7 +180,7 @@ class AgentRunTurnServiceTest {
         @DisplayName("дыра видна арифметикой: ходов меньше, чем индекс последнего")
         void gapInLedger() {
             stubLast(AgentTurnRole.ASSISTANT, 5, null);
-            when(turnRepository.countByRunId(RUN_ID)).thenReturn(4L);
+            when(turnRepository.countRunTurns(RUN_ID)).thenReturn(4L);
 
             assertFalse(service.isLedgerIntact(RUN_ID));
         }
@@ -189,7 +189,7 @@ class AgentRunTurnServiceTest {
         @DisplayName("последний ход — неотвеченный вызов тула: пара разорвана, журнал непригоден")
         void unansweredTailCall() {
             stubLast(AgentTurnRole.ASSISTANT, 2, List.of(Map.of("id", "c1", "name", "t")));
-            when(turnRepository.countByRunId(RUN_ID)).thenReturn(3L);
+            when(turnRepository.countRunTurns(RUN_ID)).thenReturn(3L);
 
             assertFalse(service.isLedgerIntact(RUN_ID));
         }
@@ -200,7 +200,7 @@ class AgentRunTurnServiceTest {
             when(turnRepository.findFirstByRunIdOrderByTurnIndexDesc(RUN_ID)).thenReturn(Optional.empty());
 
             assertTrue(service.isLedgerIntact(RUN_ID));
-            verify(turnRepository, never()).countByRunId(RUN_ID);
+            verify(turnRepository, never()).countRunTurns(RUN_ID);
         }
     }
 

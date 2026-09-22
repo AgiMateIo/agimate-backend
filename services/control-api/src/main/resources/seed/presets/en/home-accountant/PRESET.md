@@ -2,7 +2,7 @@
 name: home-accountant
 title: Home accountant
 description: Personal expense and income tracking — logs spending by voice or from a photo of a receipt, totals by category and period, draws charts and sends a monthly report on its own.
-skills: [sheets, media, time, persist-memory]
+skills: [sheets, media, time, persist-memory, sessions]
 sortOrder: 11
 category: finance
 tags: [personal, tracking, voice, photo]

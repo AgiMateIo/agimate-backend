@@ -317,7 +317,7 @@ public class PlatformLlmToolService {
 
     @Tool(name = "list_agent_llms",
             description = "List the LLM bindings of an agent you own: which provider and model serve "
-                    + "each purpose (CHAT, IMAGE, VISION, AUDIO_IN, AUDIO_OUT). An agent with no "
+                    + "each purpose (CHAT, IMAGE, VISION, AUDIO_IN, AUDIO_OUT, ROUTINE). An agent with no "
                     + "bindings runs on the platform model",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public AgentLlmBindingList listAgentLlms(@ToolParam("Agent public ID") String agentId) {
@@ -334,14 +334,15 @@ public class PlatformLlmToolService {
             description = "Set the LLM binding of a purpose on an agent you own: creates the binding "
                     + "or replaces the existing one for that purpose. purpose defaults to CHAT (the "
                     + "agent-loop model); IMAGE, VISION, AUDIO_IN and AUDIO_OUT are media "
-                    + "model-as-tool bindings. The model must exist in the provider's model registry "
+                    + "model-as-tool bindings; ROUTINE serves the platform's chores (conversation "
+                    + "compaction, session titles) and falls back to CHAT. The model must exist in the provider's model registry "
                     + "if it is non-empty",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public AgentLlmBinding setAgentLlm(
             @ToolParam("Agent public ID") String agentId,
             @ToolParam("LLM provider public ID (from list_llm_providers)") String providerId,
             @ToolParam("Model name (must exist in the provider's model registry if non-empty)") String model,
-            @ToolParam(value = "Purpose: CHAT (default), IMAGE, VISION, AUDIO_IN, AUDIO_OUT",
+            @ToolParam(value = "Purpose: CHAT (default), IMAGE, VISION, AUDIO_IN, AUDIO_OUT, ROUTINE",
                     required = false) String purpose) {
         UUID agent = requireOwnedAgent(agentId);
         UUID provider = PlatformToolsSupport.parseUuid(providerId, "providerId");
@@ -370,7 +371,7 @@ public class PlatformLlmToolService {
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult deleteAgentLlm(
             @ToolParam("Agent public ID") String agentId,
-            @ToolParam("Purpose whose binding is removed: CHAT, IMAGE, VISION, AUDIO_IN, AUDIO_OUT")
+            @ToolParam("Purpose whose binding is removed: CHAT, IMAGE, VISION, AUDIO_IN, AUDIO_OUT, ROUTINE")
             String purpose) {
         UUID agent = requireOwnedAgent(agentId);
         PlatformToolsSupport.domain(() -> {

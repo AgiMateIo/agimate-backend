@@ -2,7 +2,7 @@
 name: platform-admin
 title: Platform Admin
 description: A platform admin assistant — on request creates and configures other agents, writes skills for them, binds those skills and sets up integrations.
-skills: [platform, skill-loader, tool-loader]
+skills: [platform, skill-loader, tool-loader, sessions]
 sortOrder: 2
 category: platform
 tags: [developer, management]
