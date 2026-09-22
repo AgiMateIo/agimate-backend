@@ -173,7 +173,7 @@ realtime/
    коммита.
 5. [x] **Centrifugo.** История и `force_recovery` неймспейса `user` в
    `ops/templates/centrifugo.config.yaml`.
-6. [ ] **Документы.** `contracts/centrifugo-channels.md`, `connectors/webchat.md`; дельта клиентам в
-   `docs/tmpspec/`.
+6. [x] **Документы.** `contracts/centrifugo-channels.md`, `connectors/webchat.md`; дельта клиентам в
+   `docs/tmpspec/` (`sessions-frontend.md`, разделы 4–5).
 7. [ ] **Удаление старого** после выпуска веба и Android: `webchat:`, его неймспейс и эндпойнт токена,
    `webchat_activity`.
