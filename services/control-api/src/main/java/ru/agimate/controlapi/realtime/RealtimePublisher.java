@@ -12,6 +12,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 import ru.agimate.controlapi.config.CentrifugoProperties;
 import ru.agimate.controlapi.realtime.RealtimeMessages.Message;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -31,13 +32,15 @@ public class RealtimePublisher {
     private final CentrifugoClient client;
     private final CentrifugoProperties properties;
     private final RealtimeMessages messages;
+    private final ObjectMapper objectMapper;
     private final TransactionTemplate freshReadOnly;
 
-    public RealtimePublisher(CentrifugoClient client, CentrifugoProperties properties,
-                             RealtimeMessages messages, PlatformTransactionManager transactionManager) {
+    public RealtimePublisher(CentrifugoClient client, CentrifugoProperties properties, RealtimeMessages messages,
+                             ObjectMapper objectMapper, PlatformTransactionManager transactionManager) {
         this.client = client;
         this.properties = properties;
         this.messages = messages;
+        this.objectMapper = objectMapper;
         this.freshReadOnly = new TransactionTemplate(transactionManager);
         this.freshReadOnly.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.freshReadOnly.setReadOnly(true);
@@ -95,7 +98,9 @@ public class RealtimePublisher {
         }
         client.publish(PublishRequest.builder()
                 .channel(message.channel())
-                .data(message.data())
+                // The client serializes with its own Jackson, which knows no java.time; converted here,
+                // a payload is written exactly as the REST listing writes the same row.
+                .data(objectMapper.convertValue(message.data(), Object.class))
                 .tags(message.tags().isEmpty() ? null : message.tags())
                 .build());
         log.debug("Published to {}", message.channel());

@@ -17,7 +17,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import ru.agimate.controlapi.config.CentrifugoProperties;
 import ru.agimate.controlapi.realtime.RealtimeEvent.SessionChanged;
 import ru.agimate.controlapi.realtime.RealtimeMessages.Message;
+import ru.agimate.controlapi.realtime.dto.CentrifugoMessage;
+import tools.jackson.databind.json.JsonMapper;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,7 +52,8 @@ class RealtimePublisherTest {
 
     @BeforeEach
     void setUp() {
-        publisher = new RealtimePublisher(client, properties, messages, transactionManager);
+        publisher = new RealtimePublisher(client, properties, messages, JsonMapper.builder().build(),
+                transactionManager);
         lenient().when(properties.isEnabled()).thenReturn(true);
         lenient().when(messages.render(any())).thenReturn(List.of(MESSAGE));
     }
@@ -64,6 +68,23 @@ class RealtimePublisherTest {
         assertEquals("user:u", request.getValue().getChannel());
         assertEquals("data", request.getValue().getData());
         assertEquals(Map.of("entity", "session"), request.getValue().getTags());
+    }
+
+    @Test
+    @DisplayName("дата уходит ISO-строкой, которую переварит и Jackson клиента без модуля java.time")
+    void datesSurviveClientJackson() throws Exception {
+        record Row(LocalDateTime lastActivityAt) {
+        }
+        when(messages.render(any())).thenReturn(List.of(new Message("user:u",
+                new CentrifugoMessage<>("session.updated", new Row(LocalDateTime.of(2026, 9, 23, 0, 19, 8))),
+                Map.of())));
+
+        publisher.publish(EVENT);
+
+        ArgumentCaptor<PublishRequest<?>> request = ArgumentCaptor.forClass(PublishRequest.class);
+        verify(client).publish(request.capture());
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(request.getValue().getData());
+        assertEquals("{\"type\":\"session.updated\",\"payload\":{\"lastActivityAt\":\"2026-09-23T00:19:08\"}}", json);
     }
 
     @Test
