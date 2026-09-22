@@ -88,6 +88,6 @@ read-only): после коммита контекст завершённой е
 - [x] Точки публикации из таблицы выше
 - [x] `webchat_activity` — `@Deprecated` в коде, пометка в `contracts/centrifugo-channels.md`
 - [x] Документы: `contracts/centrifugo-channels.md`, `connectors/webchat.md`
-- [x] Дельта клиентам: [tmpspec/session-events-clients.md](../tmpspec/session-events-clients.md) (веб-фронт и Android)
+- [x] Дельта клиентам: [tmpspec/sessions-frontend.md](../tmpspec/sessions-frontend.md) (веб-фронт; Android берёт разделы 2–3 оттуда же)
 - [ ] Живой прогон: переименование, заголовок от компакции, ответ агента — события в `user:`
 - [ ] Удалить `webchat_activity` после выпуска обоих клиентов
