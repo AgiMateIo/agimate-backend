@@ -39,6 +39,10 @@
   → [agent-sessions-connector.md](decisions/agent-sessions-connector.md),
   [context-compaction.md](decisions/context-compaction.md), [session-events.md](decisions/session-events.md)
 
+- **Уведомления через Centrifugo в одном месте.** Пакет `realtime`: имена каналов, типизированные
+  события, публикация только после коммита, сбой ни на что не влияет; `webchat:` сливается в `user:`
+  с тегами. → [realtime-notifications.md](decisions/realtime-notifications.md)
+
 ## Следующее
 
 - **Каталог интеграций.** Главный разрыв с конкурентами: внешняя интеграция у нас одна. Первый шаг
