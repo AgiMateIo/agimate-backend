@@ -46,14 +46,16 @@ channel:
       force_push_join_leave: false
       force_recovery: false
 
+    # The one channel of every notification, webchat messages included — progress lines of a long
+    # answer must not push the rest out of the history a reconnect recovers from.
     - name: user
       allow_subscribe_for_client: false
       allow_publish_for_client: false
       allow_tags_filter: true
-      history_size: 100
-      history_ttl: 600s
+      history_size: 1000
+      history_ttl: 21600s
       force_push_join_leave: false
-      force_recovery: false
+      force_recovery: true
 
     - name: webchat
       allow_subscribe_for_client: false
