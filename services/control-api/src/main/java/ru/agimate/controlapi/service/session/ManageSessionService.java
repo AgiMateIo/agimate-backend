@@ -8,26 +8,18 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
-import ru.agimate.controlapi.controller.manage.dto.session.SessionLastMessage;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
-import ru.agimate.controlapi.service.AgentRunQueryService;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
 import ru.agimate.controlapi.service.webchat.WebchatAttachment;
-import ru.agimate.controlapi.service.webchat.WebchatPreviews;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
-import ru.agimate.controlapi.util.SqlValues;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * The session as a resource of {@code /manage}: listing, renaming, closing, history, read pointer —
@@ -44,38 +36,29 @@ public class ManageSessionService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final AgentSessionService agentSessionService;
-    private final AgentRunQueryService agentRunQueryService;
+    private final SessionRows sessionRows;
     private final WebchatMessageRepository webchatMessageRepository;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
     private final SignedFileUrlService signedFileUrlService;
 
-    /**
-     * The user's conversations, freshest first. The three marks a chat list needs — unread, preview,
-     * «working now» — are three batch queries for the whole page, never one per row.
-     */
+    /** The user's conversations, freshest first; each row is built by {@link SessionRows}. */
     public Page<SessionResponse> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
                                       UUID parentSessionId, int page, int size) {
         Page<AgentSession> sessions = agentSessionService.list(
                 userId, agentId, channelId, connectorCode, parentSessionId, null, null,
                 page, Math.min(size, MAX_PAGE_SIZE));
-        return sessions.map(enricher(sessions.getContent()));
+        return sessions.map(sessionRows.mapper(sessions.getContent()));
     }
 
     public SessionResponse get(UUID userId, UUID sessionId) {
-        AgentSession session = requireOwned(userId, sessionId);
-        return enricher(List.of(session)).apply(session);
-    }
-
-    /** The listing row of a session with no caller to check — the payload of its live event. */
-    public SessionResponse row(AgentSession session) {
-        return enricher(List.of(session)).apply(session);
+        return sessionRows.of(requireOwned(userId, sessionId));
     }
 
     @Transactional
     public SessionResponse rename(UUID userId, UUID sessionId, String title) {
         AgentSession session = requireOwned(userId, sessionId);
         AgentSession renamed = agentSessionService.rename(session, title);
-        return enricher(List.of(renamed)).apply(renamed);
+        return sessionRows.of(renamed);
     }
 
     /**
@@ -87,7 +70,7 @@ public class ManageSessionService {
         requireOwned(userId, sessionId);
         agentSessionService.markReadThroughLatest(sessionId);
         AgentSession closed = agentSessionService.close(sessionId);
-        return enricher(List.of(closed)).apply(closed);
+        return sessionRows.of(closed);
     }
 
     @Transactional
@@ -113,33 +96,6 @@ public class ManageSessionService {
         }
         return channelSessionMessageRepository.findWithMessageBySessionId(sessionId, pageRequest)
                 .map(SessionMessageResponse::from);
-    }
-
-    /**
-     * The badge, the preview and «working now» read the webchat UI log, so a session of another
-     * connector comes back with zeroes there — an external messenger keeps that state itself.
-     */
-    private Function<AgentSession, SessionResponse> enricher(List<AgentSession> sessions) {
-        List<UUID> sessionIds = sessions.stream().map(AgentSession::getId).toList();
-        if (sessionIds.isEmpty()) {
-            return SessionResponse::from;
-        }
-        Map<UUID, Long> unread = webchatMessageRepository.countUnreadBySessionIds(sessionIds).stream()
-                .collect(Collectors.toMap(row -> (UUID) row[0], row -> ((Number) row[1]).longValue()));
-        Map<UUID, SessionLastMessage> previews = webchatMessageRepository
-                .findLastMessagesBySessionIds(sessionIds).stream()
-                .collect(Collectors.toMap(row -> (UUID) row[0], row -> new SessionLastMessage(
-                        WebchatPreviews.shorten((String) row[2]),
-                        (String) row[1],
-                        Boolean.TRUE.equals(row[3]),
-                        SqlValues.localDateTime(row[4]))));
-        Set<UUID> live = agentRunQueryService.liveSessionIds(sessionIds);
-
-        return session -> SessionResponse.from(
-                session,
-                unread.getOrDefault(session.getId(), 0L),
-                previews.get(session.getId()),
-                live.contains(session.getId()));
     }
 
     /** Stored parts plus a fresh signed link to the contents (expired links are never stored). */

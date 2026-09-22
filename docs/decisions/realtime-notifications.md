@@ -163,7 +163,7 @@ realtime/
    `AgentSessionResolver`, удаляется), `writeGeneratedTitle` (из `SessionCompactionWriter`), `touch` (из
    `SubagentService`); появляются `messageRecorded` и `runStateChanged`. Событие сессии публикует
    только он — пока прежним механизмом.
-2. [ ] **Строки листингов.** `SessionRows` и `ContactRows` из `ManageSessionService` и
+2. [x] **Строки листингов.** `SessionRows` и `ContactRows` из `ManageSessionService` и
    `WebchatService`; листинги пользуются ими.
 3. [ ] **Пакет `realtime`.** `RealtimeChannels`, `CentrifugoTokens` (контроллеры токенов — через них),
    `RealtimeEvent` и записи, `RealtimeMessages`, `RealtimePublisher`.

@@ -18,6 +18,7 @@ import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
+import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.AgentRunQueryService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
@@ -56,6 +57,8 @@ class ManageSessionServiceTest {
     @Mock
     private WebchatMessageRepository webchatMessageRepository;
     @Mock
+    private AgentSessionRepository agentSessionRepository;
+    @Mock
     private ChannelSessionMessageRepository channelSessionMessageRepository;
     @Mock
     private SignedFileUrlService signedFileUrlService;
@@ -66,7 +69,8 @@ class ManageSessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        manageSessionService = new ManageSessionService(agentSessionService, agentRunQueryService,
+        SessionRows sessionRows = new SessionRows(agentSessionRepository, webchatMessageRepository, agentRunQueryService);
+        manageSessionService = new ManageSessionService(agentSessionService, sessionRows,
                 webchatMessageRepository, channelSessionMessageRepository, signedFileUrlService);
         session = AgentSession.builder()
                 .id(SESSION_ID)

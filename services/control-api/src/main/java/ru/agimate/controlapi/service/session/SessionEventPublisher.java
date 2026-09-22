@@ -11,7 +11,7 @@ import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
-import ru.agimate.controlapi.service.webchat.WebchatService;
+import ru.agimate.controlapi.service.webchat.ContactRows;
 
 import java.util.Map;
 
@@ -39,8 +39,8 @@ public class SessionEventPublisher {
     static final String AGENT_ENTITY = "webchat.agent";
 
     private final AgentSessionRepository agentSessionRepository;
-    private final ManageSessionService manageSessionService;
-    private final WebchatService webchatService;
+    private final SessionRows sessionRows;
+    private final ContactRows contactRows;
     private final CentrifugoService centrifugoService;
 
     // A transaction of its own: after the commit the finished one's persistence context is still
@@ -57,10 +57,10 @@ public class SessionEventPublisher {
             String agentId = session.getAgentId().toString();
             centrifugoService.publishMessage(channel,
                     event.created() ? CREATED : UPDATED,
-                    manageSessionService.row(session),
+                    sessionRows.of(session),
                     Map.of("entity", ENTITY, "agentId", agentId));
             if (WebchatChannelHandler.CONNECTOR_CODE.equals(session.getConnectorCode())) {
-                webchatService.contact(session.getAgentId()).ifPresent(contact ->
+                contactRows.find(session.getAgentId()).ifPresent(contact ->
                         centrifugoService.publishMessage(channel, AGENT_UPDATED, contact,
                                 Map.of("entity", AGENT_ENTITY, "agentId", agentId)));
             }

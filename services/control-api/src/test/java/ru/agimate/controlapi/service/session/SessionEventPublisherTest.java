@@ -11,7 +11,7 @@ import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactRespons
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
-import ru.agimate.controlapi.service.webchat.WebchatService;
+import ru.agimate.controlapi.service.webchat.ContactRows;
 
 import java.util.Map;
 import java.util.Optional;
@@ -38,8 +38,8 @@ class SessionEventPublisherTest {
     private static final String CHANNEL = "user:" + USER_ID;
 
     @Mock private AgentSessionRepository agentSessionRepository;
-    @Mock private ManageSessionService manageSessionService;
-    @Mock private WebchatService webchatService;
+    @Mock private SessionRows sessionRows;
+    @Mock private ContactRows contactRows;
     @Mock private CentrifugoService centrifugoService;
     @InjectMocks private SessionEventPublisher publisher;
 
@@ -53,7 +53,7 @@ class SessionEventPublisherTest {
                 .connectorCode(connectorCode)
                 .build();
         when(agentSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
-        when(manageSessionService.row(session)).thenReturn(row);
+        when(sessionRows.of(session)).thenReturn(row);
         return session;
     }
 
@@ -66,7 +66,7 @@ class SessionEventPublisherTest {
 
         verify(centrifugoService).publishMessage(CHANNEL, SessionEventPublisher.CREATED, row,
                 Map.of("entity", "session", "agentId", AGENT_ID.toString()));
-        verifyNoInteractions(webchatService);
+        verifyNoInteractions(contactRows);
     }
 
     @Test
@@ -74,7 +74,7 @@ class SessionEventPublisherTest {
     void webchatAlsoMovesContact() {
         session("webchat");
         WebchatContactResponse contact = mock(WebchatContactResponse.class);
-        when(webchatService.contact(AGENT_ID)).thenReturn(Optional.of(contact));
+        when(contactRows.find(AGENT_ID)).thenReturn(Optional.of(contact));
 
         publisher.onSessionChanged(SessionChanged.updated(SESSION_ID));
 

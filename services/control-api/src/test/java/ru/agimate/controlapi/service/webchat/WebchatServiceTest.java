@@ -102,7 +102,8 @@ class WebchatServiceTest {
     @BeforeEach
     void setUp() {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
-                agentSessionService, agentRunQueryService, connectionBindingService, triggerRouterService,
+                agentSessionService, new ContactRows(agentRepository, webchatMessageRepository, agentRunQueryService),
+                connectionBindingService, triggerRouterService,
                 webchatMessagePublisher, webchatMessageRepository, centrifugoService, fileStorageService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
         channel = Channel.builder()

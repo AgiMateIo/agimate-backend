@@ -3,14 +3,12 @@ package ru.agimate.controlapi.service.webchat;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
-import ru.agimate.controlapi.controller.manage.dto.session.SessionLastMessage;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
@@ -24,7 +22,6 @@ import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
-import ru.agimate.controlapi.service.AgentRunQueryService;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.ChannelService;
 import ru.agimate.controlapi.service.session.AgentSessionService;
@@ -38,17 +35,12 @@ import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import ru.agimate.controlapi.storage.FileStorageService;
-import ru.agimate.controlapi.util.SqlValues;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Orchestration of webchat: one USER-scope connection per user (materialised by the binding on the
@@ -70,7 +62,7 @@ public class WebchatService {
     private final ChannelRepository channelRepository;
     private final ChannelService channelService;
     private final AgentSessionService agentSessionService;
-    private final AgentRunQueryService agentRunQueryService;
+    private final ContactRows contactRows;
     private final ConnectionBindingService connectionBindingService;
     private final TriggerRouterService triggerRouterService;
     private final WebchatMessagePublisher webchatMessagePublisher;
@@ -104,78 +96,10 @@ public class WebchatService {
         return SessionResponse.from(session);
     }
 
-    /**
-     * The contact list: the user's agents ordered by the freshness of their chat. The ordering is
-     * the reason this is one endpoint and not two — see {@code AgentRepository.findChatContacts}.
-     */
-    @Transactional(readOnly = true)
+    /** The contact list — see {@link ContactRows#page}. */
     public Page<WebchatContactResponse> listContacts(UUID userId, int page, int size) {
-        Page<Object[]> rows = agentRepository.findChatContacts(
-                userId, WebchatChannelHandler.CONNECTOR_CODE, PageRequest.of(page, size));
-
-        return rows.map(contactMapper(rows.getContent()));
+        return contactRows.page(userId, page, size);
     }
-
-    /** One contact row, as the listing would show it — the payload of the live event; empty for a deleted agent. */
-    @Transactional(readOnly = true)
-    public Optional<WebchatContactResponse> contact(UUID agentId) {
-        List<Object[]> rows = agentRepository.findChatContact(agentId, WebchatChannelHandler.CONNECTOR_CODE);
-        return rows.stream().findFirst().map(contactMapper(rows));
-    }
-
-    /** The three batch queries (unread, preview, «working now») for a page of contact rows. */
-    private Function<Object[], WebchatContactResponse> contactMapper(List<Object[]> rows) {
-        List<UUID> agentIds = rows.stream().map(row -> (UUID) row[0]).toList();
-        Map<UUID, Long> unread = unreadByAgent(agentIds);
-        Map<UUID, ContactPreview> previews = lastMessagesByAgent(agentIds);
-        Set<UUID> live = agentRunQueryService.liveAgentIds(agentIds, WebchatChannelHandler.CONNECTOR_CODE);
-
-        return row -> {
-            UUID id = (UUID) row[0];
-            ContactPreview preview = previews.get(id);
-            return new WebchatContactResponse(
-                    id,
-                    (String) row[1],
-                    (String) row[2],
-                    Boolean.TRUE.equals(row[3]),
-                    unread.getOrDefault(id, 0L),
-                    preview != null ? preview.message() : null,
-                    preview != null ? preview.sessionId() : null,
-                    SqlValues.localDateTime(row[4]),
-                    live.contains(id));
-        };
-    }
-
-    private Map<UUID, Long> unreadByAgent(List<UUID> agentIds) {
-        if (agentIds.isEmpty()) {
-            return Map.of();
-        }
-        return webchatMessageRepository.countUnreadByAgentIds(agentIds).stream()
-                .collect(Collectors.toMap(row -> (UUID) row[0], row -> ((Number) row[1]).longValue()));
-    }
-
-    private Map<UUID, ContactPreview> lastMessagesByAgent(List<UUID> agentIds) {
-        if (agentIds.isEmpty()) {
-            return Map.of();
-        }
-        return webchatMessageRepository.findLastMessagesByAgentIds(agentIds).stream()
-                .collect(Collectors.toMap(
-                        row -> (UUID) row[0],
-                        row -> new ContactPreview((UUID) row[1],
-                                lastMessage(row[2], row[3], row[4], row[5]))));
-    }
-
-    private static SessionLastMessage lastMessage(Object direction, Object text,
-                                                  Object hasAttachments, Object createdAt) {
-        return new SessionLastMessage(
-                WebchatPreviews.shorten((String) text),
-                (String) direction,
-                Boolean.TRUE.equals(hasAttachments),
-                SqlValues.localDateTime(createdAt));
-    }
-
-    /** The preview of a contact row together with the conversation it came from. */
-    private record ContactPreview(UUID sessionId, SessionLastMessage message) {}
 
     /**
      * Accept a user's message: a UI history row plus an echo event, then the regular trigger pipeline
