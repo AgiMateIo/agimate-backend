@@ -30,10 +30,11 @@ providers:
     # No `-preview`, `:batch` or `:free` variants: previews vanish, batch is an async endpoint the
     # agent loop cannot call, free tiers are rate-limited into uselessness.
     purposePriority:
+      # Cheapest first — platform keys are our money; the stronger models behind it are the fallback.
       CHAT:
-        - anthropic/claude-sonnet-5
-        - openai/gpt-5.6-terra
-        - google/gemini-3.6-flash
+        - deepseek/deepseek-v4.1-flash
+        - z-ai/glm-5.3
+        - google/gemini-3.8-flash
       VISION:
         - google/gemini-3.5-flash-lite
         - openai/gpt-5.6-luna
@@ -55,7 +56,7 @@ providers:
       ROUTINE:
         - google/gemini-3.5-flash-lite
         - openai/gpt-5.6-luna
-        - anthropic/claude-haiku-4.5
+        - deepseek/deepseek-v4.1-flash
 
   - code: polza
     name: Polza.ai
@@ -67,19 +68,22 @@ providers:
     # (docs/decisions/media-transport.md).
     mediaTransport: MEDIA_ENDPOINT
     sortOrder: 20
-    # These ids come from the July 2026 measurements recorded in the decision doc, not from a live
-    # listing — Polza's namespace differs from OpenRouter's and has no floating aliases. Purposes we
-    # have no confirmed id for are left out entirely: «not configured» is an error addressed to the
-    # user, whereas a guessed id would fail at call time on their money.
+    # openai/gpt-5.2 is hosted here without tools, so it stays out of CHAT. Purposes with no confirmed
+    # id are left out: «not configured» reaches the user, a guessed id fails on their money.
     purposePriority:
       CHAT:
-        - openai/gpt-5.2
-        - gpt-5.1
+        - deepseek/deepseek-v4.1-flash
+        - z-ai/glm-5.3
+        - google/gemini-3.8-flash
       VISION:
         - openai/gpt-5.2
-        - gpt-5.1
+        - openai/gpt-5.1
       IMAGE:
-        - gemini-3.1-flash-lite-image
+        - google/gemini-3.1-flash-lite-image
+      ROUTINE:
+        - google/gemini-3.5-flash-lite
+        - openai/gpt-5.6-luna
+        - deepseek/deepseek-v4.1-flash
 
   - code: proxyapi
     name: ProxyAPI
@@ -87,28 +91,26 @@ providers:
       Russian proxy to the first-party OpenAI, Anthropic and Google APIs; pays in roubles, no
       foreign card needed.
     providerType: OPENAI_COMPATIBLE
-    # The unified OpenAI-compatible endpoint (routes by id prefix: openai/, anthropic/, gemini/),
-    # not the per-vendor passthroughs on api.proxyapi.ru — one dialect over all vendors is the only
-    # form the agent loop can use.
-    baseUrl: https://openai.api.proxyapi.ru/v1
+    # The unified endpoint, routed by the vendor/model id — one dialect over all vendors.
+    baseUrl: https://api.proxyapi.ru/v1
     apiKeyUrl: https://console.proxyapi.ru
     sortOrder: 30
     # IMAGE and AUDIO are absent deliberately: image generation here lives on /images/generations
     # (the IMAGES_GENERATIONS transport is not implemented — docs/decisions/media-transport.md),
-    # audio on dedicated STT/TTS endpoints the chat loop cannot call. The OpenRouter passthrough
-    # does speak chat+modalities but carries no OpenAI/Anthropic/Google models, so it does not
-    # change the picture. Ids checked against the ProxyAPI price list, July 2026: only the current
-    # generation is served (no gpt-5.5/gpt-5-mini, no claude-haiku), hence gpt-5.6 tiers — terra
-    # is the gpt-5.5-class workhorse, luna the cheap vision-capable one.
+    # audio on dedicated STT/TTS endpoints the chat loop cannot call.
     purposePriority:
       CHAT:
-        - anthropic/claude-sonnet-5
-        - openai/gpt-5.6-terra
-        - gemini/gemini-3.6-flash
+        - deepseek/deepseek-v4.1-flash
+        - z-ai/glm-5.3
+        - google/gemini-3.8-flash
       VISION:
-        - gemini/gemini-3.5-flash-lite
+        - google/gemini-3.5-flash-lite
         - openai/gpt-5.6-luna
         - anthropic/claude-sonnet-5
+      ROUTINE:
+        - google/gemini-3.5-flash-lite
+        - openai/gpt-5.6-luna
+        - deepseek/deepseek-v4.1-flash
 
   - code: deepseek
     name: DeepSeek
@@ -119,10 +121,46 @@ providers:
     apiKeyUrl: https://platform.deepseek.com/api_keys
     sortOrder: 40
     # Chat only: the API takes no image input and serves no image or audio models (vendor docs,
-    # July 2026). Both ids are pinned per-version — the floating deepseek-chat/deepseek-reasoner
-    # aliases are gone from the vendor's docs. Pro before flash: quality-first, like every other
-    # CHAT list here.
+    # July 2026). The old `deepseek-v4-flash` is only an alias of `deepseek-flash` now.
     purposePriority:
       CHAT:
+        - deepseek-flash
         - deepseek-v4-pro
-        - deepseek-v4-flash
+      ROUTINE:
+        - deepseek-flash
+
+  - code: neuraldeep
+    name: NeuralDeep
+    description: >-
+      Russian hub running Qwen on its own GPUs in Russia; a monthly subscription in roubles, no
+      foreign card needed.
+    providerType: OPENAI_COMPATIBLE
+    baseUrl: https://api.neuraldeep.ru/v1
+    apiKeyUrl: https://neuraldeep.ru/app
+    sortOrder: 50
+    # Ids checked against https://neuraldeep.ru/api/public/wallet-prices — the same table the money
+    # is charged from — in September 2026. Only models the hub serves on every tariff are listed:
+    # the rest need either the rouble wallet or a particular subscription, so on someone else's key
+    # they fail instead of answering.
+    # IMAGE and AUDIO are absent by design: image generation lives on an async task API
+    # (POST /v1/images/* → poll the task → fetch the bytes), which is neither of the two transports
+    # we implement (docs/decisions/media-transport.md), and Whisper/TTS sit on dedicated endpoints
+    # the chat loop cannot call.
+    purposePriority:
+      # The vendor's own default in every example, then a newer generation, then a different family
+      # so one model's trouble is a step down the list. The vendor's index lists tool calling only
+      # on the reasoning variants, and an agent loop without tools is not an agent.
+      CHAT:
+        - qwen3.6-35b-a3b
+        - qwen3.8-27b
+        - gpt-oss-120b
+      # Here `-noreason` is exactly right: describing a picture needs no thinking budget, and a
+      # subscription bills per request, so latency is the only axis left.
+      VISION:
+        - qwen3.6-fp8-noreason
+        - qwen3.8-27b-noreason
+        - gemma-4-31b-noreason
+      ROUTINE:
+        - qwen3.8-27b-noreason
+        - qwen3.6-fp8-noreason
+        - gemma-4-31b-noreason
