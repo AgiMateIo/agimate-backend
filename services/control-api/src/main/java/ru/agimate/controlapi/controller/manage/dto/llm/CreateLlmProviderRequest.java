@@ -33,7 +33,8 @@ public record CreateLlmProviderRequest(
         Map<LlmPurpose, List<String>> purposePriority,
 
         @Schema(description = "Provider-level extra chat/completions body fields (e.g. OpenRouter "
-                + "provider routing); deep-merged with per-model extra_body, model wins. "
+                + "provider routing); deep-merged over the registry defaults (max_tokens) and under "
+                + "per-model extra_body, model wins; null removes a key. "
                 + "Not a secret store — do not put API keys here")
         Map<String, Object> extraBody,
 

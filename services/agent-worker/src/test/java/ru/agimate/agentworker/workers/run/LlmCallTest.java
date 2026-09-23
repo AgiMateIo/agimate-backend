@@ -269,7 +269,8 @@ class LlmCallTest {
                         .setApiKey("sk-test")
                         .setModel("moonshotai/kimi-k2.5")
                         .setProviderId("prov-1")
-                        .setExtraBodyJson("{\"provider\":{\"only\":[\"moonshotai\"],\"require_parameters\":true}}")
+                        .setExtraBodyJson("{\"max_tokens\":8192,"
+                                + "\"provider\":{\"only\":[\"moonshotai\"],\"require_parameters\":true}}")
                         .build();
                 AgentWorkerClient client = mock(AgentWorkerClient.class);
                 when(client.getLlmCredentials("agent-1")).thenReturn(creds);
@@ -292,6 +293,11 @@ class LlmCallTest {
                         () -> "нет значения only из extra_body:\n" + body);
                 assertTrue(body.contains("\"require_parameters\":true"),
                         () -> "нет require_parameters из extra_body:\n" + body);
+                // control-api lays the registry output limit into extra_body; the SDK has a typed
+                // field of the same name, so a second copy or a dropped one would show here.
+                assertEquals(1, body.split("\"max_tokens\"", -1).length - 1,
+                        () -> "max_tokens из extra_body не ровно один раз:\n" + body);
+                assertTrue(body.contains("\"max_tokens\":8192"), () -> "не то значение max_tokens:\n" + body);
             } finally {
                 server.stop(0);
             }

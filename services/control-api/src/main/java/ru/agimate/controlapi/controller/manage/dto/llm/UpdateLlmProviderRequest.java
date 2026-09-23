@@ -22,8 +22,9 @@ public record UpdateLlmProviderRequest(
                 + "replaced, an empty object clears it, absent — kept")
         Map<LlmPurpose, List<String>> purposePriority,
 
-        @Schema(description = "Provider-level extra chat/completions body fields; empty object "
-                + "clears it, absent — kept")
+        @Schema(description = "Provider-level extra chat/completions body fields, deep-merged over "
+                + "the registry defaults (max_tokens) and under per-model extra_body; null removes a "
+                + "key; empty object clears it, absent — kept")
         Map<String, Object> extraBody,
 
         @Schema(description = "How this provider is asked to generate an image (CHAT_MODALITIES | "

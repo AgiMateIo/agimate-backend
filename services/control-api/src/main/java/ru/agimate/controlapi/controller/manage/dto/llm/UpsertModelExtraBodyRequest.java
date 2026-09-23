@@ -14,6 +14,8 @@ public record UpsertModelExtraBodyRequest(
 
         @Schema(description = "Extra chat/completions body fields for this model "
                 + "(e.g. OpenRouter {\"provider\":{\"only\":[...]}}); null clears the override. "
+                + "Wins over the provider-level extra_body and the registry defaults (max_tokens); "
+                + "a null value removes that key. "
                 + "Not a secret store — do not put API keys here")
         Map<String, Object> extraBody
 ) {

@@ -490,4 +490,121 @@ class LlmCredentialsResolverTest {
             assertTrue(resolved.platformFallback());
         }
     }
+
+    @Nested
+    @DisplayName("дефолты из реестра — max_tokens под обоими уровнями extra_body")
+    class RegistryDefaults {
+
+        private static LlmProviderModel row(Integer maxOut, Integer context, List<String> supported) {
+            return LlmProviderModel.builder()
+                    .model("m")
+                    .maxOutputTokens(maxOut)
+                    .contextWindow(context)
+                    .supportedParameters(supported)
+                    .status(LlmProviderModelStatus.AVAILABLE)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("лимит модели ниже потолка и половины окна уходит как есть")
+        void smallLimitAsIs() {
+            assertEquals(Map.of("max_tokens", 8192),
+                    LlmCredentialsResolver.registryDefaults(row(8192, 131072, List.of("max_tokens"))));
+        }
+
+        @Test
+        @DisplayName("огромный лимит листинга срезается потолком")
+        void cappedAtCeiling() {
+            assertEquals(Map.of("max_tokens", LlmCredentialsResolver.MAX_TOKENS_CAP),
+                    LlmCredentialsResolver.registryDefaults(row(384000, 1048576, List.of("max_tokens"))));
+        }
+
+        @Test
+        @DisplayName("лимит, равный окну, срезается до половины окна — вторая половина под промпт")
+        void halfOfContext() {
+            assertEquals(Map.of("max_tokens", 16384),
+                    LlmCredentialsResolver.registryDefaults(row(32768, 32768, List.of("max_tokens"))));
+        }
+
+        @Test
+        @DisplayName("модель знает только max_completion_tokens → ключ берётся он")
+        void completionTokensKey() {
+            assertEquals(Map.of("max_completion_tokens", 8192), LlmCredentialsResolver.registryDefaults(
+                    row(8192, null, List.of("max_completion_tokens", "tools"))));
+        }
+
+        @Test
+        @DisplayName("нет строки, лимита или списка параметров — ничего не шлём")
+        void unknownSendsNothing() {
+            assertTrue(LlmCredentialsResolver.registryDefaults(null).isEmpty());
+            assertTrue(LlmCredentialsResolver.registryDefaults(row(null, 1000, List.of("max_tokens"))).isEmpty());
+            assertTrue(LlmCredentialsResolver.registryDefaults(row(8192, 131072, null)).isEmpty());
+            assertTrue(LlmCredentialsResolver.registryDefaults(row(8192, 131072, List.of("tools"))).isEmpty());
+        }
+
+        private LlmProvider bindChat(Map<String, Object> providerExtra, LlmProviderModel row) {
+            LlmProvider bound = provider("my-openrouter");
+            bound.setExtraBody(providerExtra);
+            AgentLlm binding = AgentLlm.builder()
+                    .agentId(agentId)
+                    .llmProviderId(bound.getId())
+                    .model("m")
+                    .purpose(LlmPurpose.CHAT)
+                    .build();
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
+                    .thenReturn(Optional.of(binding));
+            when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
+            when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(bound.getId(), "m"))
+                    .thenReturn(Optional.of(row));
+            return bound;
+        }
+
+        @Test
+        @DisplayName("resolveChat кладёт дефолт под extra_body провайдера")
+        void chatGetsDefault() {
+            bindChat(Map.of("provider", Map.of("sort", "throughput")),
+                    row(8192, 131072, List.of("max_tokens")));
+
+            ResolvedLlm resolved = resolver.resolveChat(agentId, userId);
+
+            assertEquals(Map.of("max_tokens", 8192, "provider", Map.of("sort", "throughput")),
+                    resolved.extraBody());
+        }
+
+        @Test
+        @DisplayName("extra_body провайдера и модели перебивают дефолт, null модели его убирает")
+        void extraBodyOverrides() {
+            LlmProviderModel model = row(8192, 131072, List.of("max_tokens"));
+            Map<String, Object> modelExtra = new java.util.HashMap<>();
+            modelExtra.put("max_tokens", null);
+            model.setExtraBody(modelExtra);
+            bindChat(Map.of("max_tokens", 64000), model);
+
+            assertFalse(resolver.resolveChat(agentId, userId).extraBody().containsKey("max_tokens"));
+
+            model.setExtraBody(Map.of("max_tokens", 100000));
+            assertEquals(100000, resolver.resolveChat(agentId, userId).extraBody().get("max_tokens"));
+        }
+
+        @Test
+        @DisplayName("медиа-назначения дефолт не получают — их тело может уйти не в chat/completions")
+        void mediaWithoutDefault() {
+            LlmProvider bound = provider("my-openrouter");
+            AgentLlm binding = AgentLlm.builder()
+                    .agentId(agentId)
+                    .llmProviderId(bound.getId())
+                    .model("m")
+                    .purpose(LlmPurpose.IMAGE)
+                    .build();
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.IMAGE))
+                    .thenReturn(Optional.of(binding));
+            when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
+            when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(bound.getId(), "m"))
+                    .thenReturn(Optional.of(row(8192, 131072, List.of("max_tokens"))));
+
+            assertTrue(resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE).extraBody().isEmpty());
+        }
+    }
 }

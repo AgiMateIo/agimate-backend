@@ -50,8 +50,17 @@ public class LlmCredentialsResolver {
     private final LlmQuotaService llmQuotaService;
 
     /**
-     * The resolution's result. {@code extraBody} is the final deep merge of the provider-level and the
-     * per-model one (the model wins, see {@link ExtraBodyMerge}); an empty map means no extra fields.
+     * Ceiling on the registry's output limit. The registry keeps what the listing's top hoster allows
+     * (up to hundreds of thousands of tokens), and asking for that much makes a stricter hoster refuse
+     * the request or the router skip it; a longer answer is an explicit extra_body away.
+     */
+    static final int MAX_TOKENS_CAP = 32_768;
+
+    /**
+     * The resolution's result. {@code extraBody} is the final deep merge of the registry defaults
+     * ({@link #registryDefaults}, chat/completions callers only), the provider-level one and the
+     * per-model one, each level winning over the one below (see {@link ExtraBodyMerge}); an empty map
+     * means no extra fields.
      * The modalities come from the model's registry row ({@code llm_provider_models}, with the
      * {@code llm_model_defaults} fallback merged in at write time); an empty list means the model is
      * unknown to the registry — «not declared», never «cannot». {@code modelMetadata} is that row's
@@ -110,7 +119,7 @@ public class LlmCredentialsResolver {
         // Before every LLM call (the credentials are requested inline on each llm_call).
         llmQuotaService.check(provider, userId, agentId);
 
-        return resolved(provider, pick, platformFallback);
+        return resolved(provider, pick, platformFallback, true);
     }
 
     /**
@@ -151,7 +160,7 @@ public class LlmCredentialsResolver {
 
         llmQuotaService.check(provider, userId, agentId);
 
-        return resolved(provider, pick, platformFallback);
+        return resolved(provider, pick, platformFallback, purpose == LlmPurpose.ROUTINE);
     }
 
     /**
@@ -184,7 +193,7 @@ public class LlmCredentialsResolver {
         }
         LlmProvider provider = chatProvider.get();
         llmQuotaService.check(provider, userId, agentId);
-        return resolved(provider, pick.get(), LlmProviderService.isPlatform(provider));
+        return resolved(provider, pick.get(), LlmProviderService.isPlatform(provider), true);
     }
 
     private record Candidate(LlmProvider provider, Pick pick) {
@@ -314,11 +323,19 @@ public class LlmCredentialsResolver {
         return provider;
     }
 
-    /** Finalisation: key decryption plus the extra_body merge and the modalities of the picked row. */
-    private ResolvedLlm resolved(LlmProvider provider, Pick pick, boolean platformFallback) {
+    /**
+     * Finalisation: key decryption plus the extra_body merge and the modalities of the picked row.
+     *
+     * @param chatCompletions the caller sends the body to {@code /chat/completions}; only there do the
+     *                        registry defaults belong — an images or audio endpoint may reject them
+     */
+    private ResolvedLlm resolved(LlmProvider provider, Pick pick, boolean platformFallback,
+                                 boolean chatCompletions) {
         String apiKey = llmProviderService.decryptApiKey(provider);
         LlmProviderModel row = pick.row();
-        Map<String, Object> extraBody = ExtraBodyMerge.merge(provider.getExtraBody(),
+        Map<String, Object> defaults = chatCompletions ? registryDefaults(row) : Map.of();
+        Map<String, Object> extraBody = ExtraBodyMerge.merge(
+                ExtraBodyMerge.merge(defaults, provider.getExtraBody()),
                 row != null ? row.getExtraBody() : null);
         Map<String, Object> metadata = row == null || row.getRawMetadata() == null
                 ? Map.of() : row.getRawMetadata();
@@ -326,6 +343,36 @@ public class LlmCredentialsResolver {
                 modalities(row == null ? null : row.getInputModalities()),
                 modalities(row == null ? null : row.getOutputModalities()),
                 metadata, platformFallback);
+    }
+
+    /**
+     * The request fields the registry can vouch for, laid under both extra_body levels. Without an
+     * output limit the hoster applies its own default, and a reasoning model can spend a small one on
+     * thinking alone and end with {@code length} before a word of the answer. Half of the context
+     * window is left to the input: the prompt size is unknown here, and a hoster that checks
+     * {@code prompt + max_tokens} against the window refuses the whole request. The key follows
+     * {@code supported_parameters}, since OpenAI's reasoning models reject {@code max_tokens}; an
+     * unknown list sends nothing rather than guess.
+     */
+    static Map<String, Object> registryDefaults(LlmProviderModel row) {
+        if (row == null || row.getMaxOutputTokens() == null || row.getSupportedParameters() == null) {
+            return Map.of();
+        }
+        int limit = Math.min(row.getMaxOutputTokens(), MAX_TOKENS_CAP);
+        if (row.getContextWindow() != null) {
+            limit = Math.min(limit, row.getContextWindow() / 2);
+        }
+        if (limit <= 0) {
+            return Map.of();
+        }
+        List<String> supported = row.getSupportedParameters();
+        if (supported.contains("max_tokens")) {
+            return Map.of("max_tokens", limit);
+        }
+        if (supported.contains("max_completion_tokens")) {
+            return Map.of("max_completion_tokens", limit);
+        }
+        return Map.of();
     }
 
     /** An absent registry row or an absent field are the same thing for the caller: nothing declared. */

@@ -50,4 +50,20 @@ class ExtraBodyMergeTest {
         assertEquals(Map.of("a", 1), ExtraBodyMerge.merge(Map.of("a", 1), null));
         assertTrue(ExtraBodyMerge.merge(null, null).isEmpty());
     }
+
+    @Test
+    @DisplayName("null в верхнем уровне удаляет ключ нижнего, в том числе вложенный")
+    void nullRemovesKey() {
+        Map<String, Object> override = new java.util.HashMap<>();
+        override.put("max_tokens", null);
+        Map<String, Object> nested = new java.util.HashMap<>();
+        nested.put("ignore", null);
+        override.put("provider", nested);
+
+        Map<String, Object> merged = ExtraBodyMerge.merge(
+                Map.of("max_tokens", 32768, "provider", Map.of("ignore", List.of("morph"), "sort", "price")),
+                override);
+
+        assertEquals(Map.of("provider", Map.of("sort", "price")), merged);
+    }
 }

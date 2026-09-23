@@ -9,7 +9,8 @@ import java.util.Map;
  * Deep merge of two extra_body maps: the per-model override on top of the provider-level one. The
  * semantics: nested objects merge recursively, on a scalar conflict the override wins, and arrays are
  * replaced wholesale (not concatenated — more predictable for lists such as OpenRouter's
- * {@code provider.only}).
+ * {@code provider.only}). A {@code null} in the override removes the key, as in JSON Merge Patch: the
+ * only way for a model to drop what the level below it put there, a registry default included.
  */
 @UtilityClass
 public class ExtraBodyMerge {
@@ -24,6 +25,10 @@ public class ExtraBodyMerge {
             return result;
         }
         for (Map.Entry<String, Object> entry : override.entrySet()) {
+            if (entry.getValue() == null) {
+                result.remove(entry.getKey());
+                continue;
+            }
             Object existing = result.get(entry.getKey());
             if (existing instanceof Map<?, ?> && entry.getValue() instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")

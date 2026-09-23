@@ -40,7 +40,7 @@ public record LlmProviderModelResponse(
         List<String> supportedParameters,
 
         @Schema(description = "Per-model extra chat/completions body fields (deep-merged over the "
-                + "provider-level extra_body; model wins)")
+                + "registry defaults and the provider-level extra_body; model wins, null removes a key)")
         Map<String, Object> extraBody,
 
         @Schema(description = "Availability per the last successful listing refresh. UNAVAILABLE is "
