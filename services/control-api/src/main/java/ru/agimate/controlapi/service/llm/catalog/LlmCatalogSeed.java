@@ -8,6 +8,7 @@ import ru.agimate.controlapi.service.seed.SeedYaml;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -47,7 +48,26 @@ public class LlmCatalogSeed {
                         SeedYaml.text(map, "mediaTransport"), at, "mediaTransport"),
                 SeedYaml.text(map, "apiKeyUrl"),
                 Objects.requireNonNullElse(SeedYaml.integer(map, "sortOrder", at), 0),
-                purposePriority(map.get("purposePriority"), at));
+                purposePriority(map.get("purposePriority"), at),
+                extraBody(map.get("extraBody"), at));
+    }
+
+    private static Map<String, Object> extraBody(Object raw, String where) {
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof Map<?, ?> map)) {
+            throw new IllegalStateException(where + ": extraBody must be a mapping");
+        }
+        return stringKeys(map);
+    }
+
+    /** YAML hands nested mappings over as {@code Map<?, ?>}; the JSONB column wants string keys throughout. */
+    private static Map<String, Object> stringKeys(Map<?, ?> map) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        map.forEach((key, value) -> result.put(String.valueOf(key),
+                value instanceof Map<?, ?> nested ? stringKeys(nested) : value));
+        return result;
     }
 
     private static Map<LlmPurpose, List<String>> purposePriority(Object raw, String where) {

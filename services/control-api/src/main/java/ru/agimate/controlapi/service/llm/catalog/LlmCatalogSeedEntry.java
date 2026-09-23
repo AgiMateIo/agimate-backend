@@ -16,6 +16,7 @@ import java.util.Map;
  * @param apiKeyUrl null when the provider's key page is not known
  * @param purposePriority may leave a purpose out entirely — that is «we have no confirmed model id
  *                        for it», which reaches the user as «not configured» rather than as a guess
+ * @param extraBody null when the gateway needs nothing beyond the standard request
  */
 public record LlmCatalogSeedEntry(
         String code,
@@ -26,6 +27,7 @@ public record LlmCatalogSeedEntry(
         MediaTransportType mediaTransport,
         String apiKeyUrl,
         int sortOrder,
-        Map<LlmPurpose, List<String>> purposePriority
+        Map<LlmPurpose, List<String>> purposePriority,
+        Map<String, Object> extraBody
 ) {
 }

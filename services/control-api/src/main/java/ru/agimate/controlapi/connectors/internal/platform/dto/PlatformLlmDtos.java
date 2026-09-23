@@ -57,7 +57,8 @@ public final class PlatformLlmDtos {
     public record LlmProviderCatalogEntry(String code, String name, String description, String providerType,
                                           String baseUrl, String mediaTransport,
                                           Map<String, List<String>> purposePriority,
-                                          String apiKeyUrl, boolean enabled) {
+                                          String apiKeyUrl, Map<String, Object> extraBody,
+                                          boolean enabled) {
     }
 
     // ---- quotas ----------------------------------------------------------------------------

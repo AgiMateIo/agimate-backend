@@ -35,7 +35,11 @@ public record LlmProviderCatalogResponse(
         Map<LlmPurpose, List<String>> purposePriority,
 
         @Schema(description = "Where the user gets an API key; null when the page is not known")
-        String apiKeyUrl
+        String apiKeyUrl,
+
+        @Schema(description = "Provider-level extra_body to submit (gateway routing such as "
+                + "OpenRouter's provider block); null — nothing beyond the standard request")
+        Map<String, Object> extraBody
 ) {
     public static LlmProviderCatalogResponse from(LlmProviderCatalogEntry entry) {
         return new LlmProviderCatalogResponse(
@@ -46,7 +50,8 @@ public record LlmProviderCatalogResponse(
                 entry.getBaseUrl(),
                 entry.getMediaTransport(),
                 entry.getPurposePriority(),
-                entry.getApiKeyUrl()
+                entry.getApiKeyUrl(),
+                entry.getExtraBody()
         );
     }
 }

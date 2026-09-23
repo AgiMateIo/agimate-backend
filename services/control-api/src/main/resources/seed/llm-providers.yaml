@@ -22,6 +22,13 @@ providers:
     mediaTransport: CHAT_MODALITIES
     apiKeyUrl: https://openrouter.ai/keys
     sortOrder: 10
+    # require_parameters keeps a request off hosters that would silently drop what it carries —
+    # tools, max_tokens, reasoning. The throughput floor only moves slow hosters to the back.
+    extraBody:
+      provider:
+        require_parameters: true
+        preferred_min_throughput:
+          p90: 30
     # Pinned model ids, not OpenRouter's `~vendor/model-latest` aliases: an alias silently changes
     # what the user is billed for and what the agent can do — a new generation may drop a parameter
     # the loop relies on. The list ages instead, and that is the failure we can see and fix.

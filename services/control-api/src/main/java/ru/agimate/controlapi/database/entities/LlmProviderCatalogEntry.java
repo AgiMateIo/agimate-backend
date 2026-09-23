@@ -79,6 +79,11 @@ public class LlmProviderCatalogEntry extends BaseEntity {
     @Column(name = "purpose_priority", columnDefinition = "JSONB")
     private Map<LlmPurpose, List<String>> purposePriority;
 
+    /** Gateway-wide extra_body to submit — routing a user would not know to ask for. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "extra_body", columnDefinition = "JSONB")
+    private Map<String, Object> extraBody;
+
     /** Where the user gets an API key — the question that stops an onboarding cold. */
     @Column(name = "api_key_url", columnDefinition = "TEXT")
     private String apiKeyUrl;

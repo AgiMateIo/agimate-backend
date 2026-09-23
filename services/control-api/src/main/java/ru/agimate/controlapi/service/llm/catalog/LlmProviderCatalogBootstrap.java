@@ -63,6 +63,7 @@ public class LlmProviderCatalogBootstrap {
         row.setBaseUrl(entry.baseUrl());
         row.setMediaTransport(entry.mediaTransport());
         row.setPurposePriority(entry.purposePriority());
+        row.setExtraBody(entry.extraBody());
         row.setApiKeyUrl(entry.apiKeyUrl());
         row.setSortOrder(entry.sortOrder());
         // enabled is left alone on purpose: a recommendation switched off on this installation stays

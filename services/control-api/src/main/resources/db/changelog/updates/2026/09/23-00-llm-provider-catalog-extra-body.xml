@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Gateway-wide extra_body for the create form (OpenRouter provider routing and the like). Only a
+         prefill, like purpose_priority: it reaches a provider when the form is submitted, and a later
+         seed change does not follow it into existing llm_providers rows. -->
+    <changeSet id="add-llm-provider-catalog-extra-body" author="agimate">
+        <addColumn tableName="llm_provider_catalog">
+            <column name="extra_body" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

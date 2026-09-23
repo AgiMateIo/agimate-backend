@@ -499,7 +499,8 @@ public class PlatformLlmToolService {
         return new LlmProviderCatalogEntry(e.getCode(), e.getName(), e.getDescription(),
                 e.getProviderType().name(), e.getBaseUrl(),
                 e.getMediaTransport() != null ? e.getMediaTransport().name() : null,
-                toPurposeNames(e.getPurposePriority()), e.getApiKeyUrl(), e.isEnabled());
+                toPurposeNames(e.getPurposePriority()), e.getApiKeyUrl(), e.getExtraBody(),
+                e.isEnabled());
     }
 
     private LlmQuotaItem toQuotaItem(LlmQuota q) {

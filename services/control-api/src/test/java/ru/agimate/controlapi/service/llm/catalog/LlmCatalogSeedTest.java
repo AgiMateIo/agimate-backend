@@ -6,6 +6,7 @@ import ru.agimate.controlapi.database.enums.LlmProviderType;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -114,6 +115,33 @@ class LlmCatalogSeedTest {
                 assertFalse(model.endsWith(":free"), at + " — free-вариант");
             }));
         }
+    }
+
+    @Test
+    @DisplayName("extra_body — JSON-объект со строковыми ключами на любой глубине")
+    void extraBodyIsJsonObject() {
+        // YAML отдаёт вложенные маппинги как Map<?, ?>: нестроковый ключ доехал бы до JSONB и до
+        // провайдера. У OpenRouter блок маршрутизации есть — ради него поле и заведено.
+        for (LlmCatalogSeedEntry entry : ENTRIES) {
+            if (entry.extraBody() != null) {
+                assertStringKeys(entry.extraBody(), entry.code() + ".extraBody");
+                assertTrue(ru.agimate.common.util.JsonUtils.toJson(entry.extraBody()).isPresent(),
+                        entry.code() + ": extraBody не сериализуется в JSON");
+            }
+        }
+        LlmCatalogSeedEntry openrouter = ENTRIES.stream()
+                .filter(e -> e.code().equals("openrouter")).findFirst().orElseThrow();
+        assertTrue(openrouter.extraBody() != null && openrouter.extraBody().get("provider") instanceof Map<?, ?>,
+                "у OpenRouter нет provider-блока в extraBody");
+    }
+
+    private static void assertStringKeys(Map<?, ?> map, String at) {
+        map.forEach((key, value) -> {
+            assertTrue(key instanceof String, at + ": ключ " + key + " не строка");
+            if (value instanceof Map<?, ?> nested) {
+                assertStringKeys(nested, at + "." + key);
+            }
+        });
     }
 
     @Test
