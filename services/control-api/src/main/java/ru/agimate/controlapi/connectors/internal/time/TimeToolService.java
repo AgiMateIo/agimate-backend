@@ -12,6 +12,7 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
+import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
@@ -23,6 +24,7 @@ import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
+import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -139,7 +141,7 @@ public class TimeToolService {
         return Map.of(
                 "id", row.getId().toString(),
                 "taskType", type.name(),
-                "nextRunAt", firstRunAt.toString());
+                "nextRunAt", utc(firstRunAt));
     }
 
     @Tool(name = "scheduled_tasks", description = "List your active (not yet completed) scheduled tasks",
@@ -155,7 +157,7 @@ public class TimeToolService {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", row.getId().toString());
             item.put("taskType", row.getType().name());
-            item.put("nextRunAt", row.getNextRunAt() == null ? null : row.getNextRunAt().toString());
+            item.put("nextRunAt", utc(row.getNextRunAt()));
             item.put("prompt", row.getArgs() == null ? null : row.getArgs().get("prompt"));
             item.put("config", row.getConfig());
             tasks.add(item);
@@ -249,22 +251,24 @@ public class TimeToolService {
     }
 
     private static LocalDateTime nextCron(String expr, String zone, LocalDateTime now) {
-        CronExpression cron;
-        try {
-            cron = CronExpression.parse(expr);
-        } catch (IllegalArgumentException e) {
+        if (!CronExpression.isValidExpression(expr)) {
             throw new ConnectorException("Invalid cron expression: " + expr);
         }
-        ZoneId zoneId;
         try {
-            zoneId = ZoneId.of(zone);
-        } catch (Exception e) {
+            ZoneId.of(zone);
+        } catch (DateTimeException e) {
             throw new ConnectorException("Invalid zone: " + zone);
         }
-        var next = cron.next(now.atZone(zoneId));
+        LocalDateTime next = JobSchedule.nextCron(expr, zone, now);
         if (next == null) {
             throw new ConnectorException("Cron expression never fires: " + expr);
         }
-        return next.toLocalDateTime();
+        return next;
+    }
+
+    /** A stored timestamp (UTC) as the model sees time elsewhere — the same frame as {@link #currentDateTime}. */
+    private static String utc(LocalDateTime stored) {
+        return stored == null ? null : stored.truncatedTo(ChronoUnit.SECONDS)
+                .atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
     }
 }

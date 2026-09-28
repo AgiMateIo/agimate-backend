@@ -7,6 +7,7 @@ import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -14,6 +15,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,6 +28,38 @@ class JobScheduleTest {
     private static JobSpec cronSpec(String cron, long spreadSeconds) {
         return new JobSpec("daily", ConnectorJobType.CRON,
                 JobSchedule.cronConfig(cron, JobSchedule.DEFAULT_ZONE, spreadSeconds), Map.of(), 120);
+    }
+
+    @Nested
+    @DisplayName("nextCron")
+    class NextCron {
+
+        @Test
+        @DisplayName("выражение читается по часам своей зоны, результат — в UTC")
+        void zoneShiftsTheMoment() {
+            // 06:00 UTC = 09:00 в Москве: девять утра по Москве уже прошли, следующие — завтра в 06:00 UTC
+            LocalDateTime now = LocalDateTime.of(2026, 9, 28, 6, 30);
+
+            assertEquals(LocalDateTime.of(2026, 9, 29, 6, 0),
+                    JobSchedule.nextCron("0 0 9 * * *", "Europe/Moscow", now));
+            assertEquals(LocalDateTime.of(2026, 9, 28, 9, 0),
+                    JobSchedule.nextCron("0 0 9 * * *", "UTC", now));
+        }
+
+        @Test
+        @DisplayName("зона из config учитывается и без явного аргумента")
+        void zoneFromConfig() {
+            LocalDateTime now = LocalDateTime.of(2026, 9, 28, 5, 0);
+
+            assertEquals(LocalDateTime.of(2026, 9, 28, 6, 0),
+                    JobSchedule.nextCron(JobSchedule.cronConfig("0 0 9 * * *", "Europe/Moscow"), now));
+        }
+
+        @Test
+        @DisplayName("выражение без будущих срабатываний → null")
+        void neverFires() {
+            assertNull(JobSchedule.nextCron("0 0 0 30 2 *", "UTC", LocalDateTime.of(2026, 9, 28, 0, 0)));
+        }
     }
 
     @Nested

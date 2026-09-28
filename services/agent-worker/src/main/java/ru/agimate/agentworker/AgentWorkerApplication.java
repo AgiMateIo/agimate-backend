@@ -4,6 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.time.ZoneOffset;
+import java.util.TimeZone;
+
 /**
  * Entry point for the agent-worker.
  *
@@ -18,6 +21,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class AgentWorkerApplication {
 
     public static void main(String[] args) {
+        // Timestamps are stored as UTC without a zone, and LocalDateTime.now() has to agree with them.
+        TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC));
         SpringApplication.run(AgentWorkerApplication.class, args);
     }
 }

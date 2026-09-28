@@ -6,6 +6,8 @@ import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -146,10 +148,20 @@ public class JobSchedule {
             // not keep picking it up on every tick.
             return now.plusYears(10);
         }
-        String zoneId = (String) config.getOrDefault(KEY_ZONE, DEFAULT_ZONE);
-        CronExpression cron = CronExpression.parse(expr);
-        var next = cron.next(now.atZone(ZoneId.of(zoneId)));
-        return next != null ? next.toLocalDateTime() : now.plusYears(10);
+        LocalDateTime next = nextCron(expr, (String) config.getOrDefault(KEY_ZONE, DEFAULT_ZONE), now);
+        return next != null ? next : now.plusYears(10);
+    }
+
+    /**
+     * The expression reads {@code zone}'s clock, while {@code now} and the result are UTC like every
+     * stored timestamp; placing {@code now} straight onto the expression's clock made the zone a no-op.
+     *
+     * @return {@code null} when the expression never fires again
+     */
+    public static LocalDateTime nextCron(String expr, String zone, LocalDateTime now) {
+        ZonedDateTime next = CronExpression.parse(expr)
+                .next(now.atOffset(ZoneOffset.UTC).atZoneSameInstant(ZoneId.of(zone)));
+        return next == null ? null : next.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
     public static long readLong(Map<String, Object> config, String key, long defaultValue) {

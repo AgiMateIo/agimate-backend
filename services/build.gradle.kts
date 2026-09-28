@@ -16,6 +16,11 @@ allprojects {
 
 allprojects {
     pluginManager.withPlugin("java") {
+        // The applications pin the JVM to UTC in main(); tests do not pass through it
+        tasks.withType<Test> {
+            systemProperty("user.timezone", "UTC")
+        }
+
         dependencies {
             constraints {
                 implementation("net.logstash.logback:logstash-logback-encoder:7.4")

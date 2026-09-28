@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -132,6 +133,28 @@ class TimeToolServiceTest {
         ArgumentCaptor<Trigger> trigger = ArgumentCaptor.forClass(Trigger.class);
         verify(triggerRouterService).routeTrigger(eq(USER_ID), trigger.capture());
         assertEquals(chat, trigger.getValue().context().channels().answer().address());
+    }
+
+    @Test
+    @DisplayName("nextRunAt отдаётся в UTC со смещением, как current_datetime")
+    void nextRunAtCarriesOffset() {
+        when(jobService.schedule(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(ConnectorJob.builder().id(UUID.randomUUID()).build());
+
+        Map<String, Object> result = handler.executeTool(env(), "schedule",
+                Map.of("prompt", "п", "cron", "0 0 9 * * *", "zone", "Europe/Moscow"));
+
+        // 09:00 по Москве — это 06:00 UTC, в какой бы момент ни шёл тест
+        assertTrue(((String) result.get("nextRunAt")).endsWith("T06:00:00Z"));
+    }
+
+    @Test
+    @DisplayName("неизвестная зона — ошибка для агента, а не исключение времени")
+    void invalidZoneRejected() {
+        ConnectorException e = assertThrows(ConnectorException.class, () -> handler.executeTool(env(),
+                "schedule", Map.of("prompt", "п", "cron", "0 0 9 * * *", "zone", "Mars/Olympus")));
+
+        assertEquals("Invalid zone: Mars/Olympus", e.getMessage());
     }
 
     @Test

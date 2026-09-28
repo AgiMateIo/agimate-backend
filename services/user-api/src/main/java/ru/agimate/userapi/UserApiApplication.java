@@ -8,6 +8,9 @@ import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.time.ZoneOffset;
+import java.util.TimeZone;
+
 @EnableConfigurationProperties
 @ConfigurationPropertiesScan(basePackages = {
         "ru.agimate.userapi",
@@ -25,6 +28,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class UserApiApplication {
 
     public static void main(String[] args) {
+        // Timestamps are stored as UTC without a zone, and LocalDateTime.now() has to agree with them.
+        TimeZone.setDefault(TimeZone.getTimeZone(ZoneOffset.UTC));
         SpringApplication.run(
                 UserApiApplication.class,
                 args
