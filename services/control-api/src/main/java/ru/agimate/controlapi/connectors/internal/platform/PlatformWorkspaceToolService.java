@@ -7,6 +7,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BaseHttpStatusException;
+import ru.agimate.controlapi.connectors.core.AgentTimestamps;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
@@ -295,8 +296,8 @@ public class PlatformWorkspaceToolService {
         return new ConnectorJobItem(job.getId().toString(), job.getKind().name(),
                 job.getConnectorCode(), job.getConnectionId(), job.getName(), job.getType().name(),
                 job.getStatus().name(),
-                job.getNextRunAt() != null ? job.getNextRunAt().toString() : null,
-                job.getPausedAt() != null ? job.getPausedAt().toString() : null,
+                AgentTimestamps.utc(job.getNextRunAt()),
+                AgentTimestamps.utc(job.getPausedAt()),
                 job.getLastError());
     }
 }

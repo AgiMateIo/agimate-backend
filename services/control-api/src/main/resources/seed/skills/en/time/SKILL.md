@@ -1,7 +1,7 @@
 ---
 name: time
 title: Time and scheduler
-description: Current time in UTC and scheduling deferred tasks for yourself — one-off reminders, periodic runs and cron schedules.
+description: Current time in the user's timezone and scheduling deferred tasks for yourself — one-off reminders, periodic runs and cron schedules.
 connectors: [time]
 category: platform
 tags: [reminders, schedule]
@@ -9,17 +9,18 @@ tags: [reminders, schedule]
 
 # Skill: AgiMate Time
 
-The time connector is the current time plus deferred tasks **for yourself**: at the appointed moment you "wake up" as a separate run with the prompt you gave. That's how reminders, monitoring and scheduled work are done — without holding context. All time is **UTC**.
+The time connector is the current time plus deferred tasks **for yourself**: at the appointed moment you "wake up" as a separate run with the prompt you gave. That's how reminders, monitoring and scheduled work are done — without holding context. Time is in the user's timezone (the `timezone` block in your context); while none is set — UTC. Every timestamp comes with its offset and zone: `2026-09-28T17:40:00+03:00[Europe/Moscow]`.
 
 ## Tools: what to call when
 
-- `current_datetime` — "what time is it" (UTC, ISO-8601). Call it before computing delays and before scheduling.
+- `current_datetime` — "what time is it" in the user's timezone. Call it before computing delays and before scheduling.
 - `schedule(prompt, …)` — schedule a task. **Exactly one mode** per call:
   - `delaySeconds` — once, in N seconds (`ONETIME`);
   - `intervalSeconds` — every N seconds (`PERIODIC`);
-  - `cron` — a 6-field Spring cron with seconds (`0 0 9 * * *` — daily at 09:00), UTC by default; for local time set `zone` (IANA, e.g. `Europe/Berlin`).
+  - `cron` — a 6-field Spring cron with seconds (`0 0 9 * * *` — daily at 09:00), in the user's timezone by default; for another one set `zone` (IANA, e.g. `Europe/Berlin`).
 - `scheduled_tasks` — the list of your active tasks. Check it before scheduling so you don't breed duplicates.
 - `cancel_scheduled(id)` — cancel a task. `PERIODIC` and `CRON` live forever until you cancel them — clean up the ones you no longer need.
+- `set_timezone(timezone)` — save the user's timezone (IANA, e.g. `Europe/Berlin`) when they tell you where they are or ask to change it. Works only in a conversation with the owner (web chat, IDE). Don't guess the zone from language or name — ask.
 
 ## A task prompt is self-contained
 
@@ -27,7 +28,7 @@ When it fires, the future "you" will have none of the current context — only t
 
 ## The time.due trigger
 
-When a task comes due you wake up as a separate run: **the text of your own prompt** arrives as a trusted instruction (not a JSON event), marked as your own deferred task. Carry it out. If the task is `PERIODIC`/`CRON` and no longer needed, cancel it via `cancel_scheduled`.
+When a task comes due you wake up as a separate run: **the text of your own prompt** arrives as a trusted instruction (not a JSON event), marked as your own deferred task; its first line is the moment it fired (`Fired at …`). Carry it out. If the task is `PERIODIC`/`CRON` and no longer needed, cancel it via `cancel_scheduled`.
 
 **Reply delivery:** if the task was scheduled from a chat with the user, the run's final answer goes back to that chat. If there was no chat, the final text is delivered to no one — pass results through tools instead (a board comment, sending to a channel, and so on).
 

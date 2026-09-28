@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      The agent's timezone became a setting of the time connector (docs/decisions/time-settings.md):
+      the time skill stops saying «all time is UTC» and learns set_timezone, persist-memory stops
+      filing the timezone into the Profile. System skills are seed-only-if-missing, so this DML is how
+      the new SKILL.md text reaches an environment seeded before the change.
+
+      Each fragment is replaced where it is still the seeded one, in whichever language the install
+      was seeded with; a fragment an admin has reworded stays as the admin left it. The version is not
+      bumped, for the reason given in 16-01-persist-memory-skill-text.xml: the body is read live.
+    -->
+    <changeSet id="time-skill-agent-timezone" author="agimate">
+        <sql splitStatements="false"><![CDATA[
+            UPDATE skills
+            SET md_content = replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(md_content,
+                    $t$Всё время — **UTC**.$t$,
+                    $t$Время — в часовом поясе пользователя (блок `timezone` в контексте), пока пояс не задан — UTC. Каждая метка приходит со смещением и именем пояса: `2026-09-28T17:40:00+03:00[Europe/Moscow]`.$t$),
+                    $t$«сколько сейчас» (UTC, ISO-8601)$t$,
+                    $t$«сколько сейчас» в поясе пользователя$t$),
+                    $t$, по умолчанию UTC; для локального времени задай `zone` (IANA, например `Europe/Moscow`).$t$,
+                    $t$, по умолчанию — в поясе пользователя; другой пояс задай в `zone` (IANA, например `Europe/Moscow`).$t$),
+                    $t$- `cancel_scheduled(id)` — отменить задачу. `PERIODIC` и `CRON` живут бесконечно, пока не отменишь, — подчищай ненужные.$t$,
+                    $t$- `cancel_scheduled(id)` — отменить задачу. `PERIODIC` и `CRON` живут бесконечно, пока не отменишь, — подчищай ненужные.
+- `set_timezone(timezone)` — сохранить часовой пояс пользователя (IANA, например `Europe/Moscow`), когда он говорит, где находится, или просит сменить. Работает только в разговоре с владельцем (веб-чат, IDE). Не угадывай пояс по языку или имени — спроси.$t$),
+                    $t$с пометкой, что это твоя же отложенная задача.$t$,
+                    $t$с пометкой, что это твоя же отложенная задача; первая строка — момент срабатывания (`Fired at …`).$t$),
+                    $t$All time is **UTC**.$t$,
+                    $t$Time is in the user's timezone (the `timezone` block in your context); while none is set — UTC. Every timestamp comes with its offset and zone: `2026-09-28T17:40:00+03:00[Europe/Moscow]`.$t$),
+                    $t$"what time is it" (UTC, ISO-8601)$t$,
+                    $t$"what time is it" in the user's timezone$t$),
+                    $t$, UTC by default; for local time set `zone` (IANA, e.g. `Europe/Berlin`).$t$,
+                    $t$, in the user's timezone by default; for another one set `zone` (IANA, e.g. `Europe/Berlin`).$t$),
+                    $t$- `cancel_scheduled(id)` — cancel a task. `PERIODIC` and `CRON` live forever until you cancel them — clean up the ones you no longer need.$t$,
+                    $t$- `cancel_scheduled(id)` — cancel a task. `PERIODIC` and `CRON` live forever until you cancel them — clean up the ones you no longer need.
+- `set_timezone(timezone)` — save the user's timezone (IANA, e.g. `Europe/Berlin`) when they tell you where they are or ask to change it. Works only in a conversation with the owner (web chat, IDE). Don't guess the zone from language or name — ask.$t$),
+                    $t$marked as your own deferred task.$t$,
+                    $t$marked as your own deferred task; its first line is the moment it fired (`Fired at …`).$t$),
+                description = replace(replace(description,
+                    $t$Текущее время в UTC и планирование$t$,
+                    $t$Текущее время в часовом поясе пользователя и планирование$t$),
+                    $t$Current time in UTC and scheduling$t$,
+                    $t$Current time in the user's timezone and scheduling$t$),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'time'
+              AND deleted_at IS NULL
+              AND (md_content LIKE $t$%Всё время — **UTC**.%$t$ OR md_content LIKE $t$%«сколько сейчас» (UTC, ISO-8601)%$t$ OR md_content LIKE $t$%, по умолчанию UTC; для локального времени задай `zone` (IANA, например `Europe/Moscow`).%$t$ OR md_content LIKE $t$%- `cancel_scheduled(id)` — отменить задачу. `PERIODIC` и `CRON` живут бесконечно, пока не отменишь, — подчищай ненужные.%$t$ OR md_content LIKE $t$%с пометкой, что это твоя же отложенная задача.%$t$ OR md_content LIKE $t$%All time is **UTC**.%$t$ OR md_content LIKE $t$%"what time is it" (UTC, ISO-8601)%$t$ OR md_content LIKE $t$%, UTC by default; for local time set `zone` (IANA, e.g. `Europe/Berlin`).%$t$ OR md_content LIKE $t$%- `cancel_scheduled(id)` — cancel a task. `PERIODIC` and `CRON` live forever until you cancel them — clean up the ones you no longer need.%$t$ OR md_content LIKE $t$%marked as your own deferred task.%$t$);
+        ]]></sql>
+    </changeSet>
+
+    <changeSet id="persist-memory-skill-timezone-to-settings" author="agimate">
+        <sql splitStatements="false"><![CDATA[
+            UPDATE skills
+            SET md_content = replace(replace(replace(replace(replace(replace(md_content,
+                    $t$имя, роль, таймзона, проекты, предпочтения, ограничения;$t$,
+                    $t$имя, роль, проекты, предпочтения, ограничения;$t$),
+                    $t$(имя, роль, таймзона, проекты)$t$,
+                    $t$(имя, роль, проекты)$t$),
+                    $t$- **Не сохраняй мусор**: одноразовые реплики и сиюминутные детали задачи.$t$,
+                    $t$- **Не сохраняй мусор**: одноразовые реплики и сиюминутные детали задачи.
+- **Часовой пояс — не заметка**: его хранит `set_timezone` (коннектор time). Если пояс уже записан в Профиле, а блок `timezone` говорит, что он не задан, — предложи пользователю сохранить его.$t$),
+                    $t$name, role, timezone, projects, preferences, constraints;$t$,
+                    $t$name, role, projects, preferences, constraints;$t$),
+                    $t$(name, role, timezone, projects)$t$,
+                    $t$(name, role, projects)$t$),
+                    $t$- **Don't save noise**: throwaway remarks and momentary task details.$t$,
+                    $t$- **Don't save noise**: throwaway remarks and momentary task details.
+- **A timezone is not a note**: `set_timezone` (the time connector) keeps it. If the Profile already holds one while the `timezone` block says none is set, offer the user to save it.$t$),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'persist-memory'
+              AND deleted_at IS NULL
+              AND (md_content LIKE $t$%имя, роль, таймзона, проекты, предпочтения, ограничения;%$t$ OR md_content LIKE $t$%(имя, роль, таймзона, проекты)%$t$ OR md_content LIKE $t$%- **Не сохраняй мусор**: одноразовые реплики и сиюминутные детали задачи.%$t$ OR md_content LIKE $t$%name, role, timezone, projects, preferences, constraints;%$t$ OR md_content LIKE $t$%(name, role, timezone, projects)%$t$ OR md_content LIKE $t$%- **Don't save noise**: throwaway remarks and momentary task details.%$t$);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

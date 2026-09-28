@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BaseHttpStatusException;
+import ru.agimate.controlapi.connectors.core.AgentTimestamps;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
@@ -471,7 +472,7 @@ public class PlatformAgentToolService {
     private static FileBrief toFileBrief(StoredFile file) {
         return new FileBrief(FileIds.external(file.getId()), file.getName(), file.getMime(),
                 file.getSizeBytes(),
-                file.getCreatedAt() != null ? file.getCreatedAt().toString() : null);
+                AgentTimestamps.utc(file.getCreatedAt()));
     }
 
     // ---- helpers ---------------------------------------------------------------------------

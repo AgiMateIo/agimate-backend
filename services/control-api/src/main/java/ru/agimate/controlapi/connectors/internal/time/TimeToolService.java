@@ -6,12 +6,14 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.ConnectorSettingsService;
+import ru.agimate.controlapi.connectors.core.OwnerRequestGuard;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
+import ru.agimate.controlapi.connectors.core.annotation.ToolVisibility;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
-import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
@@ -26,11 +28,7 @@ import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -60,17 +58,52 @@ public class TimeToolService {
     /** Job arg carrying the scheduling conversation's reply address to {@link #fire}. */
     static final String REPLY_ADDRESS = "replyAddress";
 
+    /** The settings panel: the agent's timezone. */
+    public static final String SETTINGS_VIEW = "ui://time/settings";
+
     private final ConnectorJobService jobService;
     private final TriggerRouterService triggerRouterService;
     private final AgentRunRepository agentRunRepository;
+    private final ConnectorSettingsService settingsService;
+    private final OwnerRequestGuard ownerRequestGuard;
 
-    @Tool(name = "current_datetime", description = "Get the current date and time in UTC (ISO-8601)",
+    @Tool(name = "current_datetime", description = "Get the current date and time in the user's timezone "
+            + "(ISO-8601 with the offset and the zone id; UTC while no timezone is set)",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> currentDateTime() {
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
+        TimeSettings settings = settings(ConnectorEnvHolder.current());
         return Map.of(
-                "dateTime", now.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-                "zone", "UTC");
+                "dateTime", settings.format(LocalDateTime.now()),
+                "zone", settings.zone().getId());
+    }
+
+    @Tool(name = "set_timezone", description = "Set the user's timezone — only when the user tells you where "
+            + "they are or asks to change it. Your times, and cron schedules without a zone, follow it. "
+            + "Pass UTC to go back to UTC.",
+            annotations = @ToolAnnotations(destructiveHint = false, idempotentHint = true, openWorldHint = false))
+    public Map<String, Object> setTimezone(@ToolParam("IANA timezone id, e.g. Europe/Moscow") String timezone) {
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
+        ownerRequestGuard.require(ctx);
+        // Weak models send "" for a parameter they mean to skip; here that would silently wipe the zone.
+        if (timezone == null || timezone.isBlank()) {
+            throw new ConnectorException("timezone is required, e.g. Europe/Moscow (UTC to go back to UTC)");
+        }
+        return settingsResult(save(ctx, timezone));
+    }
+
+    @Tool(name = "get_settings", description = "Get the time settings of this agent",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
+            visibility = ToolVisibility.VIEW, view = SETTINGS_VIEW)
+    public Map<String, Object> getSettings() {
+        return settingsResult(settings(ConnectorEnvHolder.current()));
+    }
+
+    @Tool(name = "save_settings", description = "Save the time settings of this agent",
+            annotations = @ToolAnnotations(destructiveHint = false, idempotentHint = true, openWorldHint = false),
+            visibility = ToolVisibility.VIEW)
+    public Map<String, Object> saveSettings(
+            @ToolParam(value = "IANA timezone id, e.g. Europe/Moscow; empty — UTC", required = false) String timezone) {
+        return settingsResult(save(ConnectorEnvHolder.current(), timezone));
     }
 
     @Tool(name = "schedule",
@@ -83,7 +116,7 @@ public class TimeToolService {
             @ToolParam(value = "Run once after this many seconds from now", required = false) Long delaySeconds,
             @ToolParam(value = "Run repeatedly every this many seconds", required = false) Long intervalSeconds,
             @ToolParam(value = "Run on this cron schedule (Spring 6-field, with seconds)", required = false) String cron,
-            @ToolParam(value = "Timezone for cron, IANA id (default UTC)", required = false) String zone) {
+            @ToolParam(value = "Timezone for cron, IANA id (default: the user's timezone)", required = false) String zone) {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null || ctx.userId() == null) {
             throw new ConnectorException("time.schedule must be called by an agent");
@@ -117,7 +150,9 @@ public class TimeToolService {
             config = JobSchedule.periodicConfig(intervalSeconds);
             firstRunAt = now.plusSeconds(intervalSeconds);
         } else {
-            String resolvedZone = zone == null || zone.isBlank() ? JobSchedule.DEFAULT_ZONE : zone;
+            // Resolved here and stored in the job's config: a later change of the agent's zone must not
+            // move a task the user set «at 9 Moscow time».
+            String resolvedZone = zone == null || zone.isBlank() ? settings(ctx).zone().getId() : zone;
             firstRunAt = nextCron(cron, resolvedZone, now);
             type = ConnectorJobType.CRON;
             config = JobSchedule.cronConfig(cron, resolvedZone);
@@ -141,7 +176,7 @@ public class TimeToolService {
         return Map.of(
                 "id", row.getId().toString(),
                 "taskType", type.name(),
-                "nextRunAt", utc(firstRunAt));
+                "nextRunAt", settings(ctx).format(firstRunAt));
     }
 
     @Tool(name = "scheduled_tasks", description = "List your active (not yet completed) scheduled tasks",
@@ -151,13 +186,14 @@ public class TimeToolService {
         if (ctx.agentId() == null || ctx.userId() == null) {
             throw new ConnectorException("time.scheduled_tasks must be called by an agent");
         }
+        TimeSettings settings = settings(ctx);
         List<Map<String, Object>> tasks = new ArrayList<>();
         for (ConnectorJob row : jobService.findActiveByAgent(
                 TimeConnectorService.CONNECTOR_CODE, ctx.userId(), ctx.agentId())) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", row.getId().toString());
             item.put("taskType", row.getType().name());
-            item.put("nextRunAt", utc(row.getNextRunAt()));
+            item.put("nextRunAt", settings.format(row.getNextRunAt()));
             item.put("prompt", row.getArgs() == null ? null : row.getArgs().get("prompt"));
             item.put("config", row.getConfig());
             tasks.add(item);
@@ -208,7 +244,7 @@ public class TimeToolService {
                 TimeConnectorService.CONNECTOR_CODE,
                 ctx.connectionId(),
                 DUE_TRIGGER,
-                Map.of("prompt", prompt == null ? "" : prompt),
+                Map.of("prompt", firedPrompt(settings(ctx), prompt)),
                 fireContext(audience, ctx.channelId(), ctx.sessionId(), replyAddress));
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
     }
@@ -266,9 +302,27 @@ public class TimeToolService {
         return next;
     }
 
-    /** A stored timestamp (UTC) as the model sees time elsewhere — the same frame as {@link #currentDateTime}. */
-    private static String utc(LocalDateTime stored) {
-        return stored == null ? null : stored.truncatedTo(ChronoUnit.SECONDS)
-                .atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+    /**
+     * The task's text with the moment it fired: it rides in the event's data, so it stays in the history
+     * and reaches a run the same way whether the event starts one or is steered into a running one.
+     */
+    static String firedPrompt(TimeSettings settings, String prompt) {
+        return "Fired at " + settings.format(LocalDateTime.now()) + ".\n\n" + (prompt == null ? "" : prompt);
+    }
+
+    private TimeSettings settings(ConnectorEnv ctx) {
+        return settingsService.get(ctx.agentId(), ctx.connectionId(), TimeSettings.class);
+    }
+
+    private TimeSettings save(ConnectorEnv ctx, String timezone) {
+        return settingsService.save(ctx.agentId(), ctx.connectionId(), TimeSettings.of(timezone));
+    }
+
+    private static Map<String, Object> settingsResult(TimeSettings settings) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("timezone", settings.timezone());
+        result.put("zone", settings.zone().getId());
+        result.put("now", settings.format(LocalDateTime.now()));
+        return result;
     }
 }

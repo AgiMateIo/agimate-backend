@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BaseHttpStatusException;
+import ru.agimate.controlapi.connectors.core.AgentTimestamps;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
@@ -87,7 +88,7 @@ public class BoardToolService {
             @ToolParam("Task public ID") String taskId) {
         UUID taskUuid = parseUuid(taskId, "taskId");
         var result = domain(() -> boardService.getTaskCard(null, taskUuid, userId()));
-        return Map.of("task", result);
+        return AgentTimestamps.toMap(Map.of("task", result));
     }
 
     @Tool(name = "create_task", description = "Create a new task on the board",
@@ -122,7 +123,7 @@ public class BoardToolService {
         var command = new BoardTaskCreateCommand(taskType, title, description,
                 agent.getId(), assigneeId, parentId);
         var result = domain(() -> boardService.createTask(board.getId(), userId(), command));
-        return Map.of("task", result);
+        return AgentTimestamps.toMap(Map.of("task", result));
     }
 
     @Tool(name = "edit_task",
@@ -152,7 +153,7 @@ public class BoardToolService {
 
         var command = new BoardTaskEditCommand(agent.getId(), newTitle, newDescription, assignee, newStatus);
         var result = domain(() -> boardService.editTask(null, taskUuid, userId(), command));
-        return Map.of("task", result);
+        return AgentTimestamps.toMap(Map.of("task", result));
     }
 
     @Tool(name = "get_comments", description = "Get comments for a task",
@@ -161,7 +162,7 @@ public class BoardToolService {
             @ToolParam("Task public ID") String taskId) {
         UUID taskUuid = parseUuid(taskId, "taskId");
         var result = domain(() -> boardService.getComments(null, taskUuid, userId()));
-        return Map.of("comments", result);
+        return AgentTimestamps.toMap(Map.of("comments", result));
     }
 
     @Tool(name = "create_comment", description = "Create a comment on a task",
@@ -175,7 +176,7 @@ public class BoardToolService {
         requireResolvableFileRefs(content);
         var command = new BoardTaskCommentCreateCommand(agent.getId(), content);
         var result = domain(() -> boardService.createComment(null, taskUuid, userId(), command));
-        return Map.of("comment", result);
+        return AgentTimestamps.toMap(Map.of("comment", result));
     }
 
     /**

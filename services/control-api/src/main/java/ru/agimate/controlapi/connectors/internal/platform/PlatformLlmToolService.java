@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BaseHttpStatusException;
+import ru.agimate.controlapi.connectors.core.AgentTimestamps;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
@@ -452,13 +453,13 @@ public class PlatformLlmToolService {
     private LlmProviderBrief toBrief(LlmProvider p) {
         return new LlmProviderBrief(p.getId().toString(), p.getName(), p.getProviderType().name(),
                 p.getBaseUrl(), p.getApiKeyMask(), p.isEnabled(),
-                p.getModelsRefreshedAt() != null ? p.getModelsRefreshedAt().toString() : null);
+                AgentTimestamps.utc(p.getModelsRefreshedAt()));
     }
 
     private LlmProviderDetail toDetail(LlmProvider p) {
         return new LlmProviderDetail(p.getId().toString(), p.getName(), p.getProviderType().name(),
                 p.getBaseUrl(), p.getApiKeyMask(), p.isEnabled(),
-                p.getModelsRefreshedAt() != null ? p.getModelsRefreshedAt().toString() : null,
+                AgentTimestamps.utc(p.getModelsRefreshedAt()),
                 toPurposeNames(p.getPurposePriority()), p.getExtraBody(),
                 p.getMediaTransport() != null ? p.getMediaTransport().name() : null);
     }

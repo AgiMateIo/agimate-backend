@@ -10,8 +10,6 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -109,24 +107,6 @@ final class PlatformToolsSupport {
             return UUID.fromString(v);
         } catch (IllegalArgumentException e) {
             throw new ConnectorException("Invalid " + field + ": '" + value + "'");
-        }
-    }
-
-    /** Optional ISO local date-time (no timezone suffix), e.g. {@code 2026-09-01T10:00:00} — the
-     *  frame the rows are stamped with (the listing's own timestamps are in this format). An
-     *  offset-carrying ISO string is refused on purpose: converting it would silently shift the
-     *  window against rows written in the server's local clock. */
-    static LocalDateTime parseLocalDateTimeOrNull(String value, String field) {
-        String v = blankToNull(value);
-        if (v == null) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(v);
-        } catch (DateTimeParseException e) {
-            throw new ConnectorException("Invalid " + field + ": '" + value
-                    + "' — expected an ISO local date-time without a timezone suffix, "
-                    + "e.g. 2026-09-01T10:00:00 (the format of the timestamps this listing returns)");
         }
     }
 

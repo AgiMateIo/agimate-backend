@@ -153,7 +153,7 @@ class PlatformObservabilityToolServiceTest {
             assertEquals(Boolean.TRUE, brief.get("steered"));
             assertEquals(Boolean.TRUE, brief.get("turnsIntact"));
             assertEquals(4L, ((Number) brief.get("turnsCount")).longValue());
-            assertEquals("2025-01-01T00:00", brief.get("lastActivityAt"));
+            assertEquals("2025-01-01T00:00:00Z[UTC]", brief.get("lastActivityAt"));
         }
 
         @Test
@@ -194,13 +194,18 @@ class PlatformObservabilityToolServiceTest {
         }
 
         @Test
-        @DisplayName("since с временной зоной — отклоняется: окно привязано к локальным часам строк")
-        void offsetSinceRejected() {
-            var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "list_runs",
-                    Map.of("since", "2026-09-01T10:00:00+02:00")));
-            assertTrue(ex.getMessage().contains("Invalid since"), ex.getMessage());
-            assertTrue(ex.getMessage().contains("without a timezone suffix"), ex.getMessage());
-            verifyNoInteractions(agentRunRepository);
+        @DisplayName("since со смещением переводится в UTC — в часы, которыми помечены строки")
+        void offsetSinceConvertedToUtc() {
+            when(agentRunRepository.findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
+                    isNull(), isNull(), isNull(), isNull(),
+                    eq(LocalDateTime.of(2026, 9, 1, 8, 0)), isNull(), isNull(), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            handler.executeTool(env(), "list_runs", Map.of("since", "2026-09-01T10:00:00+02:00"));
+
+            verify(agentRunRepository).findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
+                    isNull(), isNull(), isNull(), isNull(),
+                    eq(LocalDateTime.of(2026, 9, 1, 8, 0)), isNull(), isNull(), any(Pageable.class));
         }
     }
 
@@ -298,7 +303,7 @@ class PlatformObservabilityToolServiceTest {
             assertEquals("telegram", brief.get("connectorCode"));
             assertEquals(connectionId.toString(), brief.get("connectionId"));
             assertEquals("Hello", brief.get("title"));
-            assertEquals("2025-05-05T05:05", brief.get("lastActivityAt"));
+            assertEquals("2025-05-05T05:05:00Z[UTC]", brief.get("lastActivityAt"));
             assertNull(brief.get("closedAt"));
         }
 
@@ -425,8 +430,8 @@ class PlatformObservabilityToolServiceTest {
             assertEquals("SUCCESS", item.get("status"));
             assertEquals(runId.toString(), item.get("runId"));
             assertEquals("ext-1", item.get("externalId"));
-            assertEquals("2025-01-01T09:00", item.get("createdAt"));
-            assertEquals("2025-01-01T10:00", item.get("finishAt"));
+            assertEquals("2025-01-01T09:00:00Z[UTC]", item.get("createdAt"));
+            assertEquals("2025-01-01T10:00:00Z[UTC]", item.get("finishAt"));
             assertEquals("[]", item.get("output"));
         }
 
@@ -580,7 +585,7 @@ class PlatformObservabilityToolServiceTest {
             assertEquals("conn-2", item.get("connectionId"));
             assertEquals("ext-9", item.get("externalId"));
             assertEquals("on_message", item.get("name"));
-            assertEquals("2025-02-02T02:02", item.get("occurredAt"));
+            assertEquals("2025-02-02T02:02:00Z[UTC]", item.get("occurredAt"));
             assertEquals(2L, ((Number) item.get("agentsCount")).longValue());
             assertEquals(Map.of("text", "hi"), item.get("input"));
         }
@@ -641,7 +646,7 @@ class PlatformObservabilityToolServiceTest {
             assertEquals("https://example.com/hook", item.get("requestUrl"));
             assertEquals(200, item.get("responseStatusCode"));
             assertEquals(42L, item.get("durationMs"));
-            assertEquals("2025-03-03T03:03", item.get("deliveredAt"));
+            assertEquals("2025-03-03T03:03:00Z[UTC]", item.get("deliveredAt"));
             assertEquals(Boolean.TRUE, item.get("success"));
             assertNull(item.get("error"));
         }
@@ -766,7 +771,7 @@ class PlatformObservabilityToolServiceTest {
             assertEquals("search", third.get("toolName"));
             assertEquals("{\"n\":1}", third.get("toolOutput"));
             assertNull(third.get("toolError"));
-            assertEquals("2025-04-04T04:02", third.get("createdAt"));
+            assertEquals("2025-04-04T04:02:00Z[UTC]", third.get("createdAt"));
             List<?> results = (List<?>) third.get("toolResults");
             assertEquals(1, results.size());
             assertEquals("{\"n\":1}", ((Map<?, ?>) results.getFirst()).get("outputJson"));

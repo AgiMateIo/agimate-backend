@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.abac.AccessEffect;
+import ru.agimate.controlapi.connectors.core.AgentTimestamps;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
@@ -108,9 +109,8 @@ public class PlatformObservabilityToolService {
                     + "compose: agentId, sessionId, connectorCode, connectionId, name (substring of "
                     + "the trigger's name), status (ENQUEUED, RUNNING, DONE, FAILED, CANCELLED), and "
                     + "the time window since/until over the run's creation time (createdAt — not shown "
-                    + "on the cards). since/until: ISO local date-time without a timezone suffix, e.g. "
-                    + "2026-09-01T10:00:00, the clock the rows are stamped with; since is inclusive, "
-                    + "until is inclusive",
+                    + "on the cards). since/until: ISO date-time, e.g. 2026-09-01T10:00:00Z or "
+                    + "2026-09-01T13:00:00+03:00 (without an offset — UTC); both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public RunList listRuns(
             @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
@@ -132,8 +132,8 @@ public class PlatformObservabilityToolService {
                 PlatformToolsSupport.blankToNull(name),
                 PlatformToolsSupport.blankToNull(status) == null ? null
                         : PlatformToolsSupport.parseEnum(RunStatus.class, status, "status"),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
+                AgentTimestamps.parseUtc(since, "since"),
+                AgentTimestamps.parseUtc(until, "until"),
                 null,
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING, Sort.by("createdAt").descending()));
         List<RunBrief> runItems = page.getContent().stream()
@@ -173,8 +173,8 @@ public class PlatformObservabilityToolService {
             description = "List your channel sessions (conversations with agents), freshest activity "
                     + "first. Every filter is optional: agentId, channelId, connectorCode, and the "
                     + "activity window since/until over lastActivityAt (the time the listing sorts "
-                    + "by). since/until: ISO local date-time without a timezone suffix, e.g. "
-                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
+                    + "by). since/until: ISO date-time, e.g. 2026-09-01T10:00:00Z or "
+                    + "2026-09-01T13:00:00+03:00 (without an offset — UTC); both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public SessionList listSessions(
             @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
@@ -186,8 +186,8 @@ public class PlatformObservabilityToolService {
                 PlatformToolsSupport.parseUuidOrNull(agentId, "agentId"),
                 PlatformToolsSupport.parseUuidOrNull(channelId, "channelId"),
                 PlatformToolsSupport.blankToNull(connectorCode),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
+                AgentTimestamps.parseUtc(since, "since"),
+                AgentTimestamps.parseUtc(until, "until"),
                 0, PlatformToolsSupport.MAX_LISTING);
         List<SessionBrief> sessionItems = page.getContent().stream()
                 .map(this::toSessionBrief)
@@ -230,8 +230,8 @@ public class PlatformObservabilityToolService {
                     + "connectorCode, connectionId, name (substring of the tool name), accessEffect "
                     + "(ALLOW or DENY), status (SUCCESS, ERROR, PENDING), and the time window "
                     + "since/until over the log's creation time (createdAt — the sort column). "
-                    + "since/until: ISO local date-time without a timezone suffix, e.g. "
-                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
+                    + "since/until: ISO date-time, e.g. 2026-09-01T10:00:00Z or "
+                    + "2026-09-01T13:00:00+03:00 (without an offset — UTC); both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public ToolCallLogList listToolCallLogs(
             @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
@@ -255,8 +255,8 @@ public class PlatformObservabilityToolService {
                 effect,
                 PlatformToolsSupport.blankToNull(name),
                 statusValue == null ? null : statusValue.name(),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
+                AgentTimestamps.parseUtc(since, "since"),
+                AgentTimestamps.parseUtc(until, "until"),
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING, Sort.by("createdAt").descending()));
         List<ToolCallLogItem> logItems = page.getContent().stream()
                 .map(this::toToolCallLogItem)
@@ -270,8 +270,8 @@ public class PlatformObservabilityToolService {
                     + "composes: connectorCode, agentId (triggers at least one run of that agent "
                     + "reached), and the time window since/until over occurredAt (the sort column — "
                     + "triggers without a recorded time drop out of a windowed listing). "
-                    + "since/until: ISO local date-time without a timezone suffix, e.g. "
-                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
+                    + "since/until: ISO date-time, e.g. 2026-09-01T10:00:00Z or "
+                    + "2026-09-01T13:00:00+03:00 (without an offset — UTC); both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public TriggerLogList listTriggerLogs(
             @ToolParam(value = "Filter by connector code", required = false) String connectorCode,
@@ -282,8 +282,8 @@ public class PlatformObservabilityToolService {
         Page<TriggerLogWithAgentsCountProjection> page = triggerLogRepository.findByUserIdWithFilters(
                 PlatformToolsSupport.userId(), PlatformToolsSupport.blankToNull(connectorCode),
                 PlatformToolsSupport.parseUuidOrNull(agentId, "agentId"),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
+                AgentTimestamps.parseUtc(since, "since"),
+                AgentTimestamps.parseUtc(until, "until"),
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING, Sort.by("occurredAt").descending()));
         List<TriggerLogItem> triggerItems = page.getContent().stream()
                 .map(this::toTriggerLogItem)
@@ -295,8 +295,8 @@ public class PlatformObservabilityToolService {
             description = "List the webhook deliveries to your WEBHOOK-type agents, newest first, "
                     + "with the response status, duration and error of each. Every filter is optional: "
                     + "agentId, and the time window since/until over deliveredAt (the sort column). "
-                    + "since/until: ISO local date-time without a timezone suffix, e.g. "
-                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
+                    + "since/until: ISO date-time, e.g. 2026-09-01T10:00:00Z or "
+                    + "2026-09-01T13:00:00+03:00 (without an offset — UTC); both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public WebhookDeliveryList listWebhookDeliveries(
             @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
@@ -308,8 +308,8 @@ public class PlatformObservabilityToolService {
         UUID agent = PlatformToolsSupport.parseUuidOrNull(agentId, "agentId");
         Page<WebhookDeliveryLog> page = webhookDeliveryLogRepository.findWithFilters(
                 PlatformToolsSupport.userId(), agent,
-                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
-                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
+                AgentTimestamps.parseUtc(since, "since"),
+                AgentTimestamps.parseUtc(until, "until"),
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING,
                         Sort.by("deliveredAt").descending()));
         List<WebhookDeliveryItem> deliveryItems = page.getContent().stream()
@@ -370,15 +370,15 @@ public class PlatformObservabilityToolService {
                 run.getSessionId() == null ? null : run.getSessionId().toString(),
                 run.getMainRunId() == null ? null : run.getMainRunId().toString(),
                 run.getSteeredAt() != null, run.getTurnsIntact(), run.getTurnsCount(),
-                run.getLastActivityAt() == null ? null : run.getLastActivityAt().toString());
+                AgentTimestamps.utc(run.getLastActivityAt()));
     }
 
     private SessionBrief toSessionBrief(AgentSession session) {
         return new SessionBrief(session.getId().toString(), session.getScope().name(),
                 session.getAgentId().toString(), session.getConnectorCode(),
                 session.getConnectionId().toString(), session.getTitle(),
-                session.getLastActivityAt() == null ? null : session.getLastActivityAt().toString(),
-                session.getClosedAt() == null ? null : session.getClosedAt().toString());
+                AgentTimestamps.utc(session.getLastActivityAt()),
+                AgentTimestamps.utc(session.getClosedAt()));
     }
 
     private ToolCallLogItem toToolCallLogItem(ToolCallLog log) {
@@ -388,8 +388,8 @@ public class PlatformObservabilityToolService {
                 statusOf(log),
                 log.getRunId() == null ? null : log.getRunId().toString(),
                 log.getExternalId(),
-                log.getCreatedAt() == null ? null : log.getCreatedAt().toString(),
-                log.getFinishAt() == null ? null : log.getFinishAt().toString(),
+                AgentTimestamps.utc(log.getCreatedAt()),
+                AgentTimestamps.utc(log.getFinishAt()),
                 redactKeys(log.getError()), redactKeys(redactSecrets(log.getOutput())));
     }
 
@@ -419,7 +419,7 @@ public class PlatformObservabilityToolService {
         Map<String, Object> input = (Map<String, Object>) redactDeep(trigger.getInput());
         return new TriggerLogItem(trigger.getId().toString(), trigger.getConnectorCode(),
                 trigger.getConnectionId(), trigger.getExternalId(), trigger.getName(),
-                trigger.getOccurredAt() == null ? null : trigger.getOccurredAt().toString(),
+                AgentTimestamps.utc(trigger.getOccurredAt()),
                 trigger.getAgentsCount(), input);
     }
 
@@ -427,7 +427,7 @@ public class PlatformObservabilityToolService {
         return new WebhookDeliveryItem(delivery.getId().toString(),
                 delivery.getAgentRun().getId().toString(), delivery.getRequestUrl(),
                 delivery.getResponseStatusCode(), redactKeys(delivery.getError()), delivery.getDurationMs(),
-                delivery.getDeliveredAt() == null ? null : delivery.getDeliveredAt().toString(),
+                AgentTimestamps.utc(delivery.getDeliveredAt()),
                 delivery.isSuccess());
     }
 
@@ -461,7 +461,7 @@ public class PlatformObservabilityToolService {
         return new RunTurnItem(turn.getTurnIndex(), turn.getRole().name(), redactKeys(turn.getText()),
                 toolName, redactKeys(redactSecrets(toolInput)), redactKeys(redactSecrets(toolOutput)),
                 redactKeys(redactSecrets(toolError)),
-                turn.getCreatedAt() == null ? null : turn.getCreatedAt().toString(),
+                AgentTimestamps.utc(turn.getCreatedAt()),
                 redactToolPayloads(turn.getToolCalls(), "argumentsJson"),
                 redactToolPayloads(turn.getToolResults(), "outputJson"));
     }

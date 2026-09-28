@@ -206,6 +206,13 @@ ViewProvider     — readView(ctx, uri), toViewResult(output) — вью MCP App
 сама страница, нужна видимость `ToolVisibility.VIEW`. См.
 [../decisions/connector-views.md](../decisions/connector-views.md).
 
+**Настройки коннектора на привязке.** Настройка, которую читает один коннектор, живёт на привязке
+агента: `agent_connections.settings jsonb`, схема — record коннектора, чтение и запись — только через
+`ConnectorSettingsService.get/save(agentId, connectionId, …)`. Чтение мягкое (нет привязки или ключа —
+значение по умолчанию, лишний ключ игнорируется), запись принимает сам record. Первая такая настройка —
+пояс `time` ([../connectors/time.md](../connectors/time.md)). Самоправку настроек агентом стережёт
+`OwnerRequestGuard`: ран от `webchat`/`acp` или вызов без рана по ключу агента.
+
 **Директивы контекста триггера (`ContextDirectives` в `TriggerSpec`).** Триггер статически
 декларирует, какой контекст нужен его рану, — overlay поверх route-пресета `ContextSpec`
 (DIALOGUE/DIALOGUE_EVENT/SYSTEM_TRIGGER выбирает маршрут, коннектор его не знает — кроме флага

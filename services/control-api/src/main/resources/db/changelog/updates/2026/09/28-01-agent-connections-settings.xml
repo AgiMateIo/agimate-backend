@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Connector settings on the binding (docs/decisions/time-settings.md): the schema is a record the
+      connector declares, the column only stores it. JSONB rather than a column per setting, so a new
+      setting is a new record component and not a migration. The first user is the time connector's
+      timezone.
+    -->
+    <changeSet id="add-agent-connections-settings" author="agimate">
+        <addColumn tableName="agent_connections">
+            <column name="settings" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

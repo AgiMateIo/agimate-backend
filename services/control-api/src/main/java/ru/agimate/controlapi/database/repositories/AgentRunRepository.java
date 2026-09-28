@@ -22,6 +22,10 @@ import java.util.UUID;
 
 public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
 
+    /** Which connector's trigger started the run — the run's origin, e.g. {@code webchat}. */
+    @Query("SELECT r.triggerLog.connectorCode FROM AgentRun r WHERE r.id = :runId")
+    Optional<String> findTriggerConnectorCode(@Param("runId") UUID runId);
+
     // REQUIRES_NEW: the calls arrive from bare gRPC threads (Hibernate rejects @Modifying with no TX) and must
     // not inherit a caller's readOnly transaction — a short writing TX of its own is correct from any context.
     /** The run's sign of life: any of its RPCs extends the activity mark (only while RUNNING). */

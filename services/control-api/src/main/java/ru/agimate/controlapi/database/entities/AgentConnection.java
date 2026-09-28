@@ -4,9 +4,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -47,6 +51,16 @@ public class AgentConnection extends BaseEntity {
 
     @Column(name = "connection_id", nullable = false)
     private UUID connectionId;
+
+    /**
+     * The connector's settings for this agent, in the shape of a record the connector declares; read
+     * and written only through {@code ConnectorSettingsService}. A rebind is a new row, so it starts empty.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @ColumnDefault("'{}'::jsonb")
+    @Column(name = "settings", nullable = false, columnDefinition = "JSONB")
+    @Builder.Default
+    private Map<String, Object> settings = new HashMap<>();
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

@@ -1,15 +1,20 @@
 package ru.agimate.controlapi.connectors.internal.time;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.ConnectorSettingsService;
+import ru.agimate.controlapi.connectors.core.OwnerRequestGuard;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
+import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
@@ -17,18 +22,21 @@ import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,8 +49,12 @@ class TimeToolServiceTest {
     private final ConnectorJobService jobService = mock(ConnectorJobService.class);
     private final TriggerRouterService triggerRouterService = mock(TriggerRouterService.class);
     private final AgentRunRepository agentRunRepository = mock(AgentRunRepository.class);
-    private final TimeConnectorService handler =
-            new TimeConnectorService(new TimeToolService(jobService, triggerRouterService, agentRunRepository));
+    private final AgentConnectionRepository agentConnectionRepository = mock(AgentConnectionRepository.class);
+    private final ConnectorSettingsService settingsService = new ConnectorSettingsService(agentConnectionRepository);
+    private final TimeConnectorService handler = new TimeConnectorService(
+            new TimeToolService(jobService, triggerRouterService, agentRunRepository,
+                    settingsService, new OwnerRequestGuard(agentRunRepository)),
+            settingsService);
 
     private static ConnectorEnv env() {
         return new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, null, Map.of(), null);
@@ -100,7 +112,9 @@ class TimeToolServiceTest {
 
         ArgumentCaptor<Trigger> trigger = ArgumentCaptor.forClass(Trigger.class);
         verify(triggerRouterService).routeTrigger(eq(USER_ID), trigger.capture());
-        assertEquals("Выпей воды.", trigger.getValue().data().get("prompt"));
+        String prompt = (String) trigger.getValue().data().get("prompt");
+        assertTrue(prompt.startsWith("Fired at "));
+        assertTrue(prompt.endsWith("Z[UTC].\n\nВыпей воды."));
         Channels channels = trigger.getValue().context().channels();
         assertNull(channels.prompt());
         assertEquals(new ChannelInfo(channelId, sessionId, null), channels.progress());
@@ -136,7 +150,7 @@ class TimeToolServiceTest {
     }
 
     @Test
-    @DisplayName("nextRunAt отдаётся в UTC со смещением, как current_datetime")
+    @DisplayName("nextRunAt у агента без пояса — UTC со смещением и именем зоны")
     void nextRunAtCarriesOffset() {
         when(jobService.schedule(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(ConnectorJob.builder().id(UUID.randomUUID()).build());
@@ -145,7 +159,7 @@ class TimeToolServiceTest {
                 Map.of("prompt", "п", "cron", "0 0 9 * * *", "zone", "Europe/Moscow"));
 
         // 09:00 по Москве — это 06:00 UTC, в какой бы момент ни шёл тест
-        assertTrue(((String) result.get("nextRunAt")).endsWith("T06:00:00Z"));
+        assertTrue(((String) result.get("nextRunAt")).endsWith("T06:00:00Z[UTC]"));
     }
 
     @Test
@@ -177,5 +191,148 @@ class TimeToolServiceTest {
 
         assertThrows(ConnectorException.class,
                 () -> handler.executeTool(env(), "schedule", args));
+    }
+
+    @Nested
+    @DisplayName("пояс агента")
+    class AgentZone {
+
+        private static final UUID CONNECTION_ID = UUID.randomUUID();
+
+        private AgentConnection binding;
+
+        private ConnectorEnv env(UUID runId) {
+            return new ConnectorEnv(CONNECTION_ID.toString(), USER_ID, AGENT_ID, runId, null, null, Map.of(), null);
+        }
+
+        private void bindWith(Map<String, Object> settings) {
+            binding = AgentConnection.builder().agentId(AGENT_ID).connectionId(CONNECTION_ID)
+                    .settings(new HashMap<>(settings)).build();
+            when(agentConnectionRepository.findActiveBinding(AGENT_ID, CONNECTION_ID)).thenReturn(Optional.of(binding));
+        }
+
+        @Test
+        @DisplayName("cron без zone считается в поясе агента, и пояс пишется в config задачи явно")
+        void cronWithoutZoneTakesAgentZone() {
+            bindWith(Map.of("timezone", "Europe/Moscow"));
+            when(jobService.schedule(any(), any(), any(), any(), any(), any(), any(), any()))
+                    .thenReturn(ConnectorJob.builder().id(UUID.randomUUID()).build());
+
+            Map<String, Object> result = handler.executeTool(env(null), "schedule",
+                    Map.of("prompt", "п", "cron", "0 0 9 * * *"));
+
+            ArgumentCaptor<JobSpec> spec = ArgumentCaptor.forClass(JobSpec.class);
+            verify(jobService).schedule(any(), any(), any(), any(), any(), any(), spec.capture(), any());
+            assertEquals("Europe/Moscow", spec.getValue().config().get("zone"));
+            assertTrue(((String) result.get("nextRunAt")).endsWith("T09:00:00+03:00[Europe/Moscow]"));
+        }
+
+        @Test
+        @DisplayName("current_datetime отдаёт время в поясе агента")
+        void currentDateTimeInAgentZone() {
+            bindWith(Map.of("timezone", "Europe/Moscow"));
+
+            Map<String, Object> result = handler.executeTool(env(null), "current_datetime", Map.of());
+
+            assertEquals("Europe/Moscow", result.get("zone"));
+            ZonedDateTime parsed = ZonedDateTime.parse((String) result.get("dateTime"));
+            assertEquals("Europe/Moscow", parsed.getZone().getId());
+        }
+
+        @Test
+        @DisplayName("fire пишет момент срабатывания в поясе агента")
+        void fireStampsAgentZone() {
+            bindWith(Map.of("timezone", "Europe/Moscow"));
+
+            handler.executeJob(env(null), "fire", Map.of("prompt", "Выпей воды."));
+
+            ArgumentCaptor<Trigger> trigger = ArgumentCaptor.forClass(Trigger.class);
+            verify(triggerRouterService).routeTrigger(eq(USER_ID), trigger.capture());
+            assertTrue(((String) trigger.getValue().data().get("prompt")).contains("+03:00[Europe/Moscow]."));
+        }
+
+        @Test
+        @DisplayName("set_timezone в ране из webchat сохраняет пояс на привязке")
+        void setTimezoneFromWebchat() {
+            bindWith(Map.of());
+            UUID runId = UUID.randomUUID();
+            when(agentRunRepository.findTriggerConnectorCode(runId)).thenReturn(Optional.of("webchat"));
+
+            Map<String, Object> result = handler.executeTool(env(runId), "set_timezone",
+                    Map.of("timezone", "Asia/Tokyo"));
+
+            assertEquals("Asia/Tokyo", result.get("timezone"));
+            assertEquals(Map.of("timezone", "Asia/Tokyo"), binding.getSettings());
+            verify(agentConnectionRepository).save(binding);
+        }
+
+        @Test
+        @DisplayName("set_timezone в ране из чужого канала — отказ, привязка не тронута")
+        void setTimezoneFromForeignChannelRefused() {
+            bindWith(Map.of("timezone", "Europe/Moscow"));
+            UUID runId = UUID.randomUUID();
+            when(agentRunRepository.findTriggerConnectorCode(runId)).thenReturn(Optional.of("telegram"));
+
+            ConnectorException e = assertThrows(ConnectorException.class, () -> handler.executeTool(env(runId),
+                    "set_timezone", Map.of("timezone", "Asia/Tokyo")));
+
+            assertTrue(e.getMessage().startsWith("Settings can only be changed at the owner's request"));
+            assertEquals(Map.of("timezone", "Europe/Moscow"), binding.getSettings());
+            verify(agentConnectionRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("set_timezone без рана (ключ агента) разрешён")
+        void setTimezoneWithoutRunAllowed() {
+            bindWith(Map.of());
+
+            handler.executeTool(env(null), "set_timezone", Map.of("timezone", "Asia/Tokyo"));
+
+            assertEquals(Map.of("timezone", "Asia/Tokyo"), binding.getSettings());
+        }
+
+        @Test
+        @DisplayName("set_timezone с пустым поясом — ошибка, а не молчаливый сброс")
+        void setTimezoneBlankRejected() {
+            bindWith(Map.of("timezone", "Europe/Moscow"));
+
+            assertThrows(ConnectorException.class,
+                    () -> handler.executeTool(env(null), "set_timezone", Map.of("timezone", "")));
+
+            assertEquals(Map.of("timezone", "Europe/Moscow"), binding.getSettings());
+        }
+
+        @Test
+        @DisplayName("save_settings панели не проверяет происхождение, пустой пояс сбрасывает на UTC")
+        void panelSaveResets() {
+            bindWith(Map.of("timezone", "Europe/Moscow"));
+
+            Map<String, Object> result = handler.executeTool(env(null), "save_settings", Map.of("timezone", ""));
+
+            assertNull(result.get("timezone"));
+            assertEquals("UTC", result.get("zone"));
+            assertEquals(Map.of(), binding.getSettings());
+        }
+
+        @Test
+        @DisplayName("смещение вместо IANA-имени — ошибка: оно теряет летнее время")
+        void offsetRejected() {
+            bindWith(Map.of());
+
+            ConnectorException e = assertThrows(ConnectorException.class, () -> handler.executeTool(env(null),
+                    "save_settings", Map.of("timezone", "+03:00")));
+
+            assertTrue(e.getMessage().contains("an offset loses daylight saving time"));
+            assertFalse(binding.getSettings().containsKey("timezone"));
+        }
+
+        @Test
+        @DisplayName("пояс без привязки — ошибка для агента")
+        void unboundRejected() {
+            ConnectorException e = assertThrows(ConnectorException.class, () -> handler.executeTool(env(null),
+                    "save_settings", Map.of("timezone", "Europe/Moscow")));
+
+            assertEquals("The connection is not bound to this agent", e.getMessage());
+        }
     }
 }
