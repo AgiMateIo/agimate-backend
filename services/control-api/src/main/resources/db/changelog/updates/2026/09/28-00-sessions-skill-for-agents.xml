@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Every existing agent gets the sessions skill, as if the user had bound it: this reverses the
+      «a binding is the user's to give» call of 22-00 for agents created before the skill reached the
+      presets. The same four rows AgentSkillService.create writes, in the same order — the user's mode
+      row, the agent's access to it, the skill binding, the requirement reference. MCP agents are left
+      out for the reason the MCP preset is: their model is the client's, the history window never
+      reaches it.
+
+      No ConnectorCreatedEvent is emitted for mode rows made here: sessions declares no @Job, its
+      compact jobs are armed per session by a finished run. The skill row comes from the startup seeder,
+      which runs after Liquibase: on an environment that has never started the 22-00 release the skill
+      is not there yet and steps 3-4 insert nothing — agents there get the skill from their presets
+      only. The name is the catalogue's, already translated under app.content.language.
+    -->
+    <changeSet id="bind-sessions-skill-to-agents" author="agimate">
+        <sql>
+            INSERT INTO connections (id, connector_code, full_code, user_id, name, enabled)
+            SELECT uuidv7(), 'sessions', 'sessions_' || u.user_id, u.user_id,
+                   COALESCE((SELECT name FROM connectors WHERE code = 'sessions'), 'Sessions'), true
+            FROM (SELECT DISTINCT user_id FROM agents
+                  WHERE deleted_at IS NULL AND type != 'MCP') u
+            ON CONFLICT (full_code, user_id) WHERE deleted_at IS NULL DO NOTHING;
+
+            INSERT INTO agent_connections (agent_id, connection_id)
+            SELECT a.id, c.id
+            FROM agents a
+                     JOIN connections c ON c.user_id = a.user_id
+                AND c.connector_code = 'sessions' AND c.deleted_at IS NULL
+            WHERE a.deleted_at IS NULL AND a.type != 'MCP'
+            ON CONFLICT (agent_id, connection_id) WHERE deleted_at IS NULL DO NOTHING;
+
+            INSERT INTO agent_skills (user_id, agent_id, skill_id, installed_skill_version)
+            SELECT a.user_id, a.id, s.id, s.version
+            FROM agents a
+                     JOIN skills s ON s.name = 'sessions' AND s.user_id = '00000000-0000-0000-0000-000000000000'
+                AND s.deleted_at IS NULL
+            WHERE a.deleted_at IS NULL AND a.type != 'MCP'
+            ON CONFLICT (agent_id, skill_id) DO NOTHING;
+
+            INSERT INTO agent_skill_connections (agent_skill_id, connector_key, connection_id)
+            SELECT ag.id, 'sessions', c.id
+            FROM agent_skills ag
+                     JOIN skills s ON s.id = ag.skill_id AND s.name = 'sessions'
+                AND s.user_id = '00000000-0000-0000-0000-000000000000'
+                     JOIN connections c ON c.user_id = ag.user_id
+                AND c.connector_code = 'sessions' AND c.deleted_at IS NULL
+            ON CONFLICT (agent_skill_id, connector_key) DO NOTHING;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
