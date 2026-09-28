@@ -50,7 +50,7 @@ class TimeConnectorServiceTest {
         assertEquals("Time", handler.connectorName());
 
         Map<String, ConnectorToolSpec> tools = handler.getTools();
-        assertEquals(7, tools.size());
+        assertEquals(8, tools.size());
         assertNotNull(tools.get("current_datetime"));
         assertTrue(tools.get("current_datetime").annotations().readOnlyHint());
         assertNotNull(tools.get("schedule"));
@@ -59,6 +59,9 @@ class TimeConnectorServiceTest {
         assertNotNull(tools.get("set_timezone"));
         assertNotNull(tools.get("get_settings"));
         assertNotNull(tools.get("save_settings"));
+        assertEquals(List.of("app"), tools.get("cancel_task").ui().visibility());
+        // The panel lists the very tasks the model sees.
+        assertEquals(List.of("model", "app"), tools.get("scheduled_tasks").ui().visibility());
         // fire — @Tool(visibility = {}): скрыта от LLM, но это цель динамического диспатча, НЕ
         // декларативная джоба, иначе reconcile завёл бы фоновую SYSTEM-строку без агента-инициатора.
         assertNull(tools.get("fire"));

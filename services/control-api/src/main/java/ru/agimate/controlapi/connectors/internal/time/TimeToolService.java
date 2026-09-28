@@ -180,7 +180,8 @@ public class TimeToolService {
     }
 
     @Tool(name = "scheduled_tasks", description = "List your active (not yet completed) scheduled tasks",
-            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
+            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false),
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW})
     public Map<String, Object> scheduledTasks() {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null || ctx.userId() == null) {
@@ -205,9 +206,24 @@ public class TimeToolService {
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public Map<String, Object> cancelScheduled(
             @ToolParam("Id of the scheduled task (from time.schedule / time.scheduled_tasks)") String id) {
+        return cancel(id);
+    }
+
+    /**
+     * The panel's cancel. A tool of its own because a call is decided by ABAC by name: denying
+     * cancel_scheduled to the agent must not take the button away from the owner.
+     */
+    @Tool(name = "cancel_task", description = "Cancel one of this agent's scheduled tasks by id",
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false),
+            visibility = ToolVisibility.VIEW)
+    public Map<String, Object> cancelTask(@ToolParam("Id of the scheduled task") String id) {
+        return cancel(id);
+    }
+
+    private Map<String, Object> cancel(String id) {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null || ctx.userId() == null) {
-            throw new ConnectorException("time.cancel_scheduled must be called by an agent");
+            throw new ConnectorException("A scheduled task can only be cancelled for an agent");
         }
         UUID taskId;
         try {

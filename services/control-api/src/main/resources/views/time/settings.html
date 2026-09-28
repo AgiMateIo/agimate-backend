@@ -50,6 +50,14 @@
   .suggest[hidden] { display: none; }
   .status { font-size: 12px; color: var(--text-soft); min-height: 18px; }
   .status.error { color: var(--danger); }
+  section { display: grid; gap: 8px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+  li { background: var(--bg-soft); border-radius: var(--radius); padding: 8px 10px; display: grid; gap: 4px; }
+  li.empty { color: var(--text-soft); font-style: italic; }
+  .task-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .task-prompt { white-space: pre-wrap; overflow-wrap: anywhere; }
+  button.danger { background: transparent; color: var(--danger); border-color: var(--danger); padding: 2px 10px; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -68,6 +76,16 @@
   </form>
   <span class="meta" id="now"></span>
   <span class="status" id="status" role="status"></span>
+
+  <section aria-labelledby="tasks-title">
+    <header>
+      <h2 id="tasks-title" data-t="tasksTitle"></h2>
+      <button id="tasks-reload" class="quiet" data-t="reload"></button>
+    </header>
+    <p class="hint" data-t="tasksHint"></p>
+    <ol id="tasks"></ol>
+    <span class="status" id="tasks-status" role="status"></span>
+  </section>
 </main>
 
 <script>
@@ -78,17 +96,33 @@
       save: "Save", reset: "Reset to UTC", apply: "Set",
       suggest: (zone) => "Your timezone is " + zone + ".", placeholder: "Europe/Berlin",
       now: (time) => "Agent's time now: " + time, saved: "Saved", loading: "Loading…",
-      unknown: "Unknown timezone", failed: "Failed: "
+      unknown: "Unknown timezone", failed: "Failed: ",
+      tasksTitle: "Scheduled tasks", tasksHint: "What the agent set itself to do later. Cancelling stops a repeating task for good.",
+      reload: "Reload", noTasks: "No scheduled tasks", cancel: "Cancel", cancelled: "Task cancelled",
+      confirmCancel: "Sure? Press again", next: "Next run: ",
+      once: "Once", every: (s) => "Every " + duration(s, ["s", "min", "h", "d"]), cron: (c, z) => "Cron " + c + (z ? " (" + z + ")" : "")
     },
     ru: {
       title: "Часовой пояс", hint: "В этом поясе агент называет время, ставит напоминания и ведёт расписания. Пусто — UTC.",
       save: "Сохранить", reset: "Сбросить на UTC", apply: "Установить",
       suggest: (zone) => "Ваш часовой пояс — " + zone + ".", placeholder: "Europe/Moscow",
       now: (time) => "Сейчас у агента: " + time, saved: "Сохранено", loading: "Загрузка…",
-      unknown: "Неизвестный часовой пояс", failed: "Ошибка: "
+      unknown: "Неизвестный часовой пояс", failed: "Ошибка: ",
+      tasksTitle: "Запланированные задачи", tasksHint: "Что агент поручил себе на потом. Отмена останавливает повторяющуюся задачу насовсем.",
+      reload: "Обновить", noTasks: "Задач нет", cancel: "Отменить", cancelled: "Задача отменена",
+      confirmCancel: "Точно? Нажмите ещё раз", next: "Следующий запуск: ",
+      once: "Однократно", every: (s) => "Каждые " + duration(s, ["с", "мин", "ч", "дн"]), cron: (c, z) => "Cron " + c + (z ? " (" + z + ")" : "")
     }
   };
   let t = TEXTS.en;
+
+  function duration(seconds, units) {
+    const steps = [[86400, units[3]], [3600, units[2]], [60, units[1]]];
+    for (const [size, unit] of steps) {
+      if (seconds % size === 0) return (seconds / size) + " " + unit;
+    }
+    return seconds + " " + units[0];
+  }
 
   // --- MCP Apps bridge: JSON-RPC over postMessage to the host ---
   let nextId = 1;
@@ -152,11 +186,76 @@
     try {
       show(await callTool("save_settings", { timezone: value }));
       status(t.saved);
+      // nextRunAt is rendered in the agent's zone, which has just changed.
+      reloadTasks();
     } catch (e) {
       save.disabled = false;
       status(t.failed + e.message, true);
     }
   }
+
+  function schedule(task) {
+    const config = task.config || {};
+    if (task.taskType === "PERIODIC") return t.every(Number(config.intervalSeconds));
+    if (task.taskType === "CRON") return t.cron(config.cron, config.zone);
+    return t.once;
+  }
+
+  function taskItem(task) {
+    const item = document.createElement("li");
+    const head = document.createElement("div");
+    head.className = "task-head";
+    const when = Object.assign(document.createElement("span"), {
+      className: "meta", textContent: schedule(task) + " · " + t.next + (task.nextRunAt || "—")
+    });
+    const cancel = Object.assign(document.createElement("button"), { className: "danger", textContent: t.cancel });
+    // A second press confirms: a sandboxed frame may not be allowed window.confirm.
+    let armed = false;
+    cancel.addEventListener("click", async () => {
+      if (!armed) {
+        armed = true;
+        cancel.textContent = t.confirmCancel;
+        setTimeout(() => { armed = false; cancel.textContent = t.cancel; }, 4000);
+        return;
+      }
+      cancel.disabled = true;
+      try {
+        await callTool("cancel_task", { id: task.id });
+        await loadTasks();
+        taskStatus(t.cancelled);
+      } catch (e) {
+        cancel.disabled = false;
+        taskStatus(t.failed + e.message, true);
+      }
+    });
+    head.append(when, cancel);
+    item.append(head, Object.assign(document.createElement("div"), { className: "task-prompt", textContent: task.prompt || "" }));
+    return item;
+  }
+
+  function taskStatus(text, isError) {
+    $("tasks-status").textContent = text || "";
+    $("tasks-status").classList.toggle("error", !!isError);
+  }
+
+  async function loadTasks() {
+    const { tasks = [] } = await callTool("scheduled_tasks");
+    $("tasks").replaceChildren(...(tasks.length
+      ? tasks.map(taskItem)
+      : [Object.assign(document.createElement("li"), { className: "empty", textContent: t.noTasks })]));
+  }
+
+  async function reloadTasks() {
+    taskStatus(t.loading);
+    try {
+      await loadTasks();
+      taskStatus("");
+    } catch (e) {
+      taskStatus(t.failed + e.message, true);
+    }
+  }
+
+  $("tasks-reload").addEventListener("click", reloadTasks);
 
   zone.addEventListener("input", () => {
     const value = zone.value.trim();
@@ -191,6 +290,7 @@
     status(t.loading);
     show(await callTool("get_settings"));
     status("");
+    await reloadTasks();
   })().catch((e) => status(t.failed + e.message, true));
 })();
 </script>

@@ -193,6 +193,25 @@ class TimeToolServiceTest {
                 () -> handler.executeTool(env(), "schedule", args));
     }
 
+    @Test
+    @DisplayName("cancel_task панели отменяет задачу этого агента, как cancel_scheduled")
+    void panelCancelsAgentTask() {
+        UUID taskId = UUID.randomUUID();
+        when(jobService.cancel(TimeConnectorService.CONNECTOR_CODE, USER_ID, AGENT_ID, taskId)).thenReturn(true);
+
+        Map<String, Object> result = handler.executeTool(env(), "cancel_task", Map.of("id", taskId.toString()));
+
+        assertEquals(true, result.get("cancelled"));
+        verify(jobService).cancel(TimeConnectorService.CONNECTOR_CODE, USER_ID, AGENT_ID, taskId);
+    }
+
+    @Test
+    @DisplayName("cancel_task чужой или несуществующей задачи — ошибка")
+    void panelCancelUnknownTask() {
+        assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "cancel_task",
+                Map.of("id", UUID.randomUUID().toString())));
+    }
+
     @Nested
     @DisplayName("пояс агента")
     class AgentZone {

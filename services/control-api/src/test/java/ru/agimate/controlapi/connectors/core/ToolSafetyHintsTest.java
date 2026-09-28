@@ -96,7 +96,8 @@ class ToolSafetyHintsTest {
             "SheetsToolService.delete_sheet",
             "SheetsToolService.update_rows",
             "SheetsToolService.delete_rows",
-            "TimeToolService.cancel_scheduled");
+            "TimeToolService.cancel_scheduled",
+            "TimeToolService.cancel_task");
 
     @Test
     @DisplayName("наружу уходят ровно объявленные тулы (openWorld и не read-only)")
