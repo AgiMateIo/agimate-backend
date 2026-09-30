@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<yandexsearch version="1.0">
+<request><query>ключевая ставка</query></request>
+<response date="20260930T101500">
+<reqid>1727690000000000-1</reqid>
+<found priority="all">1200000</found>
+<results>
+<grouping attr="d" mode="deep" groups-on-page="3" docs-in-group="1">
+<page first="1" last="3">0</page>
+<group>
+<categ attr="d" name="cbr.ru"/>
+<doccount>12</doccount>
+<doc id="A1">
+<url>https://cbr.ru/hd_base/KeyRate/</url>
+<domain>cbr.ru</domain>
+<title><hlword>Ключевая</hlword> <hlword>ставка</hlword> Банка России</title>
+<headline>Официальная страница регулятора.</headline>
+<modtime>20260912T133000</modtime>
+<passages>
+<passage>Решение о <hlword>ключевой</hlword> <hlword>ставке</hlword> принято 12 сентября.</passage>
+<passage>Текущее значение — 16%.</passage>
+</passages>
+</doc>
+</group>
+<group>
+<categ attr="d" name="example.ru"/>
+<doc id="A2">
+<url>https://example.ru/rates</url>
+<domain>example.ru</domain>
+<title>Обзор ставок</title>
+<headline>Сводка по банкам.</headline>
+</doc>
+</group>
+<group>
+<categ attr="d" name="third.ru"/>
+<doc id="A3">
+<url>https://third.ru/</url>
+<title>Третий</title>
+</doc>
+</group>
+</grouping>
+</results>
+</response>
+</yandexsearch>

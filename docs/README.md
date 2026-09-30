@@ -72,6 +72,7 @@
 | [subagents.md](connectors/subagents.md) | Субагенты: поручения своим копиям в сессиях канала, отчёт в разговор |
 | [sessions.md](connectors/sessions.md) | `sessions`: параллельные разговоры блоком, поиск по сказанному, скрытая компакция окна и заголовок |
 | [agents.md](connectors/agents.md) | Агенты команды: поручения другому агенту по схеме субагентов, круг — команда |
+| [web.md](connectors/web.md) | `web`: поиск через Yandex Search API и чтение страниц в markdown |
 | [webchat.md](connectors/webchat.md) · [media.md](connectors/media.md) · [astro-divination.md](connectors/astro-divination.md) | Остальные коннекторы |
 
 ## Решения
@@ -122,6 +123,7 @@
 | [agent-sessions-connector.md](decisions/agent-sessions-connector.md) | Коннектор `sessions`: параллельные сессии блоком в user-prompt, `search_messages` по журналу ходов, скрытый `compact` ставит сводку и заголовок — модели `set_title` не дан |
 | [session-events.md](decisions/session-events.md) | Живые события сессий в `user:{userId}`: `session.created`/`session.updated` и строка контакта `webchat.agent.updated` — строка целиком после коммита вместо прибавочного `webchat_activity` |
 | [realtime-notifications.md](decisions/realtime-notifications.md) | Уведомления через Centrifugo в одном пакете `realtime`: имена каналов, типизированные события, публикация только после коммита и без влияния на логику; `webchat:` сливается в `user:` |
+| [web-search.md](decisions/web-search.md) | Коннектор `web`: поиск на Yandex Search API с платформенным ключом и суточным лимитом, чтение страницы в markdown; поставщик, извлечение текста и конвертер — заменяемые стратегии |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md) |
 
 ## Как ведётся документация

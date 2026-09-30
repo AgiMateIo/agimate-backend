@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Разбираем виртуальные потоки в Java / Блог</title></head>
+<body>
+<div class="tm-layout">
+  <div class="tm-header"><a href="/">Блог</a> <a href="/feed">Лента</a> <a href="/hubs">Хабы</a></div>
+  <div class="tm-page">
+    <div class="tm-article-body">
+      <div id="post-content-body">
+        <p>Виртуальные потоки появились в Java 21, и с ними блокирующий код снова стал дешёвым, если не держать монитор во время ввода-вывода.</p>
+        <p>Посмотрим на простой пример, где тысячи задач ждут сеть, и сравним с пулом платформенных потоков, чтобы понять разницу на практике.</p>
+        <pre><code class="language-java">try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    executor.submit(() -> fetch(url));
+}</code></pre>
+        <p>Главное правило: <b>не пинить</b> поток и использовать <code>ReentrantLock</code> вместо <i>synchronized</i> вокруг блокировок.</p>
+        <ol>
+          <li>Замерьте текущую пропускную способность.</li>
+          <li>Переключите исполнитель:
+            <ul><li>для HTTP-клиента;</li><li>для JDBC.</li></ul>
+          </li>
+        </ol>
+        <table>
+          <tr><th>Вариант</th><th>RPS</th></tr>
+          <tr><td>Платформенные</td><td>1 200</td></tr>
+          <tr><td>Виртуальные</td><td>9 800</td></tr>
+        </table>
+        <blockquote><p>Виртуальный поток — не быстрее, он дешевле.</p></blockquote>
+        <p><img src="/chart.png" alt="График RPS"></p>
+      </div>
+    </div>
+    <div class="tm-comments"><p>Отличная статья, спасибо, очень помогло разобраться с потоками и блокировками.</p></div>
+  </div>
+  <div class="tm-sidebar"><a href="/top">Лучшее за неделю</a> <a href="/top2">Ещё одна ссылка</a></div>
+</div>
+</body>
+</html>

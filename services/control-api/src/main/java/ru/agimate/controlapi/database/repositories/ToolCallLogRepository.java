@@ -81,6 +81,25 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
             """)
     long countLiveDetached(@Param("agentId") UUID agentId, @Param("cutoff") LocalDateTime cutoff);
 
+    /**
+     * Calls of one tool by the user that went through: permitted and not failed. The web connector's
+     * daily search cap reads this — a denied or failed call cost the platform nothing. A call still
+     * running counts, the caller's own included.
+     */
+    @Query("""
+            SELECT COUNT(t) FROM ToolCallLog t
+            WHERE t.userId = :userId
+              AND t.connectorCode = :connectorCode
+              AND t.name = :name
+              AND t.accessEffect = ru.agimate.controlapi.abac.AccessEffect.ALLOW
+              AND t.error IS NULL
+              AND t.createdAt > :since
+            """)
+    long countSucceeded(@Param("userId") UUID userId,
+                        @Param("connectorCode") String connectorCode,
+                        @Param("name") String name,
+                        @Param("since") LocalDateTime since);
+
     // CAST on the since/until null checks: pgjdbc sends a timestamp bind with an unspecified type
     // oid, and Postgres cannot infer one from a bare "? IS NULL" (42P18).
     /**

@@ -69,7 +69,8 @@ public class SystemSkillBootstrap {
             "docli",
             "subagents",
             "agents",
-            "sessions");
+            "sessions",
+            "web");
 
     private final SkillRepository skillRepository;
     private final SeedContentLocator seedContentLocator;

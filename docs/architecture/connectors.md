@@ -310,7 +310,9 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 «модель как инструмент»: `gen_image`/`edit_image`/`combine_images`/`read_image` чужой моделью, выбор
 модели и ключи — в `service/llm/media/MediaInferenceService`, см. `docs/connectors/media.md`),
 `internal/sheets/` (таблицы агента с объявленной схемой: фильтры и сводки по любой колонке,
-PNG-графики, импорт/выгрузка xlsx/csv, см. `docs/connectors/sheets.md`).
+PNG-графики, импорт/выгрузка xlsx/csv, см. `docs/connectors/sheets.md`), `internal/web/`
+(`web_search` через Yandex Search API с платформенным ключом и `web_fetch` — страница в markdown,
+поставщик выдачи, извлечение текста и конвертер — заменяемые бины, см. `docs/connectors/web.md`).
 
 ### MCP-коннектор
 

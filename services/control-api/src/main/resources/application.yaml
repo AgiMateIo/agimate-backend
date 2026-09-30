@@ -151,6 +151,17 @@ app:
         # AS показывает пользователю имя клиента и хост редиректа, и два разных хоста читаются как
         # два незнакомых приложения.
         redirect-uri: ""
+    web:
+      # Коннектор web (docs/connectors/web.md). Ключ Yandex Search API выпускается на сервисный
+      # аккаунт с ролью search-api.webSearch.user в каталоге folder-id. Пустой ключ — web_search
+      # отвечает «не настроен», web_fetch работает всё равно. В проде — env
+      # APP_CONNECTORS_WEB_YANDEX_API_KEY / APP_CONNECTORS_WEB_YANDEX_FOLDER_ID.
+      yandex:
+        api-key: ""
+        folder-id: ""
+      search:
+        # Запросов на пользователя за скользящие сутки: каждый стоит платформе денег. 0 — без лимита.
+        daily-limit-per-user: 100
   user-api:
     # Как control-api ходит в user-api: адрес соседа и общий секрет, который он там предъявляет
     # (docs/decisions/push-notifications.md). url — с контекстным путём (http://user-api:8080/user).
