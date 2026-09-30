@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      The web skill joins two system presets. Presets are seed-only-if-missing, so the PRESET.md edit
+      alone reaches only a fresh installation; an already seeded one learns it here. The list holds
+      names, so it does not matter that the skill row itself is seeded only after Liquibase. Agents
+      created from these presets earlier keep their skills — a preset is a template, not a binding,
+      and search costs the platform money, so it is not handed to every agent.
+    -->
+    <changeSet id="add-web-skill-to-presets" author="agimate">
+        <sql>
+            UPDATE agent_presets
+            SET skill_names = skill_names || ARRAY['web'],
+                updated_at = CURRENT_TIMESTAMP
+            WHERE name IN ('personal-assistant', 'investment-advisor')
+              AND NOT (skill_names @> ARRAY['web']);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
