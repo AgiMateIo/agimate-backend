@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
  * Operator settings of the web connector (docs/connectors/web.md). The search key is the platform's:
@@ -35,7 +36,8 @@ public class WebProperties {
         private String folderId = "";
 
         public boolean configured() {
-            return !apiKey.isBlank() && !folderId.isBlank();
+            // An empty value in yaml (api-key:) binds as null, not as "".
+            return StringUtils.hasText(apiKey) && StringUtils.hasText(folderId);
         }
     }
 }

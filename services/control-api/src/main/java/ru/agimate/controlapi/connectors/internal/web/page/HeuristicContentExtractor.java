@@ -174,9 +174,12 @@ public class HeuristicContentExtractor implements ContentExtractor {
                 element.remove();
             }
         }
+        // A noise word on a wrapper of the whole page (class="page has-sidebar") must not take the page
+        // with it: chrome is never most of the text.
+        int pageText = body.text().length();
         for (Element element : body.select("[class], [id]")) {
             if (element.parent() != null && isNoise(element) && element.selectFirst(CONTENT_ROOTS) == null
-                    && !element.is(CONTENT_ROOTS)) {
+                    && !element.is(CONTENT_ROOTS) && element.text().length() * 2 <= pageText) {
                 element.remove();
             }
         }

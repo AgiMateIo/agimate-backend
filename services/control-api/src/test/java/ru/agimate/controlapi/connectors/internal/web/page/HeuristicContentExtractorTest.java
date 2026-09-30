@@ -84,6 +84,21 @@ class HeuristicContentExtractorTest {
     }
 
     @Test
+    @DisplayName("слово шума на обёртке всей страницы не уносит страницу")
+    void noiseWordOnPageWrapper() {
+        String paragraph = "<p>" + "Текст статьи, достаточно длинный, чтобы пройти порог. ".repeat(10) + "</p>";
+        Document document = org.jsoup.Jsoup.parse("<html><body><div class=\"page has-sidebar\">"
+                + "<div class=\"content\">" + paragraph + paragraph + "</div>"
+                + "<div class=\"sidebar\"><a href=\"/x\">Лучшее за неделю</a></div></div></body></html>");
+
+        ExtractedContent content = extractor.extract(document);
+
+        assertNotNull(content.body());
+        assertTrue(content.body().text().contains("Текст статьи"));
+        assertFalse(content.body().text().contains("Лучшее за неделю"), "настоящий сайдбар по-прежнему уходит");
+    }
+
+    @Test
     @DisplayName("исходный документ не меняется")
     void leavesDocumentIntact() {
         Document document = WebFixtures.document("news.html");

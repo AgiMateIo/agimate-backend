@@ -58,6 +58,12 @@ public class WebPageReader {
      * from a plain refusal.
      */
     private static final Set<Integer> WALL_STATUSES = Set.of(401, 403, 429, 498, 503);
+    /**
+     * Refusals where an empty page is a wall too — its challenge lives in a script it loads. Not 429
+     * and 503: an empty page there is a site that is down or throttling, and saying «anti-bot» would
+     * send the agent the wrong way.
+     */
+    private static final Set<Integer> EMPTY_WALL_STATUSES = Set.of(401, 403, 498);
 
     private static final List<String> CHALLENGE_MARKERS = List.of(
             "just a moment", "checking your browser", "verify you are human", "attention required",
@@ -122,9 +128,8 @@ public class WebPageReader {
                 }
                 if (WALL_STATUSES.contains(status) && isHtml(type)) {
                     Document wall = parse(new Fetched(current, type, readBody(response.getBody(), deadline)));
-                    // An empty page refusing access is a wall too: the challenge lives in a script it loads.
-                    if (isChallenge(wall) || wall.body() == null
-                            || wall.body().text().length() < HeuristicContentExtractor.MIN_TEXT) {
+                    if (isChallenge(wall) || EMPTY_WALL_STATUSES.contains(status)
+                            && textLength(wall) < HeuristicContentExtractor.MIN_TEXT) {
                         throw challenge();
                     }
                 }
@@ -260,16 +265,30 @@ public class WebPageReader {
         return text.startsWith("﻿") ? text.substring(1) : text;
     }
 
+    /**
+     * A wall says so in its title, or it is a page with next to no text plus a captcha. The widget
+     * alone proves nothing: contact and comment forms carry reCAPTCHA too, around a page worth reading.
+     */
     static boolean isChallenge(Document document) {
-        String text = document.body() == null ? "" : document.body().text();
-        if (text.length() > CHALLENGE_MAX_TEXT) {
+        int length = textLength(document);
+        if (length > CHALLENGE_MAX_TEXT) {
             return false;
         }
-        if (document.selectFirst(CHALLENGE_ELEMENTS) != null) {
+        if (hasMarker(document.title())) {
             return true;
         }
-        String haystack = (document.title() + " " + text).toLowerCase(Locale.ROOT);
+        return length < HeuristicContentExtractor.MIN_TEXT
+                && (document.selectFirst(CHALLENGE_ELEMENTS) != null
+                        || document.body() != null && hasMarker(document.body().text()));
+    }
+
+    private static boolean hasMarker(String text) {
+        String haystack = text.toLowerCase(Locale.ROOT);
         return CHALLENGE_MARKERS.stream().anyMatch(haystack::contains);
+    }
+
+    private static int textLength(Document document) {
+        return document.body() == null ? 0 : document.body().text().length();
     }
 
     private static ConnectorException challenge() {

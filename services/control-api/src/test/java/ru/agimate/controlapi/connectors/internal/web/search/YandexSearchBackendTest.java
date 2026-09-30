@@ -10,6 +10,7 @@ import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -61,6 +62,16 @@ class YandexSearchBackendTest {
     void refusesDoctype() {
         String xxe = "<?xml version=\"1.0\"?><!DOCTYPE r [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><r>&x;</r>";
         assertThrows(ConnectorException.class, () -> YandexSearchBackend.parse(xxe, 10));
+    }
+
+    @Test
+    @DisplayName("пустое значение в yaml (null) — не настроено, а не NPE")
+    void nullKeyIsNotConfigured() {
+        WebProperties.Yandex yandex = new WebProperties.Yandex();
+        yandex.setApiKey(null);
+        yandex.setFolderId("b1g");
+
+        assertFalse(yandex.configured());
     }
 
     @Test

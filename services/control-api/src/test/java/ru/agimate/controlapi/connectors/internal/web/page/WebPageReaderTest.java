@@ -41,6 +41,8 @@ class WebPageReaderTest {
             serve("/plain", 200, "text/plain; charset=windows-1251", "Привет, мир".getBytes(Charset.forName("windows-1251")));
             serve("/pdf", 200, "application/pdf", new byte[]{'%', 'P', 'D', 'F'});
             serve("/wall", 403, "text/html; charset=utf-8", WebFixtures.bytes("challenge.html"));
+            serve("/down", 503, "text/html; charset=utf-8", "<p>Service unavailable</p>".getBytes(StandardCharsets.UTF_8));
+            serve("/denied", 401, "text/html; charset=utf-8", "<html><body></body></html>".getBytes(StandardCharsets.UTF_8));
             serve("/gone", 404, "text/html; charset=utf-8", "<p>not found</p>".getBytes(StandardCharsets.UTF_8));
             serve("/spa", 200, "text/html; charset=utf-8", WebFixtures.bytes("spa-empty.html"));
             serve("/long", 200, "text/html; charset=utf-8", longPage().getBytes(StandardCharsets.UTF_8));
@@ -122,6 +124,16 @@ class WebPageReaderTest {
         }
 
         @Test
+        @DisplayName("пустая страница на 401 — стена, короткая на 503 — просто статус")
+        void emptyRefusals() {
+            ConnectorException denied = assertThrows(ConnectorException.class, () -> reader.read(base + "/denied", 20_000));
+            assertTrue(denied.getMessage().contains("anti-bot"));
+
+            ConnectorException down = assertThrows(ConnectorException.class, () -> reader.read(base + "/down", 20_000));
+            assertEquals("The page answered HTTP 503", down.getMessage());
+        }
+
+        @Test
         @DisplayName("пустая оболочка SPA — ошибка «нет текста»")
         void emptyShell() {
             ConnectorException e = assertThrows(ConnectorException.class, () -> reader.read(base + "/spa", 20_000));
@@ -200,6 +212,13 @@ class WebPageReaderTest {
         void challenge() {
             assertTrue(WebPageReader.isChallenge(WebFixtures.document("challenge.html")));
             assertFalse(WebPageReader.isChallenge(WebFixtures.document("news.html")));
+
+            String contacts = "<html><head><title>Контакты</title></head><body><h1>Контакты</h1><p>"
+                    + "Наш офис: Москва, ул. Ленина, 1, третий этаж, вход со двора. Телефон +7 495 000-00-00, "
+                    + "по будням с 9 до 18. Реквизиты для договора и схема проезда — ниже.</p>"
+                    + "<p>Напишите нам через форму, ответим в течение рабочего дня.</p>"
+                    + "<form><textarea></textarea><div class=\"g-recaptcha\" data-sitekey=\"k\"></div></form></body></html>";
+            assertFalse(WebPageReader.isChallenge(org.jsoup.Jsoup.parse(contacts)), "reCAPTCHA в форме — не стена");
 
             StringBuilder article = new StringBuilder("<html><body><h1>Как работает captcha</h1>");
             article.append("<p>").append("Длинный текст о капче. ".repeat(200)).append("</p></body></html>");
