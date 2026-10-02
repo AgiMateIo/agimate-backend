@@ -46,7 +46,7 @@ dependencies {
     implementation("io.projectreactor:reactor-core")
 
     // DBOS durable workflows / queues (same lib the control-api producer uses).
-    implementation("dev.dbos:transact:1.0.0")
+    implementation("dev.dbos:transact:1.1.1")
 
     // Bounded cache for per-credentials chat models (reuses the underlying HTTP clients).
     implementation("com.github.ben-manes.caffeine:caffeine")

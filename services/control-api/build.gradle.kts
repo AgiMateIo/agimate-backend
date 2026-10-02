@@ -81,7 +81,7 @@ dependencies {
     implementation(platform("software.amazon.awssdk:bom:2.49.1"))
     implementation("software.amazon.awssdk:s3")
 
-    implementation("dev.dbos:transact:1.0.0")
+    implementation("dev.dbos:transact:1.1.1")
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 

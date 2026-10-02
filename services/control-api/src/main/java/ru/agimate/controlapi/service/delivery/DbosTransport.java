@@ -1,6 +1,8 @@
 package ru.agimate.controlapi.service.delivery;
 
 import dev.dbos.transact.DBOSClient;
+import dev.dbos.transact.EnqueueOptions;
+import dev.dbos.transact.workflow.QueueName;
 import dev.dbos.transact.workflow.SerializationStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,12 +47,12 @@ public class DbosTransport implements AgentTransport {
         // is the session — single-writer-per-session is a contractual property of the queue, and every run has
         // a session now (the channel's or the connection's). Delivery is deduplicated by workflow_id.
         String partitionKey = agentRun.getSessionId().toString();
-        DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
+        EnqueueOptions options = new EnqueueOptions(
                 WorkerProtocol.RUN_WORKFLOW,
                 WorkerProtocol.RUN_CLASS,
-                WorkerProtocol.RUN_QUEUE
+                WorkerProtocol.INSTANCE,
+                QueueName.of(WorkerProtocol.RUN_QUEUE)
         )
-                .withInstanceName(WorkerProtocol.INSTANCE)
                 .withSerialization(SerializationStrategy.PORTABLE)
                 .withWorkflowId(runId)
                 .withQueuePartitionKey(partitionKey);
