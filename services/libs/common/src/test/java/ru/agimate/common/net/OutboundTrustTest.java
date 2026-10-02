@@ -36,11 +36,14 @@ class OutboundTrustTest {
         @Test
         @DisplayName("добавленный якорь не вытесняет платформенные, а прибавляется к ним")
         void addsToPlatformAnchors() throws Exception {
-            int platform = OutboundTrust.systemDefault().anchorCount();
+            OutboundTrust platform = OutboundTrust.systemDefault();
             try (InputStream pem = bundledRoot()) {
                 OutboundTrust trust = OutboundTrust.with(List.of(pem));
+                // Some JDK builds (Axiom) already ship this root in cacerts — then it adds nothing new
+                boolean shipped = List.of(platform.manager().getAcceptedIssuers())
+                        .contains(trust.addedAnchors().getFirst());
 
-                assertEquals(platform + 1, trust.anchorCount());
+                assertEquals(platform.anchorCount() + (shipped ? 0 : 1), trust.anchorCount());
                 assertEquals(1, trust.addedAnchors().size());
             }
         }
