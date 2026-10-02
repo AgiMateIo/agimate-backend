@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.1.0" apply false
+    id("org.springframework.boot") version "4.1.1" apply false
     id("org.asciidoctor.jvm.convert") version "4.0.4" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false
 }
@@ -23,7 +23,6 @@ allprojects {
 
         dependencies {
             constraints {
-                implementation("net.logstash.logback:logstash-logback-encoder:7.4")
                 implementation("io.jsonwebtoken:jjwt-api:0.12.6")
                 implementation("io.jsonwebtoken:jjwt-impl:0.12.6")
                 implementation("io.jsonwebtoken:jjwt-jackson:0.12.6")
