@@ -19,7 +19,7 @@ Everything lives under [`services/`](services/) as a single Gradle build.
 
 ## Stack
 
-Java 21 (virtual threads) · Spring Boot 4 · PostgreSQL 18 · Liquibase · gRPC · Centrifugo
+Java 25 (virtual threads) · Spring Boot 4 · PostgreSQL 18 · Liquibase · gRPC · Centrifugo
 
 ## Quick start
 

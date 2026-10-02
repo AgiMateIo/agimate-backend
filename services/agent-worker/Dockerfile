@@ -1,5 +1,5 @@
 # Multi-stage build for agent-worker
-FROM eclipse-temurin:21-jdk AS builder
+FROM eclipse-temurin:25-jdk AS builder
 
 WORKDIR /app
 
@@ -35,7 +35,7 @@ RUN ./gradlew :agent-worker:bootJar --no-daemon
 # which surfaces as a JVM SIGSEGV inside netty_internal_tcnative_SSLContext_JNI_OnLoad the
 # moment a TLS context is created. Invisible locally, where compose runs the worker with
 # AGENT_GRPC_USE_TLS=false over a shared loopback and no SSL context is ever built.
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 

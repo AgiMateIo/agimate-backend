@@ -59,7 +59,7 @@ public class DbosRuntime implements SmartLifecycle {
         // worker-level cap is expressible on a partitioned queue (both concurrency and
         // workerConcurrency are applied per partition) — per-worker load on the model provider is
         // bounded by the LlmCall semaphore instead, and a run waiting on a model or a tool parks a
-        // virtual thread, not a platform one (Java 21 DBOS executes workflows on virtual threads);
+        // virtual thread, not a platform one (on Java 21+ DBOS executes workflows on virtual threads);
         // memory per run is bounded by the tool-output cap.
         //
         // The two claims above are about DBOS internals, not about our code, and nothing here

@@ -10,7 +10,7 @@ group = "ru.agimate.agentworker"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 

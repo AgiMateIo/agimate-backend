@@ -1,5 +1,5 @@
 # Multi-stage build for user-api
-FROM eclipse-temurin:21-jdk AS builder
+FROM eclipse-temurin:25-jdk AS builder
 
 WORKDIR /app
 
@@ -32,7 +32,7 @@ RUN ./gradlew :user-api:bootJar --no-daemon
 # netty-tcnative (its native TLS library is glibc-linked and faults on musl). user-api does
 # not terminate TLS itself today, but one base image across the three services means a gRPC
 # or TLS dependency added here later cannot reintroduce the same crash.
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 

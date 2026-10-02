@@ -12,7 +12,7 @@ val protobufVersion = "3.25.9"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 

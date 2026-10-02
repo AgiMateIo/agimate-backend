@@ -1,5 +1,5 @@
 # Multi-stage build for control-api
-FROM eclipse-temurin:21-jdk AS builder
+FROM eclipse-temurin:25-jdk AS builder
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ RUN ./gradlew :control-api:bootJar --no-daemon
 # library is built against glibc and dies in relocation on musl (__isnan: symbol not found),
 # surfacing as a JVM SIGSEGV as soon as the SSL context is built. Kept in step with the other
 # two services — agent-worker hits the same wall from the client side.
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 

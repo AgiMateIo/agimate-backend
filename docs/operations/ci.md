@@ -82,8 +82,8 @@ registry и деплой-ключи. GitHub (`AgiMateIo/agimate-backend`) — п
 
 ## Образы
 
-Двухэтапный Dockerfile, одинаковый у всех трёх сервисов: сборка на `21-jdk`, рантайм на
-`21-jre` под non-root пользователем `spring`.
+Двухэтапный Dockerfile, одинаковый у всех трёх сервисов: сборка на `25-jdk`, рантайм на
+`25-jre` под non-root пользователем `spring`.
 
 Рантайм именно на glibc, не на `-alpine`. `grpc-netty-shaded` несёт с собой нативную
 библиотеку netty-tcnative, собранную под glibc; на musl она подгружается и падает на
