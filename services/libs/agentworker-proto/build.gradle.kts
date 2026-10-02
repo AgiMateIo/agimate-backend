@@ -7,8 +7,8 @@ group = "ru.agimate"
 
 // Codegen tool versions; runtime artifact versions come from the root constraints block —
 // keep the two in sync when bumping.
-val grpcVersion = "1.68.1"
-val protobufVersion = "3.25.5"
+val grpcVersion = "1.84.0"
+val protobufVersion = "3.25.9"
 
 java {
     toolchain {

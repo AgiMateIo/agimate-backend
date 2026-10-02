@@ -30,14 +30,14 @@ allprojects {
                 // gRPC/protobuf — one version for agentworker-proto, control-api and agent-worker
                 // (gRPC artifacts must move in lockstep). Codegen tool artifacts (protoc,
                 // protoc-gen-grpc-java) live in libs/agentworker-proto — bump them together.
-                implementation("io.grpc:grpc-netty-shaded:1.68.1")
-                implementation("io.grpc:grpc-protobuf:1.68.1")
-                implementation("io.grpc:grpc-stub:1.68.1")
-                implementation("io.grpc:grpc-services:1.68.1")
-                implementation("io.grpc:grpc-inprocess:1.68.1")
-                implementation("io.grpc:grpc-testing:1.68.1")
-                implementation("com.google.protobuf:protobuf-java:3.25.5")
-                implementation("com.google.protobuf:protobuf-java-util:3.25.5")
+                implementation("io.grpc:grpc-netty-shaded:1.84.0")
+                implementation("io.grpc:grpc-protobuf:1.84.0")
+                implementation("io.grpc:grpc-stub:1.84.0")
+                implementation("io.grpc:grpc-services:1.84.0")
+                implementation("io.grpc:grpc-inprocess:1.84.0")
+                implementation("io.grpc:grpc-testing:1.84.0")
+                implementation("com.google.protobuf:protobuf-java:3.25.9")
+                implementation("com.google.protobuf:protobuf-java-util:3.25.9")
 
                 implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
                 implementation("org.springframework.boot:spring-boot-dependencies")
