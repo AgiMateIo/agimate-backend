@@ -78,7 +78,7 @@ dependencies {
     implementation("org.dhatim:fastexcel-reader")
 
     // S3-совместимое хранилище файлового слоя коннекторов (docs/connectors/files.md)
-    implementation(platform("software.amazon.awssdk:bom:2.49.1"))
+    implementation(platform("software.amazon.awssdk:bom:2.55.10"))
     implementation("software.amazon.awssdk:s3")
 
     implementation("dev.dbos:transact:1.1.1")
@@ -86,7 +86,7 @@ dependencies {
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
     // HTML parsing of the web connector's web_fetch; extraction and markdown are our own on top of it
-    implementation("org.jsoup:jsoup:1.21.2")
+    implementation("org.jsoup:jsoup:1.23.2")
 
     // gRPC server runtime for the worker protocol (stubs come from :libs:agentworker-proto,
     // versions from the root constraints block).

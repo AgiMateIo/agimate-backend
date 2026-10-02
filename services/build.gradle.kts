@@ -1,7 +1,7 @@
 plugins {
     java
     id("org.springframework.boot") version "4.1.1" apply false
-    id("org.asciidoctor.jvm.convert") version "4.0.4" apply false
+    id("org.asciidoctor.jvm.convert") version "4.0.5" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false
 }
 
@@ -39,7 +39,7 @@ allprojects {
                 implementation("com.google.protobuf:protobuf-java:3.25.9")
                 implementation("com.google.protobuf:protobuf-java-util:3.25.9")
 
-                implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
+                implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
                 implementation("org.springframework.boot:spring-boot-dependencies")
                 implementation("org.springframework.boot:spring-boot-starter-data-jpa")
                 implementation("org.springframework.boot:spring-boot-starter-web")
@@ -60,15 +60,15 @@ allprojects {
                 // FCM through RuStore's universal API (user-api): the whole of what is needed from
                 // Google is an access token minted from a service account — firebase-admin sends
                 // natively, and a natively sent message the universal SDK on the device discards
-                implementation("com.google.auth:google-auth-library-oauth2-http:1.50.0")
+                implementation("com.google.auth:google-auth-library-oauth2-http:1.54.0")
 
                 // Public Suffix List for the egress proxy's host patterns (libs/common). Already on
                 // every classpath through gRPC and google-auth; pinned so the list does not age silently.
-                implementation("com.google.guava:guava:33.5.0-jre")
+                implementation("com.google.guava:guava:33.7.2-jre")
 
-                implementation("com.squareup.okhttp3:okhttp:5.3.2")
-                implementation("com.squareup.okhttp3:okhttp-brotli:5.3.2")
-                implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
+                implementation("com.squareup.okhttp3:okhttp:5.5.0")
+                implementation("com.squareup.okhttp3:okhttp-brotli:5.5.0")
+                implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
 
                 // Astronomy Engine (astro-коннектор control-api) — с JitPack
                 implementation("io.github.cosinekitty:astronomy:2.1.19")
