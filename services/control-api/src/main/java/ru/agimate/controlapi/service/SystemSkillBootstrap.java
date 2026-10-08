@@ -67,6 +67,7 @@ public class SystemSkillBootstrap {
             "tool-loader",
             "tinvest",
             "docli",
+            "excalidraw",
             "subagents",
             "agents",
             "sessions",
