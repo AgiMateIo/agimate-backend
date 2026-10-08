@@ -112,6 +112,7 @@
 | [provider-turn-envelope.md](decisions/provider-turn-envelope.md) | Что уезжает обратно провайдеру в assistant-ходе: происхождение решает содержимое, провайдер — чего стоит отсутствие |
 | [connector-job-concurrency.md](decisions/connector-job-concurrency.md) | Сколько джоб узел берёт разом: потолок на узле, а не на установке, и почему непрерывный опрос его не касается |
 | [run-fairness.md](decisions/run-fairness.md) | Шумный пользователь занимает слоты модели: квота — бюджет, лимитер — поток, а доли в моменте не считает никто |
+| [python-interpreter.md](decisions/python-interpreter.md) | Код агента на Python: код-режим на интерпретаторной песочнице без исходящей сети и интерпретатор данных как ядро Jupyter в gVisor — два продукта, а не один |
 | [skill-connector-requirements.md](decisions/skill-connector-requirements.md) | Навык объявляет экземпляр, а не код: ключ требования, параметры MCP и правила доступа; мастер подключения получает план, а не догадки |
 | [content-taxonomy.md](decisions/content-taxonomy.md) | Категории и теги каталога: одна ось «о чём это» на навыки и пресеты, закрытый словарь тегов на остальное, дозаполнение засеянных установок |
 | [outbound-tls-trust.md](decisions/outbound-tls-trust.md) | Корень, которого нет в `cacerts`: штатный набор якорей плюс наш, по умолчанию выключенный, и почему доверие живёт у установки, а не у подключения |
