@@ -32,16 +32,16 @@ MCP-сервер и каждая интеграция приходят в кат
 
 | Код | Подпись | Пресеты | Навыки |
 |---|---|---|---|
-| `platform` | Платформа | `platform-admin` | `persist-memory`, `sheets`, `media`, `time`, `board`, `platform`, `skill-loader`, `tool-loader` |
 | `work` | Работа и бизнес | `team-lead` | — |
 | `finance` | Деньги и финансы | `home-accountant`, `investment-advisor` | `tinvest` |
 | `home` | Дом и быт | `personal-assistant` | — |
 | `health` | Здоровье | `health-diary` | — |
 | `learning` | Учёба и развитие | `language-tutor` | — |
 | `content` | Творчество и контент | `creative`, `visual` | `docli` |
-| `development` | Разработка | `coder`, `external-agent` | `acp` |
 | `communication` | Общение и связь | — | — |
 | `leisure` | Досуг и увлечения | `astrologer` | `astro`, `divination` |
+| `platform` | Платформа | `platform-admin` | `persist-memory`, `sheets`, `media`, `time`, `board`, `platform`, `skill-loader`, `tool-loader` |
+| `development` | Разработка | `coder`, `external-agent` | `acp` |
 | `other` | Прочее | — | — |
 
 Пустые сегодня категории (`communication`, `work` у навыков) заведены не «на будущее», а потому что

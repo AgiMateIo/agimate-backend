@@ -19,16 +19,18 @@ import java.util.stream.Collectors;
 @Getter
 public enum ContentCategory {
 
-    PLATFORM("Platform"),
+    // Declaration order is display order. Spheres of life come first: they are what a newcomer picks
+    // a role by; the technical sections go last.
     WORK("Work and business"),
     FINANCE("Money and finance"),
     HOME("Home and everyday life"),
     HEALTH("Health"),
     LEARNING("Learning and development"),
     CONTENT("Creativity and content"),
-    DEVELOPMENT("Development"),
     COMMUNICATION("Communication"),
     LEISURE("Leisure and hobbies"),
+    PLATFORM("Platform"),
+    DEVELOPMENT("Development"),
     /** The default: «not filed yet». No system skill or preset may stay here — a test guards it. */
     OTHER("Other");
 
