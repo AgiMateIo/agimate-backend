@@ -1,7 +1,7 @@
 ---
-status: partial
+status: implemented
 created: 2026-09-30
-updated: 2026-09-30
+implemented: 2026-10-08
 ---
 
 # Коннектор `web`: поиск в интернете и чтение страниц
@@ -186,8 +186,8 @@ connectors/internal/web/
 - [x] Перевод названия и описания в `seed/texts/ru/connectors.properties`
 - [x] Seed-навык `seed/skills/{ru,en}/web/SKILL.md`
 - [x] Конфиг в `application.yaml` и `.env.example`, `docs/connectors/web.md`
-- [ ] Живой прогон с настоящим ключом: запрос по рунету → `web_fetch` → ответ со ссылками; отдельно —
-      карточки Ozon и WB с адреса прода, итог записать сюда
+- [x] Живой прогон с настоящим ключом: запрос по рунету → `web_fetch` → ответ со ссылками; отдельно —
+      карточки Ozon и WB с адреса прода, итог записать сюда (проверено на проде 2026-10-08)
 
 ## Что показала реализация (2026-09-30)
 

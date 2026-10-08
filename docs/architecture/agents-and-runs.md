@@ -76,7 +76,7 @@ assembly.
    the agent entirely.
 2. **Environment manifest** — an O(1) table of contents of the agent's world (channels,
    activity, memory size, current time) in every profile.
-3. **Deferred tools and skill bodies** — accepted as
+3. **Deferred tools and skill bodies** — *implemented*, see
    [`../decisions/progressive-disclosure.md`](../decisions/progressive-disclosure.md): an
    `EAGER|LAZY` axis on connectors, tools and skills, lazy tools listed by name and summary only,
    the `skill-loader`/`tool-loader` connectors' `load_skill`/`load_tools` disclosing on

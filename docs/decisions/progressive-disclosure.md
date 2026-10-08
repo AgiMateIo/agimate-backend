@@ -1,7 +1,8 @@
 ---
-status: partial
+status: implemented
 created: 2026-09-08
 implemented: 2026-09-09
+updated: 2026-10-08
 ---
 
 # Постепенное раскрытие контекста: навыки и схемы тулов
@@ -641,6 +642,6 @@ MCP-тул, раскрытый среди рана, должен получит�
       `ObjectProvider` в реестре, приложение поднимается, миграция применяется начисто
 - [x] Документация (2026-09-08): `docs/services/agent-worker.md`, `docs/contracts/worker-protocol.md`,
       `docs/architecture/connectors.md` (матрица режимов), `docs/connectors/context-loaders.md`
-- [ ] После выкатки: в `docs/architecture/agents-and-runs.md` отметить пункт 3 роадмапа сделанным,
-      статус документа → `implemented`; в issue #2 на GitHub сослаться на документ и сказать, что
-      MCP-половина не покрыта
+- [x] После выкатки: в `docs/architecture/agents-and-runs.md` отметить пункт 3 роадмапа сделанным,
+      статус документа → `implemented` (2026-10-08, работает на проде)
+- [ ] В issue #2 на GitHub сослаться на документ и сказать, что MCP-половина не покрыта
