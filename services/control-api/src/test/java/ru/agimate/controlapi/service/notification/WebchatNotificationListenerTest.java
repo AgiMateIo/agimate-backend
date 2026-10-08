@@ -7,11 +7,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.task.AsyncTaskExecutor;
+import org.springframework.scheduling.TaskScheduler;
 import ru.agimate.controlapi.config.NotificationProperties;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.webchat.WebchatAgentMessageEvent;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +43,9 @@ class WebchatNotificationListenerTest {
 
     @Mock private NotificationClient notificationClient;
     @Mock private AgentRepository agentRepository;
+    @Mock private WebchatMessageRepository webchatMessageRepository;
+    @Mock private TaskScheduler taskScheduler;
+    @Mock private AsyncTaskExecutor notificationExecutor;
 
     private NotificationProperties notificationProperties;
     private WebchatNotificationListener listener;
@@ -44,7 +53,8 @@ class WebchatNotificationListenerTest {
     @BeforeEach
     void setUp() {
         notificationProperties = new NotificationProperties();
-        listener = new WebchatNotificationListener(notificationClient, agentRepository, notificationProperties);
+        listener = new WebchatNotificationListener(notificationClient, agentRepository,
+                webchatMessageRepository, notificationProperties, taskScheduler, notificationExecutor);
 
         Agent agent = new Agent();
         agent.setName("Секретарь");
@@ -65,7 +75,7 @@ class WebchatNotificationListenerTest {
     @Test
     @DisplayName("содержание: имя типа то же, что у события Centrifugo")
     void payloadFields() {
-        listener.onAgentMessage(event("готово, отчёт собран"));
+        listener.deliver(event("готово, отчёт собран"));
 
         Map<String, String> data = sentData();
         assertEquals("webchat_message", data.get("type"));
@@ -82,7 +92,7 @@ class WebchatNotificationListenerTest {
     void previewCanBeSwitchedOff() {
         notificationProperties.setPreview(false);
 
-        listener.onAgentMessage(event("секретное содержимое"));
+        listener.deliver(event("секретное содержимое"));
 
         Map<String, String> data = sentData();
         assertFalse(data.containsKey("preview"));
@@ -93,7 +103,7 @@ class WebchatNotificationListenerTest {
     @Test
     @DisplayName("превью обрезается тем же правилом, что бейдж")
     void previewIsShortened() {
-        listener.onAgentMessage(event("я".repeat(500)));
+        listener.deliver(event("я".repeat(500)));
 
         assertEquals(160, sentData().get("preview").length());
     }
@@ -103,7 +113,7 @@ class WebchatNotificationListenerTest {
     void missingAgentDoesNotFail() {
         when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.empty());
 
-        listener.onAgentMessage(event("готово"));
+        listener.deliver(event("готово"));
 
         assertEquals("", sentData().get("agentName"));
     }
@@ -114,6 +124,38 @@ class WebchatNotificationListenerTest {
     void sendFailureIsSwallowed() {
         doThrow(new RuntimeException("relay down")).when(notificationClient).notifyUser(any(), any());
 
-        assertDoesNotThrow(() -> listener.onAgentMessage(event("готово")));
+        assertDoesNotThrow(() -> listener.deliver(event("готово")));
+    }
+
+    /** Читающий переписку в браузере уже видел ответ — телефону нечего добавить. */
+    @Test
+    @DisplayName("прочитанное за время паузы на телефон не уходит")
+    void readMessageIsNotPushed() {
+        when(webchatMessageRepository.isRead(SESSION_ID, "m1")).thenReturn(true);
+
+        listener.deliver(event("готово"));
+
+        verify(notificationClient, never()).notifyUser(any(), any());
+    }
+
+    @Test
+    @DisplayName("отправка откладывается на паузу и уходит на исполнитель уведомлений")
+    void deliveryIsDelayed() {
+        notificationProperties.setDelay(Duration.ofSeconds(30));
+        Instant before = Instant.now();
+
+        listener.onAgentMessage(event("готово"));
+
+        var task = ArgumentCaptor.forClass(Runnable.class);
+        var at = ArgumentCaptor.forClass(Instant.class);
+        verify(taskScheduler).schedule(task.capture(), at.capture());
+        assertFalse(at.getValue().isBefore(before.plusSeconds(30)));
+        verify(notificationClient, never()).notifyUser(any(), any());
+
+        task.getValue().run();
+        var send = ArgumentCaptor.forClass(Runnable.class);
+        verify(notificationExecutor).execute(send.capture());
+        send.getValue().run();
+        assertEquals("m1", sentData().get("messageId"));
     }
 }

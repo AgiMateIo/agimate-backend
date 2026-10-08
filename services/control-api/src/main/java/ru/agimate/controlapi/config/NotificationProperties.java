@@ -30,4 +30,11 @@ public class NotificationProperties {
      * no use to anyone, while the transport's own default is four weeks.
      */
     private Duration ttl = Duration.ofHours(1);
+
+    /**
+     * How long an answer waits for being read elsewhere before it goes to the phone. Someone
+     * talking to the agent in the browser reads the answer there, and the pointer moving within this
+     * window cancels the push; the price is that much latency for someone who has really walked away.
+     */
+    private Duration delay = Duration.ofSeconds(30);
 }

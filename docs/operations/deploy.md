@@ -57,6 +57,7 @@ to start.
 | `APP_USER_API_URL`       | control-api | user-api base URL **including the context path**, e.g. `http://user-api:8080/user`             |
 | `APP_NOTIFICATIONS_PREVIEW` | control-api | Whether the answer's first line travels in the notification (default `true`)                |
 | `APP_NOTIFICATIONS_TTL`  | control-api | How long the transport should keep trying (default `1h`)                                       |
+| `APP_NOTIFICATIONS_DELAY` | control-api | How long an answer waits for being read elsewhere before it is pushed (default `30s`)         |
 
 Empty URL and key together = notifications are not handed over; exactly one of them filled = startup
 fails.

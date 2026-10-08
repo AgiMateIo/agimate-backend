@@ -121,4 +121,18 @@ public interface WebchatMessageRepository extends JpaRepository<WebchatMessage, 
             LIMIT 1
             """, nativeQuery = true)
     Optional<UUID> findLastMessageId(@Param("sessionId") UUID sessionId);
+
+    /**
+     * Whether the session's read pointer has reached the message with this delivery key — on any
+     * device. Row ids are UUIDv7, so the comparison is the same ordering the pointer moves by.
+     */
+    @Query(value = """
+            SELECT EXISTS (
+                SELECT 1 FROM webchat_messages m
+                JOIN agent_sessions s ON s.id = m.session_id
+                WHERE m.session_id = :sessionId
+                  AND m.message_id = :messageId
+                  AND s.last_read_message_id >= m.id)
+            """, nativeQuery = true)
+    boolean isRead(@Param("sessionId") UUID sessionId, @Param("messageId") String messageId);
 }
