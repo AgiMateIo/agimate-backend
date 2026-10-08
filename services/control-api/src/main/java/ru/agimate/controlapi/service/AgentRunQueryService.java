@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunPromptResponse;
@@ -62,7 +63,7 @@ public class AgentRunQueryService {
                 userId, null, agentId, sessionId, triggerLogId,
                 blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
                 null, null, originRunId,
-                PageRequest.of(page, size)));
+                PageRequests.of(page, size)));
     }
 
     /**
@@ -128,7 +129,7 @@ public class AgentRunQueryService {
     public Page<AgentRunTurnResponse> listTurns(UUID runId, UUID userId, int page, int size) {
         AgentRun run = ownedRun(runId, userId);
         Page<AgentRunTurn> turns = turnRepository.findRunTurnsNewestFirst(
-                run.getId(), PageRequest.of(page, size));
+                run.getId(), PageRequests.of(page, size));
         Map<String, TurnUsageResponse> usage = turnUsage(turns);
         // The null check is not defensive: a user or tool turn has no call id, and an immutable map
         // throws on a null key rather than answering «absent».

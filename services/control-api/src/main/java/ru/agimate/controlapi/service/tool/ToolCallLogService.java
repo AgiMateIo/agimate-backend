@@ -3,9 +3,9 @@ package ru.agimate.controlapi.service.tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -180,7 +180,7 @@ public class ToolCallLogService {
     public Page<ToolCallLogResponse> getToolCallLogs(UUID userId, UUID agentId, String connectorCode,
                                                      String connectionId, AccessEffect accessEffect,
                                                      String name, ToolCallStatus status, int page, int size) {
-        var pageable = PageRequest.of(page, size);
+        var pageable = PageRequests.of(page, size);
         return toolCallLogRepository.findWithFilters(
                         userId, agentId,
                         blankToNull(connectorCode), blankToNull(connectionId),

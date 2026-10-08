@@ -10,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.AgentSession;
@@ -45,7 +46,6 @@ public class AgentSessionService {
 
     public static final Duration SESSION_TTL = Duration.ofHours(12);
     public static final int TITLE_MAX_LENGTH = 80;
-    private static final int MAX_PAGE_SIZE = 100;
 
     private final AgentSessionRepository agentSessionRepository;
     private final WebchatMessageRepository webchatMessageRepository;
@@ -103,7 +103,7 @@ public class AgentSessionService {
      * a uuidv7, so it breaks the tie in the same direction time does.
      */
     private static PageRequest pageRequest(int page, int size) {
-        return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE),
+        return PageRequests.of(page, size,
                 Sort.by(Sort.Direction.DESC, "lastActivityAt").and(Sort.by(Sort.Direction.DESC, "id")));
     }
 

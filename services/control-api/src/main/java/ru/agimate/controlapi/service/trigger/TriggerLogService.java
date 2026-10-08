@@ -3,10 +3,10 @@ package ru.agimate.controlapi.service.trigger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerLogResponse;
 import ru.agimate.controlapi.database.entities.TriggerLog;
@@ -30,7 +30,7 @@ public class TriggerLogService {
         // connector blanks its own filters at the tool boundary.
         return triggerLogRepository.findByUserIdWithFilters(
                         userId, connectorCode, null, null, null,
-                        PageRequest.of(page, size, Sort.by("createdAt").descending()))
+                        PageRequests.of(page, size, Sort.by("createdAt").descending()))
                 .map(TriggerLogResponse::from);
     }
 

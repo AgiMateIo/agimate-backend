@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -47,7 +48,7 @@ public class ManageConnectorController {
             @RequestParam(defaultValue = "20") int size
     ) {
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
-        PageRequest pageable = PageRequest.of(page, size, Sort.by("name").ascending());
+        PageRequest pageable = PageRequests.of(page, size, Sort.by("name").ascending());
         Page<ConnectorResponse> response = connectorRepository.search(normalizedSearch, pageable)
                 .map(this::toResponse);
         return SuccessResponse.ok(PageResponse.from(response));

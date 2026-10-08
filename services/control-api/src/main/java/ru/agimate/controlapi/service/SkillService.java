@@ -9,6 +9,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
@@ -49,8 +50,6 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class SkillService {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     /** A skill's {@code name} is a machine code: lower-case latin letters and digits joined by hyphens (kebab-case). */
     private static final java.util.regex.Pattern NAME_SLUG =
             java.util.regex.Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
@@ -79,7 +78,7 @@ public class SkillService {
     public Page<AgentSummaryResponse> getSkillAgents(UUID id, UUID userId, String search, int page, int size) {
         findAccessibleSkill(id, userId);
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
-        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("name").ascending());
+        PageRequest pageRequest = PageRequests.of(page, size, Sort.by("name").ascending());
         return agentRepository.findBySkillId(id, userId, normalizedSearch, pageRequest)
                 .map(AgentSummaryResponse::from);
     }
@@ -278,7 +277,7 @@ public class SkillService {
 
     private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode,
                                            ContentCategory category, ContentTag tag, int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
+        PageRequest pageRequest = PageRequests.of(page, size, Sort.by("createdAt").descending());
         Specification<Skill> spec = SkillSpecs.notDeleted().and(filter);
         if (search != null && !search.isBlank()) {
             spec = spec.and(SkillSpecs.searchByNameOrDescription(search));

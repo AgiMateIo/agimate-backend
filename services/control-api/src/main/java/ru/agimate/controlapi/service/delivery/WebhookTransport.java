@@ -3,7 +3,6 @@ package ru.agimate.controlapi.service.delivery;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -11,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.net.OutboundTrust;
 import ru.agimate.common.net.PublicOnlyDns;
 import ru.agimate.common.net.PublicTargets;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -182,7 +182,7 @@ public class WebhookTransport implements AgentTransport {
     @Transactional(readOnly = true)
     public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userId, UUID agentId, int page, int size) {
         Page<WebhookDeliveryLog> logs = webhookDeliveryLogRepository.findWithFilters(
-                userId, agentId, null, null, PageRequest.of(page, size));
+                userId, agentId, null, null, PageRequests.of(page, size));
         return logs.map(WebhookDeliveryLogResponse::from);
     }
 

@@ -2,9 +2,9 @@ package ru.agimate.controlapi.service.webchat;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionLastMessage;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
@@ -41,7 +41,7 @@ public class ContactRows {
      */
     public Page<WebchatContactResponse> page(UUID userId, int page, int size) {
         Page<Object[]> rows = agentRepository.findChatContacts(
-                userId, WebchatChannelHandler.CONNECTOR_CODE, PageRequest.of(page, size));
+                userId, WebchatChannelHandler.CONNECTOR_CODE, PageRequests.of(page, size));
         return rows.map(mapper(rows.getContent()));
     }
 

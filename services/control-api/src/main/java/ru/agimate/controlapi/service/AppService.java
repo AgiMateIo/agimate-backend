@@ -3,9 +3,9 @@ package ru.agimate.controlapi.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -101,7 +101,7 @@ public class AppService {
     }
 
     public Page<App> getAppsForUser(UUID userId, int page, int size) {
-        return appRepository.findByUserIdNotDeleted(userId, PageRequest.of(page, size));
+        return appRepository.findByUserIdNotDeleted(userId, PageRequests.of(page, size));
     }
 
     public App getAppById(UUID id, UUID userId) {

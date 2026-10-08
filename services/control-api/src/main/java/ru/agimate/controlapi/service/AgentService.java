@@ -1,12 +1,12 @@
 package ru.agimate.controlapi.service;
 
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,7 +109,7 @@ public class AgentService {
         // row on two pages and skip another one entirely.
         Page<Agent> agents = agentRepository.searchForUser(
                 userId, agenticTeamId, normalizedSearch,
-                PageRequest.of(page, size,
+                PageRequests.of(page, size,
                         Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"))));
 
         List<UUID> teamIds = agents.getContent().stream()

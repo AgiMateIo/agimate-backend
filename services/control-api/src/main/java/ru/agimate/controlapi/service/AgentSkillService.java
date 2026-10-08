@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
@@ -109,7 +110,6 @@ public class AgentSkillService {
     public record SkillGate(Map<UUID, Set<UUID>> satisfied, List<WithheldSkill> withheld) {
     }
 
-    private static final int MAX_PAGE_SIZE = 100;
 
     private final AgentSkillRepository agentSkillRepository;
     private final AgentRepository agentRepository;
@@ -125,7 +125,7 @@ public class AgentSkillService {
 
     public Page<AgentSkillResponse> getAgentSkills(UUID agentId, UUID userId, int page, int size) {
         verifyAgentOwnership(agentId, userId);
-        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
+        PageRequest pageRequest = PageRequests.of(page, size, Sort.by("createdAt").descending());
         Page<AgentSkill> agentSkills = agentSkillRepository.findByAgentId(agentId, pageRequest);
 
         var skillIds = agentSkills.getContent().stream()
@@ -154,7 +154,7 @@ public class AgentSkillService {
 
     public Page<AgentSkillWithConnectorsResponse> getAgentSkillsWithConnectors(UUID agentId, UUID userId, int page, int size) {
         verifyAgentOwnership(agentId, userId);
-        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
+        PageRequest pageRequest = PageRequests.of(page, size, Sort.by("createdAt").descending());
         Page<AgentSkill> bindings = agentSkillRepository.findByAgentId(agentId, pageRequest);
 
         Map<UUID, AgentSkillWithConnectorsResponse> resolved = resolveSkills(bindings.getContent());

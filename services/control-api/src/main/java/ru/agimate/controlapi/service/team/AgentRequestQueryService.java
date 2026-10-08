@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.agentrequest.AgentRequestDetailResponse;
 import ru.agimate.controlapi.controller.manage.dto.agentrequest.AgentRequestExchangeItem;
@@ -58,8 +59,6 @@ public class AgentRequestQueryService {
     /** As much of an answer as a listing row shows. */
     static final int PREVIEW_LENGTH = 240;
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private final AgentSessionRepository agentSessionRepository;
     private final AgentRunRepository agentRunRepository;
     private final AgentRepository agentRepository;
@@ -75,7 +74,7 @@ public class AgentRequestQueryService {
         agenticTeamService.getById(teamId, userId);
         Page<AgentRequestProjection> threads = agentSessionRepository.findRequests(
                 RunCatalog.AGENTS, userId, teamId, null, agentId, fromAgentId, toAgentId, since,
-                PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE)));
+                PageRequests.of(page, size));
         return threads.map(enricher(threads.getContent()));
     }
 

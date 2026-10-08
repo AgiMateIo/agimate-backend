@@ -3,12 +3,12 @@ package ru.agimate.controlapi.service.file;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.TooManyRequestsStatusException;
@@ -112,7 +112,7 @@ public class UserFileService {
                                            int page, int size) {
         return storedFileRepository
                 .findVisible(userId, agentId, sessionId, blankToNull(name), LocalDateTime.now(),
-                        PageRequest.of(page, size))
+                        PageRequests.of(page, size))
                 .map(file -> FileListItemResponse.from(file,
                         signedFileUrlService.issue(FileLink.of(file))));
     }

@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
@@ -33,8 +34,6 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ManageSessionService {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private final AgentSessionService agentSessionService;
     private final SessionRows sessionRows;
     private final WebchatMessageRepository webchatMessageRepository;
@@ -46,7 +45,7 @@ public class ManageSessionService {
                                       UUID parentSessionId, int page, int size) {
         Page<AgentSession> sessions = agentSessionService.list(
                 userId, agentId, channelId, connectorCode, parentSessionId, null, null,
-                page, Math.min(size, MAX_PAGE_SIZE));
+                page, size);
         return sessions.map(sessionRows.mapper(sessions.getContent()));
     }
 
@@ -88,7 +87,7 @@ public class ManageSessionService {
         AgentSession session = requireOwned(userId, sessionId);
         // created_at comes from CURRENT_TIMESTAMP, which is the same for every row a run writes in one
         // transaction — the id (uuidv7) is what keeps a page from repeating or skipping one of them.
-        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE),
+        PageRequest pageRequest = PageRequests.of(page, size,
                 Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
         if (WebchatChannelHandler.CONNECTOR_CODE.equals(session.getConnectorCode())) {
             return webchatMessageRepository.findBySessionId(sessionId, pageRequest)

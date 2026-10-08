@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.UserRole;
@@ -28,7 +29,6 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class UserService {
 
-    private static final int MAX_PAGE_SIZE = 100;
     private static final int REFERRAL_CODE_ATTEMPTS = 3;
 
     private final UserRepository userRepository;
@@ -144,7 +144,7 @@ public class UserService {
         if (role != null) {
             spec = spec.and(UserSpecs.hasRole(role));
         }
-        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE),
+        PageRequest pageRequest = PageRequests.of(page, size,
                 Sort.by("createdAt").descending());
         return userRepository.findAll(spec, pageRequest);
     }

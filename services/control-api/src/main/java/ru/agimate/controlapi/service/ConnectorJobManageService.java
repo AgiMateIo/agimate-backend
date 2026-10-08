@@ -8,6 +8,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
@@ -34,8 +35,6 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ConnectorJobManageService {
 
-    private static final int MAX_PAGE_SIZE = 100;
-
     private final ConnectorJobRepository connectorJobRepository;
 
     public Page<ConnectorJobResponse> getJobs(UUID userId, String connectorCode, ConnectorJobKind kind,
@@ -47,7 +46,7 @@ public class ConnectorJobManageService {
         if (kind != null) {
             spec = spec.and(ConnectorJobSpecs.hasKind(kind));
         }
-        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE),
+        PageRequest pageRequest = PageRequests.of(page, size,
                 Sort.by("nextRunAt").ascending());
         return connectorJobRepository.findAll(spec, pageRequest).map(ConnectorJobResponse::from);
     }
