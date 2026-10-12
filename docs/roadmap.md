@@ -94,5 +94,7 @@
   проверить Яндекс Документы); prompt-блок «мои задачи» в board; пер-агентные джобы консолидации
   памяти; повторное прикрепление изображений из истории, расшифровка аудио, вложения в ACP-канале;
   генерация изображений и видео отдельными коннекторами.
-- **MCP наружу.** Prompts и resources, агент как тул в чужом клиенте, client-credentials — нужно
-  ради каталогов claude.ai и ChatGPT. → [mcp-server.md](contracts/mcp-server.md)
+- **MCP наружу.** Подключение по одной ссылке: OAuth на `/mcp` с выбором агента на фронте
+  (свой AS в control-api) → [mcp-server-oauth.md](decisions/mcp-server-oauth.md). Дальше prompts и
+  resources, агент как тул в чужом клиенте, client-credentials для безголовых клиентов.
+  → [mcp-server.md](contracts/mcp-server.md)
