@@ -97,6 +97,14 @@ class McpAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("loopback из документа принимает запрос с любым портом (127.0.0.1:53412)")
+    void loopbackIpAnyPort() {
+        when(resolver.resolve(CLIENT_ID)).thenReturn(new OAuthClient(CLIENT_ID, McpOAuthClientKind.CIMD, "Claude",
+                "claude.ai", List.of("http://127.0.0.1/cb")));
+        assertInstanceOf(CheckOutcome.Consent.class, service.check(userId, request("http://127.0.0.1:53412/cb")));
+    }
+
+    @Test
     @DisplayName("незарегистрированный redirect_uri — 400 на странице, без редиректа")
     void unregisteredRedirectIsFatal() {
         assertThrows(BadRequestStatusException.class, () -> service.check(userId, request("https://evil.example/cb")));

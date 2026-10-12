@@ -7,6 +7,7 @@ import ru.agimate.common.util.JsonUtils;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -20,7 +21,53 @@ class CimdAndRedirectRulesTest {
     class Document {
 
         private OAuthClient parse(String json) {
-            return CimdClientResolver.parse(CLIENT_ID, URI.create(CLIENT_ID), JsonUtils.toJsonNodeOrNull(json));
+            return parse(json, false);
+        }
+
+        private OAuthClient parse(String json, boolean allowInsecureHttp) {
+            return CimdClientResolver.parse(CLIENT_ID, URI.create(CLIENT_ID), JsonUtils.toJsonNodeOrNull(json), allowInsecureHttp);
+        }
+
+        private static String withRedirects(String... redirects) {
+            return "{\"client_id\": \"" + CLIENT_ID + "\", \"redirect_uris\": [\""
+                    + String.join("\", \"", redirects) + "\"]}";
+        }
+
+        @Test
+        @DisplayName("http не на loopback отбрасывается; других адресов нет — отказ")
+        void plainHttpRejected() {
+            OAuthClientRejectedException e = assertThrows(OAuthClientRejectedException.class,
+                    () -> parse(withRedirects("http://evil.example/cb")));
+            assertTrue(e.getMessage().contains("no usable redirect_uris"));
+        }
+
+        @Test
+        @DisplayName("http не на loopback отбрасывается, https из того же документа остаётся")
+        void plainHttpDroppedOthersKept() {
+            assertEquals(List.of("https://claude.ai/cb"),
+                    parse(withRedirects("http://evil.example/cb", "https://claude.ai/cb")).redirectUris());
+        }
+
+        @Test
+        @DisplayName("loopback по http принят")
+        void loopbackAccepted() {
+            assertEquals(List.of("http://127.0.0.1/cb"), parse(withRedirects("http://127.0.0.1/cb")).redirectUris());
+        }
+
+        @Test
+        @DisplayName("на локальном стенде http принят и не на loopback")
+        void plainHttpOnLocalStand() {
+            assertEquals(List.of("http://mcp.agimate.lc:8000/cb"),
+                    parse(withRedirects("http://mcp.agimate.lc:8000/cb"), true).redirectUris());
+        }
+
+        @Test
+        @DisplayName("filesystem:, JavaScript: в любом регистре и private-use схемы отброшены")
+        void dangerousAndPrivateUseSchemesRejected() {
+            for (String redirect : List.of("filesystem:https://x/y", "JavaScript:alert(1)",
+                    "cursor://anysphere.cursor-mcp/oauth/callback")) {
+                assertThrows(OAuthClientRejectedException.class, () -> parse(withRedirects(redirect), true), redirect);
+            }
         }
 
         @Test

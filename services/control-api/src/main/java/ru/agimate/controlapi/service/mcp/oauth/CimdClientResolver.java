@@ -147,10 +147,11 @@ public class CimdClientResolver {
             throw new OAuthClientRejectedException("Client metadata document is too large");
         }
         JsonNode document = JsonUtils.toJsonNodeOrNull(new String(response.body(), StandardCharsets.UTF_8));
-        return new Fetched(parse(clientId, uri, document), ttlOf(response.cacheControl()));
+        return new Fetched(parse(clientId, uri, document, targets.allowsPrivate()), ttlOf(response.cacheControl()));
     }
 
-    static OAuthClient parse(String clientId, URI uri, JsonNode document) {
+    /** @param allowInsecureHttp a local stand: plain http redirect targets beyond loopback are kept */
+    static OAuthClient parse(String clientId, URI uri, JsonNode document, boolean allowInsecureHttp) {
         if (document == null || !document.isObject()) {
             throw new OAuthClientRejectedException("Client metadata document is not a JSON object");
         }
@@ -168,7 +169,10 @@ public class CimdClientResolver {
         }
         List<String> redirectUris = new ArrayList<>();
         for (JsonNode item : document.path("redirect_uris")) {
-            if (item.isTextual() && RedirectUris.parse(item.asText()).isPresent()) {
+            // An address that breaks the rules is dropped, not repaired: a request naming it then finds
+            // nothing registered and is refused on the page instead of redirected.
+            if (item.isTextual() && RedirectUris.parse(item.asText())
+                    .filter(redirect -> RedirectUris.isAllowed(redirect, allowInsecureHttp)).isPresent()) {
                 redirectUris.add(item.asText());
             }
         }

@@ -12,7 +12,8 @@ import java.util.Set;
 public class RedirectUris {
 
     private static final Set<String> LOOPBACK_HOSTS = Set.of("localhost", "127.0.0.1", "[::1]");
-    private static final Set<String> FORBIDDEN_SCHEMES = Set.of("javascript", "data", "file", "vbscript", "about", "blob");
+    private static final Set<String> FORBIDDEN_SCHEMES =
+            Set.of("javascript", "data", "file", "vbscript", "about", "blob", "filesystem");
 
     /** Absolute, no fragment, not a scheme that runs code or reads disk; empty for anything else. */
     public static Optional<URI> parse(String value) {
@@ -29,6 +30,22 @@ public class RedirectUris {
         } catch (Exception e) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Whether a client may register this address at all. MCP requires every redirect URI to be either
+     * localhost or HTTPS: plain {@code http} elsewhere would carry the code in the clear, and the
+     * consent page would send the browser there from our own domain. Private-use schemes
+     * ({@code cursor://}) are out too — no client identified by a metadata document needs one.
+     *
+     * @param allowInsecureHttp a local stand, where private targets are allowed: plain http anywhere
+     */
+    public static boolean isAllowed(URI uri, boolean allowInsecureHttp) {
+        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+        if (uri.getHost() == null) {
+            return false;
+        }
+        return "https".equals(scheme) || "http".equals(scheme) && (allowInsecureHttp || isLoopback(uri));
     }
 
     /**
