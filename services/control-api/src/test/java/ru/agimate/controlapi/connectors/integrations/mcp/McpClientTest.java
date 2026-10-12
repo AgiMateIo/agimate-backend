@@ -7,7 +7,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import ru.agimate.controlapi.config.McpServerProperties;
+import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
+import ru.agimate.controlapi.service.mcp.oauth.McpOAuthEndpoints;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -71,6 +75,19 @@ class McpClientTest {
         @DisplayName("имя, резолвящееся в loopback, блокируется резолвером клиента, а не только проверкой URL")
         void blocksNameResolvingToLoopback() {
             assertTrue(probeError(guarded, "http://localhost:8080/mcp").contains("not allowed"));
+        }
+
+        @Test
+        @DisplayName("свой MCP-сервер не подключается к самому себе — и в другом написании того же адреса")
+        void rejectsOwnServer() {
+            McpServerProperties properties = new McpServerProperties();
+            properties.setPublicUrl("https://mcp.agimate.io");
+            McpClient client = new McpClient(new PublicOnlyHttp(false), new AttributionHeaders("dev"),
+                    new McpOAuthEndpoints(properties, "https://agimate.io"));
+
+            for (String url : new String[]{"https://mcp.agimate.io/mcp", "https://MCP.agimate.io:443/mcp/"}) {
+                assertTrue(probeError(client, url).contains("platform's own MCP server"), url);
+            }
         }
     }
 
