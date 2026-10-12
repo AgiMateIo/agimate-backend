@@ -112,6 +112,12 @@ app:
     # База для deep-link'ов, которые платформенные тулы возвращают агенту (напр. экран подключения
     # интеграции, куда пользователь вводит секрет вне LLM). В проде — env APP_FRONTEND_BASE_URL.
     base-url: "http://localhost:3000"
+  mcp-server:
+    # Публичный адрес control-api (с context path), каким его видят внешние MCP-клиенты. От него
+    # считаются issuer OAuth, адрес ресурса <public-url>/mcp и адреса метаданных — не от Host
+    # запроса: клиенты сравнивают их побайтово. В проде — env APP_MCP_SERVER_PUBLIC_URL
+    # (https://api.agimate.io/control). См. docs/decisions/mcp-server-oauth.md.
+    public-url: "http://localhost:8080/control"
   integration:
     webhook-base-url: "http://localhost:8080/control"
   secrets:

@@ -34,4 +34,14 @@ public class InboundRateLimitProperties {
      * agent. The caller is a signed-in user, but the page making the calls is a third-party one.
      */
     private int viewCallsPerMinute = 120;
+    /**
+     * Token and revocation requests ({@code /oauth/token}, {@code /oauth/revoke}) per minute per
+     * client_id. An honest client refreshes once an hour; this is room for retries, not a budget.
+     */
+    private int oauthTokenRequestsPerMinute = 30;
+    /**
+     * The same endpoints per minute in total. Anonymous, and the client's address is lost to SNAT,
+     * so a per-client bucket keyed by a made-up client_id is the only other line.
+     */
+    private int oauthTokenRequestsTotalPerMinute = 600;
 }

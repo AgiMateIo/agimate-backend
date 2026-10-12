@@ -26,7 +26,7 @@ import java.util.function.LongSupplier;
 public class InboundRateLimiter {
 
     /** A class of inbound traffic — each has its own limit and its own bucket per connection. */
-    public enum Scope { TRIGGER, TOOL_RESULT, FILE_UPLOAD, MCP_CALL, MCP_TASK, VIEW_CALL }
+    public enum Scope { TRIGGER, TOOL_RESULT, FILE_UPLOAD, MCP_CALL, MCP_TASK, VIEW_CALL, OAUTH_TOKEN, OAUTH_TOKEN_TOTAL }
 
     private record BucketKey(Scope scope, UUID subjectId) {}
 
@@ -60,6 +60,8 @@ public class InboundRateLimiter {
             case MCP_CALL -> properties.getMcpCallsPerMinute();
             case MCP_TASK -> properties.getMcpTaskPollsPerMinute();
             case VIEW_CALL -> properties.getViewCallsPerMinute();
+            case OAUTH_TOKEN -> properties.getOauthTokenRequestsPerMinute();
+            case OAUTH_TOKEN_TOTAL -> properties.getOauthTokenRequestsTotalPerMinute();
         };
         if (perMinute <= 0) {
             return true;

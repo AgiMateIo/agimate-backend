@@ -27,9 +27,14 @@ agntZ3h5YWJjZGVlxQ8pJvLmN5rT3sU2vWxYzAbCdEfGhIjKlMnOpQrStUvWxYz
 | `agnt`  | Ключ агента (один ключ = один агент)  | `agents.key_id` / `agents.key_hash`     |
 | `appk`  | Ключ приложения                      | `apps.key_id` / `apps.key_hash`         |
 | `wrkp`  | Authkey пула воркеров                | конфиг `worker-pools.authkeys`, не в БД |
+| `agmc`  | Код авторизации OAuth на `/mcp` (60 с) | `mcp_oauth_tokens` (`kind = CODE`)      |
+| `agma`  | Access-токен OAuth на `/mcp` (1 ч)     | `mcp_oauth_tokens` (`kind = ACCESS`)    |
+| `agmr`  | Refresh-токен OAuth на `/mcp` (30 дней, скользящий) | `mcp_oauth_tokens` (`kind = REFRESH`) |
 
 Префиксы объявлены константами: `AgentService.AGENT_KEY_PREFIX`, `AppService.APP_KEY_PREFIX`,
-`WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX`. В тестах и javadoc встречаются `apik` и `dvck` —
+`WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX`, OAuth-токены — `McpOAuthTokens`. Префиксы OAuth начинаются
+с `agm`, а не с `mcp`: по префиксу сканеры секретов узнают утёкший токен, а `mcp…` встречается у
+многих. Как они живут и отзываются — [../decisions/mcp-server-oauth.md](../decisions/mcp-server-oauth.md). В тестах и javadoc встречаются `apik` и `dvck` —
 это следы эпохи device-api, в рабочем коде такие ключи не выдаются.
 
 ## Генерация

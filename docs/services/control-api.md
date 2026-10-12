@@ -31,12 +31,15 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `APP_CONTENT_LANGUAGE`  | System content language of the installation: `ru` (default) or `en`. See [architecture/content-language.md](../architecture/content-language.md) |
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
+| `APP_MCP_SERVER_PUBLIC_URL` | Public base of control-api as MCP clients see it, context path included (`https://api.agimate.io/control`). The OAuth issuer, the resource `<base>/mcp` and the metadata addresses are derived from it, never from `Host`. See [decisions/mcp-server-oauth.md](../decisions/mcp-server-oauth.md) |
 | `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for app/webhook traffic (default `true`) |
 | `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE` | Trigger events per minute per connection — `/app/trigger/new` + `/webhook/*` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE` | Tool results per minute per connection — `/app/tools/result` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_FILE_UPLOADS_PER_MINUTE` | File uploads per minute — `/app/files` per connection, `/manage/files` per user (default `30`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_MCP_CALLS_PER_MINUTE` | MCP tool calls per minute per agent — `/mcp` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_MCP_TASK_POLLS_PER_MINUTE` | MCP task polls per minute per agent — `tasks/get` and friends (default `240`, `<=0` disables) |
+| `INBOUND_RATE_LIMIT_OAUTH_TOKEN_REQUESTS_PER_MINUTE` | `/oauth/token` and `/oauth/revoke` per minute per `client_id` (default `30`, `<=0` disables) |
+| `INBOUND_RATE_LIMIT_OAUTH_TOKEN_REQUESTS_TOTAL_PER_MINUTE` | The same endpoints per minute in total — anonymous, and the client address is lost to SNAT (default `600`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_VIEW_CALLS_PER_MINUTE` | Tool calls from connector views per minute per agent — `/manage/agents/{agentId}/views/tools/call` (default `120`, `<=0` disables) |
 | `APP_FILES_USER_TTL` | Lifetime of a file the user uploaded themselves (default `90d`); connector-produced files use `APP_FILES_DEFAULT_TTL` |
 | `APP_FILES_BACKEND` | Connector file layer blob store: `local` (disk, default; root — `APP_FILES_LOCAL_DIR`, empty = `~/.agimate/files`) or `s3` (`docs/connectors/files.md`) |

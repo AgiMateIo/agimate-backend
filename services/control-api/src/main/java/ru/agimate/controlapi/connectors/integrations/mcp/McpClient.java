@@ -17,6 +17,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedException;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
 import ru.agimate.controlapi.service.http.PublicOnlyHttp;
+import ru.agimate.controlapi.service.mcp.oauth.McpOAuthEndpoints;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -75,16 +76,20 @@ public class McpClient {
     /** AgiMate brand attribution: the {@code User-Agent} plus the product version for {@code clientInfo.version}. */
     private final AttributionHeaders attribution;
 
+    /** The platform's own {@code /mcp}; {@code null} in tests without a Spring context. */
+    private final McpOAuthEndpoints ownServer;
+
     @Autowired
-    public McpClient(PublicOnlyHttp http, AttributionHeaders attribution) {
+    public McpClient(PublicOnlyHttp http, AttributionHeaders attribution, McpOAuthEndpoints ownServer) {
         this.targets = http.targets();
         this.attribution = attribution;
+        this.ownServer = ownServer;
         this.restClient = http.restClient(TIMEOUT).build();
     }
 
     /** Constructor for tests: no Spring context, and the brand version falls back. */
     McpClient(boolean allowPrivateTargets) {
-        this(new PublicOnlyHttp(allowPrivateTargets), new AttributionHeaders("dev"));
+        this(new PublicOnlyHttp(allowPrivateTargets), new AttributionHeaders("dev"), null);
     }
 
     /** The protocol revision this client speaks; the OAuth side sends it on well-known requests. */
@@ -346,6 +351,11 @@ public class McpClient {
      * the half that decides what the socket may reach.
      */
     private void validateTarget(String url) {
+        // Our own /mcp behind this connector would make an agent call itself through its own tools.
+        // Only the configured public address is caught; another name for the same host is not.
+        if (ownServer != null && ownServer.isOwnResource(url)) {
+            throw new ConnectorException("This is the platform's own MCP server; it cannot be connected to itself");
+        }
         try {
             targets.requireAllowed(url);
         } catch (TargetNotAllowedException e) {

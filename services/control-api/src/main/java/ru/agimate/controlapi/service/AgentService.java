@@ -59,6 +59,8 @@ import ru.agimate.common.security.keys.AppKeyUtils;
 import ru.agimate.common.security.keys.GeneratedAppKey;
 import ru.agimate.common.net.TargetNotAllowedException;
 
+import ru.agimate.controlapi.service.mcp.oauth.McpGrantService;
+
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
@@ -98,6 +100,7 @@ public class AgentService {
     private final SecretRepository secretRepository;
     private final SecretService secretService;
     private final SkillRepository skillRepository;
+    private final McpGrantService mcpGrantService;
 
     public Page<AgentResponse> getAllForUser(UUID userId, UUID agenticTeamId, String search, int page, int size) {
         if (agenticTeamId != null) {
@@ -489,6 +492,7 @@ public class AgentService {
         connectionBindingService.detachAgent(agent.getId());
         connectorJobRepository.deleteByAgentId(agent.getId()); // dynamic AGENT jobs
         accessEvaluator.invalidateByAgent(agent.getId());
+        mcpGrantService.revokeAllForAgent(agent.getId());
         // A soft delete: the row stays (every FK onto agents remains intact), and @SQLRestriction hides it from
         // all queries and joins. The bindings were already dropped by the unbind above; the webhook secret is NOT
         // touched — agents.webhook_auth_secret_id still references it through an FK.

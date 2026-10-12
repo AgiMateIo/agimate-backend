@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- OAuth on the MCP server (docs/decisions/mcp-server-oauth.md). A grant is one consent: a user
+         let a client act as one of their agents. It is created per consent, not upserted per
+         (agent, client_id) — two machines running the same client share a CIMD client_id, and an
+         upsert would sign the first one out when the second connects.
+
+         The agent lives here and never in a scope: the scope is whatever the client sent. -->
+    <changeSet id="create-mcp-oauth-grants-table" author="agimate">
+        <createTable tableName="mcp_oauth_grants">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_used_at" type="TIMESTAMP"/>
+            <column name="revoked_at" type="TIMESTAMP"/>
+            <column name="status" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client_kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- A snapshot taken at consent: the document may change its name later, and the user
+                 agreed to the one they saw. -->
+            <column name="client_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="redirect_uri" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="resource" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="code_challenge" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="mcp_oauth_grants"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_mcp_oauth_grants_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <!-- DCR is admitted already: phase 2 brings registrations, and a value added to a check later
+             means recreating the constraint. -->
+        <sql>
+            ALTER TABLE mcp_oauth_grants
+                ADD CONSTRAINT chk_mcp_oauth_grants_status
+                CHECK (status IN ('PENDING', 'ACTIVE', 'REVOKED'));
+
+            ALTER TABLE mcp_oauth_grants
+                ADD CONSTRAINT chk_mcp_oauth_grants_client_kind
+                CHECK (client_kind IN ('CIMD', 'DCR'));
+        </sql>
+
+        <createIndex tableName="mcp_oauth_grants" indexName="idx_mcp_oauth_grants_agent_id_created_at">
+            <column name="agent_id"/>
+            <column name="created_at"/>
+        </createIndex>
+
+        <!-- The sweeper's only question about consents: which of them never got their code exchanged. -->
+        <sql>
+            CREATE INDEX idx_mcp_oauth_grants_created_at_pending
+                ON mcp_oauth_grants (created_at)
+                WHERE status = 'PENDING';
+        </sql>
+    </changeSet>
+
+    <!-- Everything a client presents: the authorization code, access and refresh tokens. One table
+         rather than columns on the grant — current and previous versions of three kinds would be six
+         nullable pairs with as many partial indexes, while here a token is found by one unique key_id
+         whatever its kind. Only the SHA-256 of the secret is stored, as for agent keys.
+
+         superseded_at is when the token was replaced (a code exchanged, a refresh rotated); the retry
+         window of a rotated refresh token counts from it. -->
+    <changeSet id="create-mcp-oauth-tokens-table" author="agimate">
+        <createTable tableName="mcp_oauth_tokens">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="grant_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="superseded_at" type="TIMESTAMP"/>
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key_id" type="TEXT">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_mcp_oauth_tokens_key_id"/>
+            </column>
+            <column name="key_hash" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="mcp_oauth_tokens"
+                                 baseColumnNames="grant_id"
+                                 constraintName="fk_mcp_oauth_tokens_grant"
+                                 referencedTableName="mcp_oauth_grants"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <sql>
+            ALTER TABLE mcp_oauth_tokens
+                ADD CONSTRAINT chk_mcp_oauth_tokens_kind
+                CHECK (kind IN ('CODE', 'ACCESS', 'REFRESH'));
+        </sql>
+
+        <createIndex tableName="mcp_oauth_tokens" indexName="idx_mcp_oauth_tokens_grant_id">
+            <column name="grant_id"/>
+        </createIndex>
+
+        <createIndex tableName="mcp_oauth_tokens" indexName="idx_mcp_oauth_tokens_expires_at">
+            <column name="expires_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

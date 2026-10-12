@@ -42,6 +42,7 @@ import ru.agimate.controlapi.controller.manage.ManageConnectorJobController;
 import ru.agimate.controlapi.controller.manage.ManageConnectionController;
 import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageLlmUsageController;
+import ru.agimate.controlapi.controller.manage.ManageMcpOAuthController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
 import ru.agimate.controlapi.controller.manage.ManageTaxonomyController;
 import ru.agimate.controlapi.controller.manage.ManageSessionController;
@@ -54,6 +55,10 @@ import ru.agimate.controlapi.controller.webhook.ConnectionWebhookController;
 import ru.agimate.controlapi.security.AgentAuthFilter;
 import ru.agimate.controlapi.security.AppAuthFilter;
 import ru.agimate.controlapi.security.JwtAuthenticationFilter;
+import ru.agimate.controlapi.security.McpAuthenticationEntryPoint;
+import ru.agimate.controlapi.service.mcp.oauth.McpOAuthEndpoints;
+import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -70,6 +75,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AppAuthFilter appAuthFilter;
     private final AgentAuthFilter agentAuthFilter;
+    private final McpOAuthEndpoints mcpOAuthEndpoints;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -146,6 +152,7 @@ public class SecurityConfig {
             ManageWebchatController.PATH + "/**",
             ManageSessionController.PATH + "/**",
             ManageFilesController.PATH + "/**",
+            ManageMcpOAuthController.PATH + "/**",
             // The whole admin area by prefix, not per controller: adding one there must not require
             // an edit here, or the next admin endpoint ships ungated.
             ManageAdminPaths.PREFIX + "/**"
@@ -202,9 +209,21 @@ public class SecurityConfig {
                         .requestMatchers(McpController.PATH).hasRole(AgentAuthFilter.ROLE_MCP_AGENT)
                         .anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
-                .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // /mcp alone answers 401 with the OAuth challenge; /agent/** and /acp keep the plain one.
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(mcpAwareEntryPoint()));
 
         return http.build();
+    }
+
+    private AuthenticationEntryPoint mcpAwareEntryPoint() {
+        AuthenticationEntryPoint plain = authenticationEntryPoint();
+        return DelegatingAuthenticationEntryPoint.builder()
+                .addEntryPointFor(new McpAuthenticationEntryPoint(mcpOAuthEndpoints, plain),
+                        PathPatternRequestMatcher.withDefaults().matcher(McpController.PATH))
+                .defaultEntryPoint(plain)
+                .build();
     }
 
     @Bean
@@ -222,6 +241,9 @@ public class SecurityConfig {
                         // Liveness/readiness groups; the management port runs this chain too.
                         "/actuator/health/**",
                         ConnectionWebhookController.PATH + "/**",
+                        // The MCP server's authorization server: metadata, token and revocation endpoints.
+                        "/.well-known/**",
+                        "/oauth/**",
                         // Authentication is the HMAC signature in the query (exp+sig), not Spring Security.
                         FileDownloadController.PATH + "/**"
                 ).permitAll()

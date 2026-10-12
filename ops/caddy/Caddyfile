@@ -25,6 +25,13 @@ http://www.agimate.lc:8000 {
 		reverse_proxy host.docker.internal:8180
 	}
 
+	# OAuth discovery of the MCP server: a client derives these addresses from the root of the host,
+	# outside /control (RFC 8414, RFC 9728). The suffix is kept — control-api checks it.
+	handle /.well-known/oauth-* {
+		rewrite * /control{uri}
+		reverse_proxy host.docker.internal:8180
+	}
+
 	handle /connection/websocket {
 		reverse_proxy centrifugo:8000
 	}

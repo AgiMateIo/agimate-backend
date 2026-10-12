@@ -12,5 +12,10 @@ public enum AgentType {
     CENTRIFUGO,
     WEBHOOK,
     GENERIC,
-    MCP
+    MCP;
+
+    /** The brain is outside the platform — the agent may be handed to an external client over {@code /mcp}. */
+    public boolean hasExternalBrain() {
+        return this != GENERIC;
+    }
 }
