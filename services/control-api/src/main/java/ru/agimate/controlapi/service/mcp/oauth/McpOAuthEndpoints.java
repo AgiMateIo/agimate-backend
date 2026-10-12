@@ -60,7 +60,7 @@ public class McpOAuthEndpoints {
         return issuer + REVOKE_PATH;
     }
 
-    /** Inside the context path, so the {@code 401} leads a client there without any ingress rule. */
+    /** The bare well-known form: a client given this address in the {@code 401} tries nothing else. */
     public String protectedResourceMetadataUrl() {
         return issuer + PROTECTED_RESOURCE_METADATA_PATH;
     }
