@@ -47,11 +47,13 @@ public class McpGrantService {
     /**
      * Part of the agent's deletion. The agent is soft-deleted and hidden by its restriction, so its
      * tokens would stop working anyway; revoking keeps the listings and the token table honest.
+     * Grants before tokens — the order every other path locks them in, or a refresh running alongside
+     * deadlocks with the deletion.
      */
     @Transactional
     public void revokeAllForAgent(UUID agentId) {
-        tokenRepository.deleteByAgentId(agentId);
         grantRepository.revokeByAgentId(agentId, LocalDateTime.now());
+        tokenRepository.deleteByAgentId(agentId);
     }
 
     private void requireOwnedAgent(UUID userId, UUID agentId) {
