@@ -39,7 +39,9 @@ public class CimdClientResolver {
 
     static final int MAX_DOCUMENT_BYTES = 10 * 1024;
     private static final int MAX_NAME_LENGTH = 100;
-    private static final Duration TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+    /** The whole fetch: the address is the client's choice, and the consent page is waiting on it. */
+    private static final Duration DEADLINE = Duration.ofSeconds(10);
     private static final Duration DEFAULT_TTL = Duration.ofHours(1);
     private static final Duration MAX_TTL = Duration.ofDays(1);
     private static final Pattern MAX_AGE = Pattern.compile("max-age\\s*=\\s*(\\d+)");
@@ -70,7 +72,7 @@ public class CimdClientResolver {
 
     public CimdClientResolver(PublicOnlyHttp http) {
         this.targets = http.targets();
-        this.restClient = http.restClient(TIMEOUT).build();
+        this.restClient = http.restClient(READ_TIMEOUT, DEADLINE).build();
     }
 
     /** Whether this {@code client_id} is a metadata document address rather than a registered id. */

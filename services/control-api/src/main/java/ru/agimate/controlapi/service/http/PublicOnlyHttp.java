@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.http;
 import org.apache.hc.client5.http.DnsResolver;
 import org.apache.hc.client5.http.SystemDefaultDnsResolver;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.CredentialsProviderBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -10,6 +11,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
+import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,8 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Every outbound HTTP call of control-api whose address a user chose — an agent's webhook, an LLM
@@ -100,6 +104,26 @@ public class PublicOnlyHttp {
 
     public RestClient.Builder restClient(Duration readTimeout) {
         return RestClient.builder().requestFactory(requestFactory(readTimeout));
+    }
+
+    /**
+     * The read timeout bounds one read, not the request: a server dribbling a byte per read holds the
+     * pooled connection for as long as it likes, and closing an unfinished body drains it first (that
+     * is how HttpCore keeps a connection reusable). At the deadline the request is cancelled, which
+     * drops the connection instead.
+     */
+    public RestClient.Builder restClient(Duration readTimeout, Duration deadline) {
+        HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient) {
+            @Override
+            protected void postProcessHttpRequest(ClassicHttpRequest request) {
+                if (request instanceof HttpUriRequestBase cancellable) {
+                    CompletableFuture.delayedExecutor(deadline.toMillis(), TimeUnit.MILLISECONDS)
+                            .execute(cancellable::cancel);
+                }
+            }
+        };
+        factory.setReadTimeout(readTimeout);
+        return RestClient.builder().requestFactory(factory);
     }
 
     private static CloseableHttpClient buildClient(PublicTargets targets, OutboundTrust trust, EgressProxy proxy) {
