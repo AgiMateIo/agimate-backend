@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UrlPathHelper;
 import ru.agimate.controlapi.service.mcp.oauth.McpOAuthEndpoints;
+import ru.agimate.controlapi.service.mcp.oauth.McpOAuthTokens;
 import ru.agimate.controlapi.service.mcp.oauth.McpTokenService;
 import ru.agimate.controlapi.service.mcp.oauth.OAuthErrors;
 import ru.agimate.controlapi.service.mcp.oauth.PkceS256;
@@ -42,8 +43,6 @@ import java.util.UUID;
 public class McpOAuthController {
 
     private static final CacheControl METADATA_CACHE = CacheControl.maxAge(Duration.ofHours(1)).cachePublic();
-    /** The total budget of the anonymous token endpoint; per-client buckets sit under it. */
-    private static final UUID TOKEN_ENDPOINT_TOTAL = new UUID(0, 0);
     private static final UrlPathHelper URL_PATH_HELPER = new UrlPathHelper();
 
     private final McpOAuthEndpoints endpoints;
@@ -72,9 +71,9 @@ public class McpOAuthController {
     }
 
     /**
-     * The third address the spec has clients try for an issuer with a path. It sits inside the context
-     * path, so discovery survives a lost ingress rule. Formally OIDC wants {@code jwks_uri} and the
-     * {@code id_token} fields; we issue no ID tokens, and MCP clients read only the OAuth fields.
+     * OIDC discovery, which the spec has clients try after RFC 8414. Formally OIDC wants
+     * {@code jwks_uri} and the {@code id_token} fields; we issue no ID tokens, and MCP clients read
+     * only the OAuth fields.
      */
     @GetMapping(McpOAuthEndpoints.OPENID_CONFIGURATION_PATH)
     public ResponseEntity<Map<String, Object>> openidConfiguration() {
@@ -83,26 +82,25 @@ public class McpOAuthController {
 
     @PostMapping(value = McpOAuthEndpoints.TOKEN_PATH, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public ResponseEntity<Map<String, Object>> token(@RequestParam MultiValueMap<String, String> form) {
-        String clientId = form.getFirst("client_id");
-        if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.OAUTH_TOKEN_TOTAL, TOKEN_ENDPOINT_TOTAL)
-                || !rateLimiter.tryAcquire(InboundRateLimiter.Scope.OAUTH_TOKEN, clientKey(clientId))) {
-            return error(HttpStatus.TOO_MANY_REQUESTS, OAuthErrors.TEMPORARILY_UNAVAILABLE, "Too many token requests");
-        }
         // RFC 6749, 3.2: a parameter sent twice makes the request invalid, not «take the first».
-        if (form.values().stream().anyMatch(values -> values.size() > 1)) {
+        if (isRepeated(form)) {
             return error(HttpStatus.BAD_REQUEST, OAuthErrors.INVALID_REQUEST, "A parameter is repeated");
         }
         String grantType = form.getFirst("grant_type");
-        TokenResult result;
-        if ("authorization_code".equals(grantType)) {
-            result = tokenService.exchangeCode(form.getFirst("code"), form.getFirst("code_verifier"), clientId,
-                    form.getFirst("redirect_uri"), form.getFirst("resource"));
-        } else if ("refresh_token".equals(grantType)) {
-            result = tokenService.refresh(form.getFirst("refresh_token"), clientId);
-        } else {
+        boolean byCode = "authorization_code".equals(grantType);
+        if (!byCode && !"refresh_token".equals(grantType)) {
             return error(HttpStatus.BAD_REQUEST, OAuthErrors.UNSUPPORTED_GRANT_TYPE,
                     "Supported grant types: authorization_code, refresh_token");
         }
+        String credential = form.getFirst(byCode ? "code" : "refresh_token");
+        if (!withinLimit(credential)) {
+            return error(HttpStatus.TOO_MANY_REQUESTS, OAuthErrors.TEMPORARILY_UNAVAILABLE, "Too many token requests");
+        }
+        String clientId = form.getFirst("client_id");
+        TokenResult result = byCode
+                ? tokenService.exchangeCode(credential, form.getFirst("code_verifier"), clientId,
+                        form.getFirst("redirect_uri"), form.getFirst("resource"))
+                : tokenService.refresh(credential, clientId);
         return switch (result) {
             case TokenResult.Issued issued -> {
                 Map<String, Object> body = new LinkedHashMap<>();
@@ -116,17 +114,18 @@ public class McpOAuthController {
         };
     }
 
-    /** RFC 7009: the answer is 200 whether the token was known or not. */
+    /** RFC 7009: the answer is 200 whether the token was known or not; errors are RFC 6749's. */
     @PostMapping(value = McpOAuthEndpoints.REVOKE_PATH, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public ResponseEntity<Void> revoke(@RequestParam MultiValueMap<String, String> form) {
-        String clientId = form.getFirst("client_id");
-        if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.OAUTH_TOKEN_TOTAL, TOKEN_ENDPOINT_TOTAL)
-                || !rateLimiter.tryAcquire(InboundRateLimiter.Scope.OAUTH_TOKEN, clientKey(clientId))) {
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
+    public ResponseEntity<Map<String, Object>> revoke(@RequestParam MultiValueMap<String, String> form) {
+        if (isRepeated(form)) {
+            return error(HttpStatus.BAD_REQUEST, OAuthErrors.INVALID_REQUEST, "A parameter is repeated");
         }
         String token = form.getFirst("token");
+        if (!withinLimit(token)) {
+            return error(HttpStatus.TOO_MANY_REQUESTS, OAuthErrors.TEMPORARILY_UNAVAILABLE, "Too many revocation requests");
+        }
         if (token != null && !token.isBlank()) {
-            tokenService.revoke(token, clientId);
+            tokenService.revoke(token, form.getFirst("client_id"));
         }
         return ResponseEntity.ok().build();
     }
@@ -155,8 +154,20 @@ public class McpOAuthController {
         return suffix.isEmpty() || suffix.equals(expected);
     }
 
-    private static UUID clientKey(String clientId) {
-        return UUID.nameUUIDFromBytes((clientId == null ? "" : clientId).getBytes(StandardCharsets.UTF_8));
+    private static boolean isRepeated(MultiValueMap<String, String> form) {
+        return form.values().stream().anyMatch(values -> values.size() > 1);
+    }
+
+    /**
+     * Keyed by the presented code or token: the only thing in an anonymous request that one caller
+     * cannot share with everybody else. A credential that is not even well-formed is refused without a
+     * lookup, so it needs no bucket — and a bucket per made-up value would protect nothing.
+     */
+    private boolean withinLimit(String credential) {
+        return McpOAuthTokens.keyIdOf(credential)
+                .map(keyId -> rateLimiter.tryAcquire(InboundRateLimiter.Scope.OAUTH_TOKEN,
+                        UUID.nameUUIDFromBytes(keyId.getBytes(StandardCharsets.UTF_8))))
+                .orElse(true);
     }
 
     private static ResponseEntity<Map<String, Object>> error(HttpStatus status, String error, String description) {

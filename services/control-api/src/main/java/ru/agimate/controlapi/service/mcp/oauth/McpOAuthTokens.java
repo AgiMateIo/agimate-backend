@@ -1,6 +1,8 @@
 package ru.agimate.controlapi.service.mcp.oauth;
 
 import lombok.experimental.UtilityClass;
+import ru.agimate.common.security.keys.AppKeyUtils;
+import ru.agimate.common.security.keys.ParsedAppKey;
 import ru.agimate.controlapi.database.enums.McpOAuthTokenKind;
 
 import java.time.Duration;
@@ -56,6 +58,22 @@ public class McpOAuthTokens {
             case REFRESH_PREFIX -> Optional.of(McpOAuthTokenKind.REFRESH);
             default -> Optional.empty();
         };
+    }
+
+    /**
+     * The key id of a well-formed token of ours, without a lookup — what the token endpoint's rate
+     * limit keys on. Empty for anything that could never be found.
+     */
+    public static Optional<String> keyIdOf(String token) {
+        if (kindOf(token).isEmpty()) {
+            return Optional.empty();
+        }
+        try {
+            ParsedAppKey parsed = AppKeyUtils.parse(token);
+            return AppKeyUtils.verifyChecksum(parsed) ? Optional.of(parsed.keyId()) : Optional.empty();
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
     }
 
     public static boolean isAccessToken(String token) {

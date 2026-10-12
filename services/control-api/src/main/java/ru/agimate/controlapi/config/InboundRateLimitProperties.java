@@ -35,13 +35,15 @@ public class InboundRateLimitProperties {
      */
     private int viewCallsPerMinute = 120;
     /**
-     * Token and revocation requests ({@code /oauth/token}, {@code /oauth/revoke}) per minute per
-     * client_id. An honest client refreshes once an hour; this is room for retries, not a budget.
+     * Consent page calls ({@code /manage/mcp-oauth/authorize/*}) per minute per user. Each may fetch a
+     * client's metadata document from an address the request names; a person clicks a few times.
      */
-    private int oauthTokenRequestsPerMinute = 30;
+    private int mcpConsentRequestsPerMinute = 30;
     /**
-     * The same endpoints per minute in total. Anonymous, and the client's address is lost to SNAT,
-     * so a per-client bucket keyed by a made-up client_id is the only other line.
+     * Token and revocation requests ({@code /oauth/token}, {@code /oauth/revoke}) per minute per
+     * presented code or token. An honest client spends a code once and refreshes once an hour; this is
+     * room for retries, not a budget. Not per client_id: a CIMD client_id is shared by every user of
+     * the client, and anyone may send it.
      */
-    private int oauthTokenRequestsTotalPerMinute = 600;
+    private int oauthTokenRequestsPerMinute = 10;
 }

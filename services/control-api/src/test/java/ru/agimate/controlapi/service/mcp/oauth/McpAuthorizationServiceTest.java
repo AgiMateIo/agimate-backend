@@ -7,6 +7,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.TooManyRequestsStatusException;
+import ru.agimate.controlapi.config.InboundRateLimitProperties;
 import ru.agimate.controlapi.config.McpServerProperties;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.McpOAuthGrant;
@@ -15,6 +17,7 @@ import ru.agimate.controlapi.database.enums.McpOAuthClientKind;
 import ru.agimate.controlapi.database.enums.McpOAuthGrantStatus;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.McpOAuthGrantRepository;
+import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 
 import java.util.List;
 import java.util.Optional;
@@ -48,7 +51,7 @@ class McpAuthorizationServiceTest {
         McpServerProperties properties = new McpServerProperties();
         properties.setPublicUrl(ISSUER);
         service = new McpAuthorizationService(resolver, new McpOAuthEndpoints(properties, "https://agimate.io"),
-                tokenService, agentRepository, grantRepository);
+                tokenService, agentRepository, grantRepository, new InboundRateLimiter(new InboundRateLimitProperties()));
 
         when(resolver.resolve(CLIENT_ID)).thenReturn(new OAuthClient(CLIENT_ID, McpOAuthClientKind.CIMD, "Claude",
                 "claude.ai", List.of(WEB_REDIRECT, LOOPBACK_REDIRECT)));
@@ -200,5 +203,19 @@ class McpAuthorizationServiceTest {
         String url = McpAuthorizationService.redirect("https://app.example/cb?x=1",
                 new java.util.LinkedHashMap<>(java.util.Map.of("state", "a b&c")));
         assertEquals("https://app.example/cb?x=1&state=a%20b%26c", url);
+    }
+
+    @Test
+    @DisplayName("лимит на пользователя: каждый вызов может сходить за документом клиента, другой пользователь не задет")
+    void limitedPerUser() {
+        for (int i = 0; i < 30; i++) {
+            service.check(userId, request(WEB_REDIRECT));
+        }
+        assertThrows(TooManyRequestsStatusException.class, () -> service.deny(userId, request(WEB_REDIRECT)));
+        verify(resolver, times(30)).resolve(CLIENT_ID);
+
+        UUID other = UUID.randomUUID();
+        when(agentRepository.findByUserId(eq(other), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+        assertInstanceOf(CheckOutcome.Consent.class, service.check(other, request(WEB_REDIRECT)));
     }
 }

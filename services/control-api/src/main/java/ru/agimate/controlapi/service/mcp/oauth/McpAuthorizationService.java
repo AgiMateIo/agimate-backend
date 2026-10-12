@@ -8,11 +8,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.McpOAuthGrant;
 import ru.agimate.controlapi.database.enums.McpOAuthGrantStatus;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.McpOAuthGrantRepository;
+import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -47,6 +49,7 @@ public class McpAuthorizationService {
     private final McpTokenService tokenService;
     private final AgentRepository agentRepository;
     private final McpOAuthGrantRepository grantRepository;
+    private final InboundRateLimiter rateLimiter;
 
     private sealed interface Validation {
         record Valid(OAuthClient client, String redirectUri) implements Validation {}
@@ -54,7 +57,7 @@ public class McpAuthorizationService {
     }
 
     public CheckOutcome check(UUID userId, AuthorizationRequest request) {
-        return switch (validate(request)) {
+        return switch (validate(userId, request)) {
             case Validation.Invalid invalid -> new CheckOutcome.Redirect(invalid.redirectUrl());
             case Validation.Valid valid -> new CheckOutcome.Consent(consentView(userId, valid));
         };
@@ -63,7 +66,7 @@ public class McpAuthorizationService {
     /** @return where the browser goes next: the client's redirect with a code, or with an error */
     @Transactional
     public String approve(UUID userId, AuthorizationRequest request, UUID agentId) {
-        Validation validation = validate(request);
+        Validation validation = validate(userId, request);
         if (validation instanceof Validation.Invalid invalid) {
             return invalid.redirectUrl();
         }
@@ -102,14 +105,21 @@ public class McpAuthorizationService {
     }
 
     public String deny(UUID userId, AuthorizationRequest request) {
-        return switch (validate(request)) {
+        return switch (validate(userId, request)) {
             case Validation.Invalid invalid -> invalid.redirectUrl();
             case Validation.Valid valid -> errorRedirect(valid.redirectUri(), request.state(),
                     OAuthErrors.ACCESS_DENIED, "The user denied access");
         };
     }
 
-    private Validation validate(AuthorizationRequest request) {
+    /**
+     * Each call may fetch a document from an address the request names, and a failed fetch is not
+     * cached — so the limit is on the caller, before anything goes out.
+     */
+    private Validation validate(UUID userId, AuthorizationRequest request) {
+        if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.MCP_CONSENT, userId)) {
+            throw new TooManyRequestsStatusException("Too many authorization requests");
+        }
         OAuthClient client = resolveClient(request.clientId());
         String redirectUri = resolveRedirectUri(client, request.redirectUri());
 

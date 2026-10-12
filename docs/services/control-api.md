@@ -38,8 +38,8 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `INBOUND_RATE_LIMIT_FILE_UPLOADS_PER_MINUTE` | File uploads per minute — `/app/files` per connection, `/manage/files` per user (default `30`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_MCP_CALLS_PER_MINUTE` | MCP tool calls per minute per agent — `/mcp` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_MCP_TASK_POLLS_PER_MINUTE` | MCP task polls per minute per agent — `tasks/get` and friends (default `240`, `<=0` disables) |
-| `INBOUND_RATE_LIMIT_OAUTH_TOKEN_REQUESTS_PER_MINUTE` | `/oauth/token` and `/oauth/revoke` per minute per `client_id` (default `30`, `<=0` disables) |
-| `INBOUND_RATE_LIMIT_OAUTH_TOKEN_REQUESTS_TOTAL_PER_MINUTE` | The same endpoints per minute in total — anonymous, and the client address is lost to SNAT (default `600`, `<=0` disables) |
+| `INBOUND_RATE_LIMIT_OAUTH_TOKEN_REQUESTS_PER_MINUTE` | `/oauth/token` and `/oauth/revoke` per minute per presented code or token — not per `client_id`, which every user of a CIMD client shares (default `10`, `<=0` disables) |
+| `INBOUND_RATE_LIMIT_MCP_CONSENT_REQUESTS_PER_MINUTE` | Consent page calls per minute per user — `/manage/mcp-oauth/authorize/*`, each may fetch a client metadata document (default `30`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_VIEW_CALLS_PER_MINUTE` | Tool calls from connector views per minute per agent — `/manage/agents/{agentId}/views/tools/call` (default `120`, `<=0` disables) |
 | `APP_FILES_USER_TTL` | Lifetime of a file the user uploaded themselves (default `90d`); connector-produced files use `APP_FILES_DEFAULT_TTL` |
 | `APP_FILES_BACKEND` | Connector file layer blob store: `local` (disk, default; root — `APP_FILES_LOCAL_DIR`, empty = `~/.agimate/files`) or `s3` (`docs/connectors/files.md`) |
