@@ -66,6 +66,8 @@ class McpTokenServiceTest {
                 .codeChallenge(challenge(VERIFIER))
                 .build();
         when(grantRepository.findById(grant.getId())).thenReturn(Optional.of(grant));
+        when(grantRepository.findByIdForUpdate(grant.getId())).thenReturn(Optional.of(grant));
+        when(grantRepository.activate(any(), any())).thenReturn(1);
         when(agentRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
         when(tokenRepository.supersede(any(), any())).thenReturn(1);
     }
@@ -200,6 +202,15 @@ class McpTokenServiceTest {
         void genericAgent() {
             agent.setType(AgentType.GENERIC);
             assertEquals(OAuthErrors.INVALID_GRANT, errorOf(service.exchangeCode(code, VERIFIER, CLIENT_ID, null, null)));
+        }
+
+        @Test
+        @DisplayName("грант отозван, пока обмен ждал блокировку, — invalid_grant, токены не выдаются")
+        void revokedWhileExchanging() {
+            when(grantRepository.activate(any(), any())).thenReturn(0);
+
+            assertEquals(OAuthErrors.INVALID_GRANT, errorOf(service.exchangeCode(code, VERIFIER, CLIENT_ID, null, null)));
+            verify(tokenRepository, never()).save(any());
         }
 
         @Test

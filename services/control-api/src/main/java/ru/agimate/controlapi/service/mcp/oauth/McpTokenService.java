@@ -24,6 +24,9 @@ import java.util.UUID;
 /**
  * Codes and tokens of the MCP server's authorization server (docs/decisions/mcp-server-oauth.md).
  *
+ * <p>Every state change of a grant starts by locking its row ({@code findByIdForUpdate}), so an exchange,
+ * a refresh and a revocation of one grant never interleave.
+ *
  * <p>A refused exchange never throws out of a transactional method: a replayed code or refresh token
  * revokes the grant, and that revocation has to commit while the client is told {@code invalid_grant}
  * — an exception would mark the transaction rollback-only and take the revocation with it.
@@ -59,7 +62,7 @@ public class McpTokenService {
             return TokenResult.refused(OAuthErrors.INVALID_GRANT, "Unknown authorization code");
         }
         McpOAuthToken token = found.get();
-        McpOAuthGrant grant = grantRepository.findById(token.getGrantId()).orElseThrow();
+        McpOAuthGrant grant = grantRepository.findByIdForUpdate(token.getGrantId()).orElseThrow();
 
         // Claimed before any other check, so a failed attempt burns the code like a successful one.
         if (tokenRepository.supersede(token.getId(), now) == 0) {
@@ -90,7 +93,9 @@ public class McpTokenService {
         if (usableAgent(grant.getAgentId()).isEmpty()) {
             return TokenResult.refused(OAuthErrors.INVALID_GRANT, "The agent is no longer available");
         }
-        grantRepository.activate(grant.getId(), now);
+        if (grantRepository.activate(grant.getId(), now) == 0) {
+            return TokenResult.refused(OAuthErrors.INVALID_GRANT, "Authorization code is no longer valid");
+        }
         log.info("MCP OAuth: grant {} activated for agent {} (client {})", grant.getId(), grant.getAgentId(), grant.getClientId());
         return issuePair(grant.getId(), now);
     }
@@ -113,7 +118,7 @@ public class McpTokenService {
             return TokenResult.refused(OAuthErrors.INVALID_GRANT, "Unknown refresh token");
         }
         McpOAuthToken token = found.get();
-        McpOAuthGrant grant = grantRepository.findById(token.getGrantId()).orElseThrow();
+        McpOAuthGrant grant = grantRepository.findByIdForUpdate(token.getGrantId()).orElseThrow();
 
         if (grant.getStatus() != McpOAuthGrantStatus.ACTIVE) {
             return TokenResult.refused(OAuthErrors.INVALID_GRANT, "The grant has been revoked");
@@ -157,7 +162,7 @@ public class McpTokenService {
         if (found.isEmpty()) {
             return;
         }
-        McpOAuthGrant grant = grantRepository.findById(found.get().getGrantId()).orElseThrow();
+        McpOAuthGrant grant = grantRepository.findByIdForUpdate(found.get().getGrantId()).orElseThrow();
         if (clientId != null && !grant.getClientId().equals(clientId)) {
             return;
         }

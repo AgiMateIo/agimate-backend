@@ -1,6 +1,8 @@
 package ru.agimate.controlapi.database.repositories;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,10 +12,20 @@ import ru.agimate.controlapi.database.enums.McpOAuthGrantStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface McpOAuthGrantRepository extends JpaRepository<McpOAuthGrant, UUID> {
+
+    /**
+     * The grant with its row locked for the rest of the transaction. Exchange, refresh and revocation
+     * of one grant run one after another: otherwise a refresh that read ACTIVE goes on issuing tokens
+     * after a revocation committed under it.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT g FROM McpOAuthGrant g WHERE g.id = :id")
+    Optional<McpOAuthGrant> findByIdForUpdate(@Param("id") UUID id);
 
     List<McpOAuthGrant> findByAgentIdAndStatusOrderByCreatedAtDesc(UUID agentId, McpOAuthGrantStatus status);
 
