@@ -130,6 +130,11 @@ public class CimdClientResolver {
                     .accept(MediaType.APPLICATION_JSON)
                     .exchange((request, http) -> {
                         if (!http.getStatusCode().is2xxSuccessful()) {
+                            // A redirect is never followed, and from a blocked region it is usually a
+                            // geo page: the target host says which host belongs on the egress proxy list.
+                            URI location = http.getHeaders().getLocation();
+                            log.warn("CIMD fetch for {} answered {}{}", clientId, http.getStatusCode().value(),
+                                    location == null ? "" : " redirecting to " + location.getHost());
                             throw new OAuthClientRejectedException(
                                     "Client metadata document answered " + http.getStatusCode().value());
                         }
