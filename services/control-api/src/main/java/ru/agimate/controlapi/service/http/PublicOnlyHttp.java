@@ -110,7 +110,8 @@ public class PublicOnlyHttp {
      * The read timeout bounds one read, not the request: a server dribbling a byte per read holds the
      * pooled connection for as long as it likes, and closing an unfinished body drains it first (that
      * is how HttpCore keeps a connection reusable). At the deadline the request is cancelled, which
-     * drops the connection instead.
+     * drops the connection instead. A cancel firing after an ordinary response is a no-op: releasing
+     * the connection to the pool already detached it from the request.
      */
     public RestClient.Builder restClient(Duration readTimeout, Duration deadline) {
         HttpComponentsClientHttpRequestFactory factory = new HttpComponentsClientHttpRequestFactory(httpClient) {
