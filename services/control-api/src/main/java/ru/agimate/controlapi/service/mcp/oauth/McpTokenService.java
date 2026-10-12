@@ -97,9 +97,10 @@ public class McpTokenService {
 
     /**
      * Rotation with a retry window. A token rotated less than {@link McpOAuthTokens#RETRY_WINDOW} ago is
-     * a client that lost the response — it gets a fresh pair, and nothing else of the grant is touched,
-     * so two parallel refreshes both end with a working chain. Only hashes are stored, so «the current
-     * pair» cannot be handed out again. Later than the window it is a replay, and the grant goes.
+     * a client that lost the response — it gets a fresh pair once, and nothing else of the grant is
+     * touched, so two parallel refreshes both end with a working chain. Only hashes are stored, so «the
+     * current pair» cannot be handed out again. A second retry, or any use later than the window, is a
+     * replay, and the grant goes.
      */
     @Transactional
     public TokenResult refresh(String refreshToken, String clientId) {
@@ -128,8 +129,17 @@ public class McpTokenService {
             log.warn("MCP OAuth: rotated refresh token replayed, grant {} revoked", grant.getId());
             return TokenResult.refused(OAuthErrors.INVALID_GRANT, "Refresh token was already used");
         }
-        // Losing this race to a parallel refresh is the retry case too; the update waits for the winner's commit.
-        tokenRepository.supersede(token.getId(), now);
+        // Not current any more — rotated earlier, or by a parallel refresh this update waited for. That is
+        // the retry case, and a token gets exactly one: unlimited retries would let a stolen token mint
+        // live chains for the whole window. The second presentation is a replay.
+        if (tokenRepository.supersede(token.getId(), now) == 0) {
+            LocalDateTime windowStart = now.minus(McpOAuthTokens.RETRY_WINDOW);
+            if (tokenRepository.spendRetry(token.getId(), windowStart, windowStart.minusSeconds(1), now) == 0) {
+                revokeGrant(grant.getId(), now);
+                log.warn("MCP OAuth: rotated refresh token presented again after its retry, grant {} revoked", grant.getId());
+                return TokenResult.refused(OAuthErrors.INVALID_GRANT, "Refresh token was already used");
+            }
+        }
 
         if (usableAgent(grant.getAgentId()).isEmpty()) {
             return TokenResult.refused(OAuthErrors.INVALID_GRANT, "The agent is no longer available");

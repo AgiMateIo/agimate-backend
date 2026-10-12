@@ -27,6 +27,19 @@ public interface McpOAuthTokenRepository extends JpaRepository<McpOAuthToken, UU
             """)
     int supersede(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
+    /**
+     * Spends the single retry a rotated refresh token is allowed: moves its rotation mark out of the
+     * window, so the next presentation reads as a replay. 0 means the retry was already spent, or the
+     * window had passed.
+     */
+    @Modifying
+    @Query("""
+            UPDATE McpOAuthToken t SET t.supersededAt = :closedAt, t.updatedAt = :now
+            WHERE t.id = :id AND t.supersededAt >= :windowStart
+            """)
+    int spendRetry(@Param("id") UUID id, @Param("windowStart") LocalDateTime windowStart,
+                   @Param("closedAt") LocalDateTime closedAt, @Param("now") LocalDateTime now);
+
     @Modifying
     @Query("DELETE FROM McpOAuthToken t WHERE t.grantId = :grantId")
     int deleteByGrantId(@Param("grantId") UUID grantId);

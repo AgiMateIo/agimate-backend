@@ -226,6 +226,7 @@ class McpTokenServiceTest {
 
             assertInstanceOf(TokenResult.Issued.class, service.refresh(refresh, CLIENT_ID));
             verify(tokenRepository).supersede(any(), any());
+            verify(tokenRepository, never()).spendRetry(any(), any(), any(), any());
         }
 
         @Test
@@ -233,9 +234,24 @@ class McpTokenServiceTest {
         void retryWithinWindow() {
             String refresh = stored(McpOAuthTokenKind.REFRESH, LocalDateTime.now().plusDays(30),
                     LocalDateTime.now().minusSeconds(10));
+            when(tokenRepository.supersede(any(), any())).thenReturn(0);
+            when(tokenRepository.spendRetry(any(), any(), any(), any())).thenReturn(1);
 
             assertInstanceOf(TokenResult.Issued.class, service.refresh(refresh, CLIENT_ID));
             verify(grantRepository, never()).revoke(any(), any());
+        }
+
+        @Test
+        @DisplayName("второй ретрай того же токена в окне — повтор: грант отозван, новая пара не выдаётся")
+        void secondRetryIsReplay() {
+            String refresh = stored(McpOAuthTokenKind.REFRESH, LocalDateTime.now().plusDays(30),
+                    LocalDateTime.now().minusSeconds(10));
+            when(tokenRepository.supersede(any(), any())).thenReturn(0);
+            when(tokenRepository.spendRetry(any(), any(), any(), any())).thenReturn(0);
+
+            assertEquals(OAuthErrors.INVALID_GRANT, errorOf(service.refresh(refresh, CLIENT_ID)));
+            verify(grantRepository).revoke(eq(grant.getId()), any());
+            verify(tokenRepository, never()).save(any());
         }
 
         @Test
@@ -243,6 +259,7 @@ class McpTokenServiceTest {
         void lostRace() {
             String refresh = stored(McpOAuthTokenKind.REFRESH, LocalDateTime.now().plusDays(30), null);
             when(tokenRepository.supersede(any(), any())).thenReturn(0);
+            when(tokenRepository.spendRetry(any(), any(), any(), any())).thenReturn(1);
 
             assertInstanceOf(TokenResult.Issued.class, service.refresh(refresh, CLIENT_ID));
             verify(grantRepository, never()).revoke(any(), any());
