@@ -18,6 +18,7 @@ import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.FileInfo;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.GroupResult;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.Metric;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.SheetDetail;
+import ru.agimate.controlapi.database.entities.Sheet;
 
 import java.util.List;
 import java.util.Map;
@@ -28,10 +29,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -137,12 +138,15 @@ class SheetsToolServiceTest {
     @Test
     @DisplayName("export: неизвестный формат отвергается со списком допустимых")
     void rejectsUnknownExportFormat() {
-        when(sheetsService.requireSheet(eq(agentId), anyString()))
-                .thenThrow(new ConnectorException("No sheet 'budget'. Existing sheets: (none yet)"));
+        // The sheet must resolve: the format switch runs only after the sheet and its rows are read.
+        when(sheetsService.requireSheet(agentId, "budget")).thenReturn(Sheet.builder()
+                .name("budget").title("Бюджет").columns(SheetSchema.toStorage(List.of())).build());
 
         ConnectorException error = assertThrows(ConnectorException.class,
                 () -> handler.executeTool(env, "export", Map.of("sheet", "budget", "format", "pdf")));
-        assertTrue(error.getMessage().contains("budget"), error.getMessage());
+        assertTrue(error.getMessage().contains("Invalid format: 'pdf'"), error.getMessage());
+        assertTrue(error.getMessage().contains("csv, xlsx"), error.getMessage());
+        verifyNoInteractions(fileService);
     }
 
     @Test

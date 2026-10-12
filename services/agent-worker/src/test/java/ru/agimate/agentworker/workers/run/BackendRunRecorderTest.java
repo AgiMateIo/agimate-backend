@@ -35,7 +35,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -144,9 +143,11 @@ class RunRecorderTest {
 
         recorder.onUsage(new LlmUsage("call-9", "prov-1", "gpt-5-mini", 10, 5, 0, 0));
         recorder.onUsage(new LlmUsage(null, "prov-1", "gpt-5-mini", 10, 5, 0, 0));
+        recorder.onUsage(new LlmUsage(" ", "prov-1", "gpt-5-mini", 10, 5, 0, 0));
 
         verify(client).reportLlmUsage("call-9", "agent-1", "run-1", "prov-1", "gpt-5-mini", 10, 5, 0, 0);
-        verify(client, never()).reportLlmUsage(eq(""), any(), any(), any(), any(),
+        // Counted over any(): a skipped call would carry a null id, which eq("")/anyString() never match.
+        verify(client, times(1)).reportLlmUsage(any(), any(), any(), any(), any(),
                 anyInt(), anyInt(), anyInt(), anyInt());
     }
 

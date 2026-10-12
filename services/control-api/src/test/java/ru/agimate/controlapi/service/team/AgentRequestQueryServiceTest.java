@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.agentrequest.AgentRequestDetailResponse;
 import ru.agimate.controlapi.controller.manage.dto.agentrequest.AgentRequestExchangeItem;
 import ru.agimate.controlapi.controller.manage.dto.agentrequest.AgentRequestExchangeKind;
@@ -37,12 +38,14 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -351,14 +354,11 @@ class AgentRequestQueryServiceTest {
         @Test
         @DisplayName("команда проверяется до чтения — чужая упирается в её же 404")
         void teamIsTheGate() {
-            when(agentSessionRepository.findRequests(any(), any(), any(), any(), any(), any(), any(), any(), any()))
-                    .thenReturn(new PageImpl<>(List.of(thread())));
-            when(agentRunQueryService.liveSessionIds(anyCollection())).thenReturn(Set.of());
-            when(agentRunRepository.findExchangeRuns(THREAD_ID)).thenReturn(List.of());
+            when(agenticTeamService.getById(TEAM_ID, USER_ID))
+                    .thenThrow(new NotFoundStatusException("Agentic team not found"));
 
-            service.get(USER_ID, TEAM_ID, THREAD_ID);
-
-            verify(agenticTeamService).getById(TEAM_ID, USER_ID);
+            assertThrows(NotFoundStatusException.class, () -> service.get(USER_ID, TEAM_ID, THREAD_ID));
+            verifyNoInteractions(agentSessionRepository, agentRunRepository);
         }
     }
 

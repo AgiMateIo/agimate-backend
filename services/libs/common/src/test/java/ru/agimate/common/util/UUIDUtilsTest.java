@@ -70,14 +70,20 @@ class UUIDUtilsTest {
     @Test
     @DisplayName("Should reject tampered UUIDs")
     void shouldRejectTamperedUUIDs() {
-        UUID original = UUIDUtils.generateUUIDv8();
-        String originalStr = original.toString();
+        String original = UUIDUtils.generateUUIDv8().toString();
 
-        // Tamper with the UUID by changing one character in the middle
-        String tampered = originalStr.substring(0, 10) + "X" + originalStr.substring(11);
+        assertTrue(UUIDUtils.validateUUIDv8(original), "Original UUID should be valid");
+        // A hex digit, not a non-hex character: the result must still parse and keep version 8,
+        // so only the checksum can reject it. Covers the counter, both random parts and the checksum.
+        for (int position : new int[]{0, 16, 25, 35}) {
+            String tampered = flipHexDigit(original, position);
+            assertFalse(UUIDUtils.validateUUIDv8(tampered), "Tampered at " + position + ": " + tampered);
+        }
+    }
 
-        assertTrue(UUIDUtils.validateUUIDv8(originalStr), "Original UUID should be valid");
-        assertFalse(UUIDUtils.validateUUIDv8(tampered), "Tampered UUID should not be valid");
+    private static String flipHexDigit(String uuid, int position) {
+        char flipped = Character.forDigit(Character.digit(uuid.charAt(position), 16) ^ 1, 16);
+        return uuid.substring(0, position) + flipped + uuid.substring(position + 1);
     }
 
     @Test

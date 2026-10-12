@@ -22,7 +22,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @DisplayName("McpOAuthController: метаданные, токен-эндпойнт и отзыв")
@@ -189,7 +188,8 @@ class McpOAuthControllerTest {
         @DisplayName("без токена — 200 и сервис не зовётся; повторённый параметр — invalid_request")
         void shape() {
             assertEquals(200, controller.revoke(form()).getStatusCode().value());
-            verify(tokenService, never()).revoke(anyString(), isNull());
+            // any(), not anyString(): the absent token is null, and anyString() never matches null.
+            verify(tokenService, never()).revoke(any(), any());
 
             ResponseEntity<Map<String, Object>> repeated = controller.revoke(form("token", "a", "token", "b"));
             assertEquals(400, repeated.getStatusCode().value());

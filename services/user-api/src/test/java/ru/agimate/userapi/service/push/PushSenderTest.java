@@ -80,7 +80,9 @@ class PushSenderTest {
         when(pushSubscriptionService.listByUser(USER_ID))
                 .thenReturn(List.of(subscription(PushProvider.FIREBASE, "fcm-token")));
 
-        sender(new StubTransport(PushProvider.RUSTORE, true, PushDelivery.DELIVERED))
+        // Same provider, no credentials, and a send that would report TOKEN_GONE: only the
+        // isConfigured() check stands between this subscription and its removal.
+        sender(new StubTransport(PushProvider.FIREBASE, false, PushDelivery.TOKEN_GONE))
                 .sendToUser(USER_ID, MESSAGE);
 
         verify(pushSubscriptionService, never()).dropDeadToken(anyString());

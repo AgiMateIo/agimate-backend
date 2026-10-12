@@ -141,12 +141,13 @@ class RunCancellationServiceTest {
         }
 
         @Test
-        @DisplayName("гасит и работающий ран, и стоящие за ним в очереди")
+        @DisplayName("гасит раны сессии (работающий и очередь) и раны её субагентов; счёт — сумма")
         void cancelsEveryLiveRunOfTheSession() {
             stubSession(USER_ID);
             when(agentRunRepository.requestCancelBySession(eq(SESSION_ID), any())).thenReturn(3);
+            when(agentRunRepository.requestCancelByParentSession(eq(SESSION_ID), any())).thenReturn(2);
 
-            assertEquals(3, service.cancelSession(SESSION_ID, USER_ID));
+            assertEquals(5, service.cancelSession(SESSION_ID, USER_ID));
         }
 
         @Test
