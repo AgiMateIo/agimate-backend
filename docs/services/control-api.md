@@ -31,7 +31,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `APP_CONTENT_LANGUAGE`  | System content language of the installation: `ru` (default) or `en`. See [architecture/content-language.md](../architecture/content-language.md) |
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
-| `APP_MCP_SERVER_PUBLIC_URL` | Public base of control-api as MCP clients see it, context path included (`https://api.agimate.io/control`). The OAuth issuer, the resource `<base>/mcp` and the metadata addresses are derived from it, never from `Host`. See [decisions/mcp-server-oauth.md](../decisions/mcp-server-oauth.md) |
+| `APP_MCP_SERVER_PUBLIC_URL` | Public base of the MCP server as its clients see it: `https://mcp.agimate.io` on prod, where the whole host is proxied to control-api under `/control`; locally the default `http://localhost:8080/control`. The OAuth issuer, the resource `<base>/mcp` and the metadata addresses are derived from it, never from `Host`. See [decisions/mcp-server-oauth.md](../decisions/mcp-server-oauth.md) |
 | `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for app/webhook traffic (default `true`) |
 | `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE` | Trigger events per minute per connection — `/app/trigger/new` + `/webhook/*` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE` | Tool results per minute per connection — `/app/tools/result` (default `120`, `<=0` disables) |

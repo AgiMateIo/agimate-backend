@@ -58,15 +58,16 @@ Cursor, свой скрипт) подключается к `https://<host>/mcp` 
 
 ## OAuth: подключение по одной ссылке
 
-Внешний клиент может получить доступ без ключа: человек даёт ему адрес `/mcp`, клиент получает `401`,
+Внешний клиент может получить доступ без ключа: человек даёт ему адрес `https://mcp.agimate.io/mcp`, клиент получает `401`,
 находит метаданные, проводит человека через страницу согласия на фронте, где тот выбирает агента, и
 уходит с токенами, привязанными к этому агенту. Сервер авторизации — сам control-api; решение и его
 причины — [../decisions/mcp-server-oauth.md](../decisions/mcp-server-oauth.md).
 
 | | |
 |:--|:--|
-| Метаданные ресурса (RFC 9728) | `GET /.well-known/oauth-protected-resource`, также с суффиксом `/control/mcp` |
-| Метаданные AS (RFC 8414) | `GET /.well-known/oauth-authorization-server`, также с суффиксом `/control`; копия — `/.well-known/openid-configuration` |
+| Хост | `mcp.agimate.io` — весь в control-api с префиксом `/control`, только пути MCP и OAuth; пути ниже — какими их видит клиент |
+| Метаданные ресурса (RFC 9728) | `GET /.well-known/oauth-protected-resource`, также с суффиксом `/mcp` |
+| Метаданные AS (RFC 8414) | `GET /.well-known/oauth-authorization-server`; копия — `/.well-known/openid-configuration` |
 | Страница согласия | на фронте, `<frontend>/mcp/authorize`; бэкенд — `/manage/mcp-oauth/authorize/{check,approve,deny}` |
 | Токены | `POST /oauth/token` (`authorization_code`, `refresh_token`), `POST /oauth/revoke` (RFC 7009) |
 | Клиенты | CIMD: `client_id` — HTTPS-адрес документа клиента. DCR пока нет (фаза 2 — ради Cursor) |
@@ -75,6 +76,8 @@ Cursor, свой скрипт) подключается к `https://<host>/mcp` 
 | Подключённые клиенты агента | `GET /manage/agents/{agentId}/mcp-clients/`, отзыв — `DELETE …/{grantId}` |
 
 OAuth-токен открывает только `/mcp`, даже когда ключ того же агента открывает и `/agent/**`, и `/acp`.
+Старый адрес `https://api.agimate.io/control/mcp` работает только с ключом: метаданные называют
+`mcp.agimate.io`, и клиент, подключившийся по старому адресу, OAuth не пройдёт.
 Грант заводится на каждое согласие, ротация ключа агента его не трогает, отзыв гранта не трогает ключ.
 
 ## Имена тулов

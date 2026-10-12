@@ -25,15 +25,24 @@ http://www.agimate.lc:8000 {
 		reverse_proxy host.docker.internal:8180
 	}
 
-	# OAuth discovery of the MCP server: a client derives these addresses from the root of the host,
-	# outside /control (RFC 8414, RFC 9728). The suffix is kept — control-api checks it.
-	handle /.well-known/oauth-* {
+	handle /connection/websocket {
+		reverse_proxy centrifugo:8000
+	}
+}
+
+# The MCP server's own host, as mcp.agimate.io on prod: the whole host goes to control-api under
+# /control, so OAuth metadata sits at the root where clients look for it (RFC 8414, RFC 9728).
+# control-api needs APP_MCP_SERVER_PUBLIC_URL=http://mcp.agimate.lc:8000 to name itself this way.
+http://mcp.agimate.lc:8000 {
+	log
+	@mcp path /mcp /oauth/token /oauth/revoke /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/* /.well-known/oauth-authorization-server /.well-known/openid-configuration
+	handle @mcp {
 		rewrite * /control{uri}
 		reverse_proxy host.docker.internal:8180
 	}
-
-	handle /connection/websocket {
-		reverse_proxy centrifugo:8000
+	# Nothing else of control-api is reachable through this host — the same as on prod.
+	handle {
+		respond 404
 	}
 }
 

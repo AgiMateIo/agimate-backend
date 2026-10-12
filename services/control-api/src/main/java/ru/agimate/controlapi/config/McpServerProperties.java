@@ -13,8 +13,9 @@ import org.springframework.stereotype.Component;
 public class McpServerProperties {
 
     /**
-     * Public base address of control-api, context path included ({@code https://api.agimate.io/control}).
-     * The OAuth issuer, the resource ({@code <base>/mcp}) and every metadata address are derived from
+     * Public base of the MCP server as clients see it: {@code https://mcp.agimate.io} on prod, a host
+     * proxied whole to control-api under {@code /control}; locally control-api's own address with the
+     * context path. The OAuth issuer, the resource ({@code <base>/mcp}) and every metadata address are derived from
      * it — never from the request's {@code Host}: behind a proxy the two differ, and these values are
      * compared byte for byte by clients.
      */

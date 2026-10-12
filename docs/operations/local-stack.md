@@ -158,8 +158,11 @@ cd services
 Профиль `edge` ожидает их в `/etc/hosts`:
 
 ```
-127.0.0.1 www.agimate.lc api.agimate.lc centrifugo.agimate.lc
+127.0.0.1 www.agimate.lc api.agimate.lc centrifugo.agimate.lc mcp.agimate.lc
 ```
+
+`mcp.agimate.lc` — хост MCP-сервера, как `mcp.agimate.io` на проде. OAuth через него работает, когда
+control-api знает свой адрес: `APP_MCP_SERVER_PUBLIC_URL=http://mcp.agimate.lc:8000`.
 
 Caddy работает в контейнере, а сервисы за ним — на хосте, поэтому Caddyfile ходит в
 `host.docker.internal`. На Linux это имя даёт маппинг `host-gateway` из `compose.yaml`, на

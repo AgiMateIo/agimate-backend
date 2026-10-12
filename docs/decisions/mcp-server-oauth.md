@@ -7,7 +7,8 @@ updated: 2026-10-12
 # OAuth на MCP-сервере: подключение по одной ссылке
 
 > **Фаза 1 (CIMD) реализована на бэкенде 2026-10-12** — ветка `feature/mcp-server-oauth`. Впереди:
-> страница согласия на фронте, правило ingress на проде, живой прогон с Claude и фаза 2 (DCR).
+> страница согласия на фронте, поддомен `mcp.agimate.io` на проде, живой прогон с Claude и фаза 2
+> (DCR).
 
 Решение о том, как внешний MCP-клиент (Claude, ChatGPT, Cursor, Claude Code, VS Code) получает доступ
 к нашему `/mcp`, когда человек дал ему только адрес. Клиент находит сервер авторизации сам,
@@ -79,8 +80,8 @@ sequenceDiagram
   participant Cl as MCP-клиент
   participant Br as Браузер
   participant Fr as Фронт agimate.io
-  participant CA as control-api
-  Cl->>CA: POST /control/mcp (без токена)
+  participant CA as control-api (mcp.agimate.io)
+  Cl->>CA: POST mcp.agimate.io/mcp (без токена)
   CA-->>Cl: 401, WWW-Authenticate: Bearer resource_metadata=…
   Cl->>CA: GET PRM, затем метаданные AS
   Cl->>Br: agimate.io/mcp/authorize?client_id&redirect_uri&code_challenge&state&resource
@@ -93,9 +94,9 @@ sequenceDiagram
   CA-->>Fr: redirect_uri?code&state&iss
   Fr->>Br: переход
   Br->>Cl: code
-  Cl->>CA: POST /control/oauth/token (code, code_verifier, resource)
+  Cl->>CA: POST /oauth/token (code, code_verifier, resource)
   CA-->>Cl: access (1 ч) + refresh (30 дней)
-  Cl->>CA: POST /control/mcp, Bearer <access>
+  Cl->>CA: POST /mcp, Bearer <access>
 ```
 
 ### 2. Грант — новая сущность, ключ агента не трогается
@@ -204,7 +205,7 @@ JWT подписывает user-api (ES256), у control-api только пуб�
    `no-cache` — не кэширует (Caffeine, на инстанс — это кэш, а не состояние).
 5. Принимает только публичных клиентов: `token_endpoint_auth_method` отсутствует или `none`.
 
-**DCR (фаза 2)** — `POST /control/oauth/register`: только публичные клиенты (`token_endpoint_auth_method:
+**DCR (фаза 2)** — `POST /oauth/register`: только публичные клиенты (`token_endpoint_auth_method:
 none`), только `authorization_code`/`refresh_token`. Регистрация без единого гранта за сутки
 сметается.
 
@@ -257,7 +258,8 @@ none`), только `authorization_code`/`refresh_token`. Регистраци�
 
 ### 6. Токен-эндпойнт и проверка на `/mcp`
 
-`POST /control/oauth/token`, `application/x-www-form-urlencoded`, анонимный.
+`POST /oauth/token`, `application/x-www-form-urlencoded`, анонимный. Пути здесь — какими их видит клиент
+на `mcp.agimate.io`; внутри control-api все они под `/control`.
 
 - `grant_type=authorization_code`: обязательны `code`, `code_verifier`, `client_id`. Сверяются хэш
   и срок кода, `client_id`, S256 от `code_verifier`. `redirect_uri` и `resource` сверяются, **только
@@ -268,7 +270,7 @@ none`), только `authorization_code`/`refresh_token`. Регистраци�
 - Ответ — `{access_token, token_type: "Bearer", expires_in, refresh_token}` с
   `Cache-Control: no-store`. Ошибки — `{error, error_description}` по RFC 6749, **не** `ErrorResponse`:
   конверт здесь протокольный, как и у JSON-RPC на `/mcp`.
-- `POST /control/oauth/revoke` (RFC 7009) — Claude зовёт его при отключении коннектора. На
+- `POST /oauth/revoke` (RFC 7009) — Claude зовёт его при отключении коннектора. На
   неизвестный токен — тоже `200`, как велит RFC.
 - **Лимит на `/oauth/token`** — по `client_id` и общий. Подобрать код или токен нельзя (256 бит), но
   это анонимный эндпойнт с походом в базу.
@@ -296,30 +298,35 @@ none`), только `authorization_code`/`refresh_token`. Регистраци�
 адрес метаданных и может предложить вход через браузер — протухший ключ сам превращается в переход
 на OAuth. Лимит вызовов у ключа и OAuth-клиентов общий: он по агенту.
 
-### 7. Адреса и ingress
+### 7. Адреса: поддомен `mcp.agimate.io`
+
+MCP-сервер получает свой хост. Ingress отправляет запросы `mcp.agimate.io` в control-api, дописывая
+спереди `/control`, и пропускает только пути MCP и OAuth. Адрес, который пользователь вставляет в
+клиент, — `https://mcp.agimate.io/mcp`.
 
 Все адреса берутся из конфигурации, а не из `Host` запроса: за прокси они расходятся, а `resource`,
-`issuer` и `iss` сравниваются побайтово. Нужны два значения — публичная база control-api
-(`https://api.agimate.io/control`) и адрес страницы согласия (`app.frontend.base-url` + путь).
+`issuer` и `iss` сравниваются побайтово. Нужны два значения — публичная база MCP-сервера
+(`app.mcp-server.public-url`, на проде `https://mcp.agimate.io`) и адрес страницы согласия
+(`app.frontend.base-url` + `/mcp/authorize`).
 
-Метаданные:
+Метаданные (пути — какими их видит клиент):
 
 ```jsonc
-// PRM — GET /control/.well-known/oauth-protected-resource
+// PRM — GET https://mcp.agimate.io/.well-known/oauth-protected-resource[/mcp]
 {
-  "resource": "https://api.agimate.io/control/mcp",
-  "authorization_servers": ["https://api.agimate.io/control"],
+  "resource": "https://mcp.agimate.io/mcp",
+  "authorization_servers": ["https://mcp.agimate.io"],
   "bearer_methods_supported": ["header"],
   "resource_name": "AgiMate"
 }
 
-// AS — GET /control/.well-known/oauth-authorization-server
+// AS — GET https://mcp.agimate.io/.well-known/oauth-authorization-server
+//      (копия — /.well-known/openid-configuration)
 {
-  "issuer": "https://api.agimate.io/control",
+  "issuer": "https://mcp.agimate.io",
   "authorization_endpoint": "https://agimate.io/mcp/authorize",
-  "token_endpoint": "https://api.agimate.io/control/oauth/token",
-  "registration_endpoint": "https://api.agimate.io/control/oauth/register",
-  "revocation_endpoint": "https://api.agimate.io/control/oauth/revoke",
+  "token_endpoint": "https://mcp.agimate.io/oauth/token",
+  "revocation_endpoint": "https://mcp.agimate.io/oauth/revoke",
   "response_types_supported": ["code"],
   "grant_types_supported": ["authorization_code", "refresh_token"],
   "code_challenge_methods_supported": ["S256"],
@@ -329,31 +336,35 @@ none`), только `authorization_code`/`refresh_token`. Регистраци�
 }
 ```
 
+`registration_endpoint` появится в фазе 2.
+
 Scope не объявляется. Права решают привязки и ABAC агента, а второй, клиентский слой прав поверх
 них ничего бы не добавил. Присланный клиентом `scope` принимается и игнорируется.
 
-**Ingress.** PRM найдётся по `resource_metadata` из `401` и внутри `/control`. Но issuer с путём
-`/control` клиент по RFC 8414 ищет по адресу **от корня**:
-`https://api.agimate.io/.well-known/oauth-authorization-server/control`. А клиент, не прочитавший
-заголовок, ищет PRM по `/.well-known/oauth-protected-resource/control/mcp`. Поэтому на хосте
-`api.agimate.io` нужно правило: `/.well-known/oauth-*` → control-api с переписыванием в
-`/control/.well-known/oauth-*`. В Caddy локального стенда — то же самое.
+**Почему поддомен.** Issuer без пути (`https://mcp.agimate.io`) клиент по RFC 8414 ищет по адресу от
+корня его же хоста — `/.well-known/oauth-authorization-server`, и этот корень целиком наш. Все три
+адреса, которые спека велит пробовать, отвечают; PRM находится и по заголовку `401`, и по
+`/.well-known/oauth-protected-resource/mcp`. На общем `api.agimate.io` issuer был бы
+`https://api.agimate.io/control`, и два адреса из трёх жили бы от корня хоста, который делят
+control-api и user-api, — то есть регулярное исключение внутри чужих правил ingress. Кроме того, так
+делает большинство (`mcp.linear.app`, `mcp.notion.com`, `mcp.sentry.dev`), и хост, который
+пользователи вставляют в сторонние клиенты, открывает только MCP: `/manage`, `/agent/**`, `/acp` и
+вебхуки на нём не проходят ingress.
 
-Переписывание сохраняет хвост: `/.well-known/oauth-authorization-server/control` приходит как
-`/control/.well-known/oauth-authorization-server/control`, PRM — с `/control/mcp` на конце. Поэтому
-контроллеры отвечают **на обе формы**, голую и с суффиксом. Ingress остаётся тупым префиксным
-правилом, а суффикс сверяется с конфигурацией: чужой суффикс — `404`.
+Контроллеры метаданных всё равно отвечают и на голую форму адреса, и на форму с суффиксом пути
+ресурса или issuer: суффикс сверяется с конфигурацией, чужой — `404`. Это нужно и на поддомене (PRM с
+суффиксом `/mcp`), и на локальном стенде, где база — `http://localhost:8080/control`.
 
-Метаданные AS отдаются ещё и по `/control/.well-known/openid-configuration`. Это третий адрес,
-который спека велит пробовать для issuer с путём, и он внутри `context-path`, ingress не нужен.
-Если правило потеряется при обновлении, discovery AS всё равно найдёт метаданные (PRM переживает
-потерю через заголовок `401`). OIDC-документ формально ждёт `jwks_uri` и поля про `id_token`, но
-мы не OIDC-провайдер, и MCP-клиенты эти поля не проверяют. Отдаём тот же документ без них.
+**Старый адрес.** `https://api.agimate.io/control/mcp` продолжает работать для клиентов с ключом
+агента. OAuth по нему не пройдёт: клиент обязан сверить `resource` из метаданных с адресом, к которому
+подключился, а метаданные называют `mcp.agimate.io`. Фронт показывает на карточке агента только новый
+адрес.
 
-Перенос issuer в корень (`https://api.agimate.io`) правило не убирает, только меняет путь. Выбран
-issuer с путём: тогда user-api на том же хосте однажды сможет стать собственным AS, не споря за адрес.
-ingress-nginx на проде живёт вне ArgoCD, и правка теряется при `helm upgrade` — её нужно записать
-туда, откуда она переживёт обновление.
+OIDC-документ (`/.well-known/openid-configuration`) формально ждёт `jwks_uri` и поля про `id_token`,
+но мы не OIDC-провайдер, и MCP-клиенты эти поля не проверяют. Отдаём тот же документ без них.
+
+ingress-nginx на проде живёт вне ArgoCD, и правка теряется при `helm upgrade` — правило для
+`mcp.agimate.io` кладётся туда, откуда его восстанавливает деплой.
 
 Security filter chain: `/.well-known/**`, `/oauth/**` — в публичную цепочку;
 `ManageMcpOAuthController.PATH` и путь гранта на агенте — в `JWT_CHAIN_PATHS`
@@ -374,6 +385,13 @@ Keycloak не знает наших пользователей: либо вхо�
 входа, рефералов), либо user-api становится OIDC-провайдером, а это уже вариант выше. Выбор агента
 — Java-плагин аутентификатора с подписанным возвратом на наш фронт. Облачные провайдеры отпадают
 сразу: данные пользователей уезжают за рубеж.
+
+**Тот же хост `api.agimate.io` вместо поддомена.** Issuer получился бы с путём `/control`, а RFC 8414
+и RFC 9728 строят адреса метаданных от корня хоста. На общем хосте это регулярное исключение
+`/.well-known/oauth-*` внутри правил, которые делят control-api и user-api. Без исключения находят
+сервер только клиенты, честно дошедшие до третьего адреса поиска (`/control/.well-known/openid-configuration`);
+с исключением — хрупкая ручная правка ingress на общем хосте. Поддомен стоит DNS-записи и сертификата и
+снимает вопрос целиком.
 
 В обоих случаях самое трудное в задаче — экран «от имени какого агента» — пришлось бы делать в
 обход инструмента. В выбранном варианте это обычная страница.
@@ -448,9 +466,10 @@ Keycloak не знает наших пользователей: либо вхо�
 - [x] Локальный сквозной прогон скриптом (свой экземпляр на чистой базе, CIMD-документ с локального
       http): согласие, обмен, повтор кода, `/mcp`, `403` на `/agent/**`, refresh и ретрай, отзыв
       владельцем, удаление агента
-- [x] То же правило в `ops/caddy/Caddyfile`
-- [ ] Ingress `api.agimate.io`: `/.well-known/oauth-*` → control-api `/control/.well-known/oauth-*`
-      (в месте, которое переживает `helm upgrade`); env `APP_MCP_SERVER_PUBLIC_URL` на проде
+- [x] Хост `mcp.agimate.lc` в `ops/caddy/Caddyfile`, как на проде
+- [ ] Поддомен `mcp.agimate.io`: DNS, сертификат, Ingress (весь хост → control-api с префиксом
+      `/control`, только пути MCP и OAuth; в месте, которое переживает `helm upgrade`);
+      env `APP_MCP_SERVER_PUBLIC_URL=https://mcp.agimate.io`
 - [ ] Фронт (дельта — в `docs/tmpspec/`): страница `/mcp/authorize` — вход **с возвратом на полный
       адрес со строкой запроса** (требование, а не данность: `redirect_to` user-api ведёт на
       `/login-check`), `check`, выбор агента, создание из пресета или пустого с предупреждением,
