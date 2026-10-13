@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -13,6 +14,10 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
+import ru.agimate.controlapi.database.entities.AgentPreset;
+import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 import ru.agimate.controlapi.controller.manage.dto.PatchAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -74,6 +79,10 @@ class AgentServiceTest {
     private AgentSkillService agentSkillService;
     @Mock
     private AgenticTeamRepository agenticTeamRepository;
+    @Mock
+    private AgentPresetRepository agentPresetRepository;
+    @Mock
+    private ContentLanguageResolver contentLanguageResolver;
     /** Настоящий, не мок: гард адреса — часть проверяемого здесь поведения, и он ничего не стоит. */
     @Spy
     private PublicOnlyHttp publicOnlyHttp = new PublicOnlyHttp(false);
@@ -98,6 +107,48 @@ class AgentServiceTest {
         when(agentDeliveryService.supportsPush(AgentType.WEBHOOK)).thenReturn(true);
         when(channelRepository.findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(AGENT_ID))
                 .thenReturn(List.of());
+        when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
+        when(contentLanguageResolver.requestLanguage()).thenReturn(ContentLanguage.EN);
+    }
+
+    @Nested
+    @DisplayName("create — язык агента")
+    class CreateLanguage {
+
+        private final ArgumentCaptor<Agent> saved = ArgumentCaptor.forClass(Agent.class);
+
+        @Test
+        @DisplayName("без пресета — язык запроса")
+        void withoutPresetTakesRequestLanguage() {
+            service.create(USER_ID, new AgentCreateCommand("agent", null, null, AgentType.GENERIC,
+                    null, null, null, null, null));
+
+            verify(agentRepository).save(saved.capture());
+            assertEquals(ContentLanguage.EN, saved.getValue().getLanguage());
+        }
+
+        @Test
+        @DisplayName("из пресета — язык пресета; пресет ищется в каталоге галереи, дефолтном")
+        void fromPresetTakesPresetLanguage() {
+            when(agentPresetRepository.findByNameAndLanguage("coder", ContentLanguage.RU)).thenReturn(Optional.of(
+                    AgentPreset.builder().name("coder").language(ContentLanguage.RU).build()));
+
+            service.create(USER_ID, new AgentCreateCommand("agent", null, null, AgentType.GENERIC,
+                    null, null, null, null, "coder"));
+
+            verify(agentRepository).save(saved.capture());
+            assertEquals(ContentLanguage.RU, saved.getValue().getLanguage());
+            assertEquals("coder", saved.getValue().getPresetName());
+        }
+
+        @Test
+        @DisplayName("неизвестный пресет → 400")
+        void unknownPreset() {
+            when(agentPresetRepository.findByNameAndLanguage("ghost", ContentLanguage.RU)).thenReturn(Optional.empty());
+
+            assertThrows(BadRequestStatusException.class, () -> service.create(USER_ID, new AgentCreateCommand(
+                    "agent", null, null, AgentType.GENERIC, null, null, null, null, "ghost")));
+        }
     }
 
     @Nested
@@ -117,7 +168,8 @@ class AgentServiceTest {
                 saved.setId(AGENT_ID);
                 return saved;
             });
-            when(skillRepository.findByUserIdAndNameNotDeleted(SystemSkillBootstrap.SYSTEM_USER_ID, "agents"))
+            // The agent's language is the request's (EN): the team skill is looked up in it.
+            when(skillRepository.findByNameInLanguage(SystemSkillBootstrap.SYSTEM_USER_ID, "agents", ContentLanguage.EN))
                     .thenReturn(Optional.of(Skill.builder().id(agentsSkillId).name("agents").build()));
         }
 
@@ -149,7 +201,7 @@ class AgentServiceTest {
             service.create(USER_ID, command(null, null));
             verify(agentSkillService, never()).create(any(), any(), any());
 
-            when(skillRepository.findByUserIdAndNameNotDeleted(SystemSkillBootstrap.SYSTEM_USER_ID, "agents"))
+            when(skillRepository.findByNameInLanguage(SystemSkillBootstrap.SYSTEM_USER_ID, "agents", ContentLanguage.EN))
                     .thenReturn(Optional.empty());
             service.create(USER_ID, command(teamId, null));
             verify(agentSkillService, never()).create(any(), any(), any());

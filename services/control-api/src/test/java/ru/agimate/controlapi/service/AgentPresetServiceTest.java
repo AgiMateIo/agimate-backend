@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,8 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import java.util.List;
@@ -33,7 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,13 +52,23 @@ class AgentPresetServiceTest {
     private AgentPresetRepository agentPresetRepository;
     @Mock
     private SkillRepository skillRepository;
+    @Mock
+    private ContentLanguageResolver contentLanguageResolver;
 
     @InjectMocks
     private AgentPresetService service;
 
+    @BeforeEach
+    void setUp() {
+        lenient().when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
+        // The name → skill resolution (language version, else language-less) is the repository's default method.
+        lenient().when(skillRepository.findByNamesInLanguage(any(), anyCollection(), any())).thenCallRealMethod();
+    }
+
     private static AgentPreset preset(String name, List<String> skillNames) {
         AgentPreset preset = AgentPreset.builder()
                 .name(name)
+                .language(ContentLanguage.RU)
                 .title("Личный ассистент")
                 .description("desc")
                 .instructions("Ты — ассистент.")
@@ -83,11 +98,11 @@ class AgentPresetServiceTest {
         @Test
         @DisplayName("резолвит скилы по имени и собирает union connectorCodes")
         void resolvesSkillsAndConnectors() {
-            when(agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc())
+            when(agentPresetRepository.findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(ContentLanguage.RU))
                     .thenReturn(List.of(preset("personal-assistant", List.of("AgiMate Time", "AgiMate Memory"))));
             Skill time = skill("AgiMate Time", List.of("time"));
             Skill memory = skill("AgiMate Memory", List.of("persist-memory"));
-            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+            when(skillRepository.findCandidatesNotDeleted(eq(SYSTEM_USER_ID), anyCollection(), eq(ContentLanguage.RU)))
                     .thenReturn(List.of(time, memory));
 
             List<AgentPresetResponse> presets = service.list();
@@ -104,9 +119,9 @@ class AgentPresetServiceTest {
         @Test
         @DisplayName("исчезнувший системный скилл выпадает из ответа, листинг не падает")
         void skipsMissingSkill() {
-            when(agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc())
+            when(agentPresetRepository.findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(ContentLanguage.RU))
                     .thenReturn(List.of(preset("personal-assistant", List.of("Gone", "AgiMate Time"))));
-            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+            when(skillRepository.findCandidatesNotDeleted(eq(SYSTEM_USER_ID), anyCollection(), eq(ContentLanguage.RU)))
                     .thenReturn(List.of(skill("AgiMate Time", List.of("time"))));
 
             AgentPresetResponse response = service.list().get(0);
@@ -117,11 +132,28 @@ class AgentPresetServiceTest {
         }
 
         @Test
+        @DisplayName("языковая версия скилла важнее безъязыковой с тем же именем")
+        void prefersLanguageVersion() {
+            when(agentPresetRepository.findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(ContentLanguage.RU))
+                    .thenReturn(List.of(preset("p", List.of("time", "web"))));
+            Skill neutralTime = skill("time", List.of("time"));
+            Skill ruTime = skill("time", List.of("time"));
+            ruTime.setLanguage(ContentLanguage.RU);
+            Skill neutralWeb = skill("web", List.of("web"));
+            when(skillRepository.findCandidatesNotDeleted(eq(SYSTEM_USER_ID), anyCollection(), eq(ContentLanguage.RU)))
+                    .thenReturn(List.of(neutralTime, ruTime, neutralWeb));
+
+            assertEquals(List.of(ruTime.getId(), neutralWeb.getId()),
+                    service.list().get(0).skills().stream().map(AgentPresetResponse.PresetSkill::id).toList(),
+                    "time — русская версия, web — безъязыковой как запасной");
+        }
+
+        @Test
         @DisplayName("дублирующиеся connectorCodes схлопываются")
         void deduplicatesConnectorCodes() {
-            when(agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc())
+            when(agentPresetRepository.findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(ContentLanguage.RU))
                     .thenReturn(List.of(preset("p", List.of("A", "B"))));
-            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+            when(skillRepository.findCandidatesNotDeleted(eq(SYSTEM_USER_ID), anyCollection(), eq(ContentLanguage.RU)))
                     .thenReturn(List.of(skill("A", List.of("time", "board")), skill("B", List.of("board"))));
 
             assertEquals(List.of("time", "board"), service.list().get(0).connectorCodes());
@@ -137,8 +169,8 @@ class AgentPresetServiceTest {
         @Test
         @DisplayName("create — валидирует skillNames и сохраняет enabled=true")
         void createsPreset() {
-            when(agentPresetRepository.findByName("new-role")).thenReturn(Optional.empty());
-            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+            when(agentPresetRepository.findByNameAndLanguage("new-role", ContentLanguage.RU)).thenReturn(Optional.empty());
+            when(skillRepository.findCandidatesNotDeleted(eq(SYSTEM_USER_ID), anyCollection(), eq(ContentLanguage.RU)))
                     .thenReturn(List.of(skill("AgiMate Time", List.of("time"))));
             when(agentPresetRepository.save(any(AgentPreset.class))).thenAnswer(inv -> {
                 AgentPreset p = inv.getArgument(0);
@@ -156,12 +188,13 @@ class AgentPresetServiceTest {
             assertEquals(List.of("TEAM"), response.tags(), "тег хранится именем ContentTag");
             assertTrue(response.enabled());
             assertEquals(List.of("AgiMate Time"), response.skillNames());
+            verify(agentPresetRepository).save(argThat(p -> p.getLanguage() == ContentLanguage.RU));
         }
 
         @Test
         @DisplayName("create с занятым code → 409")
         void rejectsDuplicateCode() {
-            when(agentPresetRepository.findByName("personal-assistant"))
+            when(agentPresetRepository.findByNameAndLanguage("personal-assistant", ContentLanguage.RU))
                     .thenReturn(Optional.of(preset("personal-assistant", List.of())));
 
             assertThrows(ConflictStatusException.class, () -> service.create(adminId,
@@ -172,8 +205,8 @@ class AgentPresetServiceTest {
         @Test
         @DisplayName("create с несуществующим системным скиллом → 400")
         void rejectsUnknownSkill() {
-            when(agentPresetRepository.findByName("r")).thenReturn(Optional.empty());
-            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+            when(agentPresetRepository.findByNameAndLanguage("r", ContentLanguage.RU)).thenReturn(Optional.empty());
+            when(skillRepository.findCandidatesNotDeleted(eq(SYSTEM_USER_ID), anyCollection(), eq(ContentLanguage.RU)))
                     .thenReturn(List.of());
 
             BadRequestStatusException ex = assertThrows(BadRequestStatusException.class,

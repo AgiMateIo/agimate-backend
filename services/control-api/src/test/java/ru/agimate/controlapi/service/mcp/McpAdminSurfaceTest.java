@@ -110,7 +110,8 @@ class McpAdminSurfaceTest {
     private final PlatformAgentToolService agentTools = new PlatformAgentToolService(
             agentRepository, agentSkillRepository, skillRepository, storedFileRepository,
             mock(AgentService.class), mock(SkillService.class), agentSkillService,
-            mock(ru.agimate.controlapi.service.file.UserFileService.class), connectionBindingService);
+            mock(ru.agimate.controlapi.service.file.UserFileService.class), connectionBindingService,
+            mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class));
     private final PlatformConnectionToolService connectionTools = new PlatformConnectionToolService(
             connectorRepository, connectionRepository, agentConnectionRepository,
             mock(ConnectorRegistry.class), mock(ToolDefinitionService.class),
@@ -127,7 +128,8 @@ class McpAdminSurfaceTest {
             mock(BoardRepository.class), mock(ConnectorJobRepository.class), agentRepository,
             mock(ru.agimate.controlapi.service.AgenticTeamService.class),
             mock(ru.agimate.controlapi.service.board.BoardService.class),
-            mock(ru.agimate.controlapi.service.ConnectorJobManageService.class));
+            mock(ru.agimate.controlapi.service.ConnectorJobManageService.class),
+            mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class));
     private final PlatformObservabilityToolService observabilityTools = new PlatformObservabilityToolService(
             mock(AgentRunRepository.class), mock(AgentRunTurnRepository.class),
             mock(AgentSessionService.class), mock(ToolCallLogRepository.class),

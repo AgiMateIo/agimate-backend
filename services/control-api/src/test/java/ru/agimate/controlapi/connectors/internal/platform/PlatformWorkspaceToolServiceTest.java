@@ -61,7 +61,7 @@ class PlatformWorkspaceToolServiceTest {
 
     private final PlatformWorkspaceToolService workspaceTools = new PlatformWorkspaceToolService(
             agenticTeamRepository, agentPresetRepository, boardRepository, connectorJobRepository, agentRepository,
-            agenticTeamService, boardService, connectorJobManageService);
+            agenticTeamService, boardService, connectorJobManageService, mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class));
     private final PlatformConnectorService handler = new PlatformConnectorService(
             mock(PlatformAgentToolService.class), mock(PlatformConnectionToolService.class),
             mock(PlatformLlmToolService.class), workspaceTools, mock(PlatformObservabilityToolService.class));

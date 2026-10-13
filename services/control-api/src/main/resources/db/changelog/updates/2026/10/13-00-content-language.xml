@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Language catalogues (docs/decisions/language-catalogs.md): a language version of a skill or a
+         preset is a record of its own, not a translation, so the language joins the key.
+
+         Rows seeded so far were seeded in the installation's language, and only Spring knows it:
+         ${contentLanguage} is spring.liquibase.parameters.contentLanguage = app.content.language. -->
+    <changeSet id="add-skills-language" author="agimate">
+        <!-- NULL = no language: user skills, and system ones meant for every catalogue. -->
+        <addColumn tableName="skills">
+            <column name="language" type="TEXT"/>
+        </addColumn>
+        <sql>UPDATE skills SET language = UPPER('${contentLanguage}')
+             WHERE user_id = '00000000-0000-0000-0000-000000000000'</sql>
+
+        <sql>DROP INDEX uq_skills_user_id_name_active</sql>
+        <!-- NULLS NOT DISTINCT: two language-less skills of one user under one name are still a
+             duplicate; without it every NULL differs and the key would not hold for user skills. -->
+        <sql>CREATE UNIQUE INDEX uq_skills_user_id_name_language_active ON skills (user_id, name, language)
+             NULLS NOT DISTINCT WHERE deleted_at IS NULL</sql>
+    </changeSet>
+
+    <changeSet id="add-agent-presets-language" author="agimate">
+        <addColumn tableName="agent_presets">
+            <column name="language" type="TEXT"/>
+        </addColumn>
+        <sql>UPDATE agent_presets SET language = UPPER('${contentLanguage}')</sql>
+        <addNotNullConstraint tableName="agent_presets" columnName="language" columnDataType="TEXT"/>
+
+        <dropUniqueConstraint tableName="agent_presets" constraintName="uq_agent_presets_name"/>
+        <addUniqueConstraint tableName="agent_presets" columnNames="name, language"
+                             constraintName="uq_agent_presets_name_language"/>
+    </changeSet>
+
+    <changeSet id="add-agents-language" author="agimate">
+        <!-- NULL = the installation's default language (agents created before this column). -->
+        <addColumn tableName="agents">
+            <column name="language" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

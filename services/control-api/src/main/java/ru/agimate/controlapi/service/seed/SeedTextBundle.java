@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.seed;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.io.IOException;
 import java.io.InputStream;

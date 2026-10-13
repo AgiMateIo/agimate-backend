@@ -28,7 +28,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `CENTRIFUGO_APIKEY`     | Centrifugo HTTP API key           |
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT private key        |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT public key         |
-| `APP_CONTENT_LANGUAGE`  | System content language of the installation: `ru` (default) or `en`. See [architecture/content-language.md](../architecture/content-language.md) |
+| `APP_CONTENT_LANGUAGE`  | Default content language of the installation: `ru` (default) or `en` — when the client sends no `Accept-Language`, and for the catalogues. See [architecture/content-language.md](../architecture/content-language.md) |
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
 | `APP_MCP_SERVER_PUBLIC_URL` | Public base of the MCP server as its clients see it: `https://mcp.agimate.io` on prod, where the whole host is proxied to control-api under `/control`; locally the default `http://localhost:8080/control`. The OAuth issuer, the resource `<base>/mcp` and the metadata addresses are derived from it, never from `Host`. See [decisions/mcp-server-oauth.md](../decisions/mcp-server-oauth.md) |

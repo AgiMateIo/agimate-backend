@@ -77,7 +77,7 @@ class PlatformAgentToolServiceTest {
     private final PlatformAgentToolService agentTools = new PlatformAgentToolService(
             agentRepository, agentSkillRepository, skillRepository,
             storedFileRepository, agentService, skillService, agentSkillService, userFileService,
-            connectionBindingService);
+            connectionBindingService, mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class));
     private final PlatformConnectorService handler = new PlatformConnectorService(
             agentTools, mock(PlatformConnectionToolService.class), mock(PlatformLlmToolService.class),
             mock(PlatformWorkspaceToolService.class), mock(PlatformObservabilityToolService.class));

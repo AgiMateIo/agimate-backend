@@ -232,6 +232,7 @@ public class AgentSkillService {
         verifyAgentOwnership(agentId, userId);
         Skill skill = verifySkillAccessible(skillId, userId);
         requireDeclared(skill, requested);
+        requireNameFree(agentId, skill);
 
         AgentSkill agentSkill = AgentSkill.builder()
                 .userId(userId)
@@ -251,6 +252,25 @@ public class AgentSkillService {
 
         log.info("Bound skill {} to agent {} for user {}", skillId, agentId, userId);
         return response(agentSkill, skill, userId);
+    }
+
+    /**
+     * The model addresses a bound skill by name (skill-loader), so an agent cannot hold two under one —
+     * the language versions of a system skill, or a user's skill named like a system one.
+     */
+    private void requireNameFree(UUID agentId, Skill skill) {
+        List<UUID> boundIds = agentSkillRepository.findByAgentId(agentId).stream()
+                .map(AgentSkill::getSkillId)
+                .filter(id -> !id.equals(skill.getId()))
+                .toList();
+        if (boundIds.isEmpty()) {
+            return;
+        }
+        boolean taken = skillRepository.findByIdInNotDeleted(boundIds).stream()
+                .anyMatch(bound -> bound.getName().equals(skill.getName()));
+        if (taken) {
+            throw new ConflictStatusException("Agent already has a skill named '" + skill.getName() + "'");
+        }
     }
 
     /**

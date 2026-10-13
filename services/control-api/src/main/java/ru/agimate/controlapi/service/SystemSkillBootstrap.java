@@ -11,6 +11,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorBootstrap;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
@@ -21,20 +22,17 @@ import java.util.Optional;
 /**
  * Seeding of the system skills into the database at application start.
  *
- * <p>A skill lives as a classpath resource ({@code resources/seed/skills/<lang>/<code>/SKILL.md}) — the
- * language is substituted by {@link SeedContentLocator} from {@code app.content.language}. The owner is
- * the synthetic {@link #SYSTEM_USER_ID}, and it is published as public (so it can be bound to an agent
- * directly, without cloning). The name, description and connectors come from the frontmatter, and the
- * body goes into {@code md_content}. Seed-only-if-missing: the row is looked up by
- * {@code (userId, name)} and created only when it does not exist yet — after the first seeding the
- * classpath stops being the source of truth, so edits through a future admin UI are not wiped by the
- * next deploy. A change to SKILL.md in the repository applies only to fresh (not yet seeded)
- * environments. The one exception is {@link #fillTaxonomy}: the category and the tags are metadata of
- * the catalogue rather than content, and a skill seeded before they existed would never get them.
- *
- * <p><b>The language is fixed by the first seeding.</b> {@code name} does not depend on the language,
- * so changing {@code app.content.language} on a seeded environment does not translate the existing
- * rows: the database holds a single set. Switching the language is a choice for a fresh installation.
+ * <p>A skill lives as a classpath resource ({@code resources/seed/skills/<lang>/<code>/SKILL.md}), and
+ * every language folder is seeded — each is a catalogue of its own, so a code may exist in one
+ * language only ({@link SeedContentLocator}). The owner is the synthetic {@link #SYSTEM_USER_ID}, and
+ * it is published as public (so it can be bound to an agent directly, without cloning). The name,
+ * description and connectors come from the frontmatter, and the body goes into {@code md_content}.
+ * Seed-only-if-missing: the row is looked up by {@code (userId, name, language)} and created only when
+ * it does not exist yet — after the first seeding the classpath stops being the source of truth, so
+ * edits through the admin API are not wiped by the next deploy. A change to SKILL.md in the repository
+ * applies only to versions not yet seeded. The one exception is {@link #fillTaxonomy}: the category and
+ * the tags are metadata of the catalogue rather than content, and a skill seeded before they existed
+ * would never get them.
  */
 @Slf4j
 @Component
@@ -51,7 +49,7 @@ public class SystemSkillBootstrap {
      */
     static final int BOOTSTRAP_ORDER = ConnectorBootstrap.BOOTSTRAP_ORDER + 1;
 
-    /** Codes of the system skills — the folders in {@code seed/skills/<lang>/}. */
+    /** Codes of the system skills — the folders in {@code seed/skills/<lang>/}, across every language. */
     static final List<String> SYSTEM_SKILL_CODES = List.of(
             "board",
             "time",
@@ -74,7 +72,6 @@ public class SystemSkillBootstrap {
             "web");
 
     private final SkillRepository skillRepository;
-    private final SeedContentLocator seedContentLocator;
     private final SkillService skillService;
 
     @Order(BOOTSTRAP_ORDER)
@@ -82,19 +79,25 @@ public class SystemSkillBootstrap {
     public void bootstrap() {
         // No enclosing transaction: every repository call runs in its own tx, so a unique-index conflict on one
         // skill (a race between nodes on a cold start) does not poison the rest.
-        for (String code : SYSTEM_SKILL_CODES) {
-            try {
-                seedSkill(code);
-            } catch (Exception e) {
-                log.error("Failed to seed system skill {}: {}", code, e.getMessage());
+        for (ContentLanguage language : ContentLanguage.values()) {
+            for (String code : SYSTEM_SKILL_CODES) {
+                if (!SeedContentLocator.exists(SeedContentLocator.Kind.SKILL, code, language)) {
+                    continue;
+                }
+                try {
+                    seedSkill(code, language);
+                } catch (Exception e) {
+                    log.error("Failed to seed system skill {}/{}: {}", language.dir(), code, e.getMessage());
+                }
             }
         }
     }
 
-    private void seedSkill(String code) {
-        String content = seedContentLocator.read(SeedContentLocator.Kind.SKILL, code);
+    private void seedSkill(String code, ContentLanguage language) {
+        String content = SeedContentLocator.read(SeedContentLocator.Kind.SKILL, code, language);
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(content);
-        Optional<Skill> existing = skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name());
+        Optional<Skill> existing = skillRepository.findByUserIdAndNameAndLanguageNotDeleted(
+                SYSTEM_USER_ID, parsed.name(), language);
         if (existing.isPresent()) {
             fillTaxonomy(existing.get(), parsed);
             return;
@@ -105,6 +108,7 @@ public class SystemSkillBootstrap {
         try {
             Skill skill = skillRepository.save(Skill.builder()
                     .name(parsed.name())
+                    .language(language)
                     .title(parsed.title())
                     .description(parsed.description())
                     .mdContent(parsed.body())
@@ -115,10 +119,11 @@ public class SystemSkillBootstrap {
                     .userId(SYSTEM_USER_ID)
                     .isPublic(true)
                     .build());
-            log.info("Seeded system skill '{}' id={} connectors={}", skill.getName(), skill.getId(), skill.getConnectorCodes());
+            log.info("Seeded system skill {}/{} id={} connectors={}", language.dir(), skill.getName(), skill.getId(),
+                    skill.getConnectorCodes());
         } catch (DataIntegrityViolationException e) {
-            // A concurrent node inserted the same (user_id, name) on a cold start — it is seeded already.
-            log.debug("System skill '{}' already seeded by a concurrent node", parsed.name());
+            // A concurrent node inserted the same (user_id, name, language) on a cold start — it is seeded already.
+            log.debug("System skill {}/{} already seeded by a concurrent node", language.dir(), parsed.name());
         }
     }
 

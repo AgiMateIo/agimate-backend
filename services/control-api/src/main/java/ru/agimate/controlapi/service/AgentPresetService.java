@@ -15,14 +15,14 @@ import ru.agimate.controlapi.database.entities.AgentPreset;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
@@ -41,26 +41,34 @@ public class AgentPresetService {
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;
+    private final ContentLanguageResolver contentLanguageResolver;
 
+    // The gallery is the default language's catalogue until listings follow the request's language
+    // (docs/decisions/language-catalogs.md); the API carries no language yet, and two «coder» rows
+    // would be indistinguishable in it.
     public List<AgentPresetResponse> list() {
-        return toResponses(agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc());
+        return toResponses(agentPresetRepository.findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(
+                contentLanguageResolver.defaultLanguage()));
     }
 
     /** Every preset, disabled ones included — for the admin table. */
     public List<AgentPresetResponse> listAll() {
-        return toResponses(agentPresetRepository.findAllByOrderBySortOrderAscNameAsc());
+        return toResponses(agentPresetRepository.findAllByLanguageOrderBySortOrderAscNameAsc(
+                contentLanguageResolver.defaultLanguage()));
     }
 
     @Transactional
     public AgentPresetResponse create(UUID actorId, CreateAgentPresetRequest request) {
-        if (agentPresetRepository.findByName(request.name()).isPresent()) {
+        ContentLanguage language = contentLanguageResolver.defaultLanguage();
+        if (agentPresetRepository.findByNameAndLanguage(request.name(), language).isPresent()) {
             throw new ConflictStatusException("Preset with name '" + request.name() + "' already exists");
         }
         List<String> skillNames = request.resolveSkillNames();
-        validateSkillNames(skillNames);
+        validateSkillNames(skillNames, language);
 
         AgentPreset preset = AgentPreset.builder()
                 .name(request.name())
+                .language(language)
                 .title(request.title())
                 .description(request.description())
                 .instructions(request.instructions())
@@ -95,7 +103,7 @@ public class AgentPresetService {
             preset.setInstructions(request.instructions());
         }
         if (request.skillNames() != null) {
-            validateSkillNames(request.skillNames());
+            validateSkillNames(request.skillNames(), preset.getLanguage());
             preset.setSkillNames(new ArrayList<>(request.skillNames()));
         }
         if (request.agentType() != null) {
@@ -125,11 +133,11 @@ public class AgentPresetService {
      * skill silently drops out), garbage is not let in at the input — symmetrically to the validation of
      * connector codes in {@code SkillService}.
      */
-    private void validateSkillNames(List<String> names) {
+    private void validateSkillNames(List<String> names, ContentLanguage language) {
         if (names == null || names.isEmpty()) {
             return;
         }
-        Map<String, Skill> known = loadSystemSkills(names);
+        Map<String, Skill> known = skillRepository.findByNamesInLanguage(SYSTEM_USER_ID, names, language);
         List<String> missing = names.stream()
                 .filter(name -> !known.containsKey(name))
                 .distinct()
@@ -139,27 +147,25 @@ public class AgentPresetService {
         }
     }
 
-    /** The whole page's skills in one lookup: a preset references them by name, and the names repeat across presets. */
+    /**
+     * The page's skills in one lookup per language: a preset references them by name in its own
+     * language, and the names repeat across presets.
+     */
     private List<AgentPresetResponse> toResponses(List<AgentPreset> presets) {
-        Map<String, Skill> skillsByName = loadSystemSkills(presets.stream()
-                .flatMap(preset -> preset.getSkillNames().stream())
-                .collect(Collectors.toSet()));
+        Map<ContentLanguage, Map<String, Skill>> skillsByLanguage = presets.stream()
+                .collect(Collectors.groupingBy(AgentPreset::getLanguage,
+                        Collectors.flatMapping(preset -> preset.getSkillNames().stream(), Collectors.toSet())))
+                .entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry ->
+                        skillRepository.findByNamesInLanguage(SYSTEM_USER_ID, entry.getValue(), entry.getKey())));
         return presets.stream()
-                .map(preset -> toResponse(preset, skillsByName))
+                .map(preset -> toResponse(preset, skillsByLanguage.getOrDefault(preset.getLanguage(), Map.of())))
                 .toList();
     }
 
-    private Map<String, Skill> loadSystemSkills(Collection<String> names) {
-        if (names.isEmpty()) {
-            return Map.of();
-        }
-        // (SYSTEM_USER_ID, name) is unique among the live rows — uq_skills_user_id_name_active.
-        return skillRepository.findByUserIdAndNameInNotDeleted(SYSTEM_USER_ID, names).stream()
-                .collect(Collectors.toMap(Skill::getName, Function.identity()));
-    }
-
     private AgentPresetResponse toResponse(AgentPreset preset) {
-        return toResponse(preset, loadSystemSkills(preset.getSkillNames()));
+        return toResponse(preset, skillRepository.findByNamesInLanguage(
+                SYSTEM_USER_ID, preset.getSkillNames(), preset.getLanguage()));
     }
 
     private AgentPresetResponse toResponse(AgentPreset preset, Map<String, Skill> skillsByName) {

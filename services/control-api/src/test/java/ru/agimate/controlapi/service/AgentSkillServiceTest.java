@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorStatus;
 import ru.agimate.controlapi.controller.manage.dto.SkillBindingPlanResponse;
@@ -174,6 +175,21 @@ class AgentSkillServiceTest {
             assertTrue(savedLinks().isEmpty());
             assertFalse(response.satisfied());
             assertNull(response.connectors().get(0).connectionId());
+        }
+
+        @Test
+        @DisplayName("у агента уже есть навык с тем же именем (другая языковая версия) → 409, привязки нет")
+        void rejectsSecondSkillOfTheSameName() {
+            skill("telegram");
+            UUID otherId = UUID.randomUUID();
+            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(
+                    AgentSkill.builder().agentId(AGENT_ID).userId(USER_ID).skillId(otherId).build()));
+            when(skillRepository.findByIdInNotDeleted(List.of(otherId))).thenReturn(List.of(
+                    Skill.builder().id(otherId).userId(USER_ID).name("skill").build()));
+
+            assertThrows(ConflictStatusException.class,
+                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null));
+            verify(agentSkillRepository, never()).save(any());
         }
 
         @Test

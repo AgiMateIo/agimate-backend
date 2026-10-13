@@ -11,12 +11,17 @@ import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Unique by {@code (user_id, name, language)} among live rows, NULLS NOT DISTINCT — the partial index
+ * {@code uq_skills_user_id_name_language_active}, which JPA cannot express.
+ */
 @Entity
 @Table(name = "skills")
 @Getter
@@ -32,9 +37,17 @@ public class Skill extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** Stable skill code: the key {@code (user_id, name)}, referenced by {@code preset.skill_names}. */
+    /** Stable skill code: the key {@code (user_id, name, language)}, referenced by {@code preset.skill_names}. */
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
+
+    /**
+     * The catalogue the skill belongs to; {@code null} — every catalogue (user skills, and system ones
+     * not written for a particular audience). Language versions are separate records, not translations.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "language", columnDefinition = "TEXT")
+    private ContentLanguage language;
 
     /** Human-readable display name (localisable in the future); {@code null} → falls back to {@link #name}. */
     @Column(name = "title", columnDefinition = "TEXT")

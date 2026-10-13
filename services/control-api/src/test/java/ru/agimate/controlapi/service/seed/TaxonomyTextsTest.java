@@ -9,6 +9,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.io.ClassPathResource;
 import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.database.enums.ContentTag;
 
 import java.io.IOException;

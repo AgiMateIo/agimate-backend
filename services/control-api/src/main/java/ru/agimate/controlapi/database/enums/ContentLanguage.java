@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.seed;
+package ru.agimate.controlapi.database.enums;
 
 /**
  * Language of the system content — the presets and skills handed to the user, and the texts the
@@ -6,7 +6,7 @@ package ru.agimate.controlapi.service.seed;
  * answers: that follows the user's language and is set in the instructions themselves.
  *
  * <p>Each value corresponds to a folder inside every kind of seed content —
- * {@code resources/seed/<presets|skills|texts>/<lang>/} (see {@link SeedContentLocator}), so adding a
+ * {@code resources/seed/<presets|skills|texts>/<lang>/} (see {@link ru.agimate.controlapi.service.seed.SeedContentLocator}), so adding a
  * language = a new constant plus a directory under each kind.
  */
 public enum ContentLanguage {
@@ -14,7 +14,7 @@ public enum ContentLanguage {
     EN,
     RU;
 
-    /** The source language: the fallback when there is no content for the chosen one. */
+    /** The source language — the one the code's texts are written in, and the fallback of the text bundles. */
     public static final ContentLanguage DEFAULT = EN;
 
     /** The language segment of a seed path — the folder inside a kind, {@code seed/<kind>/<lang>/}. */

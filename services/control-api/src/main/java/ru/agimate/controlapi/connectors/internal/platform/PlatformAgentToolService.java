@@ -46,6 +46,7 @@ import ru.agimate.controlapi.service.dto.agent.AgentCreateCommand;
 import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.file.UserFileService;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 import ru.agimate.controlapi.storage.FileIds;
 
 import java.time.LocalDateTime;
@@ -82,6 +83,7 @@ public class PlatformAgentToolService {
     private final AgentSkillService agentSkillService;
     private final UserFileService userFileService;
     private final ConnectionBindingService connectionBindingService;
+    private final ContentLanguageResolver contentLanguageResolver;
 
     // ---- agents & skills -------------------------------------------------------------------
 
@@ -325,7 +327,7 @@ public class PlatformAgentToolService {
             throw new ConnectorException("Invalid scope: '" + scope + "'. Allowed: MINE, PUBLIC");
         }
         Specification<Skill> spec = "PUBLIC".equalsIgnoreCase(scopeValue)
-                ? SkillSpecs.isPublic()
+                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(contentLanguageResolver.defaultLanguage()))
                 : SkillSpecs.ownedBy(PlatformToolsSupport.userId());
         spec = spec.and(SkillSpecs.notDeleted());
         String searchQ = PlatformToolsSupport.blankToNull(search);

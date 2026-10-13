@@ -115,6 +115,7 @@
 | [python-interpreter.md](decisions/python-interpreter.md) | Код агента на Python: код-режим на интерпретаторной песочнице без исходящей сети и интерпретатор данных как ядро Jupyter в gVisor — два продукта, а не один |
 | [skill-connector-requirements.md](decisions/skill-connector-requirements.md) | Навык объявляет экземпляр, а не код: ключ требования, параметры MCP и правила доступа; мастер подключения получает план, а не догадки |
 | [content-taxonomy.md](decisions/content-taxonomy.md) | Категории и теги каталога: одна ось «о чём это» на навыки и пресеты, закрытый словарь тегов на остальное, дозаполнение засеянных установок |
+| [language-catalogs.md](decisions/language-catalogs.md) | Пресеты и навыки по языкам: языковые версии — самостоятельные записи с ключом «имя + язык», а не переводы; язык запроса — `Accept-Language` |
 | [outbound-tls-trust.md](decisions/outbound-tls-trust.md) | Корень, которого нет в `cacerts`: штатный набор якорей плюс наш, по умолчанию выключенный, и почему доверие живёт у установки, а не у подключения |
 | [reply-address-in-channels.md](decisions/reply-address-in-channels.md) | Куда уходит ответ: чат — часть снимка каналов рана, а не последний вход сессии, поэтому событие в разговоре не сбивает адрес |
 | [egress-proxy.md](decisions/egress-proxy.md) | Заблокированные из России LLM, MCP и Telegram: системный HTTP-прокси только для хостов из списка оператора, и почему гард адреса для них проверяет прокси, а не цель |

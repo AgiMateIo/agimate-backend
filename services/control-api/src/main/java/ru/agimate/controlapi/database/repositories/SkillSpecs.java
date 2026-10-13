@@ -4,6 +4,7 @@ import lombok.experimental.UtilityClass;
 import org.springframework.data.jpa.domain.Specification;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.util.UUID;
 
@@ -32,6 +33,13 @@ public class SkillSpecs {
                 root.get("connectors"),
                 cb.function("jsonb_build_array", String.class,
                         cb.function("jsonb_build_object", String.class, cb.literal("code"), cb.literal(connectorCode)))));
+    }
+
+    /** In the catalogue of {@code language}: that language's skills and the language-less ones. */
+    public static Specification<Skill> inCatalogue(ContentLanguage language) {
+        return (root, query, cb) -> cb.or(
+                cb.equal(root.get("language"), language),
+                cb.isNull(root.get("language")));
     }
 
     public static Specification<Skill> hasCategory(ContentCategory category) {

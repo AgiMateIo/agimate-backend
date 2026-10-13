@@ -35,6 +35,8 @@ import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillSpecs;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 import ru.agimate.controlapi.util.ConnectorRequirements;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
@@ -61,11 +63,14 @@ public class SkillService {
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
     private final SkillPolicySync skillPolicySync;
+    private final ContentLanguageResolver contentLanguageResolver;
 
     public Page<SkillResponse> getSkills(UUID userId, SkillListScope scope, String search, String connectorCode,
                                          ContentCategory category, ContentTag tag, int page, int size) {
+        // The public catalogue is the default language's until listings follow the request's language
+        // (docs/decisions/language-catalogs.md).
         Specification<Skill> base = scope == SkillListScope.PUBLIC
-                ? SkillSpecs.isPublic()
+                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(contentLanguageResolver.defaultLanguage()))
                 : SkillSpecs.ownedBy(userId);
         return findSkills(base, search, connectorCode, category, tag, page, size);
     }
@@ -109,12 +114,15 @@ public class SkillService {
         validateName(parsed.name());
         validateConnectors(parsed.connectors());
 
-        if (skillRepository.existsByUserIdAndNameNotDeleted(ownerId, parsed.name())) {
+        // A system skill belongs to a catalogue; a user's skill to none — it is in every one.
+        ContentLanguage language = isSystemOwner(ownerId) ? contentLanguageResolver.defaultLanguage() : null;
+        if (skillRepository.existsByKeyNotDeleted(ownerId, parsed.name(), language)) {
             throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }
 
         Skill skill = Skill.builder()
                 .name(parsed.name())
+                .language(language)
                 .title(parsed.title())
                 .description(parsed.description())
                 .mdContent(parsed.body())
@@ -158,11 +166,11 @@ public class SkillService {
 
         if (!skill.getName().equals(parsed.name())) {
             if (system) {
-                // A system skill's name is the key of every reference to it: (SYSTEM_USER_ID, name) in the seeder
-                // and in preset.skill_names. Renaming would orphan those references — so we forbid it.
+                // A system skill's name is the key of every reference to it: (SYSTEM_USER_ID, name, language) in the
+                // seeder and in preset.skill_names. Renaming would orphan those references — so we forbid it.
                 throw new BadRequestStatusException("System skill cannot be renamed");
             }
-            if (skillRepository.existsByUserIdAndNameNotDeleted(skill.getUserId(), parsed.name())) {
+            if (skillRepository.existsByKeyNotDeleted(skill.getUserId(), parsed.name(), skill.getLanguage())) {
                 throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
             }
         }
@@ -222,7 +230,7 @@ public class SkillService {
                 throw new ConflictStatusException(
                         "System skill is bound to agents; unpublish it (isPublic=false) instead of deleting");
             }
-            if (agentPresetRepository.existsBySkillNameReferenced(skill.getName())) {
+            if (agentPresetRepository.existsBySkillNameReferenced(skill.getName(), skill.getLanguage())) {
                 throw new ConflictStatusException(
                         "System skill is referenced by an agent preset; remove it from the preset first");
             }
@@ -263,7 +271,11 @@ public class SkillService {
     }
 
     private static boolean isSystem(Skill skill) {
-        return SystemSkillBootstrap.SYSTEM_USER_ID.equals(skill.getUserId());
+        return isSystemOwner(skill.getUserId());
+    }
+
+    private static boolean isSystemOwner(UUID ownerId) {
+        return SystemSkillBootstrap.SYSTEM_USER_ID.equals(ownerId);
     }
 
     public Skill findAccessibleSkill(UUID id, UUID userId) {

@@ -20,6 +20,7 @@ import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,12 +29,12 @@ import java.util.UUID;
 /**
  * An agent role preset — a blank for the creation wizard. Declarative content: instructions are
  * copied into the agent (and freely edited afterwards), skills are bound by reference. System
- * presets are seeded from the classpath ({@code presets/<code>/PRESET.md}) idempotently by
- * {@code code}.
+ * presets are seeded from the classpath ({@code presets/<lang>/<code>/PRESET.md}) idempotently by
+ * {@code (name, language)}.
  */
 @Entity
 @Table(name = "agent_presets", uniqueConstraints =
-        @UniqueConstraint(name = "uq_agent_presets_name", columnNames = "name"))
+        @UniqueConstraint(name = "uq_agent_presets_name_language", columnNames = {"name", "language"}))
 @Getter
 @Setter
 @Builder
@@ -50,6 +51,14 @@ public class AgentPreset extends BaseEntity {
     /** Machine code slug ('personal-assistant') — the key of idempotent seeding. */
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
+
+    /**
+     * The catalogue the preset belongs to. Required, unlike a skill's: the instructions are written in
+     * some language, and the preset's skills and the created agent's language are resolved from it.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "language", nullable = false, columnDefinition = "TEXT")
+    private ContentLanguage language;
 
     /** Human-readable display name. */
     @Column(name = "title", nullable = false, columnDefinition = "TEXT")

@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
@@ -26,19 +27,17 @@ import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
  * Seeding of the system agent role presets at application start — modelled on
  * {@link SystemSkillBootstrap}.
  *
- * <p>A preset lives as a classpath resource ({@code resources/seed/presets/<lang>/<code>/PRESET.md}) —
- * the language is substituted by {@link SeedContentLocator}. The frontmatter carries
+ * <p>A preset lives as a classpath resource ({@code resources/seed/presets/<lang>/<code>/PRESET.md}),
+ * every language folder seeded as its own catalogue. The frontmatter carries
  * {@code name}/{@code title}/{@code description}/{@code skills} (names of system skills) and the
  * optional {@code agentType} — the wizard asks for the type only when the preset does not declare it —
  * and the body is the blank for the agent's instructions. Seed-only-if-missing (see {@link SystemSkillBootstrap}):
- * the row is looked up by {@code name} and created only when it does not exist yet — so edits through a
- * future admin UI are not wiped by the next deploy. It runs after the skills are seeded (see
- * {@code @Order}) so the {@code skills} references are checked against already-seeded system skills; an
- * unknown name is a warning, not a refusal (resolution happens at listing time anyway). The exception
- * to seed-only-if-missing is the same one: {@link #fillTaxonomy} fills an empty category or tag list.
- *
- * <p>As with skills, the language is fixed by the first seeding: {@code instructions} are copied into
- * the agent at creation, so existing agents do not follow a change of {@code app.content.language}.
+ * the row is looked up by {@code (name, language)} and created only when it does not exist yet — so
+ * edits through the admin API are not wiped by the next deploy. It runs after the skills are seeded
+ * (see {@code @Order}) so the {@code skills} references are checked against already-seeded system
+ * skills of the preset's language; an unknown name is a warning, not a refusal (resolution happens at
+ * listing time anyway). The exception to seed-only-if-missing is the same one: {@link #fillTaxonomy}
+ * fills an empty category or tag list.
  */
 @Slf4j
 @Component
@@ -47,7 +46,7 @@ public class SystemPresetBootstrap {
 
     static final int BOOTSTRAP_ORDER = SystemSkillBootstrap.BOOTSTRAP_ORDER + 1;
 
-    /** Codes of the system presets — the folders in {@code seed/presets/<lang>/}. */
+    /** Codes of the system presets — the folders in {@code seed/presets/<lang>/}, across every language. */
     static final List<String> SYSTEM_PRESET_CODES = List.of(
             "personal-assistant",
             "visual",
@@ -64,27 +63,31 @@ public class SystemPresetBootstrap {
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;
-    private final SeedContentLocator seedContentLocator;
 
     @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         // No enclosing transaction — as in SystemSkillBootstrap: a unique-index conflict on one preset (a race
         // between nodes on a cold start) does not poison the rest.
-        for (String code : SYSTEM_PRESET_CODES) {
-            try {
-                seedPreset(code);
-            } catch (Exception e) {
-                log.error("Failed to seed system preset {}: {}", code, e.getMessage());
+        for (ContentLanguage language : ContentLanguage.values()) {
+            for (String code : SYSTEM_PRESET_CODES) {
+                if (!SeedContentLocator.exists(SeedContentLocator.Kind.PRESET, code, language)) {
+                    continue;
+                }
+                try {
+                    seedPreset(code, language);
+                } catch (Exception e) {
+                    log.error("Failed to seed system preset {}/{}: {}", language.dir(), code, e.getMessage());
+                }
             }
         }
     }
 
-    private void seedPreset(String code) {
-        ParsedPreset parsed = parsePreset(seedContentLocator.read(SeedContentLocator.Kind.PRESET, code));
-        warnOnUnknownSkills(parsed);
+    private void seedPreset(String code, ContentLanguage language) {
+        ParsedPreset parsed = parsePreset(SeedContentLocator.read(SeedContentLocator.Kind.PRESET, code, language));
+        warnOnUnknownSkills(parsed, language);
 
-        Optional<AgentPreset> existing = agentPresetRepository.findByName(parsed.name());
+        Optional<AgentPreset> existing = agentPresetRepository.findByNameAndLanguage(parsed.name(), language);
         if (existing.isPresent()) {
             fillTaxonomy(existing.get(), parsed);
             return;
@@ -93,6 +96,7 @@ public class SystemPresetBootstrap {
         try {
             AgentPreset preset = agentPresetRepository.save(AgentPreset.builder()
                     .name(parsed.name())
+                    .language(language)
                     .title(parsed.title())
                     .description(parsed.description())
                     .instructions(parsed.instructions())
@@ -102,11 +106,11 @@ public class SystemPresetBootstrap {
                     .tags(new ArrayList<>(parsed.tags()))
                     .sortOrder(parsed.sortOrder())
                     .build());
-            log.info("Seeded system preset '{}' id={} skills={}", preset.getName(), preset.getId(),
+            log.info("Seeded system preset {}/{} id={} skills={}", language.dir(), preset.getName(), preset.getId(),
                     parsed.skillNames());
         } catch (DataIntegrityViolationException e) {
-            // A concurrent node inserted the same name on a cold start — it is seeded already.
-            log.debug("System preset '{}' already seeded by a concurrent node", parsed.name());
+            // A concurrent node inserted the same (name, language) on a cold start — it is seeded already.
+            log.debug("System preset {}/{} already seeded by a concurrent node", language.dir(), parsed.name());
         }
     }
 
@@ -129,10 +133,12 @@ public class SystemPresetBootstrap {
                 preset.getName(), preset.getCategory(), preset.getTags());
     }
 
-    private void warnOnUnknownSkills(ParsedPreset parsed) {
+    private void warnOnUnknownSkills(ParsedPreset parsed, ContentLanguage language) {
+        Map<String, ?> known = skillRepository.findByNamesInLanguage(SYSTEM_USER_ID, parsed.skillNames(), language);
         for (String skillName : parsed.skillNames()) {
-            if (skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, skillName).isEmpty()) {
-                log.warn("System preset '{}' references unknown system skill '{}'", parsed.name(), skillName);
+            if (!known.containsKey(skillName)) {
+                log.warn("System preset {}/{} references unknown system skill '{}'",
+                        language.dir(), parsed.name(), skillName);
             }
         }
     }

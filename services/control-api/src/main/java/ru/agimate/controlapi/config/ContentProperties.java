@@ -4,16 +4,13 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.service.seed.ContentLanguage;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 /**
- * Language of the installation's system content ({@code APP_CONTENT_LANGUAGE}). An enum field rather
- * than a string: a typo in the value fails the startup instead of silently sending the seeding to a
- * fallback.
- *
- * <p>Read only during seeding ({@code SystemSkillBootstrap}/{@code SystemPresetBootstrap}) and when
- * assembling connector texts — the database holds a single set of strings, so changing the language
- * on an already-seeded environment translates nothing by itself (see docs/services/control-api.md).
+ * The installation's default content language ({@code APP_CONTENT_LANGUAGE}): the language of a call
+ * whose client names none ({@code ContentLanguageResolver}), of the catalogues while listings do not
+ * follow the request, and of connector and prompt texts. Every language's presets and skills are seeded
+ * regardless. An enum field rather than a string: a typo in the value fails the startup.
  */
 @Component
 @ConfigurationProperties(prefix = "app.content")

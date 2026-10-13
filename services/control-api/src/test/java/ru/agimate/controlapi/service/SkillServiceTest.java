@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -68,6 +71,8 @@ class SkillServiceTest {
     private ConnectorRegistry connectorRegistry;
     @Mock
     private SkillPolicySync skillPolicySync;
+    @Mock
+    private ContentLanguageResolver contentLanguageResolver;
 
     @InjectMocks
     private SkillService service;
@@ -109,7 +114,7 @@ class SkillServiceTest {
         @DisplayName("все коды известны → скилл создаётся")
         void acceptsKnownConnectorCodes() {
             knownConnectors("board");
-            when(skillRepository.existsByUserIdAndNameNotDeleted(USER_ID, "test-skill")).thenReturn(false);
+            when(skillRepository.existsByKeyNotDeleted(USER_ID, "test-skill", null)).thenReturn(false);
             when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> {
                 Skill s = inv.getArgument(0);
                 s.setId(UUID.randomUUID());
@@ -121,6 +126,7 @@ class SkillServiceTest {
 
             assertEquals("test-skill", response.name());
             assertEquals(List.of("board"), response.connectorCodes());
+            verify(skillRepository).save(argThat(skill -> skill.getLanguage() == null));
         }
     }
 
@@ -169,7 +175,7 @@ class SkillServiceTest {
     class SystemSkills {
 
         private Skill systemSkill() {
-            return Skill.builder().id(SKILL_ID).userId(SYSTEM_USER_ID).name("board")
+            return Skill.builder().id(SKILL_ID).userId(SYSTEM_USER_ID).name("board").language(ContentLanguage.RU)
                     .isPublic(true).version(1).connectors(ConnectorRequirement.ofCodes(List.of("board")))
                     .mdContent("body").description("d").build();
         }
@@ -235,7 +241,7 @@ class SkillServiceTest {
         void deletePresetReferencedSystemConflict() {
             when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(systemSkill()));
             when(agentSkillRepository.existsBySkillId(SKILL_ID)).thenReturn(false);
-            when(agentPresetRepository.existsBySkillNameReferenced("board")).thenReturn(true);
+            when(agentPresetRepository.existsBySkillNameReferenced("board", ContentLanguage.RU)).thenReturn(true);
 
             assertThrows(ConflictStatusException.class, () -> service.delete(SKILL_ID, USER_ID, true));
 
@@ -245,7 +251,8 @@ class SkillServiceTest {
         @Test
         @DisplayName("createSystem — owner=SYSTEM, всегда public")
         void createSystemForcesOwnerAndPublic() {
-            when(skillRepository.existsByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "new")).thenReturn(false);
+            when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
+            when(skillRepository.existsByKeyNotDeleted(SYSTEM_USER_ID, "new", ContentLanguage.RU)).thenReturn(false);
             when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> {
                 Skill s = inv.getArgument(0);
                 s.setId(UUID.randomUUID());
@@ -257,6 +264,7 @@ class SkillServiceTest {
             assertTrue(response.isPublic());
             assertTrue(response.system());
             assertEquals(SYSTEM_USER_ID, response.userId());
+            verify(skillRepository).save(argThat(skill -> skill.getLanguage() == ContentLanguage.RU));
         }
 
         private String systemSkillMd(String name) {

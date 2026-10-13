@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.io.ClassPathResource;
 import ru.agimate.controlapi.config.ContentProperties;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.io.IOException;
 import java.io.InputStream;

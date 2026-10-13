@@ -4,7 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import ru.agimate.controlapi.service.seed.ContentLanguage;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
@@ -17,15 +17,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Страховка сидинга: битый frontmatter системного SKILL.md всплывал бы только ERROR-логом на
  * старте приложения (bootstrap глотает исключения по-скиллово) — здесь он валит сборку.
  *
- * <p>Прогоняется по всем языкам: непереведённый скилл иначе обнаружился бы только на инсталляции
- * с этим языком — в виде пресета, у которого пропала часть скилов.
+ * <p>Каталоги языков независимы, набор скиллов в них может различаться — каждый язык проверяется по
+ * тем кодам, что в нём есть.
  */
-@DisplayName("SystemSkillBootstrap — все системные SKILL.md парсятся во всех языках")
+@DisplayName("SystemSkillBootstrap — все системные SKILL.md парсятся в своих языках")
 class SystemSkillBootstrapTest {
 
     static Stream<Arguments> languageAndCode() {
         return Stream.of(ContentLanguage.values()).flatMap(language ->
-                SystemSkillBootstrap.SYSTEM_SKILL_CODES.stream().map(code -> Arguments.of(language, code)));
+                SystemSkillBootstrap.SYSTEM_SKILL_CODES.stream()
+                        .filter(code -> SeedContentLocator.exists(SeedContentLocator.Kind.SKILL, code, language))
+                        .map(code -> Arguments.of(language, code)));
+    }
+
+    static Stream<String> codes() {
+        return SystemSkillBootstrap.SYSTEM_SKILL_CODES.stream();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("codes")
+    @DisplayName("код из SYSTEM_SKILL_CODES есть хотя бы в одном языке — иначе это мёртвая запись")
+    void codeExistsSomewhere(String code) {
+        assertTrue(Stream.of(ContentLanguage.values())
+                        .anyMatch(language -> SeedContentLocator.exists(SeedContentLocator.Kind.SKILL, code, language)),
+                code + ": нет ни в одной папке seed/skills/<lang>/");
     }
 
     @ParameterizedTest(name = "{0}/{1}")

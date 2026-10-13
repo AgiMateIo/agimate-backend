@@ -1,11 +1,10 @@
 package ru.agimate.controlapi.service.seed;
 
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
+import lombok.experimental.UtilityClass;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
-import ru.agimate.controlapi.config.ContentProperties;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -13,21 +12,17 @@ import java.nio.charset.StandardCharsets;
 /**
  * The only place that knows the layout of seed content:
  * {@code resources/seed/<presets|skills>/<lang>/<code>/<FILE>.md}. The bootstraps address content by
- * code ({@code personal-assistant}, {@code time}) rather than by path — the locator substitutes the
- * language.
+ * code ({@code personal-assistant}, {@code time}) and language.
  *
  * <p>Kind first, language second, so the root of {@code seed/} reads as the list of things the
  * platform seeds — and content with no language dimension at all ({@code llm-providers.yaml}) has an
  * obvious place in it. Translation bundles are their own kind, {@code seed/texts/<lang>/}
  * ({@link SeedTextBundle}).
  *
- * <p>A missing file for the chosen language is not a refusal: we read
- * {@link ContentLanguage#DEFAULT} and log a warning. Otherwise an untranslated skill would throw
- * everything referencing it out of the catalogue; language parity is guaranteed by a test, so in a
- * built release the fallback never fires.
+ * <p>There is no fallback to another language: each language is a catalogue of its own, and a code
+ * missing from a language's folder is simply not in that catalogue.
  */
-@Slf4j
-@Component
+@UtilityClass
 public class SeedContentLocator {
 
     /** Kind of seed content: the folder in {@code seed/} and the file's name inside the code's folder. */
@@ -44,22 +39,6 @@ public class SeedContentLocator {
             this.dir = dir;
             this.fileName = fileName;
         }
-    }
-
-    @Getter
-    private final ContentLanguage language;
-
-    public SeedContentLocator(ContentProperties contentProperties) {
-        this.language = contentProperties.getLanguage();
-    }
-
-    /** The contents for the installation's language; a miss → {@link ContentLanguage#DEFAULT}. */
-    public String read(Kind kind, String code) {
-        if (language != ContentLanguage.DEFAULT && !exists(kind, code, language)) {
-            log.warn("No {} '{}' for language {} — falling back to {}", kind, code, language, ContentLanguage.DEFAULT);
-            return read(kind, code, ContentLanguage.DEFAULT);
-        }
-        return read(kind, code, language);
     }
 
     public static String path(Kind kind, String code, ContentLanguage language) {

@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.seed;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.database.enums.ContentTag;
 
 import java.util.Properties;

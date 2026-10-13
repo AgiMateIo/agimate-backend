@@ -1,10 +1,14 @@
 # Язык системного контента
 
-`APP_CONTENT_LANGUAGE` (property `app.content.language`, enum `ContentLanguage`: `ru` | `en`) selects
-the language of the content the platform ships: agent presets, system skills, the connector catalog
-and the trusted instruction blocks the platform injects into agent prompts. It is **not** the language
-agents reply in — that follows the user and is stated in the instructions themselves. A typo in the
-value fails startup (the property binds to an enum).
+`APP_CONTENT_LANGUAGE` (property `app.content.language`, enum `ContentLanguage`: `ru` | `en`) is the
+installation's **default** content language: the language of a call whose client names none, of the
+preset and skill catalogues (until listings follow the request), of the connector catalog and of the
+trusted instruction blocks the platform injects into agent prompts. It is **not** the language agents
+reply in — that follows the user and is stated in the instructions themselves. A typo in the value
+fails startup (the property binds to an enum).
+
+Presets and skills are not one set in one language: every language has a catalogue of its own, and
+the sets may differ — see [decisions/language-catalogs.md](../decisions/language-catalogs.md).
 
 Content lives in the classpath by kind first and language second, and `SeedContentLocator` is the
 only place that knows the layout:
@@ -23,21 +27,26 @@ Kind first, so the root of `seed/` reads as the list of things the platform seed
 language dimension has a place in it: `llm-providers.yaml` carries URLs, provider types and model ids,
 and only its descriptions are translated.
 
-Adding a language = a new `ContentLanguage` constant plus a directory under each kind. Only `title`,
-`description` and the body are translated: `name`, `skills`, `connectors` and `sortOrder` are machine
-keys and must be byte-identical across languages — a translated slug silently breaks the
-preset→skill and skill→connector links, which is what `SeedContentParityTest` guards. A file missing
-for the selected language falls back to `en` with a warning rather than failing the seed.
+Adding a language = a new `ContentLanguage` constant plus a directory under each kind. A preset or a
+skill in one language's folder is a record of its own, not a translation of the other language's:
+a code may exist in one language only, and nothing falls back to another language. What does hold
+is the reference: a preset's `skills` resolve among the skills of its own language (or language-less
+ones), which `SystemPresetBootstrapTest` checks for the seeds.
 
 **Two different lifecycles:**
 
-- **Presets and skills — the language is fixed by the first seeding.** Both bootstraps are
-  seed-only-if-missing, keyed by the language-independent `name`, and the database holds one language
-  at a time. Changing `APP_CONTENT_LANGUAGE` on an already-seeded environment therefore translates
-  nothing: it is a choice for a fresh installation. To switch in development, delete the system rows
-  (`skills` where `user_id = '00000000-0000-0000-0000-000000000000'`, and `agent_presets`) and
-  restart. Existing agents never follow a switch in any case — preset `instructions` are copied into
-  the agent at creation, and skills are bound by ID.
+- **Presets and skills — every language is seeded.** Both bootstraps walk every `seed/<kind>/<lang>/`
+  folder, seed-only-if-missing keyed by `(name, language)`; a record carries its `language` (a
+  preset always, a skill may be `NULL` — «every catalogue»: user skills and system ones not written
+  for an audience). A skill name is resolved in a language — that language's version, else the
+  language-less one (`SkillRepository.findByNamesInLanguage`). Changing `APP_CONTENT_LANGUAGE` changes
+  which catalogue the listings show, not what is stored. An agent carries its own `language` (from its
+  preset, else from the request at creation) and never follows a switch: preset `instructions` are
+  copied into it, skills are bound by ID.
+- **The request's language** is `Accept-Language`, read by `ContentLanguageResolver` (the best
+  supported primary subtag by weight; none, or outside an HTTP request — the default). The header is
+  read directly rather than through Spring's `LocaleResolver`, whose locale also drives validation
+  messages. Today it decides only the language of an agent created without a preset.
 - **Connector catalog — follows the property.** `ConnectorBootstrap` upserts `connectors` rows on
   every start, so `name`/`description` move to the new language after a restart, with no migration.
   English stays in the code (`connectorName()`/`connectorDescription()`) as the last-resort fallback,

@@ -7,6 +7,7 @@ import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.SQLRestriction;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -78,6 +79,14 @@ public class Agent extends BaseEntity {
     /** Name (machine code) of the preset the creation wizard started from (funnel analytics); no FK. */
     @Column(name = "preset_name", columnDefinition = "TEXT")
     private String presetName;
+
+    /**
+     * Language of the agent's content — which version of a skill the platform binds by name;
+     * {@code null} — the installation's default (agents created before the column).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "language", columnDefinition = "TEXT")
+    private ContentLanguage language;
 
     /** Moment of the soft delete; {@code null} — active. Hiding from queries is done by {@link SQLRestriction}. */
     @Column(name = "deleted_at")

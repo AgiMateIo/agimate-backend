@@ -39,6 +39,7 @@ import ru.agimate.controlapi.service.AgenticTeamService;
 import ru.agimate.controlapi.service.ConnectorJobManageService;
 import ru.agimate.controlapi.service.board.BoardService;
 import ru.agimate.controlapi.service.dto.board.BoardCreateCommand;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import java.util.List;
 import java.util.UUID;
@@ -64,6 +65,7 @@ public class PlatformWorkspaceToolService {
     private final AgenticTeamService agenticTeamService;
     private final BoardService boardService;
     private final ConnectorJobManageService connectorJobManageService;
+    private final ContentLanguageResolver contentLanguageResolver;
 
     // ---- teams -----------------------------------------------------------------------------
 
@@ -142,7 +144,8 @@ public class PlatformWorkspaceToolService {
                     + "admin-managed and offered read-only here",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public PresetList listPresets() {
-        List<PresetBrief> items = agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc()
+        List<PresetBrief> items = agentPresetRepository
+                .findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(contentLanguageResolver.defaultLanguage())
                 .stream()
                 .map(PlatformWorkspaceToolService::toPresetBrief)
                 .toList();
