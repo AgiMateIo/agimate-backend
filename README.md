@@ -5,6 +5,10 @@
 Backend services for [AgiMate](https://agimate.io) — a platform where specialized AI agents work
 together, on your own server and your own keys.
 
+https://github.com/user-attachments/assets/fbdabedd-d99c-46be-a03e-b087ccbf7a90
+
+▶ [Watch the 30-second overview](https://agimate.io/video/agimate-ad-en.mp4) if the player above doesn't show
+
 ## Modules
 
 Everything lives under [`services/`](services/) as a single Gradle build.
