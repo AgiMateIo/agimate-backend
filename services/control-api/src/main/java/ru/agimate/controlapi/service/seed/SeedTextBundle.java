@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -22,6 +24,15 @@ import java.util.Properties;
 @Slf4j
 @UtilityClass
 class SeedTextBundle {
+
+    /** Every language's bundle of the file, for texts picked per request rather than per installation. */
+    static Map<ContentLanguage, Properties> loadAll(String fileName) {
+        Map<ContentLanguage, Properties> bundles = new EnumMap<>(ContentLanguage.class);
+        for (ContentLanguage language : ContentLanguage.values()) {
+            bundles.put(language, load(language, fileName));
+        }
+        return bundles;
+    }
 
     static Properties load(ContentLanguage language, String fileName) {
         Properties properties = new Properties();

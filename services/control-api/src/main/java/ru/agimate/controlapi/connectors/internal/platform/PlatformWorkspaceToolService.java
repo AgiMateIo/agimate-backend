@@ -145,7 +145,8 @@ public class PlatformWorkspaceToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public PresetList listPresets() {
         List<PresetBrief> items = agentPresetRepository
-                .findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(contentLanguageResolver.defaultLanguage())
+                .findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(
+                        PlatformToolsSupport.callerLanguage(agentRepository, contentLanguageResolver))
                 .stream()
                 .map(PlatformWorkspaceToolService::toPresetBrief)
                 .toList();

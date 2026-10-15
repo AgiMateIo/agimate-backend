@@ -309,7 +309,7 @@ public class AgentService {
         return create(userId, new AgentCreateCommand(
                 request.name(), request.description(), request.instructions(), request.type(),
                 request.webhookUrl(), request.webhookAuthHeader(), request.agenticTeamId(),
-                request.skillIds(), request.presetName()));
+                request.skillIds(), request.presetName(), contentLanguageResolver.requestLanguage()));
     }
 
     @Transactional
@@ -327,11 +327,9 @@ public class AgentService {
             }
         }
 
-        AgentPreset preset = validatedPreset(command.presetName());
+        ContentLanguage language = command.language() != null ? command.language() : contentLanguageResolver.defaultLanguage();
+        AgentPreset preset = validatedPreset(command.presetName(), language);
         String presetName = preset != null ? preset.getName() : null;
-        // A preset's agent speaks its preset's language — its instructions are written in it; otherwise the
-        // language the user works in.
-        ContentLanguage language = preset != null ? preset.getLanguage() : contentLanguageResolver.requestLanguage();
 
         GeneratedAppKey generatedKey = AppKeyUtils.generate(AGENT_KEY_PREFIX);
 
@@ -381,16 +379,16 @@ public class AgentService {
     }
 
     /**
-     * The preset the wizard started from — a funnel label and the agent's language; the label must exist, a
-     * typo is a BadRequest. Looked up in the gallery's catalogue, the default language's while the gallery does
-     * not follow the request (docs/decisions/language-catalogs.md).
+     * The preset the wizard started from — a funnel label; the label must exist, a typo is a BadRequest.
+     * Looked up in the caller's catalogue — the one the gallery showed — so the agent speaks the language
+     * its preset's instructions are written in.
      */
-    private AgentPreset validatedPreset(String presetName) {
+    private AgentPreset validatedPreset(String presetName, ContentLanguage language) {
         if (presetName == null || presetName.isBlank()) {
             return null;
         }
         String name = presetName.strip();
-        return agentPresetRepository.findByNameAndLanguage(name, contentLanguageResolver.defaultLanguage())
+        return agentPresetRepository.findByNameAndLanguage(name, language)
                 .orElseThrow(() -> new BadRequestStatusException("Unknown preset name: " + name));
     }
 

@@ -7,7 +7,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.io.ClassPathResource;
-import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.io.IOException;
@@ -78,34 +77,31 @@ class ConnectorTextsTest {
     @DisplayName("Резолв")
     class Resolution {
 
-        private ConnectorTexts texts(ContentLanguage language) {
-            ContentProperties properties = new ContentProperties();
-            properties.setLanguage(language);
-            return new ConnectorTexts(properties);
-        }
+        private final ConnectorTexts texts = new ConnectorTexts();
 
         @Test
         @DisplayName("язык-первоисточник отдаёт значение из кода")
         void defaultLanguageUsesCode() {
-            ConnectorTexts texts = texts(ContentLanguage.DEFAULT);
-
-            assertEquals("Board", texts.name("board", "Board"));
+            assertEquals("Board", texts.name(ContentLanguage.DEFAULT, "board", "Board"));
         }
 
         @Test
         @DisplayName("перевод перекрывает значение из кода")
         void translationOverridesCode() {
-            ConnectorTexts texts = texts(ContentLanguage.RU);
+            assertNotEquals("The team's Kanban board",
+                    texts.description(ContentLanguage.RU, "board", "The team's Kanban board"));
+        }
 
-            assertNotEquals("The team's Kanban board", texts.description("board", "The team's Kanban board"));
+        @Test
+        @DisplayName("один экземпляр отдаёт оба языка — язык выбирает вызов, а не инсталляция")
+        void bothLanguagesFromOneInstance() {
+            assertNotEquals(texts.name(ContentLanguage.EN, "app", "App"), texts.name(ContentLanguage.RU, "app", "App"));
         }
 
         @Test
         @DisplayName("нет ключа — значение из кода")
         void unknownCodeFallsBackToCode() {
-            ConnectorTexts texts = texts(ContentLanguage.RU);
-
-            assertEquals("Заглушка", texts.name("no-such-connector", "Заглушка"));
+            assertEquals("Заглушка", texts.name(ContentLanguage.RU, "no-such-connector", "Заглушка"));
         }
     }
 

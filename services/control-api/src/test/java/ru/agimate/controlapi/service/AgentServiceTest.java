@@ -50,6 +50,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -107,8 +108,7 @@ class AgentServiceTest {
         when(agentDeliveryService.supportsPush(AgentType.WEBHOOK)).thenReturn(true);
         when(channelRepository.findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(AGENT_ID))
                 .thenReturn(List.of());
-        when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
-        when(contentLanguageResolver.requestLanguage()).thenReturn(ContentLanguage.EN);
+        lenient().when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
     }
 
     @Nested
@@ -118,36 +118,48 @@ class AgentServiceTest {
         private final ArgumentCaptor<Agent> saved = ArgumentCaptor.forClass(Agent.class);
 
         @Test
-        @DisplayName("без пресета — язык запроса")
-        void withoutPresetTakesRequestLanguage() {
+        @DisplayName("без пресета — язык вызывающего")
+        void withoutPresetTakesCallerLanguage() {
             service.create(USER_ID, new AgentCreateCommand("agent", null, null, AgentType.GENERIC,
-                    null, null, null, null, null));
+                    null, null, null, null, null, ContentLanguage.EN));
 
             verify(agentRepository).save(saved.capture());
             assertEquals(ContentLanguage.EN, saved.getValue().getLanguage());
         }
 
         @Test
-        @DisplayName("из пресета — язык пресета; пресет ищется в каталоге галереи, дефолтном")
-        void fromPresetTakesPresetLanguage() {
-            when(agentPresetRepository.findByNameAndLanguage("coder", ContentLanguage.RU)).thenReturn(Optional.of(
-                    AgentPreset.builder().name("coder").language(ContentLanguage.RU).build()));
-
+        @DisplayName("язык не передан — дефолтный")
+        void noLanguageTakesDefault() {
             service.create(USER_ID, new AgentCreateCommand("agent", null, null, AgentType.GENERIC,
-                    null, null, null, null, "coder"));
+                    null, null, null, null, null, null));
 
             verify(agentRepository).save(saved.capture());
             assertEquals(ContentLanguage.RU, saved.getValue().getLanguage());
+        }
+
+        @Test
+        @DisplayName("из пресета — пресет ищется в каталоге вызывающего, не в дефолтном")
+        void fromPresetLooksUpCallerCatalogue() {
+            when(agentPresetRepository.findByNameAndLanguage("coder", ContentLanguage.EN)).thenReturn(Optional.of(
+                    AgentPreset.builder().name("coder").language(ContentLanguage.EN).build()));
+
+            service.create(USER_ID, new AgentCreateCommand("agent", null, null, AgentType.GENERIC,
+                    null, null, null, null, "coder", ContentLanguage.EN));
+
+            verify(agentRepository).save(saved.capture());
+            assertEquals(ContentLanguage.EN, saved.getValue().getLanguage());
             assertEquals("coder", saved.getValue().getPresetName());
         }
 
         @Test
-        @DisplayName("неизвестный пресет → 400")
+        @DisplayName("пресета нет в каталоге вызывающего → 400, даже если он есть в дефолтном")
         void unknownPreset() {
-            when(agentPresetRepository.findByNameAndLanguage("ghost", ContentLanguage.RU)).thenReturn(Optional.empty());
+            lenient().when(agentPresetRepository.findByNameAndLanguage("ghost", ContentLanguage.RU)).thenReturn(
+                    Optional.of(AgentPreset.builder().name("ghost").language(ContentLanguage.RU).build()));
+            when(agentPresetRepository.findByNameAndLanguage("ghost", ContentLanguage.EN)).thenReturn(Optional.empty());
 
             assertThrows(BadRequestStatusException.class, () -> service.create(USER_ID, new AgentCreateCommand(
-                    "agent", null, null, AgentType.GENERIC, null, null, null, null, "ghost")));
+                    "agent", null, null, AgentType.GENERIC, null, null, null, null, "ghost", ContentLanguage.EN)));
         }
     }
 
@@ -168,13 +180,14 @@ class AgentServiceTest {
                 saved.setId(AGENT_ID);
                 return saved;
             });
-            // The agent's language is the request's (EN): the team skill is looked up in it.
+            // The agent's language is the caller's (EN): the team skill is looked up in it.
             when(skillRepository.findByNameInLanguage(SystemSkillBootstrap.SYSTEM_USER_ID, "agents", ContentLanguage.EN))
                     .thenReturn(Optional.of(Skill.builder().id(agentsSkillId).name("agents").build()));
         }
 
         private AgentCreateCommand command(UUID team, List<UUID> skillIds) {
-            return new AgentCreateCommand("agent", null, null, AgentType.GENERIC, null, null, team, skillIds, null);
+            return new AgentCreateCommand("agent", null, null, AgentType.GENERIC, null, null, team, skillIds, null,
+                    ContentLanguage.EN);
         }
 
         @Test

@@ -67,10 +67,8 @@ public class SkillService {
 
     public Page<SkillResponse> getSkills(UUID userId, SkillListScope scope, String search, String connectorCode,
                                          ContentCategory category, ContentTag tag, int page, int size) {
-        // The public catalogue is the default language's until listings follow the request's language
-        // (docs/decisions/language-catalogs.md).
         Specification<Skill> base = scope == SkillListScope.PUBLIC
-                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(contentLanguageResolver.defaultLanguage()))
+                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(contentLanguageResolver.requestLanguage()))
                 : SkillSpecs.ownedBy(userId);
         return findSkills(base, search, connectorCode, category, tag, page, size);
     }
@@ -114,8 +112,9 @@ public class SkillService {
         validateName(parsed.name());
         validateConnectors(parsed.connectors());
 
-        // A system skill belongs to a catalogue; a user's skill to none — it is in every one.
-        ContentLanguage language = isSystemOwner(ownerId) ? contentLanguageResolver.defaultLanguage() : null;
+        // A system skill belongs to the catalogue the admin is looking at; a user's skill to none — it is in
+        // every one.
+        ContentLanguage language = isSystemOwner(ownerId) ? contentLanguageResolver.requestLanguage() : null;
         if (skillRepository.existsByKeyNotDeleted(ownerId, parsed.name(), language)) {
             throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }

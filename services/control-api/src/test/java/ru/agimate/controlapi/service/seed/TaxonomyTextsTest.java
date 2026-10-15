@@ -7,7 +7,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.core.io.ClassPathResource;
-import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.database.enums.ContentTag;
@@ -83,25 +82,19 @@ class TaxonomyTextsTest {
     @DisplayName("Резолв")
     class Resolution {
 
-        private TaxonomyTexts texts(ContentLanguage language) {
-            ContentProperties properties = new ContentProperties();
-            properties.setLanguage(language);
-            return new TaxonomyTexts(properties);
-        }
+        private final TaxonomyTexts texts = new TaxonomyTexts();
 
         @Test
         @DisplayName("язык-первоисточник отдаёт подпись из enum'а")
         void defaultLanguageUsesCode() {
-            assertEquals(ContentCategory.FINANCE.getLabel(), texts(ContentLanguage.DEFAULT).label(ContentCategory.FINANCE));
+            assertEquals(ContentCategory.FINANCE.getLabel(), texts.label(ContentLanguage.DEFAULT, ContentCategory.FINANCE));
         }
 
         @Test
         @DisplayName("перевод перекрывает подпись из enum'а")
         void translationOverridesCode() {
-            TaxonomyTexts texts = texts(ContentLanguage.RU);
-
-            assertNotEquals(ContentTag.OWN_TOKEN.getLabel(), texts.label(ContentTag.OWN_TOKEN));
-            assertNotEquals(ContentTag.Group.FEATURE.getLabel(), texts.label(ContentTag.Group.FEATURE));
+            assertNotEquals(ContentTag.OWN_TOKEN.getLabel(), texts.label(ContentLanguage.RU, ContentTag.OWN_TOKEN));
+            assertNotEquals(ContentTag.Group.FEATURE.getLabel(), texts.label(ContentLanguage.RU, ContentTag.Group.FEATURE));
         }
     }
 

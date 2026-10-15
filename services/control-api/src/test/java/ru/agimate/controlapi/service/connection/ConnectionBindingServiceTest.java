@@ -18,6 +18,7 @@ import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.seed.ConnectorTexts;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import java.util.List;
 import java.util.Optional;
@@ -57,6 +58,8 @@ class ConnectionBindingServiceTest {
     private ConnectorRegistry connectorRegistry;
     @Mock
     private ConnectorTexts connectorTexts;
+    @Mock
+    private ContentLanguageResolver contentLanguageResolver;
 
     @InjectMocks
     private ConnectionBindingService service;

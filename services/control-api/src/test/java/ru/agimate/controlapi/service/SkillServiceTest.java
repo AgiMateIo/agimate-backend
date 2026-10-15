@@ -249,10 +249,11 @@ class SkillServiceTest {
         }
 
         @Test
-        @DisplayName("createSystem — owner=SYSTEM, всегда public")
+        @DisplayName("createSystem — owner=SYSTEM, всегда public, каталог языка запроса")
         void createSystemForcesOwnerAndPublic() {
-            when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
-            when(skillRepository.existsByKeyNotDeleted(SYSTEM_USER_ID, "new", ContentLanguage.RU)).thenReturn(false);
+            lenient().when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
+            when(contentLanguageResolver.requestLanguage()).thenReturn(ContentLanguage.EN);
+            when(skillRepository.existsByKeyNotDeleted(SYSTEM_USER_ID, "new", ContentLanguage.EN)).thenReturn(false);
             when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> {
                 Skill s = inv.getArgument(0);
                 s.setId(UUID.randomUUID());
@@ -264,7 +265,7 @@ class SkillServiceTest {
             assertTrue(response.isPublic());
             assertTrue(response.system());
             assertEquals(SYSTEM_USER_ID, response.userId());
-            verify(skillRepository).save(argThat(skill -> skill.getLanguage() == ContentLanguage.RU));
+            verify(skillRepository).save(argThat(skill -> skill.getLanguage() == ContentLanguage.EN));
         }
 
         private String systemSkillMd(String name) {

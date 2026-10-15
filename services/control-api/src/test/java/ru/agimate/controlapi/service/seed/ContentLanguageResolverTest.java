@@ -4,10 +4,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static ru.agimate.controlapi.service.seed.ContentLanguageResolver.fromAcceptLanguage;
@@ -89,6 +92,23 @@ class ContentLanguageResolverTest {
             RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
             try {
                 assertEquals(ContentLanguage.EN, resolver().requestLanguage());
+            } finally {
+                RequestContextHolder.resetRequestAttributes();
+            }
+        }
+
+        @Test
+        @DisplayName("ответ помечается Vary: Accept-Language один раз, чужие значения Vary сохраняются")
+        void marksResponseVary() {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            response.addHeader("Vary", "Origin");
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest(), response));
+            try {
+                ContentLanguageResolver resolver = resolver();
+                resolver.requestLanguage();
+                resolver.requestLanguage();
+
+                assertEquals(List.of("Origin", "Accept-Language"), response.getHeaders("Vary"));
             } finally {
                 RequestContextHolder.resetRequestAttributes();
             }

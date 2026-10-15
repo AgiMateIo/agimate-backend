@@ -60,7 +60,7 @@ class AgentPresetServiceTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(contentLanguageResolver.defaultLanguage()).thenReturn(ContentLanguage.RU);
+        lenient().when(contentLanguageResolver.requestLanguage()).thenReturn(ContentLanguage.RU);
         // The name → skill resolution (language version, else language-less) is the repository's default method.
         lenient().when(skillRepository.findByNamesInLanguage(any(), anyCollection(), any())).thenCallRealMethod();
     }

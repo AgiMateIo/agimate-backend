@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.seed.ConnectorTexts;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import java.util.List;
 import java.util.Map;
@@ -42,13 +43,14 @@ class ConnectorBootstrapTest {
     private final ConnectorRepository connectorRepository = mock(ConnectorRepository.class);
     private final ConnectorJobService jobService = mock(ConnectorJobService.class);
     /** Язык-первоисточник: переводов нет, name/description берутся из кода хендлера. */
-    private final ConnectorTexts connectorTexts = new ConnectorTexts(new ContentProperties());
+    private final ConnectorTexts connectorTexts = new ConnectorTexts();
+    private final ContentLanguageResolver contentLanguageResolver = new ContentLanguageResolver(new ContentProperties());
 
     private ConnectorBootstrap bootstrap(ConnectorHandler handler) {
         when(connectorRepository.findById(anyString())).thenReturn(Optional.empty());
         lenient().when(connectorRepository.existsById(anyString())).thenReturn(true);
         return new ConnectorBootstrap(connectorRepository, new ConnectorRegistry(List.of(handler)), jobService,
-                connectorTexts);
+                connectorTexts, contentLanguageResolver);
     }
 
     private static TriggerSpec promptSpec(String promptParam) {

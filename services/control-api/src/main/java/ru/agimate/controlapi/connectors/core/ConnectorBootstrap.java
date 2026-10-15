@@ -10,9 +10,10 @@ import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.service.seed.ConnectorTexts;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -20,11 +21,11 @@ import java.util.Map;
 /**
  * Bootstrap of connectors at application start:
  * <ol>
- *   <li>upsert of the static {@code connectors} rows that have no handler ({@code app}, {@code claude-code});</li>
+ *   <li>upsert of the static {@code connectors} rows that have no handler ({@link StaticConnector});</li>
  *   <li>upsert of a {@code connectors} row for every handler in the registry — the code is the source
  *       of truth for name/description/credential_fields/capabilities; name and description pass
- *       through {@link ConnectorTexts} on the way (translating the catalogue under
- *       {@code app.content.language});</li>
+ *       through {@link ConnectorTexts} on the way, in {@code app.content.language} — a response
+ *       translates them into the request's language ({@link ConnectorLabels});</li>
  *   <li>re-sync of the existing SYSTEM {@code connector_jobs} rows against what each instance
  *       declares ({@link JobProvider#getJobs(ConnectorEnv)}) — changes to {@code @Job} (interval,
  *       timeout) reach the database without recreating connections.</li>
@@ -46,16 +47,14 @@ public class ConnectorBootstrap {
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorJobService jobService;
     private final ConnectorTexts connectorTexts;
+    private final ContentLanguageResolver contentLanguageResolver;
 
     @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
-        upsertStatic("app", "App", ConnectorTraits.app(),
-                "A connected app: the agent calls tools on a computer or phone that runs it "
-                        + "— screenshots, files, local actions.");
-        upsertStatic("claude-code", "Claude Code", ConnectorTraits.loopback(),
-                "Claude Code as the executor: the agent takes the calls and runs them in your environment.");
-
+        for (StaticConnector row : StaticConnector.values()) {
+            upsertStatic(row);
+        }
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
             upsertConnector(handler);
         }
@@ -70,8 +69,9 @@ public class ConnectorBootstrap {
                         .build());
 
         String code = handler.connectorCode();
-        connector.setName(connectorTexts.name(code, handler.connectorName()));
-        connector.setDescription(connectorTexts.description(code, handler.connectorDescription()));
+        ContentLanguage language = contentLanguageResolver.defaultLanguage();
+        connector.setName(connectorTexts.name(language, code, handler.connectorName()));
+        connector.setDescription(connectorTexts.description(language, code, handler.connectorDescription()));
         connector.setCredentialFields(handler instanceof IntegrationConnectorHandler integration
                 ? labelsOf(integration)
                 : null);
@@ -165,12 +165,13 @@ public class ConnectorBootstrap {
     }
 
     /** Rows with no handler: the source of truth is the same (the code), hence an upsert rather than save-if-absent. */
-    private void upsertStatic(String code, String name, ConnectorTraits traits, String description) {
-        Connector connector = connectorRepository.findById(code)
-                .orElseGet(() -> Connector.builder().code(code).build());
-        connector.setName(connectorTexts.name(code, name));
-        connector.setDescription(connectorTexts.description(code, description));
-        connector.applyTraits(traits);
+    private void upsertStatic(StaticConnector row) {
+        Connector connector = connectorRepository.findById(row.code)
+                .orElseGet(() -> Connector.builder().code(row.code).build());
+        ContentLanguage language = contentLanguageResolver.defaultLanguage();
+        connector.setName(connectorTexts.name(language, row.code, row.name));
+        connector.setDescription(connectorTexts.description(language, row.code, row.description));
+        connector.applyTraits(row.traits);
         connectorRepository.save(connector);
     }
 }

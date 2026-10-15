@@ -15,6 +15,7 @@ import ru.agimate.common.rest.PageRequests;
 import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.connectors.core.ConnectorLabels;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorResponse;
@@ -22,6 +23,8 @@ import ru.agimate.controlapi.controller.manage.dto.IntegrationMeta;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import ru.agimate.controlapi.service.trigger.TriggerDefinitionService;
 
@@ -39,6 +42,8 @@ public class ManageConnectorController {
     private final ConnectorRegistry connectorRegistry;
     private final ToolDefinitionService toolDefinitionService;
     private final TriggerDefinitionService triggerDefinitionService;
+    private final ConnectorLabels connectorLabels;
+    private final ContentLanguageResolver contentLanguageResolver;
 
     @Operation(summary = "List available connectors with optional full-text search")
     @GetMapping("/")
@@ -84,12 +89,13 @@ public class ManageConnectorController {
         return SuccessResponse.ok(triggerDefinitionService.getCatalogTriggers(code));
     }
 
+    /** Name and description in the request's language; the search and the order stay on the stored ones. */
     private ConnectorResponse toResponse(Connector connector) {
-        if (connector.isIntegration()) {
-            return connectorRegistry.findIntegrationHandler(connector.getCode())
-                    .map(handler -> ConnectorResponse.from(connector, IntegrationMeta.from(handler)))
-                    .orElseGet(() -> ConnectorResponse.from(connector));
-        }
-        return ConnectorResponse.from(connector);
+        ContentLanguage language = contentLanguageResolver.requestLanguage();
+        IntegrationMeta integrationMeta = connector.isIntegration()
+                ? connectorRegistry.findIntegrationHandler(connector.getCode()).map(IntegrationMeta::from).orElse(null)
+                : null;
+        return ConnectorResponse.from(connector, connectorLabels.name(connector, language),
+                connectorLabels.description(connector, language), integrationMeta);
     }
 }

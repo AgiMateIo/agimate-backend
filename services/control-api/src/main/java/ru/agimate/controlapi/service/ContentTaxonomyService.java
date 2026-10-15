@@ -5,6 +5,8 @@ import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.controller.manage.dto.TaxonomyResponse;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.ContentTag;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 import ru.agimate.controlapi.service.seed.TaxonomyTexts;
 
 import java.util.Arrays;
@@ -20,17 +22,19 @@ import java.util.List;
 public class ContentTaxonomyService {
 
     private final TaxonomyTexts texts;
+    private final ContentLanguageResolver contentLanguageResolver;
 
     public TaxonomyResponse taxonomy() {
+        ContentLanguage language = contentLanguageResolver.requestLanguage();
         List<TaxonomyResponse.Item> categories = Arrays.stream(ContentCategory.values())
-                .map(category -> new TaxonomyResponse.Item(category.name(), texts.label(category)))
+                .map(category -> new TaxonomyResponse.Item(category.name(), texts.label(language, category)))
                 .toList();
 
         List<TaxonomyResponse.TagGroup> groups = Arrays.stream(ContentTag.Group.values())
-                .map(group -> new TaxonomyResponse.TagGroup(group.name(), texts.label(group),
+                .map(group -> new TaxonomyResponse.TagGroup(group.name(), texts.label(language, group),
                         Arrays.stream(ContentTag.values())
                                 .filter(tag -> tag.getGroup() == group)
-                                .map(tag -> new TaxonomyResponse.Item(tag.name(), texts.label(tag)))
+                                .map(tag -> new TaxonomyResponse.Item(tag.name(), texts.label(language, tag)))
                                 .toList()))
                 .toList();
 

@@ -149,7 +149,8 @@ public class PlatformAgentToolService {
         var command = new AgentCreateCommand(PlatformToolsSupport.requireText(name, "name"),
                 PlatformToolsSupport.blankToNull(description), PlatformToolsSupport.blankToNull(instructions),
                 agentType, PlatformToolsSupport.blankToNull(webhookUrl), null,
-                PlatformToolsSupport.parseUuidOrNull(teamId, "teamId"), skills, null);
+                PlatformToolsSupport.parseUuidOrNull(teamId, "teamId"), skills, null,
+                PlatformToolsSupport.callerLanguage(agentRepository, contentLanguageResolver));
         var result = PlatformToolsSupport.domain(() -> agentService.create(PlatformToolsSupport.userId(), command));
         // The same second step the UI performs after creating an agent from a preset: a skill binding
         // is a declaration, and the agent only reaches the skill's tools once its connectors are open.
@@ -327,7 +328,8 @@ public class PlatformAgentToolService {
             throw new ConnectorException("Invalid scope: '" + scope + "'. Allowed: MINE, PUBLIC");
         }
         Specification<Skill> spec = "PUBLIC".equalsIgnoreCase(scopeValue)
-                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(contentLanguageResolver.defaultLanguage()))
+                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(
+                        PlatformToolsSupport.callerLanguage(agentRepository, contentLanguageResolver)))
                 : SkillSpecs.ownedBy(PlatformToolsSupport.userId());
         spec = spec.and(SkillSpecs.notDeleted());
         String searchQ = PlatformToolsSupport.blankToNull(search);

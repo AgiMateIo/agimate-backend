@@ -7,11 +7,14 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -65,6 +68,17 @@ final class PlatformToolsSupport {
         if (self != null && self.equals(targetAgentId)) {
             throw new ConnectorException("An agent cannot manage itself");
         }
+    }
+
+    /**
+     * The catalogue of the calling agent: a platform call has no request header, and the agent's language
+     * is the one its user picked it in. No caller (a listing outside a run) or no language — the default.
+     */
+    static ContentLanguage callerLanguage(AgentRepository agentRepository, ContentLanguageResolver resolver) {
+        UUID agentId = ConnectorEnvHolder.current().agentId();
+        return (agentId == null ? Optional.<Agent>empty() : agentRepository.findById(agentId))
+                .map(Agent::getLanguage)
+                .orElseGet(resolver::defaultLanguage);
     }
 
     /** Run a domain operation, translating core HTTP exceptions into {@link ConnectorException}. */

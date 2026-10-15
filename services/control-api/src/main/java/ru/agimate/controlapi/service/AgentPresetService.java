@@ -43,23 +43,23 @@ public class AgentPresetService {
     private final SkillRepository skillRepository;
     private final ContentLanguageResolver contentLanguageResolver;
 
-    // The gallery is the default language's catalogue until listings follow the request's language
-    // (docs/decisions/language-catalogs.md); the API carries no language yet, and two «coder» rows
-    // would be indistinguishable in it.
+    // One catalogue per response, the request's: the API carries no language, and two «coder» rows would
+    // be indistinguishable in it.
     public List<AgentPresetResponse> list() {
         return toResponses(agentPresetRepository.findAllByLanguageAndEnabledTrueOrderBySortOrderAscNameAsc(
-                contentLanguageResolver.defaultLanguage()));
+                contentLanguageResolver.requestLanguage()));
     }
 
     /** Every preset, disabled ones included — for the admin table. */
     public List<AgentPresetResponse> listAll() {
         return toResponses(agentPresetRepository.findAllByLanguageOrderBySortOrderAscNameAsc(
-                contentLanguageResolver.defaultLanguage()));
+                contentLanguageResolver.requestLanguage()));
     }
 
     @Transactional
     public AgentPresetResponse create(UUID actorId, CreateAgentPresetRequest request) {
-        ContentLanguage language = contentLanguageResolver.defaultLanguage();
+        // The catalogue the admin is looking at — otherwise the new preset is missing from their own table.
+        ContentLanguage language = contentLanguageResolver.requestLanguage();
         if (agentPresetRepository.findByNameAndLanguage(request.name(), language).isPresent()) {
             throw new ConflictStatusException("Preset with name '" + request.name() + "' already exists");
         }

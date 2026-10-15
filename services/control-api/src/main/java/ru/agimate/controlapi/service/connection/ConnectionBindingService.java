@@ -21,6 +21,7 @@ import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.seed.ConnectorTexts;
+import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -61,6 +62,7 @@ public class ConnectionBindingService {
     private final ApplicationEventPublisher eventPublisher;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorTexts connectorTexts;
+    private final ContentLanguageResolver contentLanguageResolver;
 
     /** Open an internal connector to an agent: the user's mode row plus an {@code agent_connection}. */
     @Transactional
@@ -99,7 +101,7 @@ public class ConnectionBindingService {
         UUID id = UUIDUtils.generateUUIDv8();
         int inserted = connectionRepository.insertModeConnectionIfAbsent(
                 id, connectorCode, connectorCode + "_" + userId, userId,
-                connectorTexts.name(connectorCode, handler.connectorName()));
+                connectorTexts.name(contentLanguageResolver.defaultLanguage(), connectorCode, handler.connectorName()));
         if (inserted > 0) {
             // The event comes only from whoever actually created the row (job registration is AFTER_COMMIT).
             eventPublisher.publishEvent(new ConnectorCreatedEvent(connectorCode, id.toString(), userId));

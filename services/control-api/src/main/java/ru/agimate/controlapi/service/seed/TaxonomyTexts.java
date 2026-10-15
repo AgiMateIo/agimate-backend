@@ -1,11 +1,11 @@
 package ru.agimate.controlapi.service.seed;
 
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.database.enums.ContentTag;
 
+import java.util.Map;
 import java.util.Properties;
 
 /**
@@ -15,29 +15,24 @@ import java.util.Properties;
  *
  * <p>Same rule as {@link ConnectorTexts}: English lives in the enum and is the last fallback, so there
  * is no bundle for {@link ContentLanguage#DEFAULT} — otherwise one text would sit in two places and
- * drift. Unlike skills and presets, the vocabulary is not stored per installation: the labels are
- * resolved on every response, so changing {@code app.content.language} translates the catalogue's
- * sections with no migration.
+ * drift. Unlike skills and presets, the vocabulary is not stored at all: the labels are resolved on
+ * every response, in the request's language.
  */
 @Component
 public class TaxonomyTexts {
 
-    private final Properties texts;
+    private final Map<ContentLanguage, Properties> texts = SeedTextBundle.loadAll("taxonomy.properties");
 
-    public TaxonomyTexts(ContentProperties contentProperties) {
-        this.texts = SeedTextBundle.load(contentProperties.getLanguage(), "taxonomy.properties");
+    public String label(ContentLanguage language, ContentCategory category) {
+        return texts.get(language).getProperty("category." + code(category.name()), category.getLabel());
     }
 
-    public String label(ContentCategory category) {
-        return texts.getProperty("category." + code(category.name()), category.getLabel());
+    public String label(ContentLanguage language, ContentTag tag) {
+        return texts.get(language).getProperty("tag." + code(tag.name()), tag.getLabel());
     }
 
-    public String label(ContentTag tag) {
-        return texts.getProperty("tag." + code(tag.name()), tag.getLabel());
-    }
-
-    public String label(ContentTag.Group group) {
-        return texts.getProperty("tag-group." + code(group.name()), group.getLabel());
+    public String label(ContentLanguage language, ContentTag.Group group) {
+        return texts.get(language).getProperty("tag-group." + code(group.name()), group.getLabel());
     }
 
     /** The key in the bundle: an enum constant in kebab-case, as it is written in the frontmatter. */

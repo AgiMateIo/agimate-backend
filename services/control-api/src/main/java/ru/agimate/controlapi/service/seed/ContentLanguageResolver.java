@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.seed;
 
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -35,10 +36,19 @@ public class ContentLanguageResolver {
         return contentProperties.getLanguage();
     }
 
-    /** The best supported language of the current request's {@code Accept-Language}; none — the default. */
+    /**
+     * The best supported language of the current request's {@code Accept-Language}; none — the default.
+     * Marks the response {@code Vary: Accept-Language} on the way: the dependency is declared where it
+     * arises, so a cache cannot hand one language's catalogue to another.
+     */
     public ContentLanguage requestLanguage() {
         if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
             return defaultLanguage();
+        }
+        HttpServletResponse response = attributes.getResponse();
+        // Added, never set: CORS has already written its own Vary values.
+        if (response != null && !response.getHeaders(HttpHeaders.VARY).contains(HttpHeaders.ACCEPT_LANGUAGE)) {
+            response.addHeader(HttpHeaders.VARY, HttpHeaders.ACCEPT_LANGUAGE);
         }
         return fromAcceptLanguage(attributes.getRequest().getHeader(HttpHeaders.ACCEPT_LANGUAGE), defaultLanguage());
     }

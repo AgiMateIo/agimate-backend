@@ -1,9 +1,9 @@
 # Язык системного контента
 
 `APP_CONTENT_LANGUAGE` (property `app.content.language`, enum `ContentLanguage`: `ru` | `en`) is the
-installation's **default** content language: the language of a call whose client names none, of the
-preset and skill catalogues (until listings follow the request), of the connector catalog and of the
-trusted instruction blocks the platform injects into agent prompts. It is **not** the language agents
+installation's **default** content language: the language of a call whose client names none (and of
+everything outside an HTTP request), of the stored connector rows and of the trusted instruction
+blocks the platform injects into agent prompts. It is **not** the language agents
 reply in — that follows the user and is stated in the instructions themselves. A typo in the value
 fails startup (the property binds to an enum).
 
@@ -39,19 +39,26 @@ ones), which `SystemPresetBootstrapTest` checks for the seeds.
   folder, seed-only-if-missing keyed by `(name, language)`; a record carries its `language` (a
   preset always, a skill may be `NULL` — «every catalogue»: user skills and system ones not written
   for an audience). A skill name is resolved in a language — that language's version, else the
-  language-less one (`SkillRepository.findByNamesInLanguage`). Changing `APP_CONTENT_LANGUAGE` changes
-  which catalogue the listings show, not what is stored. An agent carries its own `language` (from its
-  preset, else from the request at creation) and never follows a switch: preset `instructions` are
-  copied into it, skills are bound by ID.
+  language-less one (`SkillRepository.findByNamesInLanguage`). Which catalogue a listing shows is the
+  request's language. An agent carries its own `language` — the catalogue it was created from, the
+  preset's being looked up there — and never follows a switch: preset `instructions` are copied into
+  it, skills are bound by ID.
 - **The request's language** is `Accept-Language`, read by `ContentLanguageResolver` (the best
   supported primary subtag by weight; none, or outside an HTTP request — the default). The header is
   read directly rather than through Spring's `LocaleResolver`, whose locale also drives validation
-  messages. Today it decides only the language of an agent created without a preset.
-- **Connector catalog — follows the property.** `ConnectorBootstrap` upserts `connectors` rows on
-  every start, so `name`/`description` move to the new language after a restart, with no migration.
-  English stays in the code (`connectorName()`/`connectorDescription()`) as the last-resort fallback,
+  messages. It decides the gallery (`/manage/agent-presets/`, `/all/`), the public skill listing,
+  the preset an agent is created from, the catalogue an admin creates a preset or a system skill in,
+  and the connector and taxonomy captions. Reading it marks the response `Vary: Accept-Language`.
+  The platform connector's `list_presets`/`list_skills`/`create_agent` have no header and use the
+  calling agent's language instead.
+- **Connector catalog — stored in the property's language, answered in the request's.**
+  `ConnectorBootstrap` upserts `connectors` rows on every start in `APP_CONTENT_LANGUAGE`; `?search=`,
+  the listing's order and the platform connector read them. `/manage/connectors/` answers in the
+  request's language through `ConnectorLabels`, which falls back to the English in the code — the
+  handler's, or `StaticConnector` for `app`/`claude-code` — never to the row. English stays in the code (`connectorName()`/`connectorDescription()`) as the last-resort fallback,
   which is why there is deliberately no `seed/texts/en/connectors.properties`; `ConnectorTextsTest`
-  enforces that every registered code has a translation in every other language.
+  enforces that every registered code has a translation in every other language. Taxonomy labels
+  (`TaxonomyTexts`) are not stored at all and follow the request the same way.
 - **Prompt blocks — follow the property.** Resolved per run in `RunContextService`, so a restart is
   enough. Keys live in `PromptTexts`: `run.trigger.guidance` (autonomous event handling),
   `run.tool-call.guidance` (never imitate a tool call in text), `run.attachment.guidance`

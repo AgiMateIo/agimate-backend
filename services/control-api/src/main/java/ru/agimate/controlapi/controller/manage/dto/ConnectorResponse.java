@@ -21,15 +21,12 @@ public record ConnectorResponse(
         @Schema(description = "Integration-specific metadata; populated only for integration connectors with a handler", nullable = true)
         IntegrationMeta integrationMeta
 ) {
-    public static ConnectorResponse from(Connector connector) {
-        return from(connector, null);
-    }
-
-    public static ConnectorResponse from(Connector connector, IntegrationMeta integrationMeta) {
+    public static ConnectorResponse from(Connector connector, String name, String description,
+                                         IntegrationMeta integrationMeta) {
         return new ConnectorResponse(
                 connector.getCode(),
-                connector.getName(),
-                connector.getDescription(),
+                name,
+                description,
                 connector.traits(),
                 integrationMeta
         );
