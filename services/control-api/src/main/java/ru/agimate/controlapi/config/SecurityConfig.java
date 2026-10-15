@@ -51,6 +51,7 @@ import ru.agimate.controlapi.controller.manage.ManageWebchatController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.controlapi.controller.manage.admin.ManageAdminPaths;
 import ru.agimate.controlapi.controller.mcp.McpController;
+import ru.agimate.controlapi.controller.catalog.PublicCatalogController;
 import ru.agimate.controlapi.controller.files.FileDownloadController;
 import ru.agimate.controlapi.controller.webhook.ConnectionWebhookController;
 import ru.agimate.controlapi.security.AgentAuthFilter;
@@ -249,7 +250,9 @@ public class SecurityConfig {
                         "/.well-known/**",
                         "/oauth/**",
                         // Authentication is the HMAC signature in the query (exp+sig), not Spring Security.
-                        FileDownloadController.PATH + "/**"
+                        FileDownloadController.PATH + "/**",
+                        // The site's catalogue pages: descriptions only, see PublicCatalogService.
+                        PublicCatalogController.PATH + "/**"
                 ).permitAll()
                 .anyRequest().authenticated()
         );

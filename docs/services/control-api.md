@@ -18,7 +18,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | **Connector Auth** | `X-App-Auth-Key: <key>` | `/app/**` — connected-app endpoints |
 | **API Key** | `X-Api-Key: <key>` | `/agent/**` — agent API endpoints |
 | **JWT** | `Authorization: Bearer <jwt>` | `/manage/**` — management endpoints (`/manage/admin/**` — ADMIN only, see [Админский раздел](#админский-раздел-manageadmin)) |
-| **Public** | — | `/`, `/webhook/**`, `/actuator/health` |
+| **Public** | — | `/`, `/webhook/**`, `/actuator/health`, `/public/catalog/**` — каталог пресетов агентов и навыков для сайта, только описания ([decisions/public-catalog.md](../decisions/public-catalog.md)) |
 
 ## Environment Variables
 
