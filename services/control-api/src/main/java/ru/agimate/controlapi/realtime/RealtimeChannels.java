@@ -26,15 +26,4 @@ public class RealtimeChannels {
     public static String app(UUID appId) {
         return "app:" + appId;
     }
-
-    /**
-     * One conversation of the webchat.
-     *
-     * @deprecated the conversation's messages go to {@link #user}; this channel stays until the web
-     *             and Android clients have moved over (docs/decisions/realtime-notifications.md)
-     */
-    @Deprecated
-    public static String webchat(UUID sessionId) {
-        return "webchat:" + sessionId;
-    }
 }

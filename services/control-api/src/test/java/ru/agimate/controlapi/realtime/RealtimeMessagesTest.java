@@ -20,7 +20,6 @@ import ru.agimate.controlapi.realtime.RealtimeEvent.WebchatMessageRecorded;
 import ru.agimate.controlapi.realtime.RealtimeMessages.Message;
 import ru.agimate.controlapi.realtime.dto.CentrifugoMessage;
 import ru.agimate.controlapi.realtime.dto.ToolCallPayload;
-import ru.agimate.controlapi.realtime.dto.WebchatActivityPayload;
 import ru.agimate.controlapi.realtime.dto.WebchatMessagePayload;
 import ru.agimate.controlapi.controller.manage.dto.agentrequest.AgentRequestResponse;
 import ru.agimate.controlapi.service.dto.AgentMessage;
@@ -28,7 +27,6 @@ import ru.agimate.controlapi.service.session.SessionRows;
 import ru.agimate.controlapi.service.team.AgentRequestQueryService;
 import ru.agimate.controlapi.service.team.AgentRequestQueryService.TeamRequest;
 import ru.agimate.controlapi.service.webchat.ContactRows;
-import ru.agimate.controlapi.service.webchat.WebchatPreviews;
 import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
@@ -130,30 +128,18 @@ class RealtimeMessagesTest {
         }
 
         @Test
-        @DisplayName("ответ агента — в user:, в старый webchat:{id} и бейджем с обрезанным превью")
-        @SuppressWarnings("deprecation")
-        void answerGoesEverywhere() {
-            String longText = "а".repeat(WebchatPreviews.MAX_LENGTH + 20);
+        @DisplayName("сообщение — одной публикацией в user: с тегами переписки")
+        void onlyUserChannel() {
+            for (WebchatMessageRecorded e : List.of(message("AGENT", "answer", "готово", null),
+                    message("AGENT", "progress", "думаю", null), message("USER", null, "привет", null))) {
+                List<Message> out = messages.render(e);
 
-            List<Message> out = messages.render(message("AGENT", "answer", longText, null));
-
-            assertEquals(3, out.size());
-            assertEquals(USER, out.get(0).channel());
-            assertEquals("webchat.message", type(out.get(0)));
-            assertEquals(Map.of("entity", "webchat.message", "agentId", AGENT_ID.toString(),
-                    "sessionId", SESSION_ID.toString()), out.get(0).tags());
-            assertEquals("webchat:" + SESSION_ID, out.get(1).channel());
-            assertEquals("webchat_message", type(out.get(1)));
-            assertEquals("webchat_activity", type(out.get(2)));
-            WebchatActivityPayload badge = (WebchatActivityPayload) payload(out.get(2));
-            assertEquals(WebchatPreviews.MAX_LENGTH, badge.preview().length());
-        }
-
-        @Test
-        @DisplayName("progress и своё сообщение бейдж не поднимают")
-        void noBadge() {
-            assertEquals(2, messages.render(message("AGENT", "progress", "думаю", null)).size());
-            assertEquals(2, messages.render(message("USER", null, "привет", null)).size());
+                assertEquals(1, out.size());
+                assertEquals(USER, out.get(0).channel());
+                assertEquals("webchat.message", type(out.get(0)));
+                assertEquals(Map.of("entity", "webchat.message", "agentId", AGENT_ID.toString(),
+                        "sessionId", SESSION_ID.toString()), out.get(0).tags());
+            }
         }
 
         @Test

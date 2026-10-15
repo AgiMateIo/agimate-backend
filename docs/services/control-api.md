@@ -109,7 +109,7 @@ Common error envelope for every group:
 `WebchatNotificationListener` ловит его **после коммита** и **вне потока доставки**
 (`notificationExecutor`, виртуальные нити) и зовёт `POST /internal/notifications` у user-api с общим
 секретом в заголовке `X-S2S-Key`. Payload — только `data`: `type`
-(`webchat_message`, то же имя, что у события Centrifugo), `sessionId`, `agentId`, `agentName`,
+(`webchat_message`), `sessionId`, `agentId`, `agentName`,
 `messageId`, `preview` (выключается `app.notifications.preview`).
 
 Вызов «выстрелил и забыл»: доставка уведомления и так best-effort, а потерянное чинится следующим

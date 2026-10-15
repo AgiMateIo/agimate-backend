@@ -1,7 +1,7 @@
 ---
 status: partial
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-10-15
 ---
 
 # Живые события сессий в `user:{userId}`
@@ -95,4 +95,4 @@ read-only): после коммита контекст завершённой е
 - [x] Документы: `contracts/centrifugo-channels.md`, `connectors/webchat.md`
 - [x] Дельта клиентам: [tmpspec/sessions-frontend.md](../tmpspec/sessions-frontend.md) (веб-фронт; Android берёт разделы 2–3 оттуда же)
 - [ ] Живой прогон: переименование, заголовок от компакции, ответ агента — события в `user:`
-- [ ] Удалить `webchat_activity` после выпуска обоих клиентов
+- [x] Удалить `webchat_activity` после выпуска обоих клиентов — 2026-10-15

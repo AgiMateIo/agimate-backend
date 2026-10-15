@@ -33,8 +33,7 @@ progress-роль `Channels` тем же каналом, и worker шлёт и �
 `handleOutput` не вызывает тулов: `WebchatMessagePublisher` пишет строку в `webchat_messages`
 (идемпотентно по `(session_id, message_id)` — worker шлёт детерминированные id, DBOS-replay не
 дублирует) и после коммита публикует событие в личный канал пользователя `user:{userId}` — тип
-`webchat.message`, теги `entity=webchat.message`, `agentId`, `sessionId`. До перехода клиентов то же
-сообщение уходит и в прежний канал `webchat:{sessionId}` типом `webchat_message`:
+`webchat.message`, теги `entity=webchat.message`, `agentId`, `sessionId`:
 
 ```json
 { "type": "webchat.message",
@@ -71,9 +70,8 @@ PostgreSQL совпадает с временным, поэтому сравне
 
 **Бейдж, когда открыт список, а не чат.** Сообщение, не `progress`, двигает строку сессии и строку
 контакта — события `session.updated` и `webchat.agent.updated` в том же `user:{userId}` со строкой
-целиком ([decisions/session-events.md](../decisions/session-events.md)). Прежнее тонкое
-`webchat_activity` публикуется параллельно до перехода клиентов
-(`docs/contracts/centrifugo-channels.md`). Потерянный бейдж чинится следующим листингом.
+целиком ([decisions/session-events.md](../decisions/session-events.md)). Потерянный бейдж чинится
+следующим листингом.
 
 ## Списки: что несёт строка
 

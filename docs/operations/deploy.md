@@ -356,11 +356,10 @@ Key configuration options in `config.yaml`:
 |-----------|--------------------------------------------|------------------------------------|
 | `app`     | `app:{appId}`                              | Tool-call push to connected apps   |
 | `agent`   | `agent:{apiKeyPubId}`                      | Agent events (tool results, triggers) |
-| `user`    | `user:{userId}`                            | User events for the management UI  |
-| `webchat` | `webchat:{sessionId}`                      | Webchat session messages (history+recovery enabled) |
+| `user`    | `user:{userId}`                            | Every user notification, webchat messages included (history+recovery enabled) |
 
 - Publish/Subscribe restricted to server-side only
-- History: 100 messages, 24h TTL
+- History differs per namespace — see `docs/contracts/centrifugo-channels.md`
 
 ### Production Deployment
 

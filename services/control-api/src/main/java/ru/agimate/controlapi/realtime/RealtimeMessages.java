@@ -12,15 +12,12 @@ import ru.agimate.controlapi.realtime.RealtimeEvent.BoardTaskChanged;
 import ru.agimate.controlapi.realtime.RealtimeEvent.SessionChanged;
 import ru.agimate.controlapi.realtime.RealtimeEvent.WebchatMessageRecorded;
 import ru.agimate.controlapi.realtime.dto.CentrifugoMessage;
-import ru.agimate.controlapi.realtime.dto.WebchatActivityPayload;
 import ru.agimate.controlapi.realtime.dto.WebchatMessagePayload;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
 import ru.agimate.controlapi.service.session.SessionRows;
 import ru.agimate.controlapi.service.team.AgentRequestQueryService;
 import ru.agimate.controlapi.service.webchat.ContactRows;
 import ru.agimate.controlapi.service.webchat.WebchatAttachment;
-import ru.agimate.controlapi.service.webchat.WebchatMessagePublisher;
-import ru.agimate.controlapi.service.webchat.WebchatPreviews;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.util.ArrayList;
@@ -42,12 +39,6 @@ public class RealtimeMessages {
     public static final String WEBCHAT_AGENT_UPDATED = "webchat.agent.updated";
     public static final String WEBCHAT_MESSAGE = "webchat.message";
     public static final String TOOL_CALL = "toolCall";
-    /** @deprecated the type in {@code webchat:{sessionId}}, which goes with that channel */
-    @Deprecated
-    public static final String WEBCHAT_MESSAGE_LEGACY = "webchat_message";
-    /** @deprecated superseded by {@link #WEBCHAT_AGENT_UPDATED} */
-    @Deprecated
-    public static final String WEBCHAT_ACTIVITY = "webchat_activity";
 
     private final AgentSessionRepository agentSessionRepository;
     private final SessionRows sessionRows;
@@ -101,24 +92,13 @@ public class RealtimeMessages {
     }
 
     /** Links to attachments are signed here, at sending: a stored one would have expired. */
-    @SuppressWarnings("deprecation")
     private List<Message> webchatMessage(WebchatMessageRecorded e) {
         WebchatMessagePayload payload = new WebchatMessagePayload(e.sessionId(), e.channelId(), e.agentId(),
                 e.messageId(), e.direction(), e.stream(), e.text(),
                 WebchatAttachment.fromStored(e.parts(), e.userId(), signedFileUrlService::issue),
                 e.createdAt());
-        String user = RealtimeChannels.user(e.userId());
-        List<Message> messages = new ArrayList<>();
-        messages.add(Message.of(user, WEBCHAT_MESSAGE, payload, Map.of("entity", "webchat.message",
-                "agentId", e.agentId().toString(), "sessionId", e.sessionId().toString())));
-        // Until the web and Android clients move over: the conversation's own channel and the badge.
-        messages.add(Message.of(RealtimeChannels.webchat(e.sessionId()), WEBCHAT_MESSAGE_LEGACY, payload, Map.of()));
-        if ("AGENT".equals(e.direction()) && !WebchatMessagePublisher.STREAM_PROGRESS.equals(e.stream())) {
-            messages.add(Message.of(user, WEBCHAT_ACTIVITY,
-                    new WebchatActivityPayload(e.agentId(), e.sessionId(), e.messageId(), e.stream(),
-                            WebchatPreviews.shorten(e.text()), e.createdAt()),
-                    Map.of("entity", "webchat.message", "agentId", e.agentId().toString())));
-        }
-        return messages;
+        return List.of(Message.of(RealtimeChannels.user(e.userId()), WEBCHAT_MESSAGE, payload,
+                Map.of("entity", "webchat.message",
+                        "agentId", e.agentId().toString(), "sessionId", e.sessionId().toString())));
     }
 }

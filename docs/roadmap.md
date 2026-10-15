@@ -23,13 +23,9 @@
   в user-prompt и ищет по прошлым (`search_messages`); длинное окно сжимается сводкой — SYSTEM-ходом
   журнала, — и та же скрытая джоба ставит заголовок сессии. Считает control-api разовым вызовом
   модели `ROUTINE`, без агентного рана. Заголовок и прочие изменения строки доезжают до клиентов
-  живыми событиями `session.*` в `user:{userId}`; `webchat_activity` устаревает.
+  живыми событиями `session.*` в `user:{userId}`.
   → [agent-sessions-connector.md](decisions/agent-sessions-connector.md),
   [context-compaction.md](decisions/context-compaction.md), [session-events.md](decisions/session-events.md)
-
-- **Уведомления через Centrifugo в одном месте.** Пакет `realtime`: имена каналов, типизированные
-  события, публикация только после коммита, сбой ни на что не влияет; `webchat:` сливается в `user:`
-  с тегами. → [realtime-notifications.md](decisions/realtime-notifications.md)
 
 ## Следующее
 

@@ -6,8 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Payload of a webchat message: {@code webchat.message} in {@code user:{userId}}, and
- * {@code webchat_message} in {@code webchat:{sessionId}} until the clients move over. Delivered
+ * Payload of a webchat message: {@code webchat.message} in {@code user:{userId}}. Delivered
  * at-least-once — the frontend deduplicates by {@code messageId}.
  *
  * @param direction {@code USER} (an echo of the user's message) or {@code AGENT}

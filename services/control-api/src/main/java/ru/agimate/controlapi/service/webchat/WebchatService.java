@@ -8,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
@@ -22,8 +21,6 @@ import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
-import ru.agimate.controlapi.realtime.CentrifugoTokens;
-import ru.agimate.controlapi.realtime.RealtimeChannels;
 import ru.agimate.controlapi.service.channel.ChannelService;
 import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
@@ -68,7 +65,6 @@ public class WebchatService {
     private final TriggerRouterService triggerRouterService;
     private final WebchatMessagePublisher webchatMessagePublisher;
     private final WebchatMessageRepository webchatMessageRepository;
-    private final CentrifugoTokens centrifugoTokens;
     private final FileStorageService fileStorageService;
 
     /** Ceiling on attachments in one message — protection of the prompt and the quota from abuse. */
@@ -193,20 +189,6 @@ public class WebchatService {
             }
             return (Map<String, Object>) m;
         }).toList();
-    }
-
-    /**
-     * Centrifugo tokens for the channel {@code webchat:{sessionId}} — this session's live events.
-     *
-     * @deprecated the conversation's messages go to {@code user:{userId}} now; this endpoint goes with
-     *             the channel once the web and Android clients have moved over
-     */
-    @Deprecated
-    @Transactional(readOnly = true)
-    @SuppressWarnings("deprecation")
-    public CentrifugoTokenResponse token(UUID userId, UUID sessionId) {
-        requireOwnedWebchatSession(userId, sessionId);
-        return centrifugoTokens.issueTokens(userId.toString(), RealtimeChannels.webchat(sessionId));
     }
 
     private Agent requireOwnedAgent(UUID userId, UUID agentId) {

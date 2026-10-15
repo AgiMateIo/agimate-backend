@@ -56,13 +56,3 @@ channel:
       history_ttl: 21600s
       force_push_join_leave: false
       force_recovery: true
-
-    # Deprecated: webchat messages go to the user namespace as webchat.message. Kept only until the
-    # web and Android clients stop subscribing to webchat:{sessionId}, then removed with its token.
-    - name: webchat
-      allow_subscribe_for_client: false
-      allow_publish_for_client: false
-      history_size: 100
-      history_ttl: 86400s
-      force_push_join_leave: false
-      force_recovery: true

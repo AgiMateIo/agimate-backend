@@ -48,7 +48,7 @@ public class CentrifugoTokens {
      *
      * <p><b>Authorization is the caller's responsibility.</b> A subscription token <i>is</i> the
      * access grant to a channel, so callers must first verify the principal may subscribe to
-     * {@code channel} (e.g. own the session behind {@code webchat:{sessionId}}). This method only signs.
+     * {@code channel} (e.g. be the user behind {@code user:{userId}}). This method only signs.
      */
     public CentrifugoTokenResponse issueTokens(String subject, String channel) {
         long ttl = centrifugoProperties.getTokenTtlSeconds();

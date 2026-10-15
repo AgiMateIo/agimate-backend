@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
@@ -50,7 +49,7 @@ public class ManageWebchatController {
 
     @Operation(summary = "Send a message into a session",
             description = "Persists the message, echoes it to Centrifugo and routes it to the agent; "
-                    + "the reply arrives as webchat_message events on webchat:{sessionId}")
+                    + "the reply arrives as webchat.message events in the user's channel user:{userId}")
     @PostMapping("/sessions/{id}/messages")
     public SuccessResponse<WebchatSendResponse> sendMessage(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -72,19 +71,5 @@ public class ManageWebchatController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(webchatService.listContacts(userId, page, size)));
-    }
-
-    @Operation(summary = "Get Centrifugo tokens for the session channel webchat:{sessionId}",
-            description = "Deprecated: the conversation's messages come as webchat.message in the user's own "
-                    + "channel (POST /manage/centrifugo/token); this channel and endpoint go once clients move over",
-            deprecated = true)
-    @PostMapping("/sessions/{id}/token")
-    @SuppressWarnings("deprecation")
-    public SuccessResponse<CentrifugoTokenResponse> token(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(webchatService.token(userId, id));
     }
 }

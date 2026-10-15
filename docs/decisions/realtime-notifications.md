@@ -1,7 +1,7 @@
 ---
-status: partial
+status: implemented
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-10-15
 ---
 
 # Уведомления через Centrifugo — в одном месте и только после коммита
@@ -176,5 +176,5 @@ realtime/
 6. [x] **Документы.** `contracts/centrifugo-channels.md`, `connectors/webchat.md`; дельта клиентам в
    `docs/tmpspec/` — `realtime-notifications-clients.md` (все события `user:` и как на них
    реагировать) и `sessions-frontend.md` (заголовки, `ROUTINE`, навык).
-7. [ ] **Удаление старого** после выпуска веба и Android: `webchat:`, его неймспейс и эндпойнт токена,
-   `webchat_activity`.
+7. [x] **Удаление старого** после выпуска веба и Android: `webchat:`, его неймспейс и эндпойнт токена,
+   `webchat_activity` — 2026-10-15, веб и Android слушают только `user:`.
