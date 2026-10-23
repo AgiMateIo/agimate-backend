@@ -61,8 +61,9 @@ public class OAuthCredentials {
     }
 
     /**
-     * The secret rewritten with a fresh grant. A whole new map every time — {@code SecretService}
-     * encrypts the full set of fields at once, so «append just the tokens» does not exist here.
+     * The credentials rewritten with a fresh grant. A whole new map every time —
+     * {@link ru.agimate.controlapi.connectors.core.ConnectionCredentialStore} writes the full set of
+     * fields at once, so «append just the tokens» does not exist here.
      */
     public static Map<String, String> withTokens(Map<String, String> credentials, OAuthTokens tokens) {
         Map<String, String> updated = new LinkedHashMap<>(credentials);

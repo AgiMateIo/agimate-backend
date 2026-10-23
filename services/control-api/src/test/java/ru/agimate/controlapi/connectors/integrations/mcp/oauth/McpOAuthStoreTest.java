@@ -8,6 +8,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.agimate.controlapi.connectors.core.ConnectionCredentialStore;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
@@ -15,6 +17,7 @@ import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.secret.SecretService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,7 +52,8 @@ class McpOAuthStoreTest {
 
     @BeforeEach
     void setUp() {
-        store = new McpOAuthStore(connectionRepository, secretRepository, secretService);
+        store = new McpOAuthStore(connectionRepository,
+                new ConnectionCredentialStore(new ConnectorRegistry(List.of()), secretRepository, secretService));
         connection = Connection.builder()
                 .id(CONNECTION_ID)
                 .connectorCode("mcp")

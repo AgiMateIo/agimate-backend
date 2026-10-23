@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.agimate.controlapi.connectors.core.ConnectionCredentialStore;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -53,7 +55,8 @@ class McpToolDiscoveryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new McpToolDiscoveryService(connectionRepository, secretRepository, secretService,
+        service = new McpToolDiscoveryService(connectionRepository,
+                new ConnectionCredentialStore(new ConnectorRegistry(List.of()), secretRepository, secretService),
                 mcpClient, connectionToolRepository);
     }
 

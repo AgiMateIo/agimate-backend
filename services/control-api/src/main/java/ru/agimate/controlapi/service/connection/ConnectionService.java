@@ -12,6 +12,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.CryptoUtils;
 import ru.agimate.common.util.UUIDUtils;
+import ru.agimate.controlapi.connectors.core.ConnectionCredentialStore;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.FullCodes;
@@ -19,6 +20,7 @@ import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -27,7 +29,6 @@ import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
-import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.time.LocalDateTime;
@@ -40,8 +41,7 @@ import java.util.UUID;
  * Lifecycle of connector instances (telegram/mcp) on top of the single {@code connections} registry.
  * Creation, the secret and the test are valid for integration connectors (a type with
  * {@code credentialFields}); the listing returns every connection of the user, with filters on real
- * fields. Outbound credentials live in {@code secrets} (envelope) and are addressed by
- * {@code connection.secretId}.
+ * fields. Outbound credentials are read and written through {@link ConnectionCredentialStore}.
  */
 @Slf4j
 @Service
@@ -49,7 +49,6 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ConnectionService {
 
-    private static final String SECRET_ENTITY = "connection";
     /** Secret for validating incoming webhooks (a single value, AAD owner = connection.id). */
     public static final String WEBHOOK_SECRET_ENTITY = "connection_webhook";
 
@@ -57,11 +56,11 @@ public class ConnectionService {
     private String webhookBaseUrl;
 
     private final ConnectionRepository connectionRepository;
-    private final SecretRepository secretRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorEnvFactory envFactory;
     private final SecretService secretService;
+    private final ConnectionCredentialStore credentialStore;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -74,6 +73,7 @@ public class ConnectionService {
         }
 
         var handler = integrationHandler(connectorCode);
+        credentials = CredentialField.normalize(handler.getCredentialFields(), credentials);
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -106,8 +106,7 @@ public class ConnectionService {
 
         Map<String, String> stored = new LinkedHashMap<>(credentials);
         stored.putAll(validationResult.derivedCredentials());
-        Secret secret = secretService.store(SECRET_ENTITY, connection.getId(), stored);
-        connection.setSecretId(secret.getId());
+        credentialStore.write(connection, stored);
         if (handler.supportsWebhooks()) {
             Secret webhookSecret = secretService.storeValue(
                     WEBHOOK_SECRET_ENTITY, connection.getId(), CryptoUtils.randomHex(32));
@@ -208,6 +207,7 @@ public class ConnectionService {
                             + "editing credentials");
         }
         var handler = integrationHandler(connection.getConnectorCode());
+        credentials = CredentialField.normalize(handler.getCredentialFields(), credentials);
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -221,9 +221,7 @@ public class ConnectionService {
                             + " (expected: " + connection.getSubCode() + ")");
         }
 
-        Secret secret = secretRepository.findById(connection.getSecretId())
-                .orElseThrow(() -> new NotFoundStatusException("Secret not found for connection " + id));
-        secretService.update(secret, connection.getId(), credentials);
+        credentialStore.write(connection, credentials);
 
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/" + connection.getId();
@@ -272,12 +270,7 @@ public class ConnectionService {
     }
 
     private Map<String, String> revealCredentials(Connection connection) {
-        if (connection.getSecretId() == null) {
-            return Map.of();
-        }
-        Secret secret = secretRepository.findById(connection.getSecretId())
-                .orElseThrow(() -> new NotFoundStatusException("Secret not found for connection " + connection.getId()));
-        return secretService.reveal(secret, connection.getId());
+        return credentialStore.read(connection);
     }
 
     private IntegrationConnectorHandler integrationHandler(String connectorCode) {

@@ -4,13 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.controlapi.connectors.core.ConnectionCredentialStore;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
-import ru.agimate.controlapi.database.repositories.SecretRepository;
-import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -26,8 +24,8 @@ import java.util.UUID;
  * {@link McpOAuthService} and not a private method of it — a self-invocation would sail straight past
  * the proxy and run without the transaction the annotation promises.
  *
- * <p>{@code SecretService} re-encrypts the whole set of fields at once, so «append just the tokens»
- * does not exist: every write here is read-modify-write.
+ * <p>{@link ConnectionCredentialStore} replaces the whole set of fields at once, so «append just the
+ * tokens» does not exist: every write here is read-modify-write.
  */
 @Slf4j
 @Service
@@ -36,8 +34,7 @@ import java.util.UUID;
 public class McpOAuthStore {
 
     private final ConnectionRepository connectionRepository;
-    private final SecretRepository secretRepository;
-    private final SecretService secretService;
+    private final ConnectionCredentialStore credentialStore;
 
     public Connection connection(UUID connectionId) {
         return findConnection(connectionId)
@@ -52,7 +49,7 @@ public class McpOAuthStore {
         if (connection.getSecretId() == null) {
             throw new ConnectorException("Connection has no credentials: " + connection.getId());
         }
-        return secretService.reveal(secret(connection), connection.getId());
+        return credentialStore.read(connection);
     }
 
     /** Parks the PKCE verifier in the secret and the one-time {@code state} on the row. */
@@ -60,7 +57,7 @@ public class McpOAuthStore {
     public void startFlow(Connection connection, String state, LocalDateTime stateExpiresAt, String verifier) {
         Map<String, String> updated = new LinkedHashMap<>(credentials(connection));
         updated.put(OAuthCredentials.CODE_VERIFIER, verifier);
-        secretService.update(secret(connection), connection.getId(), updated);
+        credentialStore.write(connection, updated);
 
         connection.setOauthState(state);
         connection.setOauthStateExpiresAt(stateExpiresAt);
@@ -70,8 +67,7 @@ public class McpOAuthStore {
     /** A grant obtained by the user: unconditional, the authorisation just happened. */
     @Transactional
     public void storeGrant(Connection connection, Map<String, String> credentials, OAuthTokens tokens) {
-        secretService.update(secret(connection), connection.getId(),
-                OAuthCredentials.withTokens(credentials, tokens));
+        credentialStore.write(connection, OAuthCredentials.withTokens(credentials, tokens));
         connection.setAuthStatus(ConnectionAuthStatus.AUTHORIZED);
         connection.setOauthExpiresAt(tokens.expiresAt());
         connectionRepository.save(connection);
@@ -118,7 +114,7 @@ public class McpOAuthStore {
 
         Map<String, String> updated = new LinkedHashMap<>(credentials);
         updated.put(OAuthCredentials.SCOPE_REQUESTED, String.join(" ", scopes));
-        secretService.update(secret(connection), connection.getId(), updated);
+        credentialStore.write(connection, updated);
     }
 
     private static Set<String> scopeSet(String scope) {
@@ -146,7 +142,7 @@ public class McpOAuthStore {
         }
         Map<String, String> updated = new LinkedHashMap<>(current);
         updated.remove(OAuthCredentials.REFRESH_TOKEN);
-        secretService.update(secret(connection), connection.getId(), updated);
+        credentialStore.write(connection, updated);
         connection.setAuthStatus(ConnectionAuthStatus.AUTH_EXPIRED);
         connectionRepository.save(connection);
         return true;
@@ -164,11 +160,5 @@ public class McpOAuthStore {
                 connectionRepository.save(connection);
             }
         });
-    }
-
-    private Secret secret(Connection connection) {
-        return secretRepository.findById(connection.getSecretId())
-                .orElseThrow(() -> new ConnectorException(
-                        "Secret not found for connection " + connection.getId()));
     }
 }

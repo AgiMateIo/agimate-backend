@@ -118,7 +118,7 @@ class RunContextServiceTest {
         // A mock answers null for a record; every build() reads the history, so the empty one is the default.
         lenient().when(historyAssembler.assemble(any(), anyInt(), any())).thenReturn(RunHistory.empty());
         ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler, subagentsHandler));
-        ConnectorEnvFactory envFactory = new ConnectorEnvFactory(null, null);
+        ConnectorEnvFactory envFactory = new ConnectorEnvFactory(null, null, null);
         catalog = new RunCatalog(agentRunRepository, agentSessionRepository, agentRepository, agentSkillRepository,
                 agentSkillService, skillRepository, connectionRepository, connectorRepository,
                 new ToolDefinitionService(connectorRepository, registry, connectionRepository, connectionToolRepository),

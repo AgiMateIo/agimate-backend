@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectionCredentialStore;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
@@ -72,7 +73,8 @@ class JobExecutionServiceTest {
         when(internalHandler.connectorCode()).thenReturn("board");
         ConnectorRegistry registry = new ConnectorRegistry(java.util.List.of(integrationHandler, internalHandler));
         service = new JobExecutionService(registry, connectionRepository,
-                new ConnectorEnvFactory(secretRepository, secretService));
+                new ConnectorEnvFactory(secretRepository, secretService,
+                        new ConnectionCredentialStore(registry, secretRepository, secretService)));
     }
 
     private ConnectorJob row(String connectorCode, String connectionId) {

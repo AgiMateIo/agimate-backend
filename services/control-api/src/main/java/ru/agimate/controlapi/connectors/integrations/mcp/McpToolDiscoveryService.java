@@ -6,13 +6,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.controlapi.service.secret.SecretService;
+import ru.agimate.controlapi.connectors.core.ConnectionCredentialStore;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
-import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
-import ru.agimate.controlapi.database.repositories.SecretRepository;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,8 +33,7 @@ import java.util.UUID;
 public class McpToolDiscoveryService {
 
     private final ConnectionRepository connectionRepository;
-    private final SecretRepository secretRepository;
-    private final SecretService secretService;
+    private final ConnectionCredentialStore credentialStore;
     private final McpClient mcpClient;
     private final ConnectionToolRepository connectionToolRepository;
 
@@ -49,8 +46,7 @@ public class McpToolDiscoveryService {
         if (connection == null || !McpConnectorService.CONNECTOR_CODE.equals(connection.getConnectorCode())) {
             return null;
         }
-        Map<String, String> decrypted = revealCredentials(connection);
-        McpClient.ServerConfig config = McpUtils.toServerConfig(decrypted);
+        McpClient.ServerConfig config = McpUtils.toServerConfig(credentialStore.read(connection));
         List<JsonNode> rawTools = mcpClient.listTools(config);
         return rawTools.stream()
                 .map(tool -> McpToolMapper.toEntity(connectionId, tool))
@@ -100,13 +96,5 @@ public class McpToolDiscoveryService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int deleteByConnectionId(UUID connectionId) {
         return connectionToolRepository.deleteByConnectionId(connectionId);
-    }
-
-    private Map<String, String> revealCredentials(Connection connection) {
-        if (connection.getSecretId() == null) {
-            return Map.of();
-        }
-        Secret secret = secretRepository.findById(connection.getSecretId()).orElse(null);
-        return secret == null ? Map.of() : secretService.reveal(secret, connection.getId());
     }
 }

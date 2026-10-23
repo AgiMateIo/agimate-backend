@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- The open part of a connection's credentials (docs/decisions/skills-for-connection.md): the
+         fields its connector does not declare SECRET. Before this every field sat inside the encrypted
+         secret, so a skill's declared params could be compared with a connection only in code. The
+         secret keeps the SECRET fields and whatever the connector derived; a key lives in one part.
+
+         Existing rows start empty, which reads exactly as before; Liquibase cannot decrypt a secret, so
+         a startup backfill in control-api moves their open fields out. -->
+    <changeSet id="add-connections-params" author="agimate">
+        <addColumn tableName="connections">
+            <column name="params" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- Whether a skill's connectors declare a requirement this connection serves: the code matches and
+         the connection's open params contain the requirement's. Empty or absent params mean any
+         instance of the code. A function rather than SQL in the code, because jsonb_array_elements is
+         not callable from the criteria API and a function is (as jsonb_contains is). The Java spelling
+         of the same rule is ConnectorRequirement.fits. -->
+    <changeSet id="create-skill-fits-connection-function" author="agimate">
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION skill_fits_connection(connectors JSONB, connector_code TEXT, params JSONB)
+                RETURNS BOOLEAN
+                LANGUAGE sql
+                IMMUTABLE
+                PARALLEL SAFE
+            AS $$
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(connectors) AS requirement
+                    WHERE requirement ->> 'code' = connector_code
+                      AND params @> coalesce(requirement -> 'params', '{}'::jsonb)
+                )
+            $$;
+        </sql>
+        <rollback>
+            DROP FUNCTION skill_fits_connection(JSONB, TEXT, JSONB);
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

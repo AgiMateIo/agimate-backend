@@ -11,9 +11,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * The only place a {@link ConnectorEnv} is assembled from platform entities. Outbound credentials are
- * decrypted from {@code secrets} by {@code connection.secretId} (with the AAD bound to
- * {@code connection.id}).
+ * The only place a {@link ConnectorEnv} is assembled from platform entities. Outbound credentials come
+ * from {@link ConnectionCredentialStore}; the webhook secret is decrypted here, by
+ * {@code connection.webhookSecretId} (with the AAD bound to {@code connection.id}).
  */
 @Component
 @RequiredArgsConstructor
@@ -21,11 +21,12 @@ public class ConnectorEnvFactory {
 
     private final SecretRepository secretRepository;
     private final SecretService secretService;
+    private final ConnectionCredentialStore credentialStore;
 
     /** The full env of a connector instance: with credentials decrypted (tools, jobs). */
     public ConnectorEnv forConnection(Connection connection, UUID agentId, UUID runId, UUID channelId) {
         // Tools do not need the webhook secret — we do not decrypt it on every dispatch.
-        return build(connection, decryptCredentials(connection), agentId, runId, channelId, null);
+        return build(connection, credentialStore.read(connection), agentId, runId, channelId, null);
     }
 
     /** Env with an already-known credentials map — lifecycle calls (setup/remove webhook). */
@@ -51,16 +52,6 @@ public class ConnectorEnvFactory {
     public static ConnectorEnv listing(UUID connectionId) {
         return new ConnectorEnv(connectionId == null ? null : connectionId.toString(),
                 null, null, null, null, null, Map.of(), null);
-    }
-
-    private Map<String, String> decryptCredentials(Connection connection) {
-        if (connection.getSecretId() == null) {
-            return Map.of();
-        }
-        Secret secret = secretRepository.findById(connection.getSecretId())
-                .orElseThrow(() -> new ConnectorException(
-                        "Secret not found for connection " + connection.getId()));
-        return secretService.reveal(secret, connection.getId());
     }
 
     private String revealWebhookSecret(Connection connection) {

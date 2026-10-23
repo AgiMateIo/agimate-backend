@@ -2,10 +2,14 @@ package ru.agimate.controlapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -63,6 +67,16 @@ public class Connection extends BaseEntity {
 
     @Column(name = "name", columnDefinition = "TEXT")
     private String name;
+
+    /**
+     * The open part of the credentials: the fields the connector does not declare SECRET. Read and
+     * written only through {@link ru.agimate.controlapi.connectors.core.ConnectionCredentialStore},
+     * which glues it with the secret; a skill's requirement is matched against it.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "params", nullable = false, columnDefinition = "JSONB")
+    @Builder.Default
+    private Map<String, String> params = new LinkedHashMap<>();
 
     /** Outbound credentials (telegram/mcp): a reference into {@code secrets}. {@code null} for internal/app. */
     @Column(name = "secret_id")
