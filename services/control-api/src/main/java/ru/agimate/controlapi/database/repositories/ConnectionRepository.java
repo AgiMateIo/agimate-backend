@@ -97,6 +97,14 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
                                      @Param("userId") UUID userId,
                                      @Param("name") String name);
 
+    /** Rows written before {@code connections.params} existed: their open fields are still inside the secret. */
+    @Query(value = """
+            SELECT * FROM connections
+            WHERE deleted_at IS NULL AND secret_id IS NOT NULL AND params = '{}'::jsonb
+              AND connector_code IN (:connectorCodes)
+            """, nativeQuery = true)
+    List<Connection> findWithoutParams(@Param("connectorCodes") Collection<String> connectorCodes);
+
     boolean existsByConnectorCodeAndUserIdAndSubCodeAndDeletedAtIsNull(
             String connectorCode, UUID userId, String subCode);
 
