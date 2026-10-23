@@ -1,7 +1,10 @@
 package ru.agimate.controlapi.database.repositories;
 
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.experimental.UtilityClass;
 import org.springframework.data.jpa.domain.Specification;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
@@ -33,6 +36,29 @@ public class SkillSpecs {
                 root.get("connectors"),
                 cb.function("jsonb_build_array", String.class,
                         cb.function("jsonb_build_object", String.class, cb.literal("code"), cb.literal(connectorCode)))));
+    }
+
+    /** One's own skills and the public ones of the catalogue — one condition, so one's own public skill comes once. */
+    public static Specification<Skill> visibleTo(UUID userId, ContentLanguage language) {
+        return ownedBy(userId).or(isPublic().and(inCatalogue(language)));
+    }
+
+    /**
+     * The connection serves one of the skill's requirements — {@code skill_fits_connection} over the
+     * connection's row, the SQL spelling of
+     * {@link ru.agimate.controlapi.database.model.ConnectorRequirement#fits}. Not indexed, as with
+     * {@link #hasConnector(String)}.
+     */
+    public static Specification<Skill> fitsConnection(UUID connectionId) {
+        return (root, query, cb) -> {
+            Subquery<Integer> fitting = query.subquery(Integer.class);
+            Root<Connection> connection = fitting.from(Connection.class);
+            fitting.select(cb.literal(1)).where(
+                    cb.equal(connection.get("id"), connectionId),
+                    cb.isTrue(cb.function("skill_fits_connection", Boolean.class,
+                            root.get("connectors"), connection.get("connectorCode"), connection.get("params"))));
+            return cb.exists(fitting);
+        };
     }
 
     /** In the catalogue of {@code language}: that language's skills and the language-less ones. */

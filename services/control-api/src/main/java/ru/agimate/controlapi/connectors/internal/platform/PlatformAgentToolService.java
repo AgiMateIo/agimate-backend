@@ -316,21 +316,35 @@ public class PlatformAgentToolService {
     }
 
     @Tool(name = "list_skills",
-            description = "List skills. scope=MINE (your own, default) or PUBLIC (shared catalog). "
+            description = "List skills. scope=MINE (your own, default), PUBLIC (shared catalog) or ALL (both). "
                     + "A skill is a SKILL.md document; use get_skill for its full body",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public SkillList listSkills(
-            @ToolParam(value = "MINE or PUBLIC (default MINE)", required = false) String scope,
+            @ToolParam(value = "MINE, PUBLIC or ALL (default MINE)", required = false) String scope,
             @ToolParam(value = "Optional search over name/description", required = false) String search,
-            @ToolParam(value = "Filter by required connector code", required = false) String connectorCode) {
+            @ToolParam(value = "Filter by required connector code", required = false) String connectorCode,
+            @ToolParam(value = "Filter by one of your connections: the skills it fits, by its connector and "
+                    + "parameters (an MCP server's URL). Exclusive with connectorCode", required = false)
+            String connectionId) {
         String scopeValue = PlatformToolsSupport.blankToNull(scope);
-        if (scopeValue != null && !"MINE".equalsIgnoreCase(scopeValue) && !"PUBLIC".equalsIgnoreCase(scopeValue)) {
-            throw new ConnectorException("Invalid scope: '" + scope + "'. Allowed: MINE, PUBLIC");
+        String listScope = scopeValue == null ? "MINE" : scopeValue.toUpperCase();
+        UUID userId = PlatformToolsSupport.userId();
+        Specification<Skill> spec = switch (listScope) {
+            case "MINE" -> SkillSpecs.ownedBy(userId);
+            case "PUBLIC" -> SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(
+                    PlatformToolsSupport.callerLanguage(agentRepository, contentLanguageResolver)));
+            case "ALL" -> SkillSpecs.visibleTo(userId,
+                    PlatformToolsSupport.callerLanguage(agentRepository, contentLanguageResolver));
+            default -> throw new ConnectorException("Invalid scope: '" + scope + "'. Allowed: MINE, PUBLIC, ALL");
+        };
+        UUID connection = PlatformToolsSupport.parseUuidOrNull(connectionId, "connectionId");
+        if (connection != null) {
+            if (PlatformToolsSupport.blankToNull(connectorCode) != null) {
+                throw new ConnectorException("connectionId and connectorCode are exclusive: "
+                        + "the connection already names its connector");
+            }
+            spec = spec.and(PlatformToolsSupport.domain(() -> skillService.fitting(connection, userId)));
         }
-        Specification<Skill> spec = "PUBLIC".equalsIgnoreCase(scopeValue)
-                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(
-                        PlatformToolsSupport.callerLanguage(agentRepository, contentLanguageResolver)))
-                : SkillSpecs.ownedBy(PlatformToolsSupport.userId());
         spec = spec.and(SkillSpecs.notDeleted());
         String searchQ = PlatformToolsSupport.blankToNull(search);
         if (searchQ != null) {

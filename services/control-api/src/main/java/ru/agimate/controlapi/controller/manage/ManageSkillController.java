@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.controller.manage;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,7 +40,8 @@ public class ManageSkillController {
     private final SkillService skillService;
 
     @Operation(summary = "List skills with optional search, connector, category and tag filters. "
-            + "scope=MINE (default) — own skills of any visibility; scope=PUBLIC — all public skills. "
+            + "scope=MINE (default) — own skills of any visibility; scope=PUBLIC — all public skills; "
+            + "scope=ALL — both, one's own public skill once. "
             + "The vocabulary of categories and tags: GET /manage/taxonomy/")
     @GetMapping("/")
     public SuccessResponse<PageResponse<SkillResponse>> getSkills(
@@ -47,6 +49,9 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "MINE") SkillListScope scope,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String connectorCode,
+            @Parameter(description = "One of the user's connections: skills it fits — the connector code and the "
+                    + "connection's open params. Exclusive with connectorCode")
+            @RequestParam(required = false) UUID connectionId,
             @RequestParam(required = false) ContentCategory category,
             @RequestParam(required = false) ContentTag tag,
             @RequestParam(defaultValue = "0") int page,
@@ -54,7 +59,7 @@ public class ManageSkillController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(
-                skillService.getSkills(userId, scope, search, connectorCode, category, tag, page, size)));
+                skillService.getSkills(userId, scope, search, connectorCode, connectionId, category, tag, page, size)));
     }
 
     @Operation(summary = "Get skill details with SKILL.md body")

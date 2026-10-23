@@ -21,10 +21,13 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.controller.manage.dto.SkillListScope;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
@@ -67,6 +70,8 @@ class SkillServiceTest {
     private AgentPresetRepository agentPresetRepository;
     @Mock
     private ConnectorRepository connectorRepository;
+    @Mock
+    private ConnectionRepository connectionRepository;
     @Mock
     private ConnectorRegistry connectorRegistry;
     @Mock
@@ -276,6 +281,31 @@ class SkillServiceTest {
                     ---
                     Body.
                     """.formatted(name);
+        }
+    }
+
+    @Nested
+    @DisplayName("getSkills — навыки для подключения")
+    class ForConnection {
+
+        private final UUID userId = UUID.randomUUID();
+        private final UUID connectionId = UUID.randomUUID();
+
+        @Test
+        @DisplayName("connectionId вместе с connectorCode → 400: код уже задан подключением")
+        void exclusiveWithConnectorCode() {
+            assertThrows(BadRequestStatusException.class, () -> service.getSkills(userId, SkillListScope.ALL,
+                    null, "mcp", connectionId, null, null, 0, 20));
+        }
+
+        @Test
+        @DisplayName("чужое подключение → 404")
+        void foreignConnection() {
+            when(connectionRepository.findByIdNotDeleted(connectionId)).thenReturn(Optional.of(
+                    Connection.builder().id(connectionId).userId(UUID.randomUUID()).build()));
+
+            assertThrows(NotFoundStatusException.class, () -> service.getSkills(userId, SkillListScope.ALL,
+                    null, null, connectionId, null, null, 0, 20));
         }
     }
 

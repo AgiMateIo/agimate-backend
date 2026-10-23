@@ -32,6 +32,7 @@ import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillSpecs;
@@ -61,16 +62,39 @@ public class SkillService {
     private final AgentSkillRepository agentSkillRepository;
     private final AgentPresetRepository agentPresetRepository;
     private final ConnectorRepository connectorRepository;
+    private final ConnectionRepository connectionRepository;
     private final ConnectorRegistry connectorRegistry;
     private final SkillPolicySync skillPolicySync;
     private final ContentLanguageResolver contentLanguageResolver;
 
+    /**
+     * @param connectionId the user's connection the skills must fit; exclusive with {@code connectorCode},
+     *                     which the connection already names
+     */
     public Page<SkillResponse> getSkills(UUID userId, SkillListScope scope, String search, String connectorCode,
-                                         ContentCategory category, ContentTag tag, int page, int size) {
-        Specification<Skill> base = scope == SkillListScope.PUBLIC
-                ? SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(contentLanguageResolver.requestLanguage()))
-                : SkillSpecs.ownedBy(userId);
+                                         UUID connectionId, ContentCategory category, ContentTag tag,
+                                         int page, int size) {
+        Specification<Skill> base = switch (scope) {
+            case MINE -> SkillSpecs.ownedBy(userId);
+            case PUBLIC -> SkillSpecs.isPublic().and(SkillSpecs.inCatalogue(contentLanguageResolver.requestLanguage()));
+            case ALL -> SkillSpecs.visibleTo(userId, contentLanguageResolver.requestLanguage());
+        };
+        if (connectionId != null) {
+            if (connectorCode != null && !connectorCode.isBlank()) {
+                throw new BadRequestStatusException("connectionId and connectorCode are exclusive: "
+                        + "the connection already names its connector");
+            }
+            base = base.and(fitting(connectionId, userId));
+        }
         return findSkills(base, search, connectorCode, category, tag, page, size);
+    }
+
+    /** Skills that fit one of the user's connections; 404 for a connection that is not theirs or is gone. */
+    public Specification<Skill> fitting(UUID connectionId, UUID userId) {
+        connectionRepository.findByIdNotDeleted(connectionId)
+                .filter(connection -> connection.getUserId().equals(userId))
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found"));
+        return SkillSpecs.fitsConnection(connectionId);
     }
 
     public SkillDetailResponse getSkillDetail(UUID id, UUID userId) {
