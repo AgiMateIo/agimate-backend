@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: implemented
 created: 2026-10-23
+implemented: 2026-10-23
 ---
 
 # Навыки для подключения: открытые параметры подключения и селектор навыка
@@ -140,6 +141,28 @@ SQL-функция `skill_fits_connection(connectors, connector_code, params)` �
   не ссылкой. Правило становится запросом к данным, но сам фолбэк остаётся, как и записано в
   `CLAUDE.md`.
 
+## Что уточнилось при реализации
+
+- **URL с ключом остаётся в секрете.** Поле `url` у MCP открытое, но серверы принимают ключ в query
+  (`?api_key=`) или в userinfo, а объявление не может поручиться за то, что вставил пользователь.
+  `CredentialField.opens(value)` возвращает `false` для такого URL, и `ConnectionCredentialStore` кладёт
+  его в секрет. Такое подключение подходит только навыкам без `params`, а навыку объявлять такой URL
+  в `params` запрещено (400). Раннер такие строки видит на каждом старте и каждый раз оставляет как
+  есть; цена — одна расшифровка на строку.
+- **Раннер — слушатель `ApplicationReadyEvent`** (`ConnectionParamsBackfill`), а не флаг конфигурации:
+  смотрит только коннекторы с открытыми полями и строки с пустыми `params`, поэтому после первого
+  прохода находит только URL с ключом. Удалить, когда пройдёт на всех окружениях. Между стартом
+  веб-сервера и концом прохода навык с `params` у неразложенного подключения не удовлетворён:
+  окно в секунды.
+- **`SkillConnectorStatus.identity` удалён вместе с `identifierOf`**, а не отдельным шагом: у поля не
+  осталось источника.
+- **Тул `platform.list_skills`** получил параметр `connectionId` и `scope=ALL`; `connectorCode`
+  остаётся на `hasConnector`.
+- Проверено на клоне локальной базы: раннер разложил 11 MCP-подключений, у каждого `params.url`
+  совпал с `sub_code`; таблица случаев `ConnectorRequirementTest` прогнана через
+  `skill_fits_connection` с тем же результатом; `?connectionId=` подключения T-Invest вернул `tinvest`
+  и навык пользователя без `params`, без `excalidraw` и `docli`.
+
 ## Следствия и ловушки
 
 - **Миграция существующих подключений.** Открытые поля сейчас внутри зашифрованного секрета, и
@@ -157,23 +180,23 @@ SQL-функция `skill_fits_connection(connectors, connector_code, params)` �
 
 ## План
 
-- [ ] `CredentialField`: нормализация по типу поля в ядре коннекторов; javadoc типов о том, где
+- [x] `CredentialField`: нормализация по типу поля в ядре коннекторов; javadoc типов о том, где
       хранится значение
-- [ ] MCP: `headers` → `SECRET`
-- [ ] Миграция `updates/2026/10/23-00-connection-params.xml`: `connections.params JSONB NOT NULL
+- [x] MCP: `headers` → `SECRET`
+- [x] Миграция `updates/2026/10/23-00-connection-params.xml`: `connections.params JSONB NOT NULL
       DEFAULT '{}'`, функция `skill_fits_connection`, XML-комментарии о том, почему открытая часть
       существует и почему сравнение — функция
-- [ ] Хранилище учётных данных подключения (`read` — склейка, `write` — раскладка по объявлению);
+- [x] Хранилище учётных данных подключения (`read` — склейка, `write` — раскладка по объявлению);
       перевод `ConnectorEnvFactory`, `ConnectionService`, `McpToolDiscoveryService`, `McpOAuthStore`
-- [ ] `validateConnectors` навыка нормализует `params` тем же правилом
-- [ ] Раннер раскладки существующих секретов; проверка на клоне базы
-- [ ] Сопоставление `params ⊇ requirement.params` в `resolveInstances` и `matches`; удаление
+- [x] `validateConnectors` навыка нормализует `params` тем же правилом
+- [x] Раннер раскладки существующих секретов; проверка на клоне базы
+- [x] Сопоставление `params ⊇ requirement.params` в `resolveInstances` и `matches`; удаление
       `identifierOf` из SPI и MCP; общие тестовые случаи для Java и SQL
-- [ ] `SkillSpecs.fitsConnection`, `SkillListScope.ALL`, `connectionId` в `ManageSkillController` и
+- [x] `SkillSpecs.fitsConnection`, `SkillListScope.ALL`, `connectionId` в `ManageSkillController` и
       `SkillService.getSkills` (404 на чужое, 400 вместе с `connectorCode`); тул `platform` на тот же
       spec
-- [ ] `ConnectionResponse.params`; удаление `SkillConnectorStatus.identity`
-- [ ] Документация: `architecture/connectors.md` («Ссылка навыка», хранение учётных данных), строка
+- [x] `ConnectionResponse.params`; удаление `SkillConnectorStatus.identity`
+- [x] Документация: `architecture/connectors.md` («Ссылка навыка», хранение учётных данных), строка
       про фолбэк в разделе Skills `CLAUDE.md`, отметка в
       [skill-connector-requirements.md](skill-connector-requirements.md), что сопоставление по
       `identifierOf` заменено этим документом; `tmpspec/skill-wizard-frontend.md` (`identity`) и новые
