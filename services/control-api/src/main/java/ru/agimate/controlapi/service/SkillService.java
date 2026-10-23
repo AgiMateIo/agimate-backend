@@ -357,7 +357,14 @@ public class SkillService {
                             + "' is a secret and cannot be declared in a skill");
                 }
             }
-            normalized.add(requirement.withParams(CredentialField.normalize(fields, requirement.params())));
+            Map<String, String> params = CredentialField.normalize(fields, requirement.params());
+            params.forEach((field, value) -> {
+                if (!fields.get(field).opens(value)) {
+                    throw new BadRequestStatusException("Requirement '" + requirement.key() + "': field '" + field
+                            + "' carries credentials (userinfo or a query) and cannot be declared in a skill");
+                }
+            });
+            normalized.add(requirement.withParams(params));
         }
         return normalized;
     }

@@ -1,5 +1,7 @@
 package ru.agimate.controlapi.connectors.core.dto;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -34,6 +36,26 @@ public record CredentialField(String label, Type type, boolean required) {
 
     public boolean secret() {
         return type == Type.SECRET;
+    }
+
+    /**
+     * Whether this value may be kept openly. A URL with userinfo or a query is kept in the secret even
+     * though the field is open: servers take API keys as {@code ?api_key=}, and the declaration cannot
+     * promise what the user pastes. Such a connection then does not match a skill by URL.
+     */
+    public boolean opens(String value) {
+        if (secret() || value == null) {
+            return false;
+        }
+        if (type != Type.URL) {
+            return true;
+        }
+        try {
+            URI uri = new URI(value);
+            return uri.getRawUserInfo() == null && uri.getRawQuery() == null;
+        } catch (URISyntaxException e) {
+            return false;
+        }
     }
 
     /**

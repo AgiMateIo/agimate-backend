@@ -323,6 +323,13 @@ class SkillServiceTest {
         }
 
         @Test
+        @DisplayName("URL с ключом в query → 400: подключение такой URL держит в секрете")
+        void urlWithKeyRejected() {
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.validateConnectors(List.of(mcp(Map.of("url", "https://x?api_key=k")))));
+        }
+
+        @Test
         @DisplayName("поле, которого нет в форме → 400")
         void unknownFieldRejected() {
             assertThrows(BadRequestStatusException.class,

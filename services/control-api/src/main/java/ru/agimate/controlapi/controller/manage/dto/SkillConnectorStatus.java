@@ -14,7 +14,7 @@ import java.util.UUID;
  * the user could pick or create, and what rules come with it.
  *
  * <p>{@link #connectionId} comes from the skill's own reference, and where there is none — from a
- * bound instance the requirement matches by identity, or any bound instance of the code, so an agent
+ * bound instance whose open params contain the requirement's (any instance of the code when it declares none), so an agent
  * does not turn red for something the user was never asked to choose. That is the standing rule, not
  * a migration step: a key loses its reference whenever the skill's author adds a connector to a skill
  * someone has already bound. Where several instances answer, the status shows the first while the
@@ -38,9 +38,7 @@ public record SkillConnectorStatus(
         Map<String, String> params,
         @Schema(description = "The integration's credentials form, in the order to render", nullable = true)
         Map<String, CredentialFieldResponse> credentialFields,
-        @Schema(description = "The instance identity the params resolve to (an MCP server's URL); null when unknown", nullable = true)
-        String identity,
-        @Schema(description = "The user's connections that fit: by identity when known, else every instance of the code")
+        @Schema(description = "The user's connections that fit: of the code, with open params containing the requirement's")
         List<ConnectionMatch> matches,
         @Schema(description = "Instance the skill works with; null — none chosen and none available", nullable = true)
         UUID connectionId,

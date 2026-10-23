@@ -49,11 +49,9 @@ public class ConnectionCredentialStore {
         Map<String, String> secret = new LinkedHashMap<>();
         CredentialField.normalize(fields, credentials).forEach((code, value) -> {
             CredentialField field = fields.get(code);
-            if (field != null && !field.secret()) {
-                if (value != null) {
-                    open.put(code, value);
-                }
-            } else {
+            if (field != null && field.opens(value)) {
+                open.put(code, value);
+            } else if (field == null || field.secret() || value != null) {
                 secret.put(code, value);
             }
         });

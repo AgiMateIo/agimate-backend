@@ -70,7 +70,7 @@ public class AgentSkillService {
         /** An instance is chosen, bound, authorised and brings tools. */
         OK,
 
-        /** Nothing answers the requirement: no reference, and no bound instance matches by identity or code. */
+        /** Nothing answers the requirement: no reference, and no bound instance fits its code and params. */
         NOT_CHOSEN,
 
         /** The instance the skill means is not bound to this agent, switched off or gone. */
@@ -196,7 +196,7 @@ public class AgentSkillService {
 
     /**
      * What binding the skill would take, before it is bound: every requirement resolved the way an
-     * unreferenced one is (by identity, else by code), with the user's fitting connections and the
+     * unreferenced one is (by its code and params), with the user's fitting connections and the
      * form to create one. The same statuses the listing shows afterwards.
      */
     public SkillBindingPlanResponse plan(UUID agentId, UUID skillId, UUID userId) {
@@ -421,11 +421,10 @@ public class AgentSkillService {
 
     /**
      * Per requirement key, the instances it means. A reference answers outright. Without one (a
-     * binding older than the reference, or a key the author added later) the requirement's own
-     * identity decides: the bound instances of the code whose {@code sub_code} it names — a declared
-     * server URL must not resolve to another server of the same connector; and only a requirement
-     * that names none falls back to <b>every</b> bound instance of the code, exactly what the tool gate
-     * did when it worked by code.
+     * binding older than the reference, or a key the author added later) the bound instances that
+     * {@link ConnectorRequirement#fits} decide — a declared server URL must not resolve to another
+     * server of the same connector, and a requirement declaring no params takes <b>every</b> bound
+     * instance of the code, exactly what the tool gate did when it worked by code.
      */
     private Map<String, List<UUID>> resolveInstances(Skill skill, Map<String, UUID> references,
                                                      Map<UUID, Connection> bound) {
@@ -440,9 +439,8 @@ public class AgentSkillService {
             if (referenced != null) {
                 instances = List.of(referenced);
             } else {
-                String identity = identityOf(requirement).orElse(null);
                 instances = boundByCode.getOrDefault(requirement.code(), List.of()).stream()
-                        .filter(connection -> identity == null || identity.equals(connection.getSubCode()))
+                        .filter(connection -> requirement.fits(connection.getConnectorCode(), connection.getParams()))
                         .map(Connection::getId)
                         .toList();
             }
@@ -559,15 +557,6 @@ public class AgentSkillService {
         return connections;
     }
 
-    /** The {@code sub_code} the requirement's params name, when the connector can tell without the network. */
-    private Optional<String> identityOf(ConnectorRequirement requirement) {
-        if (requirement.params() == null) {
-            return Optional.empty();
-        }
-        return connectorRegistry.findIntegrationHandler(requirement.code())
-                .flatMap(handler -> handler.identifierOf(requirement.params()));
-    }
-
     /** @see #resolveSkills */
     private record ResolvedSkill(UUID agentSkillId, UUID skillId,
                                  Map<String, List<UUID>> instancesByKey,
@@ -679,7 +668,7 @@ public class AgentSkillService {
      * and the client cannot even learn its id before the first binding, so the server answers for it
      * (a mismatching id sent anyway is an error, not a silent correction). External without a choice:
      * no row — the skill is bound unsatisfied, which is what creating an agent from a preset does, and
-     * the wizard (or the identity fallback, once the declared server is bound) finishes it; there is no
+     * the wizard (or the params fallback, once the declared server is bound) finishes it; there is no
      * sane default among several accounts, so the server never picks one. Unknown code (a skill
      * declaring a connector that no longer exists): no row either — it reads as «not satisfied» rather
      * than as a choice waiting to be made, and binding the skill must not fail because of it.
@@ -754,7 +743,6 @@ public class AgentSkillService {
             RequirementState state = states.getOrDefault(requirement.key(), RequirementState.NOT_CHOSEN);
             boolean satisfied = state == RequirementState.OK;
             Optional<IntegrationConnectorHandler> handler = connectorRegistry.findIntegrationHandler(requirement.code());
-            String identity = identityOf(requirement).orElse(null);
             statuses.add(new SkillConnectorStatus(
                     requirement.key(),
                     requirement.code(),
@@ -762,8 +750,7 @@ public class AgentSkillService {
                     internal,
                     requirement.params(),
                     handler.map(AgentSkillService::credentialFields).orElse(null),
-                    identity,
-                    matches(requirement, identity, context, resolution.boundIds()),
+                    matches(requirement, context, resolution.boundIds()),
                     connectionId,
                     connection != null ? displayName(connection) : null,
                     state,
@@ -776,11 +763,11 @@ public class AgentSkillService {
         return statuses;
     }
 
-    /** The user's connections that fit: by identity when the params name one, else every instance of the code. */
-    private static List<ConnectionMatch> matches(ConnectorRequirement requirement, String identity,
+    /** The user's connections that fit the requirement's code and params. */
+    private static List<ConnectionMatch> matches(ConnectorRequirement requirement,
                                                  StatusContext context, Set<UUID> boundIds) {
         return context.userByCode().getOrDefault(requirement.code(), List.of()).stream()
-                .filter(connection -> identity == null || identity.equals(connection.getSubCode()))
+                .filter(connection -> requirement.fits(connection.getConnectorCode(), connection.getParams()))
                 .map(connection -> new ConnectionMatch(connection.getId(), displayName(connection),
                         boundIds.contains(connection.getId())))
                 .toList();

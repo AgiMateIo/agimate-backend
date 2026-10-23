@@ -81,6 +81,18 @@ class ConnectionCredentialStoreTest {
         }
 
         @Test
+        @DisplayName("URL с ключом в query или userinfo остаётся в секрете")
+        void urlWithKeyStaysSecret() {
+            Connection connection = connection(SECRET_ID);
+            when(secretRepository.findById(SECRET_ID)).thenReturn(Optional.of(secret));
+
+            store.write(connection, Map.of("url", "https://x/mcp?api_key=k"));
+
+            assertTrue(connection.getParams().isEmpty());
+            verify(secretService).update(secret, CONNECTION_ID, Map.of("url", "https://x/mcp?api_key=k"));
+        }
+
+        @Test
         @DisplayName("первая запись заводит секрет, даже пустой")
         void createsSecret() {
             Connection connection = connection(null);

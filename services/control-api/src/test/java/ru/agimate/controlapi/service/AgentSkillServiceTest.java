@@ -609,8 +609,8 @@ class AgentSkillServiceTest {
     }
 
     @Nested
-    @DisplayName("требование с идентичностью — адрес сервера решает, какой экземпляр")
-    class Identity {
+    @DisplayName("требование с params — открытые params подключения решают, какой экземпляр")
+    class Params {
 
         private final UUID context7Id = UUID.randomUUID();
         private final UUID githubId = UUID.randomUUID();
@@ -619,6 +619,7 @@ class AgentSkillServiceTest {
 
         private static Connection mcp(UUID id, String url, String name) {
             return Connection.builder().id(id).userId(USER_ID).connectorCode("mcp").subCode(url)
+                    .params(Map.of("url", url))
                     .fullCode("mcp_" + name).name(name).enabled(true).build();
         }
 
@@ -629,7 +630,6 @@ class AgentSkillServiceTest {
         @BeforeEach
         void mcpHandler() {
             IntegrationConnectorHandler handler = mock(IntegrationConnectorHandler.class);
-            when(handler.identifierOf(any())).thenAnswer(inv -> Optional.ofNullable(inv.<Map<String, String>>getArgument(0).get("url")));
             when(handler.getCredentialFields()).thenReturn(Map.of());
             when(connectorRegistry.findIntegrationHandler("mcp")).thenReturn(Optional.of(handler));
             when(connectionBindingService.kindOf("mcp")).thenReturn(ConnectorKind.EXTERNAL);
@@ -639,7 +639,7 @@ class AgentSkillServiceTest {
 
         @Test
         @DisplayName("без ссылки в гейт уходит только сервер с объявленным адресом, а не оба MCP")
-        void fallbackNarrowsByIdentity() {
+        void fallbackNarrowsByParams() {
             skill(List.of(docs()));
 
             assertEquals(Map.of(SKILL_ID, java.util.Set.of(context7Id)), service.gate(AGENT_ID).satisfied());
@@ -647,15 +647,15 @@ class AgentSkillServiceTest {
 
         @Test
         @DisplayName("объявлен адрес, которого у агента нет → навык не удовлетворён, хоть другой MCP и привязан")
-        void unknownIdentityIsNotSatisfiedByAnotherServer() {
+        void unknownUrlIsNotSatisfiedByAnotherServer() {
             skill(List.of(new ConnectorRequirement("mcp", "docs", null, Map.of("url", "https://other/mcp"), null, null)));
 
             assertTrue(service.gate(AGENT_ID).satisfied().isEmpty());
         }
 
         @Test
-        @DisplayName("план: подходит только коннекция с тем же sub_code, у неё видно, что она уже привязана")
-        void planMatchesByIdentity() {
+        @DisplayName("план: подходит только коннекция с тем же url в params, у неё видно, что она уже привязана")
+        void planMatchesByParams() {
             skill(List.of(docs()));
 
             SkillBindingPlanResponse plan = service.plan(AGENT_ID, SKILL_ID, USER_ID);
@@ -663,7 +663,7 @@ class AgentSkillServiceTest {
             SkillConnectorStatus status = plan.connectors().get(0);
             assertEquals("docs", status.key());
             assertEquals("docs", status.title(), "ключ говорит больше кода — он и подпись");
-            assertEquals("https://mcp.context7.com/mcp", status.identity());
+            assertEquals(Map.of("url", "https://mcp.context7.com/mcp"), status.params());
             assertEquals(1, status.matches().size());
             assertEquals(context7Id, status.matches().get(0).connectionId());
             assertTrue(status.matches().get(0).boundToAgent());
@@ -672,15 +672,24 @@ class AgentSkillServiceTest {
         }
 
         @Test
-        @DisplayName("план без идентичности предлагает все экземпляры кода, непривязанные — как есть")
-        void planWithoutIdentityOffersEveryInstance() {
+        @DisplayName("sub_code не участвует: подключение, ещё не разложенное по params, не подходит")
+        void subCodeIsNotRead() {
+            context7.setParams(Map.of());
+            skill(List.of(docs()));
+
+            assertTrue(service.gate(AGENT_ID).satisfied().isEmpty());
+        }
+
+        @Test
+        @DisplayName("план без params предлагает все экземпляры кода, непривязанные — как есть")
+        void planWithoutParamsOffersEveryInstance() {
             skill("mcp");
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
 
             SkillBindingPlanResponse plan = service.plan(AGENT_ID, SKILL_ID, USER_ID);
 
             SkillConnectorStatus status = plan.connectors().get(0);
-            assertNull(status.identity());
+            assertNull(status.params());
             assertEquals(2, status.matches().size());
             assertFalse(status.matches().get(0).boundToAgent());
             assertFalse(status.satisfied());

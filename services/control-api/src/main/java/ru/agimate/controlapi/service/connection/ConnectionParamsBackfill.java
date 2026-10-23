@@ -18,7 +18,7 @@ import java.util.List;
  * Moves the open credential fields of connections created before {@code connections.params} out of
  * their secrets — Liquibase cannot decrypt one. Only connectors that declare an open field are looked
  * at, and a row that has been split has non-empty params, so after one pass the query finds nothing
- * and the next startups decrypt nothing. Delete once every environment has run it
+ * and the next startups decrypt nothing — save the rare URL that carries a key and so stays secret. Delete once every environment has run it
  * (docs/decisions/skills-for-connection.md).
  */
 @Slf4j
