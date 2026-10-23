@@ -199,6 +199,6 @@ SQL-функция `skill_fits_connection(connectors, connector_code, params)` �
 - [x] Документация: `architecture/connectors.md` («Ссылка навыка», хранение учётных данных), строка
       про фолбэк в разделе Skills `CLAUDE.md`, отметка в
       [skill-connector-requirements.md](skill-connector-requirements.md), что сопоставление по
-      `identifierOf` заменено этим документом; `tmpspec/skill-wizard-frontend.md` (`identity`) и новые
-      `tmpspec/skills-for-connection-frontend.md` и `tmpspec/skills-for-connection-android.md` — по
-      одному на клиента, потому что каждый удаляется, когда выкатит свой
+      `identifierOf` заменено этим документом; новые `tmpspec/skills-for-connection-frontend.md` и
+      `tmpspec/skills-for-connection-android.md` — по одному на клиента, потому что каждый удаляется,
+      когда выкатит свой; прежние спеки не правятся, удаление `identity` описано в новых
