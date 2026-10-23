@@ -67,13 +67,13 @@ class McpConnectorServiceTest {
     class CredentialFields {
 
         @Test
-        @DisplayName("маскируется только токен, URL и заголовки — открытые поля")
+        @DisplayName("открыт только URL: токен и заголовки — секреты")
         void types() {
             Map<String, CredentialField> fields = service.getCredentialFields();
 
             assertEquals(CredentialField.Type.URL, fields.get(McpUtils.FIELD_URL).type());
             assertEquals(CredentialField.Type.SECRET, fields.get(McpUtils.FIELD_AUTH_TOKEN).type());
-            assertEquals(CredentialField.Type.JSON, fields.get(McpUtils.FIELD_HEADERS).type());
+            assertEquals(CredentialField.Type.SECRET, fields.get(McpUtils.FIELD_HEADERS).type());
         }
 
         @Test

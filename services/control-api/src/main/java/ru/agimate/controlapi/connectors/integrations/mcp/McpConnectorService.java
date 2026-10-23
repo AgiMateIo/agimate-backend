@@ -100,7 +100,7 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         Map<String, CredentialField> fields = new LinkedHashMap<>();
         fields.put(McpUtils.FIELD_URL, CredentialField.required("Server URL (Streamable HTTP)", Type.URL));
         fields.put(McpUtils.FIELD_AUTH_TOKEN, CredentialField.optional("Bearer token", Type.SECRET));
-        fields.put(McpUtils.FIELD_HEADERS, CredentialField.optional("Extra headers as JSON", Type.JSON));
+        fields.put(McpUtils.FIELD_HEADERS, CredentialField.optional("Extra headers as JSON", Type.SECRET));
         return fields;
     }
 
