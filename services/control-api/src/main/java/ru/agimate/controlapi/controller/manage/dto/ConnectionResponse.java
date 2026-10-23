@@ -6,6 +6,7 @@ import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Schema(description = "Connector connection (instance) details")
@@ -24,6 +25,10 @@ public record ConnectionResponse(
 
         @Schema(description = "Connection name")
         String name,
+
+        @Schema(description = "Open credential fields — every field the connector does not declare SECRET "
+                + "(an MCP server's url). What a skill's requirement params are matched against")
+        Map<String, String> params,
 
         @Schema(description = "Whether the connection is enabled")
         Boolean enabled,
@@ -47,6 +52,7 @@ public record ConnectionResponse(
                 c.getSubCode(),
                 c.getFullCode(),
                 c.getName(),
+                c.getParams(),
                 c.getEnabled(),
                 c.getAuthStatus(),
                 c.getLastUsedAt(),
