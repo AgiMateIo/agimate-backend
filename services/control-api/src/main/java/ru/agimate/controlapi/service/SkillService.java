@@ -110,7 +110,7 @@ public class SkillService {
     private Skill doCreate(UUID ownerId, boolean isPublic, String skillMd) {
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
         validateName(parsed.name());
-        validateConnectors(parsed.connectors());
+        List<ConnectorRequirement> connectors = validateConnectors(parsed.connectors());
 
         // A system skill belongs to the catalogue the admin is looking at; a user's skill to none — it is in
         // every one.
@@ -125,7 +125,7 @@ public class SkillService {
                 .title(parsed.title())
                 .description(parsed.description())
                 .mdContent(parsed.body())
-                .connectors(parsed.connectors())
+                .connectors(connectors)
                 .disclosure(parsed.disclosure())
                 .category(parsed.category())
                 .tags(new ArrayList<>(parsed.tags()))
@@ -161,7 +161,7 @@ public class SkillService {
 
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
         validateName(parsed.name());
-        validateConnectors(parsed.connectors());
+        List<ConnectorRequirement> connectors = validateConnectors(parsed.connectors());
 
         if (!skill.getName().equals(parsed.name())) {
             if (system) {
@@ -178,7 +178,7 @@ public class SkillService {
         skill.setTitle(parsed.title());
         skill.setDescription(parsed.description());
         skill.setMdContent(parsed.body());
-        skill.setConnectors(parsed.connectors());
+        skill.setConnectors(connectors);
         skill.setDisclosure(parsed.disclosure());
         skill.setCategory(parsed.category());
         skill.setTags(new ArrayList<>(parsed.tags()));
@@ -207,8 +207,8 @@ public class SkillService {
     @Transactional
     public SkillResponse updateConnectors(UUID id, UUID userId, boolean admin, UpdateSkillConnectorsRequest request) {
         Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
-        List<ConnectorRequirement> connectors = ConnectorRequirements.normalize(request.resolveConnectors());
-        validateConnectors(connectors);
+        List<ConnectorRequirement> connectors = validateConnectors(
+                ConnectorRequirements.normalize(request.resolveConnectors()));
 
         skill.setConnectors(connectors);
         skill.setVersion(skill.getVersion() + 1);
@@ -322,10 +322,13 @@ public class SkillService {
      * so they are accepted only for a connector that has one, only for its declared fields, and never
      * for a SECRET field: a skill is readable by everyone it is offered to. Public because the system
      * skill seeder goes through it too — a seed file is not trusted more than an upload.
+     *
+     * @return the requirements with {@code params} normalised by field type, as a connection's are on
+     *         write — store these, not the input, or the two sides stop meeting as equal strings
      */
-    public void validateConnectors(List<ConnectorRequirement> requirements) {
+    public List<ConnectorRequirement> validateConnectors(List<ConnectorRequirement> requirements) {
         if (requirements.isEmpty()) {
-            return;
+            return requirements;
         }
         List<String> unknown = ConnectorRequirement.codes(requirements).stream()
                 .filter(code -> !connectorRepository.existsById(code))
@@ -333,8 +336,10 @@ public class SkillService {
         if (!unknown.isEmpty()) {
             throw new BadRequestStatusException("Unknown connector code(s): " + String.join(", ", unknown));
         }
+        List<ConnectorRequirement> normalized = new ArrayList<>();
         for (ConnectorRequirement requirement : requirements) {
             if (requirement.params() == null) {
+                normalized.add(requirement);
                 continue;
             }
             Map<String, CredentialField> fields = connectorRegistry.findIntegrationHandler(requirement.code())
@@ -347,11 +352,13 @@ public class SkillService {
                     throw new BadRequestStatusException("Requirement '" + requirement.key() + "': connector "
                             + requirement.code() + " has no field '" + field + "'");
                 }
-                if (declared.type() == CredentialField.Type.SECRET) {
+                if (declared.secret()) {
                     throw new BadRequestStatusException("Requirement '" + requirement.key() + "': field '" + field
                             + "' is a secret and cannot be declared in a skill");
                 }
             }
+            normalized.add(requirement.withParams(CredentialField.normalize(fields, requirement.params())));
         }
+        return normalized;
     }
 }

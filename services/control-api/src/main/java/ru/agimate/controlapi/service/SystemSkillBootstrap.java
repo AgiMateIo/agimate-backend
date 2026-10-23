@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorBootstrap;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
@@ -103,7 +104,7 @@ public class SystemSkillBootstrap {
             return;
         }
         // The same check an upload gets: a seed file with a secret in params or a dead code is a bug to log, not to seed.
-        skillService.validateConnectors(parsed.connectors());
+        List<ConnectorRequirement> connectors = skillService.validateConnectors(parsed.connectors());
 
         try {
             Skill skill = skillRepository.save(Skill.builder()
@@ -112,7 +113,7 @@ public class SystemSkillBootstrap {
                     .title(parsed.title())
                     .description(parsed.description())
                     .mdContent(parsed.body())
-                    .connectors(parsed.connectors())
+                    .connectors(connectors)
                     .disclosure(parsed.disclosure())
                     .category(parsed.category())
                     .tags(new ArrayList<>(parsed.tags()))

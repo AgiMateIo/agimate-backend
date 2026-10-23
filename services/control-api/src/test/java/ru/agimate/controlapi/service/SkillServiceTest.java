@@ -308,6 +308,13 @@ class SkillServiceTest {
         }
 
         @Test
+        @DisplayName("params нормализуются по типу поля, как у подключения: URL без пробелов")
+        void paramsNormalised() {
+            List<ConnectorRequirement> normalised = service.validateConnectors(List.of(mcp(Map.of("url", " https://x "))));
+            assertEquals(Map.of("url", "https://x"), normalised.get(0).params());
+        }
+
+        @Test
         @DisplayName("SECRET-поле в params → 400: навык читают все, кому он предложен")
         void secretRejected() {
             BadRequestStatusException ex = assertThrows(BadRequestStatusException.class,

@@ -64,4 +64,18 @@ public record ConnectorRequirement(String code, String key, String title, Map<St
     public boolean hasRules() {
         return tools != null || triggers != null;
     }
+
+    public ConnectorRequirement withParams(Map<String, String> params) {
+        return new ConnectorRequirement(code, key, title, params, tools, triggers);
+    }
+
+    /**
+     * Whether a connection serves this requirement: the code matches and the connection's open params
+     * contain every pair of {@link #params}; none means any instance of the code. The SQL spelling of
+     * the same rule is {@code skill_fits_connection} — keep the two in step.
+     */
+    public boolean fits(String connectorCode, Map<String, String> connectionParams) {
+        return code.equals(connectorCode)
+                && (params == null || connectionParams.entrySet().containsAll(params.entrySet()));
+    }
 }
