@@ -42,6 +42,12 @@ public record AgentPresetResponse(
         @Schema(description = "Facets the category cannot carry (ContentTag names)")
         List<String> tags,
 
+        @Schema(description = "Shown above an empty chat of every agent created from the preset")
+        String greeting,
+
+        @Schema(description = "Things to ask the agent, copied into every agent created from the preset")
+        List<String> starters,
+
         @Schema(description = "Gallery sort order (ascending)")
         int sortOrder,
 

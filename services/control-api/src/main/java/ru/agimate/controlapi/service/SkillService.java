@@ -153,6 +153,7 @@ public class SkillService {
                 .disclosure(parsed.disclosure())
                 .category(parsed.category())
                 .tags(new ArrayList<>(parsed.tags()))
+                .starters(new ArrayList<>(parsed.starters()))
                 .userId(ownerId)
                 .isPublic(isPublic)
                 .build();
@@ -206,6 +207,7 @@ public class SkillService {
         skill.setDisclosure(parsed.disclosure());
         skill.setCategory(parsed.category());
         skill.setTags(new ArrayList<>(parsed.tags()));
+        skill.setStarters(new ArrayList<>(parsed.starters()));
         if (isPublic != null) {
             skill.setIsPublic(isPublic);
         }

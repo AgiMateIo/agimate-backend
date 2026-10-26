@@ -8,13 +8,13 @@
 - **Owner операций:** человек-владелец агента (`ConnectorEnv.userId`). Все листинги и мутации user-scoped — мета-агент управляет только ресурсами своего владельца.
 - **Реализация:** тонкий адаптер поверх существующих сервисов. Пять тул-сервисов — `PlatformAgentToolService`, `PlatformConnectionToolService`, `PlatformLlmToolService`, `PlatformWorkspaceToolService`, `PlatformObservabilityToolService` — плюс статические хелперы `PlatformToolsSupport`; один фасад `PlatformConnectorService` передаёт все модули в `BaseConnectorHandler` (дубль имени тула между модулями — ошибка на конструкторе). Чтение — из репозиториев, запись — через сервисные command-перегрузки (без зависимости от `controller/**`). Доменные `*StatusException` транслируются в `ConnectorException`.
 
-## Инструменты (79)
+## Инструменты (83)
 
 Новые тулы помечены **(новый)**, расширенные — **(расширен)**; 13 прежних тулов перенесены без изменения поведения и не помечены.
 
 Все листинги владельца и сводки (24 тула: `list_agents`, `list_skills`, `list_files`, `list_agent_skills`, `list_connectors`, `list_connections`, `list_connection_tools`, `list_connection_agents`, `list_agent_connections`, `list_channels`, `list_policies`, `list_llm_providers`, `list_llm_provider_models`, `list_llm_quotas`, `list_agent_llms`, `get_llm_usage`, `list_runs`, `list_sessions`, `list_tool_call_logs`, `list_trigger_logs`, `list_webhook_deliveries`, `list_teams`, `list_boards`, `list_connector_jobs`) возвращают списочное поле (имя у каждого своё — `items`, `agents`, `skills`, `models` и т.д.) плюс `truncated: true|false`. Каждый ограничен первыми 100 записями (или первой страницей из 100); `truncated` показывает, что результат неполный. Статические каталоги (`list_channel_handlers`, `list_llm_provider_catalog`, `list_presets`) не капятся — их объём ограничен системой; `get_run_turns` — осознанное исключение, объявленное в описании тула.
 
-### Агенты, навыки, файлы — `PlatformAgentToolService` (17)
+### Агенты, навыки, файлы — `PlatformAgentToolService` (21)
 
 | Тул | Назначение |
 |---|---|
@@ -22,6 +22,10 @@
 | `get_agent` **(расширен)** | Конфиг агента: инструкции, тип, webhook (`webhookUrl`, `hasWebhookAuth`), привязанные навыки + их коннекторы |
 | `create_agent` **(расширен)** | Создать агента: type GENERIC (по умолчанию) / CENTRIFUGO / MCP / WEBHOOK; `webhookUrl` для WEBHOOK, `teamId` — в команду, `skillIds` — привязать сразу (внутренние коннекторы навыков открываются автоматически); возвращает `keyUrl` на страницу UI `/dashboard/agents/<id>`, где ключ показывается один раз; `webhookAuthHeader` тулом не принимается — вводится на той же странице агента |
 | `update_agent` **(расширен)** | Правка name/description/instructions/type/webhookUrl/enabled (PATCH-семантика; смена типа с WEBHOOK чистит webhookUrl и сохранённый auth-заголовок на сервере; пустой `type` означает «не прислан», очистки типа нет; `webhookAuthHeader` — не параметр тула, ввод на странице агента) |
+| `get_agent_starters` **(новый)** | Приветствие и подсказки пустого чата: свои агента, затем навыков, которые агент получает; скрытые не отдаются (`docs/decisions/agent-greeting.md`) |
+| `update_agent_starters` **(новый)** | Правка приветствия и своих подсказок агента; `starters` заменяет список целиком, текст, оставшийся на месте, сохраняет id; подсказки навыков не правятся; себя — нельзя |
+| `hide_agent_starter` **(новый)** | Скрыть подсказку навыка (`agentSkillId` + текст); повтор — не ошибка; себя — нельзя |
+| `restore_agent_starters` **(новый)** | Вернуть все скрытые подсказки навыков агента; себя — нельзя |
 | `delete_agent` **(новый)** | Удалить агента (soft delete): снимает привязки, политики и джобы; себя — нельзя |
 | `regenerate_agent_key` **(новый)** | Перевыпустить ключ агента: старый перестаёт работать сразу; возвращает `keyUrl` на страницу UI `/dashboard/agents/<id>`, где новый ключ показывается один раз; себя — нельзя |
 | `list_agent_skills` **(новый)** | Навыки агента со статусом удовлетворённости коннекторов и причиной в `blockedBy` — по требованию: `key (code) — STATE`, где STATE из `NOT_CHOSEN`, `NOT_BOUND`, `UNAUTHORIZED`, `NO_CAPABILITIES`, `UNKNOWN_CONNECTOR` (чтение собственного агента разрешено; новейшие привязки первыми, первые 100) |

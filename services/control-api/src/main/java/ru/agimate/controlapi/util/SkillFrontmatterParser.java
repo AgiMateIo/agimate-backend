@@ -23,11 +23,13 @@ public class SkillFrontmatterParser {
      * the frontmatter, and {@code body} — the body without the headers (everything after the closing
      * {@code ---}). {@code disclosure} defaults to EAGER: a body the author did not mark is shown;
      * {@code connectors} is normalised (see {@link ConnectorRequirements#fromYaml}), and
-     * {@code category}/{@code tags} are the catalogue's taxonomy — absent means OTHER and no tags.
+     * {@code category}/{@code tags} are the catalogue's taxonomy — absent means OTHER and no tags;
+     * {@code starters} are checked by {@link StarterTexts}.
      */
     public record ParsedSkill(String name, String title, String description,
                               List<ConnectorRequirement> connectors, Disclosure disclosure,
-                              ContentCategory category, List<String> tags, String body) {}
+                              ContentCategory category, List<String> tags, List<String> starters,
+                              String body) {}
 
     /** A raw parse of a markdown document with YAML frontmatter: the fields plus the body after the closing {@code ---}. */
     public record RawFrontmatter(Map<String, Object> fields, String body) {}
@@ -53,7 +55,10 @@ public class SkillFrontmatterParser {
 
         return new ParsedSkill(name, title, description, connectors, disclosure,
                 parseCategory(frontmatter.get("category"), "SKILL.md"),
-                parseTags(frontmatter.get("tags"), "SKILL.md"), raw.body());
+                parseTags(frontmatter.get("tags"), "SKILL.md"),
+                StarterTexts.starters(parseStringList(frontmatter.get("starters")), StarterTexts.MAX_SKILL_STARTERS,
+                        "SKILL.md frontmatter"),
+                raw.body());
     }
 
     /** {@code disclosure: eager|lazy}, case-insensitive; absent — EAGER. */

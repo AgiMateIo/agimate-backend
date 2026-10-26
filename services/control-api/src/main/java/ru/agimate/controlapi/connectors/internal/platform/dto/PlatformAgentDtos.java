@@ -48,6 +48,18 @@ public final class PlatformAgentDtos {
                                     boolean satisfied, List<String> blockedBy) {
     }
 
+    public record AgentStartersView(String greeting, List<StarterView> starters) {
+    }
+
+    /**
+     * One starter shown above an empty chat.
+     *
+     * @param agentSkillId set on a skill's starter — hide_agent_starter takes it with the text; an agent's
+     *                     own starter has none and is changed through update_agent_starters
+     */
+    public record StarterView(String text, String skillTitle, String agentSkillId) {
+    }
+
     public record BoundSkill(String skillId, String name, List<String> connectorCodes) {
     }
 
@@ -58,9 +70,10 @@ public final class PlatformAgentDtos {
     public record SkillList(List<SkillBrief> skills, boolean truncated) {
     }
 
+    /** {@code starters} live in the frontmatter, so an update_skill that leaves them out erases them. */
     public record SkillDetail(String id, String name, String title, String description,
-                              List<String> connectorCodes, String disclosure, int version, boolean isPublic,
-                              boolean system, String mdContent) {
+                              List<String> connectorCodes, String disclosure, List<String> starters, int version,
+                              boolean isPublic, boolean system, String mdContent) {
     }
 
     /**

@@ -28,6 +28,7 @@ import ru.agimate.controlapi.controller.app.AppRegistrationController;
 import ru.agimate.controlapi.controller.manage.ManageAgentController;
 import ru.agimate.controlapi.controller.manage.ManageAgentPresetController;
 import ru.agimate.controlapi.controller.manage.ManageAgentSkillController;
+import ru.agimate.controlapi.controller.manage.ManageAgentStarterController;
 import ru.agimate.controlapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.controlapi.controller.manage.ManageBoardController;
 import ru.agimate.controlapi.controller.manage.ManageCentrifugoTokenController;
@@ -141,6 +142,7 @@ public class SecurityConfig {
             ManageAgentController.PATH + "/**",
             ManageAgentPresetController.PATH + "/**",
             ManageAgentSkillController.PATH + "/**",
+            ManageAgentStarterController.PATH + "/**",
             ManageAgentConnectionPolicyController.PATH + "/**",
             ManageAgenticTeamController.PATH + "/**",
             ManageWebhookDeliveryLogsController.PATH + "/**",

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ru.agimate.controlapi.database.entities.Agent;
+import ru.agimate.controlapi.database.enums.ContentLanguage;
 
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +15,23 @@ import java.util.UUID;
 public interface AgentRepository extends JpaRepository<Agent, UUID> {
 
     Optional<Agent> findByKeyId(String keyId);
+
+    /**
+     * Agents created from a preset before it had a greeting or starters, still lacking either — the ones
+     * a preset's first greeting or starters reach. An agent without a language is one of the
+     * installation's language, which {@code defaultLanguage} says whether this preset is.
+     */
+    @Query("""
+            SELECT a FROM Agent a
+            WHERE a.presetName = :presetName
+              AND (a.language = :language OR (a.language IS NULL AND :defaultLanguage = TRUE))
+              AND (a.greeting IS NULL
+                   OR NOT EXISTS (SELECT 1 FROM AgentStarter s WHERE s.agentId = a.id AND s.agentSkillId IS NULL))
+            """)
+    List<Agent> findPresetAgentsMissingStarters(
+            @Param("presetName") String presetName,
+            @Param("language") ContentLanguage language,
+            @Param("defaultLanguage") boolean defaultLanguage);
 
     Page<Agent> findByUserId(UUID userId, Pageable pageable);
 

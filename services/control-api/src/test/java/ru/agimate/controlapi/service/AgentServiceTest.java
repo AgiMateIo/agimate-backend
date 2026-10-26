@@ -84,6 +84,8 @@ class AgentServiceTest {
     private AgentPresetRepository agentPresetRepository;
     @Mock
     private ContentLanguageResolver contentLanguageResolver;
+    @Mock
+    private AgentStarterService agentStarterService;
     /** Настоящий, не мок: гард адреса — часть проверяемого здесь поведения, и он ничего не стоит. */
     @Spy
     private PublicOnlyHttp publicOnlyHttp = new PublicOnlyHttp(false);

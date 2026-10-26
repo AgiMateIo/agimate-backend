@@ -95,6 +95,15 @@ public class Skill extends BaseEntity {
     @Builder.Default
     private List<String> tags = new ArrayList<>();
 
+    /**
+     * What to ask an agent that has this skill. Never copied: an agent's skill starters are computed
+     * from its bindings, so they follow this list; {@code text[]} as {@link #tags}.
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "starters", nullable = false, columnDefinition = "text[]", length = Length.LONG32)
+    @Builder.Default
+    private List<String> starters = new ArrayList<>();
+
     @Column(name = "version", nullable = false)
     @Builder.Default
     private Integer version = 1;

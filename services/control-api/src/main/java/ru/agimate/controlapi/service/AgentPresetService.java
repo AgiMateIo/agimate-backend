@@ -17,6 +17,7 @@ import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
+import ru.agimate.controlapi.util.StarterTexts;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -76,6 +77,9 @@ public class AgentPresetService {
                 .agentType(request.agentType())
                 .category(request.resolveCategory())
                 .tags(new ArrayList<>(request.resolveTags()))
+                .greeting(StarterTexts.greeting(request.greeting(), "greeting"))
+                .starters(new ArrayList<>(StarterTexts.starters(request.starters(),
+                        StarterTexts.MAX_AGENT_STARTERS, "starters")))
                 .sortOrder(request.resolveSortOrder())
                 .enabled(true)
                 .build();
@@ -115,6 +119,13 @@ public class AgentPresetService {
         if (request.tags() != null) {
             preset.setTags(request.tags().stream().map(Enum::name).distinct()
                     .collect(Collectors.toCollection(ArrayList::new)));
+        }
+        if (request.greeting() != null) {
+            preset.setGreeting(StarterTexts.greeting(request.greeting(), "greeting"));
+        }
+        if (request.starters() != null) {
+            preset.setStarters(new ArrayList<>(StarterTexts.starters(request.starters(),
+                    StarterTexts.MAX_AGENT_STARTERS, "starters")));
         }
         if (request.sortOrder() != null) {
             preset.setSortOrder(request.sortOrder());
@@ -193,6 +204,8 @@ public class AgentPresetService {
                 preset.getAgentType(),
                 preset.getCategory(),
                 List.copyOf(preset.getTags()),
+                preset.getGreeting(),
+                List.copyOf(preset.getStarters()),
                 preset.getSortOrder(),
                 preset.isEnabled());
     }

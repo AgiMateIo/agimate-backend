@@ -180,7 +180,8 @@ class AgentPresetServiceTest {
 
             AgentPresetResponse response = service.create(adminId, new CreateAgentPresetRequest(
                     "new-role", "Роль", "desc", "Инструкции", List.of("AgiMate Time"), null,
-                    ContentCategory.WORK, List.of(ContentTag.TEAM), 5));
+                    ContentCategory.WORK, List.of(ContentTag.TEAM),
+                    " Я помогу ", List.of(" Что ты умеешь? ", ""), 5));
 
             assertEquals("new-role", response.name());
             assertEquals(5, response.sortOrder());
@@ -188,6 +189,8 @@ class AgentPresetServiceTest {
             assertEquals(List.of("TEAM"), response.tags(), "тег хранится именем ContentTag");
             assertTrue(response.enabled());
             assertEquals(List.of("AgiMate Time"), response.skillNames());
+            assertEquals("Я помогу", response.greeting());
+            assertEquals(List.of("Что ты умеешь?"), response.starters(), "пробелы срезаны, пустые выброшены");
             verify(agentPresetRepository).save(argThat(p -> p.getLanguage() == ContentLanguage.RU));
         }
 
@@ -198,7 +201,7 @@ class AgentPresetServiceTest {
                     .thenReturn(Optional.of(preset("personal-assistant", List.of())));
 
             assertThrows(ConflictStatusException.class, () -> service.create(adminId,
-                    new CreateAgentPresetRequest("personal-assistant", "n", "d", "i", List.of(), null, null, null, 0)));
+                    new CreateAgentPresetRequest("personal-assistant", "n", "d", "i", List.of(), null, null, null, null, null, 0)));
             verify(agentPresetRepository, never()).save(any());
         }
 
@@ -211,7 +214,7 @@ class AgentPresetServiceTest {
 
             BadRequestStatusException ex = assertThrows(BadRequestStatusException.class,
                     () -> service.create(adminId,
-                            new CreateAgentPresetRequest("r", "n", "d", "i", List.of("Ghost"), null, null, null, 0)));
+                            new CreateAgentPresetRequest("r", "n", "d", "i", List.of("Ghost"), null, null, null, null, null, 0)));
             assertTrue(ex.getMessage().contains("Ghost"));
             verify(agentPresetRepository, never()).save(any());
         }
@@ -224,7 +227,7 @@ class AgentPresetServiceTest {
             when(agentPresetRepository.save(any(AgentPreset.class))).thenAnswer(inv -> inv.getArgument(0));
 
             AgentPresetResponse response = service.update(adminId, existing.getId(),
-                    new UpdateAgentPresetRequest(null, null, null, null, null, null, null, null, false));
+                    new UpdateAgentPresetRequest(null, null, null, null, null, null, null, null, null, null, false));
 
             assertFalse(response.enabled());
             assertEquals("personal-assistant", response.name());
@@ -237,7 +240,7 @@ class AgentPresetServiceTest {
             when(agentPresetRepository.findById(id)).thenReturn(Optional.empty());
 
             assertThrows(NotFoundStatusException.class, () -> service.update(adminId, id,
-                    new UpdateAgentPresetRequest("n", null, null, null, null, null, null, null, null)));
+                    new UpdateAgentPresetRequest("n", null, null, null, null, null, null, null, null, null, null)));
         }
     }
 

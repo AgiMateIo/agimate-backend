@@ -121,6 +121,7 @@
 | [reply-address-in-channels.md](decisions/reply-address-in-channels.md) | Куда уходит ответ: чат — часть снимка каналов рана, а не последний вход сессии, поэтому событие в разговоре не сбивает адрес |
 | [egress-proxy.md](decisions/egress-proxy.md) | Заблокированные из России LLM, MCP и Telegram: системный HTTP-прокси только для хостов из списка оператора, и почему гард адреса для них проверяет прокси, а не цель |
 | [files-and-pages.md](decisions/files-and-pages.md) | `agf_` — документ, а не снимок: версии файла, закрепление отправленного и коннектор `files` |
+| [agent-greeting.md](decisions/agent-greeting.md) | Пустой чат подсказывает, о чём спросить: приветствие и подсказки агента копируются из пресета, подсказки навыков вычисляются по привязкам и гейту, у таблицы — только состояние |
 | [connector-views.md](decisions/connector-views.md) | Интерактивная панель вместо текста: формат вью из MCP Apps, место лаунчера диктует ось владельца данных, а тулы панель зовёт от имени агента — второй поверхности исполнения не заводим |
 | [context-compaction.md](decisions/context-compaction.md) | Длинное окно истории сжимается сводкой: SYSTEM-ход журнала у первого дословного рана, порог по первому вызову модели, считает control-api разовым вызовом `ROUTINE`, а не агент |
 | [agent-sessions-connector.md](decisions/agent-sessions-connector.md) | Коннектор `sessions`: параллельные сессии блоком в user-prompt, `search_messages` по журналу ходов, скрытый `compact` ставит сводку и заголовок — модели `set_title` не дан |

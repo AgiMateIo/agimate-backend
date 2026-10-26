@@ -31,9 +31,9 @@ import java.util.Optional;
  * Seed-only-if-missing: the row is looked up by {@code (userId, name, language)} and created only when
  * it does not exist yet — after the first seeding the classpath stops being the source of truth, so
  * edits through the admin API are not wiped by the next deploy. A change to SKILL.md in the repository
- * applies only to versions not yet seeded. The one exception is {@link #fillTaxonomy}: the category and
- * the tags are metadata of the catalogue rather than content, and a skill seeded before they existed
- * would never get them.
+ * applies only to versions not yet seeded. The one exception is {@link #fillTaxonomy}: the category, the
+ * tags and the starters are metadata of the catalogue rather than content, and a skill seeded before they
+ * existed would never get them.
  */
 @Slf4j
 @Component
@@ -117,6 +117,7 @@ public class SystemSkillBootstrap {
                     .disclosure(parsed.disclosure())
                     .category(parsed.category())
                     .tags(new ArrayList<>(parsed.tags()))
+                    .starters(new ArrayList<>(parsed.starters()))
                     .userId(SYSTEM_USER_ID)
                     .isPublic(true)
                     .build());
@@ -139,7 +140,8 @@ public class SystemSkillBootstrap {
         boolean fillCategory = skill.getCategory() == ContentCategory.OTHER
                 && parsed.category() != ContentCategory.OTHER;
         boolean fillTags = skill.getTags().isEmpty() && !parsed.tags().isEmpty();
-        if (!fillCategory && !fillTags) {
+        boolean fillStarters = skill.getStarters().isEmpty() && !parsed.starters().isEmpty();
+        if (!fillCategory && !fillTags && !fillStarters) {
             return;
         }
         if (fillCategory) {
@@ -148,8 +150,11 @@ public class SystemSkillBootstrap {
         if (fillTags) {
             skill.setTags(new ArrayList<>(parsed.tags()));
         }
+        if (fillStarters) {
+            skill.setStarters(new ArrayList<>(parsed.starters()));
+        }
         skillRepository.save(skill);
-        log.info("Filled taxonomy of system skill '{}': category={} tags={}",
-                skill.getName(), skill.getCategory(), skill.getTags());
+        log.info("Filled catalogue metadata of system skill '{}': category={} tags={} starters={}",
+                skill.getName(), skill.getCategory(), skill.getTags(), skill.getStarters().size());
     }
 }

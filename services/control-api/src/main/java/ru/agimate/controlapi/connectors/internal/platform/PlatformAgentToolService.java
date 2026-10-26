@@ -19,6 +19,7 @@ import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.AgentList;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.AgentSkillBinding;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.AgentSkillList;
+import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.AgentStartersView;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.BoundSkill;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.CreatedAgent;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.FileBrief;
@@ -26,6 +27,7 @@ import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.SkillBrief;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.SkillDetail;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.SkillList;
+import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformAgentDtos.StarterView;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.AgentBrief;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.OperationResult;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -40,9 +42,11 @@ import ru.agimate.controlapi.database.repositories.SkillSpecs;
 import ru.agimate.controlapi.database.repositories.StoredFileRepository;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.AgentSkillService;
+import ru.agimate.controlapi.service.AgentStarterService;
 import ru.agimate.controlapi.service.SkillService;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 import ru.agimate.controlapi.service.dto.agent.AgentCreateCommand;
+import ru.agimate.controlapi.service.dto.agent.AgentStarters;
 import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.file.UserFileService;
@@ -84,6 +88,7 @@ public class PlatformAgentToolService {
     private final UserFileService userFileService;
     private final ConnectionBindingService connectionBindingService;
     private final ContentLanguageResolver contentLanguageResolver;
+    private final AgentStarterService agentStarterService;
 
     // ---- agents & skills -------------------------------------------------------------------
 
@@ -164,6 +169,85 @@ public class PlatformAgentToolService {
         }
         return new CreatedAgent(result.agent().getId().toString(), result.agent().getName(),
                 frontendBaseUrl + "/dashboard/agents/" + result.agent().getId());
+    }
+
+    @Tool(name = "get_agent_starters",
+            description = "Get what an empty chat with an agent shows: the greeting and the starters — the agent's "
+                    + "own, then those of its skills that the agent gets. Hidden skill starters are left out",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
+    public AgentStartersView getAgentStarters(@ToolParam("Agent public ID") String agentId) {
+        UUID id = PlatformToolsSupport.parseUuid(agentId, "agentId");
+        return toStartersView(PlatformToolsSupport.domain(() ->
+                agentStarterService.get(id, PlatformToolsSupport.userId())));
+    }
+
+    @Tool(name = "update_agent_starters",
+            description = "Change an agent's greeting and its own starters. A starter is sent as the user's own "
+                    + "message on a tap: one line of at most 150 characters, up to 10, no facts about the user "
+                    + "(the agent would take them as true). starters replaces the agent's own list whole; a "
+                    + "skill's starters come from the skill and are not changed here. Omitted params are left "
+                    + "unchanged; an empty greeting clears it",
+            annotations = @ToolAnnotations(destructiveHint = true, idempotentHint = true, openWorldHint = false))
+    public AgentStartersView updateAgentStarters(
+            @ToolParam("Agent public ID") String agentId,
+            @ToolParam(value = "Greeting shown above an empty chat; empty string clears", required = false)
+            String greeting,
+            @ToolParam(value = "The agent's own starters in display order", required = false) List<String> starters) {
+        UUID id = PlatformToolsSupport.parseUuid(agentId, "agentId");
+        PlatformToolsSupport.requireNotSelf(id);
+        UUID userId = PlatformToolsSupport.userId();
+        AgentStarters current = PlatformToolsSupport.domain(() -> agentStarterService.get(id, userId));
+        // A text that stays keeps its starter's id, as the UI's PUT does.
+        Map<String, UUID> ids = current.starters().stream()
+                .filter(s -> s.id() != null)
+                .collect(Collectors.toMap(AgentStarters.Starter::text, AgentStarters.Starter::id, (a, b) -> a));
+        List<AgentStarters.OwnStarter> own = starters != null
+                ? starters.stream().map(text -> new AgentStarters.OwnStarter(
+                        text == null ? null : ids.get(text.strip()), text)).toList()
+                : current.starters().stream().filter(s -> s.id() != null)
+                        .map(s -> new AgentStarters.OwnStarter(s.id(), s.text())).toList();
+        String newGreeting = greeting != null ? greeting : current.greeting();
+        return toStartersView(PlatformToolsSupport.domain(() ->
+                agentStarterService.save(id, userId, newGreeting, own)));
+    }
+
+    @Tool(name = "hide_agent_starter",
+            description = "Hide one of a skill's starters on an agent (agentSkillId and text as get_agent_starters "
+                    + "lists them). Hiding twice is fine; restore_agent_starters brings every hidden one back",
+            annotations = @ToolAnnotations(destructiveHint = false, idempotentHint = true, openWorldHint = false))
+    public AgentStartersView hideAgentStarter(
+            @ToolParam("Agent public ID") String agentId,
+            @ToolParam("agentSkillId of the starter") String agentSkillId,
+            @ToolParam("The starter's text, as listed") String text) {
+        UUID id = PlatformToolsSupport.parseUuid(agentId, "agentId");
+        PlatformToolsSupport.requireNotSelf(id);
+        UUID bindingId = PlatformToolsSupport.parseUuid(agentSkillId, "agentSkillId");
+        PlatformToolsSupport.domain(() -> {
+            agentStarterService.hide(id, PlatformToolsSupport.userId(), bindingId,
+                    PlatformToolsSupport.requireText(text, "text"));
+            return null;
+        });
+        return getAgentStarters(agentId);
+    }
+
+    @Tool(name = "restore_agent_starters",
+            description = "Bring back every skill starter hidden on an agent",
+            annotations = @ToolAnnotations(destructiveHint = false, idempotentHint = true, openWorldHint = false))
+    public AgentStartersView restoreAgentStarters(@ToolParam("Agent public ID") String agentId) {
+        UUID id = PlatformToolsSupport.parseUuid(agentId, "agentId");
+        PlatformToolsSupport.requireNotSelf(id);
+        PlatformToolsSupport.domain(() -> {
+            agentStarterService.restoreHidden(id, PlatformToolsSupport.userId());
+            return null;
+        });
+        return getAgentStarters(agentId);
+    }
+
+    private static AgentStartersView toStartersView(AgentStarters starters) {
+        return new AgentStartersView(starters.greeting(), starters.starters().stream()
+                .map(s -> new StarterView(s.text(), s.skillTitle(),
+                        s.agentSkillId() == null ? null : s.agentSkillId().toString()))
+                .toList());
     }
 
     @Tool(name = "update_agent",
@@ -367,7 +451,7 @@ public class PlatformAgentToolService {
                 PlatformToolsSupport.parseUuid(skillId, "skillId"));
         return new SkillDetail(skill.getId().toString(), skill.getName(), displayTitle(skill),
                 skill.getDescription(), skill.getConnectorCodes(), skill.getDisclosure().name(),
-                skill.getVersion(), Boolean.TRUE.equals(skill.getIsPublic()), isSystem(skill), skill.getMdContent());
+                List.copyOf(skill.getStarters()), skill.getVersion(), Boolean.TRUE.equals(skill.getIsPublic()), isSystem(skill), skill.getMdContent());
     }
 
     @Tool(name = "create_skill",
@@ -376,7 +460,10 @@ public class PlatformAgentToolService {
                     + "(eager|lazy, default eager), category and tags + markdown body). A connectors item "
                     + "is a bare code or {code, key, title, params, tools: {allow|deny}, triggers: "
                     + "{allow|deny}}. category and tags file the skill in the catalogue; a wrong value is "
-                    + "refused with the whole vocabulary in the message. isPublic defaults to false",
+                    + "refused with the whole vocabulary in the message. starters: up to 5 things to ask an "
+                    + "agent that has the skill, shown under an empty chat and sent as the user's message "
+                    + "on a tap — one line of at most 150 characters each, no facts about the user. "
+                    + "isPublic defaults to false",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public SkillDetail createSkill(
             @ToolParam("Full SKILL.md content (frontmatter + body)") String skillMd,
@@ -390,7 +477,7 @@ public class PlatformAgentToolService {
     @Tool(name = "update_skill",
             description = "Replace a skill's SKILL.md content (bumps its version). Only your own skills. "
                     + "The document replaces the frontmatter too: a field you leave out goes back to its "
-                    + "default, disclosure included",
+                    + "default, disclosure and starters included",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public SkillDetail updateSkill(
             @ToolParam("Skill public ID") String skillId,

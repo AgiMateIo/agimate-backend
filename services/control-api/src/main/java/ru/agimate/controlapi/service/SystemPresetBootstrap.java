@@ -15,6 +15,7 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
+import ru.agimate.controlapi.util.StarterTexts;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +38,7 @@ import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
  * (see {@code @Order}) so the {@code skills} references are checked against already-seeded system
  * skills of the preset's language; an unknown name is a warning, not a refusal (resolution happens at
  * listing time anyway). The exception to seed-only-if-missing is the same one: {@link #fillTaxonomy}
- * fills an empty category or tag list.
+ * fills an empty category or tag list, and {@link #fillStarters} an empty greeting or starter list.
  */
 @Slf4j
 @Component
@@ -63,6 +64,7 @@ public class SystemPresetBootstrap {
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;
+    private final AgentStarterService agentStarterService;
 
     @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
@@ -90,6 +92,7 @@ public class SystemPresetBootstrap {
         Optional<AgentPreset> existing = agentPresetRepository.findByNameAndLanguage(parsed.name(), language);
         if (existing.isPresent()) {
             fillTaxonomy(existing.get(), parsed);
+            fillStarters(existing.get(), parsed);
             return;
         }
 
@@ -104,6 +107,8 @@ public class SystemPresetBootstrap {
                     .agentType(parsed.agentType())
                     .category(parsed.category())
                     .tags(new ArrayList<>(parsed.tags()))
+                    .greeting(parsed.greeting())
+                    .starters(new ArrayList<>(parsed.starters()))
                     .sortOrder(parsed.sortOrder())
                     .build());
             log.info("Seeded system preset {}/{} id={} skills={}", language.dir(), preset.getName(), preset.getId(),
@@ -133,6 +138,28 @@ public class SystemPresetBootstrap {
                 preset.getName(), preset.getCategory(), preset.getTags());
     }
 
+    /**
+     * The same exception for the greeting and the starters, with one consequence of its own: the agents
+     * created from the preset before it had them get them too. Tied to this moment rather than to «the
+     * agent has none» — that would hand them back on every start to a user who erased them.
+     */
+    private void fillStarters(AgentPreset preset, ParsedPreset parsed) {
+        boolean fillGreeting = preset.getGreeting() == null && parsed.greeting() != null;
+        boolean fillStarters = preset.getStarters().isEmpty() && !parsed.starters().isEmpty();
+        if (!fillGreeting && !fillStarters) {
+            return;
+        }
+        if (fillGreeting) {
+            preset.setGreeting(parsed.greeting());
+        }
+        if (fillStarters) {
+            preset.setStarters(new ArrayList<>(parsed.starters()));
+        }
+        AgentPreset saved = agentPresetRepository.save(preset);
+        log.info("Filled greeting and starters of system preset {}/{}", saved.getLanguage().dir(), saved.getName());
+        agentStarterService.adoptPreset(saved);
+    }
+
     private void warnOnUnknownSkills(ParsedPreset parsed, ContentLanguage language) {
         Map<String, ?> known = skillRepository.findByNamesInLanguage(SYSTEM_USER_ID, parsed.skillNames(), language);
         for (String skillName : parsed.skillNames()) {
@@ -146,7 +173,7 @@ public class SystemPresetBootstrap {
     /** A parsed PRESET.md: the frontmatter fields and the instruction body. */
     record ParsedPreset(String name, String title, String description, List<String> skillNames,
                         AgentType agentType, ContentCategory category, List<String> tags,
-                        Integer sortOrder, String instructions) {}
+                        String greeting, List<String> starters, Integer sortOrder, String instructions) {}
 
     static ParsedPreset parsePreset(String content) {
         SkillFrontmatterParser.RawFrontmatter raw = SkillFrontmatterParser.parseRaw(content, "PRESET.md");
@@ -167,6 +194,10 @@ public class SystemPresetBootstrap {
         return new ParsedPreset(name, title, description, skillNames, agentType,
                 SkillFrontmatterParser.parseCategory(fields.get("category"), "PRESET.md"),
                 SkillFrontmatterParser.parseTags(fields.get("tags"), "PRESET.md"),
+                StarterTexts.greeting(fields.get("greeting") == null ? null : fields.get("greeting").toString(),
+                        "PRESET.md frontmatter"),
+                StarterTexts.starters(SkillFrontmatterParser.parseStringList(fields.get("starters")),
+                        StarterTexts.MAX_AGENT_STARTERS, "PRESET.md frontmatter"),
                 sortOrder, raw.body());
     }
 

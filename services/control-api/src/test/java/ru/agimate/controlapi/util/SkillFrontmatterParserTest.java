@@ -50,6 +50,25 @@ class SkillFrontmatterParserTest {
     }
 
     @Test
+    @DisplayName("starters парсятся по правилам подсказки: без поля — пусто, больше пяти — 400")
+    void starters() {
+        String md = """
+                ---
+                name: my-skill
+                starters:
+                  - Построй натальную карту
+                  - " Транзиты на месяц "
+                ---
+                body
+                """;
+        assertEquals(List.of("Построй натальную карту", "Транзиты на месяц"),
+                SkillFrontmatterParser.parse(md).starters());
+        assertEquals(List.of(), SkillFrontmatterParser.parse("---\nname: s\n---\nbody").starters());
+        String tooMany = "---\nname: s\nstarters: [a, b, c, d, e, f]\n---\nbody";
+        assertThrows(BadRequestStatusException.class, () -> SkillFrontmatterParser.parse(tooMany));
+    }
+
+    @Test
     @DisplayName("title из frontmatter парсится")
     void parsesTitle() {
         String md = """

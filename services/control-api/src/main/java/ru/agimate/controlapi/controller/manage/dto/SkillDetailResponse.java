@@ -56,6 +56,10 @@ public record SkillDetailResponse(
                 + "a frontmatter field, so an edit that omits it resets the skill to EAGER")
         Disclosure disclosure,
 
+        @Schema(description = "What to ask an agent that has this skill — shown under an empty chat. "
+                + "A frontmatter field, so an edit that omits it erases them")
+        List<String> starters,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the skill was created")
         LocalDateTime createdAt,
@@ -80,6 +84,7 @@ public record SkillDetailResponse(
                 SystemSkillBootstrap.SYSTEM_USER_ID.equals(skill.getUserId()),
                 skill.getMdContent(),
                 skill.getDisclosure(),
+                List.copyOf(skill.getStarters()),
                 skill.getCreatedAt(),
                 skill.getUpdatedAt()
         );

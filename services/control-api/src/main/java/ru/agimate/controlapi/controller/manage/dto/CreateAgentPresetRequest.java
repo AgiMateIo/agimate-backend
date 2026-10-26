@@ -40,6 +40,13 @@ public record CreateAgentPresetRequest(
         @Schema(description = "Facets the category cannot carry (see GET /manage/taxonomy/)")
         List<ContentTag> tags,
 
+        @Schema(description = "Shown above an empty chat of every agent created from the preset")
+        String greeting,
+
+        @Schema(description = "Things to ask the agent, copied into every agent created from the preset: "
+                + "up to 10, one line of at most 150 characters each")
+        List<String> starters,
+
         @Schema(description = "Gallery sort order (ascending)", defaultValue = "0")
         Integer sortOrder
 ) {

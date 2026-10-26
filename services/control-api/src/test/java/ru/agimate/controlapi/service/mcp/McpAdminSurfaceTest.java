@@ -111,7 +111,8 @@ class McpAdminSurfaceTest {
             agentRepository, agentSkillRepository, skillRepository, storedFileRepository,
             mock(AgentService.class), mock(SkillService.class), agentSkillService,
             mock(ru.agimate.controlapi.service.file.UserFileService.class), connectionBindingService,
-            mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class));
+            mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class),
+            mock(ru.agimate.controlapi.service.AgentStarterService.class));
     private final PlatformConnectionToolService connectionTools = new PlatformConnectionToolService(
             connectorRepository, connectionRepository, agentConnectionRepository,
             mock(ConnectorRegistry.class), mock(ToolDefinitionService.class),
@@ -187,13 +188,13 @@ class McpAdminSurfaceTest {
     }
 
     @Test
-    @DisplayName("tools/list отдаёт все 79 тулов platform-коннектора под коротким хендлом")
+    @DisplayName("tools/list отдаёт все 83 тула platform-коннектора под коротким хендлом")
     void listsTheWholePlatformSurface() {
         JsonRpcResponse response = handle("tools/list", Map.of());
 
         assertFalse(response.error() != null);
         ToolsListResult result = (ToolsListResult) response.result();
-        assertEquals(79, result.tools().size());
+        assertEquals(83, result.tools().size());
         assertTrue(result.tools().stream().map(McpTool::name).allMatch(n -> n.startsWith("platform__")));
         assertTrue(result.tools().stream().map(McpTool::name)
                 .anyMatch(n -> n.equals("platform__delete_agent")));

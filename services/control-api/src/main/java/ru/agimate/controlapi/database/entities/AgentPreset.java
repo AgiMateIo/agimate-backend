@@ -103,6 +103,16 @@ public class AgentPreset extends BaseEntity {
     @Builder.Default
     private List<String> tags = new ArrayList<>();
 
+    /** Handed to every agent created from the preset, then the agent's own; see {@link Agent#getGreeting()}. */
+    @Column(name = "greeting", columnDefinition = "TEXT")
+    private String greeting;
+
+    /** Copied into the agent's own starters on creation; {@code text[]} as {@link #skillNames}. */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "starters", nullable = false, columnDefinition = "text[]", length = Length.LONG32)
+    @Builder.Default
+    private List<String> starters = new ArrayList<>();
+
     @Column(name = "sort_order", nullable = false)
     @Builder.Default
     private Integer sortOrder = 0;

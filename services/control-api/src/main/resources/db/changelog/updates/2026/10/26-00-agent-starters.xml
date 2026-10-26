@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- The agent's greeting and conversation starters (docs/decisions/agent-greeting.md). A preset
+         carries both and hands them to the agents created from it; a skill carries only starters,
+         which are never copied — an agent's skill starters are computed from its bindings. -->
+    <changeSet id="add-greeting-and-starters" author="agimate">
+        <addColumn tableName="agents">
+            <column name="greeting" type="TEXT"/>
+        </addColumn>
+        <addColumn tableName="agent_presets">
+            <column name="greeting" type="TEXT"/>
+            <column name="starters" type="TEXT[]" defaultValueComputed="'{}'::text[]">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="skills">
+            <column name="starters" type="TEXT[]" defaultValueComputed="'{}'::text[]">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- State, not the set: an agent's own starters live here whole, a skill's starter gets a row only
+         once the user hid it. agent_skill_id NULL marks the agent's own; a skill starter hangs off the
+         binding, not the skill, so unbinding drops its state by cascade — including the bulk delete of
+         every binding when a skill is deleted, which JPA cascades would miss. -->
+    <changeSet id="create-agent-starters-table" author="agimate">
+        <createTable tableName="agent_starters">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_starters_agent"
+                             references="agents(id)" deleteCascade="true"/>
+            </column>
+            <column name="agent_skill_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_agent_starters_agent_skill"
+                             references="agent_skills(id)" deleteCascade="true"/>
+            </column>
+            <column name="sort_order" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hidden" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="text" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- A skill starter's key is its text within the binding. Not partial on purpose: an agent's own
+             starters have agent_skill_id NULL, and NULLs never collide in a unique key. -->
+        <addUniqueConstraint tableName="agent_starters"
+                             columnNames="agent_skill_id, text"
+                             constraintName="uq_agent_starters_agent_skill_id_text"/>
+
+        <createIndex tableName="agent_starters" indexName="idx_agent_starters_agent_id">
+            <column name="agent_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

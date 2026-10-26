@@ -88,6 +88,13 @@ public class Agent extends BaseEntity {
     @Column(name = "language", columnDefinition = "TEXT")
     private ContentLanguage language;
 
+    /**
+     * Shown above an empty chat, never part of the conversation — the agent does not know it «said»
+     * it. Copied from the preset on creation; see {@link AgentStarter} for the starters beside it.
+     */
+    @Column(name = "greeting", columnDefinition = "TEXT")
+    private String greeting;
+
     /** Moment of the soft delete; {@code null} — active. Hiding from queries is done by {@link SQLRestriction}. */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

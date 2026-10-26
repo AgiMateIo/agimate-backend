@@ -81,6 +81,7 @@ class ToolSafetyHintsTest {
             "PlatformAgentToolService.regenerate_agent_key",
             "PlatformAgentToolService.unbind_skill",
             "PlatformAgentToolService.update_agent",
+            "PlatformAgentToolService.update_agent_starters",
             "PlatformAgentToolService.update_skill",
             "PlatformConnectionToolService.delete_channel",
             "PlatformConnectionToolService.delete_connection",
