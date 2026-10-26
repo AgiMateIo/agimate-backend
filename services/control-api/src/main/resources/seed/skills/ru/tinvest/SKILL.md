@@ -11,6 +11,10 @@ connectors:
       url: https://invest-public-api.tbank.ru/mcp
 category: finance
 tags: [own-token, read-only]
+starters:
+  - "Покажи мои брокерские счета и позиции"
+  - "Когда ближайшие купоны и дивиденды по моим бумагам?"
+  - "Какие налоги набежали по операциям за год?"
 ---
 
 # Навык: T-Invest

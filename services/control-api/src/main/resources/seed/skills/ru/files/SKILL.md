@@ -6,6 +6,9 @@ disclosure: lazy
 connectors: [files]
 category: platform
 tags: [writing]
+starters:
+  - "Подготовь отчёт и пришли его файлом"
+  - "Сделай из этого HTML-страницу"
 ---
 
 # Skill: files

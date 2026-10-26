@@ -11,6 +11,9 @@ connectors:
       url: https://mcp.excalidraw.com/mcp
 category: content
 tags: [images]
+starters:
+  - "Draw a process diagram"
+  - "Make a mind map on a topic"
 ---
 
 # Skill: Excalidraw

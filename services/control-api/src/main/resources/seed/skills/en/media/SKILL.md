@@ -5,6 +5,10 @@ description: Working with images through another model — generating, editing a
 connectors: [media]
 category: platform
 tags: [images, photo]
+starters:
+  - "Draw a picture from a description"
+  - "Remove the background from a photo"
+  - "Describe the picture I'm about to send"
 ---
 
 # Skill: AgiMate Media

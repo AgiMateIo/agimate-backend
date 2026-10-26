@@ -11,6 +11,9 @@ connectors:
       url: https://mcp.excalidraw.com/mcp
 category: content
 tags: [images]
+starters:
+  - "Нарисуй схему процесса"
+  - "Сделай майнд-карту по теме"
 ---
 
 # Навык: Excalidraw

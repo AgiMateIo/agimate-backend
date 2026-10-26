@@ -6,6 +6,10 @@ disclosure: lazy
 connectors: [astro]
 category: leisure
 tags: [advice]
+starters:
+  - "Build my natal chart"
+  - "What transits are ahead of me this month?"
+  - "Check our chart compatibility with my partner"
 ---
 
 # Skill: AgiMate Astro

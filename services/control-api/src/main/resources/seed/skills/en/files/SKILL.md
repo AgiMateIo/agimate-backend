@@ -6,6 +6,9 @@ disclosure: lazy
 connectors: [files]
 category: platform
 tags: [writing]
+starters:
+  - "Prepare a report and send it as a file"
+  - "Turn this into an HTML page"
 ---
 
 # Skill: files

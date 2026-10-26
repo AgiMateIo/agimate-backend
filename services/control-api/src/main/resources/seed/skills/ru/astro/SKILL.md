@@ -6,6 +6,10 @@ disclosure: lazy
 connectors: [astro]
 category: leisure
 tags: [advice]
+starters:
+  - "Построй мою натальную карту"
+  - "Какие транзиты ждут меня в ближайший месяц?"
+  - "Проверь совместимость по картам с партнёром"
 ---
 
 # Skill: AgiMate Astro

@@ -6,6 +6,10 @@ disclosure: lazy
 connectors: [divination]
 category: leisure
 tags: [advice]
+starters:
+  - "Рассчитай мою Матрицу судьбы"
+  - "Посчитай моё число судьбы"
+  - "Вытяни три карты Таро: прошлое, настоящее, будущее"
 ---
 
 # Skill: AgiMate Divination

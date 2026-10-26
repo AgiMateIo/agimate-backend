@@ -5,6 +5,10 @@ description: Работа с изображениями чужой модель�
 connectors: [media]
 category: platform
 tags: [images, photo]
+starters:
+  - "Нарисуй картинку по описанию"
+  - "Убери фон с фото"
+  - "Опиши, что на картинке, которую я пришлю"
 ---
 
 # Skill: AgiMate Media

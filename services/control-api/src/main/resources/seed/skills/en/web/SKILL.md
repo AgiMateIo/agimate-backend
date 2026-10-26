@@ -5,6 +5,10 @@ description: Searching the web through Yandex and reading pages — fresh facts,
 connectors: [web]
 category: platform
 tags: [read-only]
+starters:
+  - "What are today's top news?"
+  - "Find an answer online with links to the sources"
+  - "Compare prices for a product across shops"
 ---
 
 # Skill: web

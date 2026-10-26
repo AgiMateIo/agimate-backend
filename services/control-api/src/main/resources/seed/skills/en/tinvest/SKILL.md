@@ -11,6 +11,10 @@ connectors:
       url: https://invest-public-api.tbank.ru/mcp
 category: finance
 tags: [own-token, read-only]
+starters:
+  - "Show my brokerage accounts and positions"
+  - "When are the next coupons and dividends on my securities?"
+  - "What taxes have my operations run up this year?"
 ---
 
 # Skill: T-Invest

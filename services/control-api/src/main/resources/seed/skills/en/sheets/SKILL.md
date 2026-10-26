@@ -6,6 +6,10 @@ disclosure: lazy
 connectors: [sheets]
 category: platform
 tags: [tracking]
+starters:
+  - "Set up a sheet to track something"
+  - "Chart my sheet"
+  - "Export the sheet to Excel"
 ---
 
 # Skill: sheets

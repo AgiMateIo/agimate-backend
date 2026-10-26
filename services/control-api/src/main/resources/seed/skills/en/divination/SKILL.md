@@ -6,6 +6,10 @@ disclosure: lazy
 connectors: [divination]
 category: leisure
 tags: [advice]
+starters:
+  - "Calculate my Destiny Matrix"
+  - "Work out my life path number"
+  - "Draw three tarot cards: past, present, future"
 ---
 
 # Skill: AgiMate Divination

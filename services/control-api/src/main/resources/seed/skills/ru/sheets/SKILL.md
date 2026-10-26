@@ -6,6 +6,10 @@ disclosure: lazy
 connectors: [sheets]
 category: platform
 tags: [tracking]
+starters:
+  - "Заведи таблицу для учёта"
+  - "Построй график по моей таблице"
+  - "Выгрузи таблицу в Excel"
 ---
 
 # Skill: таблицы

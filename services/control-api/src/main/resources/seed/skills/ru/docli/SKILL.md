@@ -11,6 +11,10 @@ connectors:
       url: https://docli.ru/api/mcp
 category: content
 tags: [writing]
+starters:
+  - "Найди в моих заметках всё по теме"
+  - "Что нового в моих заметках за неделю?"
+  - "Сохрани итог разговора заметкой"
 ---
 
 # Навык: докли

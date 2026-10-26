@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: implemented
 created: 2026-10-26
+implemented: 2026-10-26
 ---
 
 # Приветствие агента и подсказки первого сообщения
@@ -226,7 +227,11 @@ starters:
 - [x] `greeting`/`starters` в API пресетов; `starters` в `SkillDetailResponse` и `get_skill`
 - [x] Коннектор `platform`: `get_agent_starters`, `update_agent_starters`, `hide_agent_starter`,
       `restore_agent_starters`
-- [ ] Контент: приветствия и подсказки системных пресетов обоих языков, подсказки предметных навыков;
-      разделы «знакомство» в инструкциях — по правилу без канала
-- [ ] Вычитка текстов до релиза
-- [ ] tmpspec для фронта и Android
+- [x] Контент: приветствия и подсказки системных пресетов обоих языков, подсказки предметных навыков
+      (`astro`, `divination`, `tinvest`, `sheets`, `media`, `docli`, `excalidraw`, `web`, `files`);
+      разделы «знакомство» у `astrologer` и `investment-advisor` — по правилу без канала
+- [x] Вычитка русских текстов; английские — перевод вычитанных
+- [x] tmpspec для фронта и Android
+- [ ] После деплоя: поправить инструкции `astrologer` и `investment-advisor` на проде через админский
+      API пресетов — сид кладёт инструкции только в пресеты, которых нет, и правка раздела
+      «знакомство» до засеянной установки сама не доедет

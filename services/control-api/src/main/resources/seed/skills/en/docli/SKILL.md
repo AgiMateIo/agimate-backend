@@ -11,6 +11,10 @@ connectors:
       url: https://docli.ru/api/mcp
 category: content
 tags: [writing]
+starters:
+  - "Find everything on a topic in my notes"
+  - "What's new in my notes this week?"
+  - "Save the outcome of this conversation as a note"
 ---
 
 # Skill: docli
