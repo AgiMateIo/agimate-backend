@@ -1,14 +1,14 @@
 ---
 status: partial
 created: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-29
 ---
 
 # OAuth на MCP-сервере: подключение по одной ссылке
 
-> **Фаза 1 (CIMD) реализована на бэкенде 2026-10-12** — ветка `feature/mcp-server-oauth`. Впереди:
-> страница согласия на фронте, поддомен `mcp.agimate.io` на проде, живой прогон с Claude и фаза 2
-> (DCR).
+> **Фаза 1 (CIMD) на проде**: поддомен `mcp.agimate.io`, страница согласия на фронте и
+> прогон MCP Inspector пройдены. Впереди: живой прогон с Claude.ai, Claude Code, VS Code и ChatGPT,
+> затем фаза 2 (DCR) — и она под вопросом, см. «Фаза 2» в плане.
 
 Решение о том, как внешний MCP-клиент (Claude, ChatGPT, Cursor, Claude Code, VS Code) получает доступ
 к нашему `/mcp`, когда человек дал ему только адрес. Клиент находит сервер авторизации сам,
@@ -507,22 +507,35 @@ Keycloak не знает наших пользователей: либо вхо�
       http): согласие, обмен, повтор кода, `/mcp`, `403` на `/agent/**`, refresh и ретрай, отзыв
       владельцем, удаление агента
 - [x] Хост `mcp.agimate.lc` в `ops/caddy/Caddyfile`, как на проде
-- [ ] Поддомен `mcp.agimate.io`: DNS, сертификат, Ingress (весь хост → control-api с префиксом
+- [x] Поддомен `mcp.agimate.io`: DNS, сертификат, Ingress (весь хост → control-api с префиксом
       `/control`, только пути MCP и OAuth; в месте, которое переживает `helm upgrade`);
-      env `APP_MCP_SERVER_PUBLIC_URL=https://mcp.agimate.io`
-- [ ] Фронт (дельта — в `docs/tmpspec/`): страница `/mcp/authorize` — вход **с возвратом на полный
+      env `APP_MCP_SERVER_PUBLIC_URL=https://mcp.agimate.io` — проверено 2026-10-29: PRM и метаданные
+      AS отвечают 200, `authorization_endpoint` ведёт на `https://agimate.io/mcp/authorize`
+- [x] Фронт (дельта — в `docs/tmpspec/`): страница `/mcp/authorize` — вход **с возвратом на полный
       адрес со строкой запроса** (требование, а не данность: `redirect_to` user-api ведёт на
       `/login-check`), `check`, выбор агента, создание из пресета или пустого с предупреждением,
       `approve`/`deny`, `frame-ancestors 'none'`; карточка агента — адрес `/mcp` для копирования и
-      «Подключённые клиенты» с отзывом
+      «Подключённые клиенты» с отзывом — выкачено вместе с фронтом
 - [x] Запросы, которые mock-тесты не видят, — на живом Postgres (2026-10-12): `supersede` и
       `spendRetry` сквозным прогоном (ротация, один ретрай, повтор → отзыв); сметатель на подложенных
       строках — брошенный `PENDING` старше 10 минут удалён, свежий остался, протухший токен в окне
       ретрая не тронут, грант без единого токена отозван, грант с живым refresh остался
-- [ ] Прогон MCP Inspector (воспроизводимо), затем живой: Claude.ai, Claude Code, VS Code, ChatGPT
+- [x] Прогон MCP Inspector (2026-10-29, воспроизводимо): CIMD-документ — только **https** (прод
+      отвергает `http://localhost`, он допустим лишь на локальном стенде); Inspector по умолчанию
+      идёт в DCR и в legacy-эре протокола, поэтому нужны `--client-metadata-url <https-документ>` и
+      `--protocol-era modern` (сервер отвечает `2026-07-28`). Пройдены discovery → согласие →
+      code/token → `initialize` (`agimate` 1, protocol `2026-07-28`) → `tools/list` (4 инструмента
+      `persist-memory`, `resources`/`prompts` пусты)
+- [ ] Живой прогон внешних клиентов: Claude.ai, Claude Code, VS Code, ChatGPT
 - [x] [../contracts/mcp-server.md](../contracts/mcp-server.md): строка «Аутентификация», раздел про OAuth
 
 **Фаза 2 — DCR** (Cursor)
+
+> Состояние на 2026-10-29: DCR в MCP `2026-07-28` объявлен **deprecated** (PR #2858, migration path —
+> CIMD; earliest removal — первая ревизия не раньше 2027-07-28). Единственный клиент, ради которого
+> фаза заведена, — Cursor: он до сих пор CIMD не умеет (предлагает DCR и static credentials в
+> `mcp.json`). Поэтому развилка: делать DCR как узкий fallback с датой выпиливания — или не делать и
+> остаться на CIMD. Решение не принято.
 
 - [ ] Миграция: `mcp_oauth_clients`
 - [ ] `POST /oauth/register`: публичные клиенты, `redirect_uris` с private-use схемами, потолок
