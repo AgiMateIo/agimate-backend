@@ -115,8 +115,8 @@ HTTP-запрос нельзя. Следствие, с которым надо �
 ## API reference
 
 Paths and schemas are generated from the code. See Swagger at **`/user/docs/ui`**
-(`develop` profile); the auth contour per group is in the [Authentication](#authentication)
-table above.
+(profiles `local,develop`; `develop` включается поверх `local`); the auth contour per group is in
+the [Authentication](#authentication) table above.
 
 ## Впуск новых аккаунтов
 
@@ -537,6 +537,8 @@ APP_OAUTH_COOKIE_DOMAIN=agimate.io
   называет — его называет запрос, который доказательство гасит
 - `pending_registrations` — заявки, не дошедшие до подтверждения (пароля не хранят вовсе — его
   называет тот, кто откроет письмо)
+- `push_subscriptions` — подписки устройств на пуш-транспорт (RuStore/FCM/HMS): строка на токен,
+  уникальна по токену и привязана к сессии входа, чтобы перелогин переносил подписку, а не двоил её
 - `users.password_hash` / `password_updated_at` — пароль, если он у аккаунта есть
 
 Migrations: `services/user-api/src/main/resources/db/changelog/`

@@ -278,14 +278,15 @@ ViewProvider     — readView(ctx, uri), toViewResult(output) — вью MCP App
 Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
 `ToolProvider` даёт context-aware перегрузку `getTools(ConnectorEnv)` (дефолт — те же статические `getTools()`);
-gRPC-листинг (`GetConnectionTools(connection_id)`) единообразно зовёт её с контекстом по `connection_id` — без
-спец-кейсов. Второе исключение — **сессионные тулы** (`sessionScopedTools() = true`, сейчас только `acp`):
+`RunContextService` зовёт её с окружением экземпляра при сборке контекста рана — без спец-кейсов в воркере.
+Второе исключение — **сессионные тулы** (`sessionScopedTools() = true`, сейчас только `acp`):
 они работают лишь внутри живой сессии своего prompt-канала, поэтому `RunContextService` не кладёт их
 в контекст чужого рана, даже если скилл объявил коннектор требуемым. Листингов это не касается —
 каталог и редактор ABAC-политик показывают тулы всегда.
 
-Воркер сперва получает доступные агенту экземпляры через `GetConnections(agent_id)`
-(привязки `agent_connections` → `connections`), затем по каждому зовёт `GetConnectionTools`.
+Воркер получает доступные агенту тулы и их тип одним `GetRunContext`: экземпляры уже собраны
+`RunContextService` из привязок `agent_connections` → `connections`, а `connectorCode` тула приезжает
+в `ConnectorToolSpec` для маршрутизации `ExecuteTool`. Отдельного листинга экземпляров у протокола нет.
 
 **Именование тулов и триггеров (единая форма).** Хранимое имя (`@Tool(name=…)`, ключи `getTriggers()`,
 `@Job`) — **голый локальный идентификатор** в `snake_case` без префиксов: `schedule`, `get_tasks`,
@@ -388,8 +389,7 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 ## Тексты коннектора и язык инсталляции
 
 `connectorName()`/`connectorDescription()` — тексты каталога подключений, они на глазах у пользователя,
-поэтому локализуются под `app.content.language` (см.
-[control-api.md](../services/control-api.md#system-content-language)). Механизм — `ConnectorTexts`
+поэтому локализуются под `app.content.language` (см. [content-language.md](content-language.md)). Механизм — `ConnectorTexts`
 поверх `seed/texts/<lang>/connectors.properties` с ключами `<code>.name`/`<code>.description`; накладывается
 в `ConnectorBootstrap.upsertConnector` и `upsertStatic`. Русский остаётся в коде и служит последним
 фолбэком — файла для языка-первоисточника нет намеренно, иначе один и тот же текст лежал бы в двух

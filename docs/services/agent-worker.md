@@ -146,7 +146,8 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 `(MAX_ATTEMPTS − 1) × first-chunk-timeout + call-timeout` меньше `STALE_AFTER` control-api — вызов
 модели единственная долгая операция рана без RPC, и только на ней ран выглядит молчащим),
 `concurrency` (`llm` — the per-worker semaphore around provider requests),
-`session` (run-ttl-seconds), `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
+`app` (`url`/`title`/`category`/`user-agent` — что воркер сообщает о себе платформе),
+`tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
 спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
 не отменяет джобу на бэке, модель получает явное «could still complete»; detach-after — grace
 ожидания до детача (дефолт 10 с, ≤0 выключает): не уложившийся вызов отцепляется, модель получает

@@ -18,7 +18,12 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | **Connector Auth** | `X-App-Auth-Key: <key>` | `/app/**` — connected-app endpoints |
 | **API Key** | `X-Api-Key: <key>` | `/agent/**` — agent API endpoints |
 | **JWT** | `Authorization: Bearer <jwt>` | `/manage/**` — management endpoints (`/manage/admin/**` — ADMIN only, see [Админский раздел](#админский-раздел-manageadmin)) |
-| **Public** | — | `/`, `/webhook/**`, `/actuator/health`, `/public/catalog/**` — каталог пресетов агентов и навыков для сайта, только описания ([decisions/public-catalog.md](../decisions/public-catalog.md)) |
+| **Public** | — | `/`, `/webhook/**`, `/oauth/**`, `/.well-known/**`, `/files/**` (HMAC в query), `/docs/**`, `/actuator/health/**`, `/error`, `/favicon.ico`, `/public/catalog/**` — каталог пресетов агентов и навыков для сайта, только описания ([decisions/public-catalog.md](../decisions/public-catalog.md)) |
+
+Цепочки матчатся по порядку: `@Order(1)` JWT (`/manage/**`, `/admin/**`), `@Order(2)` app key,
+`@Order(3)` agent key (`/agent/**`, `/acp`, `/mcp`), `@Order(4)` public — и замыкающий
+`anyRequest().authenticated()`. Новый путь попадает в первую подходящую цепочку, поэтому контроллер
+`/manage/**` обязан быть в `SecurityConfig.JWT_CHAIN_PATHS` (полноту сторожит `ManagePathsSecurityTest`).
 
 ## Environment Variables
 
@@ -56,8 +61,8 @@ Trigger and tool-result ingestion from external sources is rate-limited per conn
 ## API reference
 
 Paths, request and response schemas are generated from the code. See Swagger at
-**`/control/docs/ui`** (`develop` profile) — the auth contour for each prefix is in the
-[Authentication](#authentication) table above.
+**`/control/docs/ui`** (profiles `local,develop`; `develop` включается поверх `local`) — the auth
+contour for each prefix is in the [Authentication](#authentication) table above.
 
 Common error envelope for every group:
 
@@ -253,10 +258,10 @@ Migrations: `services/control-api/src/main/resources/db/changelog/`.
 
 | Area | Tables |
 |---|---|
-| Agents | `agents`, `agent_presets`, `agent_skills`, `agent_llms`, `agentic_teams`, `skills` |
+| Agents | `agents`, `agent_presets`, `agent_skills`, `agent_skill_connections`, `agent_starters`, `agent_llms`, `agentic_teams`, `skills` |
 | Runs | `agent_runs`, `agent_run_turns`, `trigger_logs`, `tool_call_logs`, `webhook_delivery_logs` |
-| Connections | `connectors`, `connections`, `connection_tools`, `connection_triggers`, `agent_connections`, `agent_connection_policies`, `connector_jobs` |
+| Connections | `connectors`, `connections`, `connection_tools`, `connection_triggers`, `agent_connections`, `agent_connection_policies`, `connector_jobs`, `mcp_oauth_grants`, `mcp_oauth_tokens` |
 | Channels | `channels`, `agent_sessions`, `channel_session_messages`, `webchat_messages` |
-| Apps and files | `apps`, `files`, `secrets` |
+| Apps and files | `apps`, `files`, `file_references`, `file_versions`, `secrets` |
 | LLM | `llm_providers`, `llm_provider_models`, `llm_model_defaults`, `llm_provider_catalog`, `llm_quotas`, `llm_usage_counters`, `llm_usage_log` |
 | Connector data | `persistent_memory_hot`, `persistent_memory_cold`, `sheets`, `sheet_rows`, `boards`, `board_tasks`, `board_task_comments` |
