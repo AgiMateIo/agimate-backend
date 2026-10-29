@@ -12,14 +12,19 @@
 | **[architecture/overview.md](architecture/overview.md)** | Из чего состоит система и почему именно так — читается один раз, целиком |
 | **[operations/local-stack.md](operations/local-stack.md)** | Поднять локально за одну команду |
 | **[roadmap.md](roadmap.md)** | Что впереди и в каком порядке |
+| **[../AGENTS.md](../AGENTS.md)** | Точка входа для ИИ-кодинг-агентов: команды, карта репозитория, правила |
 
-Схемы запросов и ответов здесь не дублируются — они генерируются из кода. Запустите сервис под
-профилем `develop` и откройте OpenAPI:
+Схемы запросов и ответов здесь не дублируются — они генерируются из кода. Поднимите локальный
+стенд (см. [operations/local-stack.md](operations/local-stack.md)), затем запустите сервис с
+профилями `local,develop` и откройте OpenAPI:
 
 ```bash
-./gradlew :control-api:bootRun --args='--spring.profiles.active=develop --server.port=8180'
-# → http://localhost:8180/control/docs/ui
+SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
+# → http://localhost:8180/control/docs/ui — порт из application-local.yaml
 ```
+
+`develop` включается поверх `local`, а не вместо него: `local` даёт ключи, без которых сервис не
+стартует, а `develop` включает springdoc.
 
 ## Архитектура
 
@@ -28,7 +33,7 @@
 | | |
 |---|---|
 | [overview.md](architecture/overview.md) | Сервисы, владение данными, аутентификация, порты |
-| [agents-and-runs.md](architecture/agents-and-runs.md) | Жизненный цикл рана, сборка контекста агента |
+| [agents-and-runs.md](architecture/agents-and-runs.md) | Сборка контекста агента: три корзины, `ContextSpec`, рендерер в воркере |
 | [connectors.md](architecture/connectors.md) | SPI коннекторов: капабилити, реестр, джобы |
 | [channels-and-triggers.md](architecture/channels-and-triggers.md) | Маршрутизация триггеров и каналы: политика решает «кому», канал — «как» |
 | [content-language.md](architecture/content-language.md) | Язык системного контента установки |
@@ -55,6 +60,16 @@
 | [deploy.md](operations/deploy.md) | Переменные окружения, генерация ключей, порты |
 | [ci.md](operations/ci.md) | Сборка и деплой |
 
+## Разработка
+
+Как менять код: конвенции, проверки, формат коммитов. Точка входа для ИИ-агентов — [../AGENTS.md](../AGENTS.md).
+
+| | |
+|---|---|
+| [development/code-conventions.md](development/code-conventions.md) | Полный свод: язык, слои, HTTP, данные, коннекторы, тесты, документооборот |
+| [../services/AGENTS.md](../services/AGENTS.md) | Сборка и тесты, layout модулей, правила для Java-кода |
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | Настройка, коммиты, pull request'ы |
+
 ## Сервисы
 
 | | |
@@ -73,6 +88,7 @@
 | [sessions.md](connectors/sessions.md) | `sessions`: параллельные разговоры блоком, поиск по сказанному, скрытая компакция окна и заголовок |
 | [agents.md](connectors/agents.md) | Агенты команды: поручения другому агенту по схеме субагентов, круг — команда |
 | [web.md](connectors/web.md) | `web`: поиск через Yandex Search API и чтение страниц в markdown |
+| [time.md](connectors/time.md) | `time`: текущее время, часовой пояс агента и отложенные задачи |
 | [webchat.md](connectors/webchat.md) · [media.md](connectors/media.md) · [astro-divination.md](connectors/astro-divination.md) | Остальные коннекторы |
 
 ## Решения
@@ -129,7 +145,13 @@
 | [realtime-notifications.md](decisions/realtime-notifications.md) | Уведомления через Centrifugo в одном пакете `realtime`: имена каналов, типизированные события, публикация только после коммита и без влияния на логику; `webchat:` сливается в `user:` |
 | [web-search.md](decisions/web-search.md) | Коннектор `web`: поиск на Yandex Search API с платформенным ключом и суточным лимитом, чтение страницы в markdown; поставщик, извлечение текста и конвертер — заменяемые стратегии |
 | [skills-for-connection.md](decisions/skills-for-connection.md) | Какие навыки подходят конкретному подключению: несекретные поля формы подключения хранятся открыто, и навык находит экземпляр SQL-условием `params @>`, а не вычислением в коде коннектора; что секретно, решает объявление полей коннектора |
-| [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md), [agent-skill-references](decisions/deferred/agent-skill-references.md) |
+| [time-settings.md](decisions/time-settings.md) | Часовой пояс агента: настройка коннектора `time` на привязке, а пока её нет — UTC |
+| [signup-quota.md](decisions/signup-quota.md) | Суточная квота на впуск новых аккаунтов: кто получает доступ сразу, а кто ждёт администратора |
+| [llm-providers-ru.md](decisions/llm-providers-ru.md) | Российские LLM-провайдеры: кого ещё звать в каталог и в каком порядке — разбор рынка по живым API |
+| [skill-jobs.md](decisions/skill-jobs.md) | Расписание в навыке: кто объявляет фоновую задачу агента — коннектор `@Job` или сам навык |
+| [progressive-disclosure.md](decisions/progressive-disclosure.md) | Постепенное раскрытие контекста: тела навыков и схемы тулов уезжают по требованию, а не все сразу в каждом ране |
+| [mcp-server-oauth.md](decisions/mcp-server-oauth.md) | OAuth на MCP-сервере: подключение по одной ссылке, CIMD в первой фазе, DCR — под вопросом |
+| [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md), [agent-skill-references](decisions/deferred/agent-skill-references.md), [workflow-connector](decisions/deferred/workflow-connector.md) |
 
 ## Как ведётся документация
 
@@ -138,6 +160,7 @@
 | Куда | Что там лежит | Когда заводится | Когда исчезает |
 |---|---|---|---|
 | `architecture/`, `contracts/`, `services/`, `connectors/`, `operations/` | как система устроена **сейчас** | вместе с подсистемой | не исчезает, правится вместе с кодом |
+| `development/` | конвенции кода и как его менять | вместе с конвенцией | не исчезает, правится вместе с кодом |
 | `decisions/` | что и почему решено, включая отвергнутые варианты | **до** кода, как только работа длиннее одного присеста | не исчезает, меняет статус |
 | `tmpspec/` | дельта этой работы для соседней команды (фронт, Android, devops) | когда работа задевает клиента | удаляется, когда клиент выкатил |
 | [roadmap.md](roadmap.md) | что впереди и в каком порядке | — | строка уходит, когда работа сделана |
@@ -172,4 +195,4 @@
 
 ---
 
-Большая часть документации написана по-русски.
+Большая часть документации написана по-русски; код, комментарии и [AGENTS.md](../AGENTS.md) — по-английски.
