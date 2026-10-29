@@ -21,16 +21,22 @@ Everything lives under [`services/`](services/) as a single Gradle build.
 | `libs/common` | Shared security, JWT and utility code |
 | `libs/agentworker-proto` | Protobuf/gRPC stubs shared by `control-api` and `agent-worker` |
 
+`clients/acp-bridge` is a Node bridge for ACP clients; it is not part of the Gradle build.
+
 ## Stack
 
 Java 25 (virtual threads) · Spring Boot 4 · PostgreSQL 18 · Liquibase · gRPC · Centrifugo
 
 ## Quick start
 
+Requires **JDK 25** (the Gradle build uses a Java 25 toolchain). `./gradlew build` and `./gradlew
+test` need no infrastructure — the tests are unit tests; the Compose stack is only needed for
+`bootRun`.
+
 ```bash
 cd ops
 ./dev-init.sh                    # generates the keys and the local configuration
-docker compose --profile infra up -d   # PostgreSQL + Centrifugo
+docker compose --profile infra up -d   # PostgreSQL + Centrifugo + mailpit
 
 cd ../services
 ./gradlew build
@@ -90,6 +96,10 @@ The deployment is yours — and so is responsibility for whatever oversight it h
 Start with [architecture/overview.md](docs/architecture/overview.md). Request and response schemas
 are not in the docs — they are generated from the code, see
 [the OpenAPI section](docs/README.md#начать-отсюда). Most of the documentation is in Russian.
+
+Working with an AI coding agent? Start it at [AGENTS.md](AGENTS.md) — commands, repository map and
+the rules that are easy to get wrong. The full convention list is in
+[docs/development/code-conventions.md](docs/development/code-conventions.md).
 
 ## Related repositories
 
