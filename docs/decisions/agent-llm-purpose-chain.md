@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: implemented
 created: 2026-10-30
+implemented: 2026-10-30
 ---
 
 # Цепочка привязок агента на одно назначение
@@ -226,43 +227,47 @@ durable-шага для реплея DBOS. Решение модели о сам
 
 ## План
 
-- [ ] Миграция `agent_llms`: снять `uq_agent_llms_agent_id_purpose`, добавить
+- [x] Миграция `agent_llms`: снять `uq_agent_llms_agent_id_purpose`, добавить
       `priority INT NOT NULL DEFAULT 0` (существующие строки получают 0), unique
       `uq_agent_llms_agent_id_purpose_priority`; оба имени зеркалить в `@Table(uniqueConstraints)`
       у `AgentLlm`.
-- [ ] `AgentLlm` и репозиторий: `priority`; `findAllByAgentIdAndPurposeOrderByPriorityAsc`; у
+- [x] `AgentLlm` и репозиторий: `priority`; `findAllByAgentIdAndPurposeOrderByPriorityAsc`; у
       коллекционных finder'ов (`findAllByAgentIdOrderByPurpose`,
       `findAllByAgentIdInOrderByAgentIdAscPurposeAsc`) появляется tie-breaker по `priority`;
       `findByAgentIdAndPurpose` удалён — при двух строках `Optional` падает
       `IncorrectResultSizeDataAccessException`.
-- [ ] `AgentLlmService`: `requireBinding` и его вызовы (`replace`, `delete`,
+- [x] `AgentLlmService`: `requireBinding` и его вызовы (`replace`, `delete`,
       `runtimeForAgentByPurpose`) переведены на список; `GET /agent/llm/{purpose}` отдаёт первую по
       `priority` привязку с включённым провайдером, `GET /agent/llm/` — с `priority`.
-- [ ] `LlmCredentialsResolver`: `resolveFor(LlmPurpose)` — единственный публичный вход; `chainFor`
+- [x] `LlmCredentialsResolver`: `resolveFor(LlmPurpose)` — единственный публичный вход; `chainFor`
       строит политику `CHAT`/`ROUTINE`/остальные; `firstEligible` проверяет выключенного провайдера,
       `UNAVAILABLE`, квоту и модальность назначения; `toResolved` общий; отказ выбирает тип по
       правилу из «Отказа». `resolveChat`, `resolveRoutine` и `resolveForCapability` удалены, вызовы
       в `AgentContextGrpcService`, `MediaInferenceService` и `SessionCompactionService` обновлены;
       `MediaInferenceService.requireImageModality` удалён — проверка переехала в `firstEligible`.
-- [ ] `AgentLlmService` и DTO: `POST` в конец (`max + 1`), `PUT` — удаление строк назначения и
+- [x] `AgentLlmService` и DTO: `POST` в конец (`max + 1`), `PUT` — удаление строк назначения и
       вставка списка в одной транзакции, `requireOwned` и `validateModel` на каждый элемент, запрет
       дублей и цепочки длиннее пяти, `priority` в ответе; схемы `AgentLlmResponse` и
       `CreateAgentLlmRequest` перестают утверждать «одна привязка на назначение».
-- [ ] `ManageAgentLlmController`: `GET /` списком, `POST /` в конец, `PUT /{purpose}` списком
+- [x] `ManageAgentLlmController`: `GET /` списком, `POST /` в конец, `PUT /{purpose}` списком
       (поле `bindings`), `DELETE /{purpose}`.
-- [ ] Платформенный коннектор: `set_agent_llm(agentId, purpose, bindings[])` — адресат сохраняется,
+- [x] Платформенный коннектор: `set_agent_llm(agentId, purpose, bindings[])` — адресат сохраняется,
       на нём держатся guard'ы `requireNotSelf`/`ownedAgent`; `list_agent_llms` в порядке; описание
       `delete_llm_provider` про «fall back to the platform model» исправлено.
-- [ ] Тесты: `resolveFor` для `CHAT`/`ROUTINE`/`IMAGE`/`VISION`; порядок; пропуск выключенного
+- [x] Тесты: `resolveFor` для `CHAT`/`ROUTINE`/`IMAGE`/`VISION`; порядок; пропуск выключенного
       провайдера, `UNAVAILABLE`-модели, исчерпанной квоты и модели без нужной модальности; каждый из
       трёх типов отказа; смена модели между вызовами одного рана; отсутствие повтора после ошибки
       вызова; `[]` и его оговорки; явные привязки не уходят на платформу; `PUT` на пустом
       назначении; запрет дублей и потолок; гонка `POST`.
-- [ ] Документация: `docs/services/control-api.md`, `docs/connectors/media.md`,
+- [x] Документация: `docs/services/control-api.md`, `docs/connectors/media.md`,
       `docs/connectors/platform.md`, `docs/contracts/api-keys.md` (если меняется `/agent/llm`);
       seed-тексты `seed/skills/{ru,en}/platform/SKILL.md` — с оговоркой, что на уже засеянных средах
       они сами не обновятся (seed-only-if-missing), поэтому нужна миграция данных или принятый
       дрейф; статус → `implemented` с датой.
+
+Seed-тексты обновлены в репозитории, но на уже засеянных средах они не перезаписываются
+(seed-only-if-missing): описание `set_agent_llm` там останется прежним. Дрейф принят — миграция
+данных ради текста описания навыка не заводится.
 
 ## Открытые вопросы
 
