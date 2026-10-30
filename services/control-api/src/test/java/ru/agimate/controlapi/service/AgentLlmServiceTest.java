@@ -286,6 +286,21 @@ class AgentLlmServiceTest {
         }
 
         @Test
+        @DisplayName("проигранная гонка PUT с другим писателем → 409, а не исключение персистентности")
+        void lostReplaceRaceIsConflict() {
+            stubOwnedAgent();
+            LlmProvider provider = userProvider();
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.IMAGE))
+                    .thenReturn(List.of());
+            when(agentLlmRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+            doThrow(new DataIntegrityViolationException("uq_agent_llms_agent_id_purpose_priority"))
+                    .when(agentLlmRepository).flush();
+
+            assertThrows(ConflictStatusException.class, () -> service.replaceChain(AGENT_ID, userId,
+                    LlmPurpose.IMAGE, List.of(new Binding(provider.getId(), "photo"))));
+        }
+
+        @Test
         @DisplayName("каждый элемент проходит requireOwned — чужого провайдера в цепочку не подложить")
         void everyElementIsOwned() {
             stubOwnedAgent();

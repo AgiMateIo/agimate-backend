@@ -134,7 +134,6 @@ public class AgentLlmService {
         return AgentLlmResponse.from(binding, llmProviderService.requireOwned(request.llmProviderId(), userId));
     }
 
-    /** The primitive overload — the platform connector's entry point (no {@code controller/**} dependency). */
     @Transactional
     public AgentLlm create(UUID agentId, UUID userId, UUID llmProviderId, String model, LlmPurpose purpose) {
         return append(agentId, userId, llmProviderId, model,
@@ -171,6 +170,7 @@ public class AgentLlmService {
             // a persistence error thrown from the commit after the method has returned.
             agentLlmRepository.flush();
         } catch (DataIntegrityViolationException e) {
+            log.warn("Lost the agent_llm append race: agent={} purpose={}", agent.getId(), purpose, e);
             throw new ConflictStatusException("LLM bindings changed concurrently — retry");
         }
 
@@ -234,7 +234,16 @@ public class AgentLlmService {
 
         agentLlmRepository.deleteAllInBatch(
                 agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agent.getId(), purpose));
-        List<AgentLlm> saved = agentLlmRepository.saveAll(rows);
+        List<AgentLlm> saved;
+        try {
+            // A concurrent POST appending to the same purpose computes the same priority; the loser
+            // must get a conflict, not a persistence error thrown from the commit.
+            saved = agentLlmRepository.saveAll(rows);
+            agentLlmRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Lost the agent_llm replace race: agent={} purpose={}", agent.getId(), purpose, e);
+            throw new ConflictStatusException("LLM bindings changed concurrently — retry");
+        }
 
         log.info("Replaced agent_llm chain: agent={} purpose={} bindings={}",
                 agent.getId(), purpose, saved.size());
