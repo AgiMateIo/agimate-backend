@@ -365,9 +365,10 @@ public class PlatformLlmToolService {
     }
 
     @Tool(name = "delete_agent_llm",
-            description = "Remove every LLM binding of a given purpose from an agent you own; that "
-                    + "purpose falls back to the next resolution step — the provider lists, then the "
-                    + "platform model",
+            description = "Remove every LLM binding of a given purpose from an agent you own; the "
+                    + "purpose then resolves by its default rule: the provider lists of the agent's "
+                    + "chat providers, then the platform model — except ROUTINE, which uses the "
+                    + "agent's CHAT model instead of the platform",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult deleteAgentLlm(
             @ToolParam("Agent public ID") String agentId,
