@@ -23,6 +23,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -59,9 +60,17 @@ public class AgentLlmService {
     public record Binding(UUID llmProviderId, String model) {
     }
 
+    /**
+     * Purposes in the declaration order of {@link LlmPurpose}, then priority. The column is {@code TEXT},
+     * so the database order would be alphabetical; the enum's order is the one a human reads.
+     */
+    private static final Comparator<AgentLlm> BY_PURPOSE_THEN_PRIORITY =
+            Comparator.comparing(AgentLlm::getPurpose).thenComparingInt(AgentLlm::getPriority);
+
     public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agent.getId());
+        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agent.getId())
+                .stream().sorted(BY_PURPOSE_THEN_PRIORITY).toList();
         if (bindings.isEmpty()) {
             return runsOnPlatformModels(agent) ? platformFallbackEntry() : List.of();
         }
@@ -85,6 +94,9 @@ public class AgentLlmService {
             result.computeIfAbsent(b.getAgentId(), k -> new ArrayList<>())
                     .add(AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())));
         }
+        result.values().forEach(list -> list.sort(Comparator
+                .comparing(AgentLlmResponse::purpose)
+                .thenComparingInt(AgentLlmResponse::priority)));
         // Agents with no bindings run through the platform fallback — we show the effective model.
         List<AgentLlmResponse> fallback = platformFallbackEntry();
         if (!fallback.isEmpty()) {
@@ -243,7 +255,8 @@ public class AgentLlmService {
     }
 
     public List<AgentLlmRuntimeResponse> runtimeForAgent(UUID agentId) {
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agentId);
+        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agentId)
+                .stream().sorted(BY_PURPOSE_THEN_PRIORITY).toList();
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
         return bindings.stream()
                 .map(b -> toRuntime(b, providersById.get(b.getLlmProviderId())))

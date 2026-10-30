@@ -351,6 +351,26 @@ class AgentLlmServiceTest {
         }
 
         @Test
+        @DisplayName("назначения идут в порядке объявления LlmPurpose, а не по алфавиту TEXT-колонки")
+        void purposesFollowEnumOrder() {
+            LlmProvider provider = LlmProvider.builder()
+                    .id(UUID.randomUUID()).name("my-openai")
+                    .providerType(LlmProviderType.OPENAI).enabled(true).build();
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
+                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.GENERIC).build()));
+            // база отдала текстовый порядок: VISION < CHAT по алфавиту, но не по объявлению enum
+            when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(AGENT_ID))
+                    .thenReturn(List.of(binding(provider, "vision", LlmPurpose.VISION, 0),
+                            binding(provider, "chat", LlmPurpose.CHAT, 0)));
+            when(llmProviderRepository.findAllByIdIn(List.of(provider.getId())))
+                    .thenReturn(List.of(provider));
+
+            assertEquals(List.of(LlmPurpose.CHAT, LlmPurpose.VISION),
+                    service.listForAgent(AGENT_ID, userId).stream()
+                            .map(AgentLlmResponse::purpose).toList());
+        }
+
+        @Test
         @DisplayName("список для агента отдаёт priority каждой привязки")
         void listCarriesPriority() {
             LlmProvider provider = LlmProvider.builder()
