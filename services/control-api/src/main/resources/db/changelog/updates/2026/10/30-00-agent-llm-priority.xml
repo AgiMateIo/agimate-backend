@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- A purpose stopped being one row per agent: it is an ordered chain, and the resolver takes the
+         first eligible binding (docs/decisions/agent-llm-purpose-chain.md). Existing rows take 0 —
+         every agent has at most one row per purpose under the old unique key. -->
+    <changeSet id="agent-llms-priority" author="agimate">
+        <dropUniqueConstraint tableName="agent_llms"
+                              constraintName="uq_agent_llms_agent_id_purpose"/>
+        <addColumn tableName="agent_llms">
+            <column name="priority" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addUniqueConstraint tableName="agent_llms"
+                             columnNames="agent_id, purpose, priority"
+                             constraintName="uq_agent_llms_agent_id_purpose_priority"/>
+    </changeSet>
+
+</databaseChangeLog>

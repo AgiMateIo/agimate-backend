@@ -7,7 +7,7 @@ import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.util.UUID;
 
-@Schema(description = "Request to bind an LLM provider+model to an agent for a given purpose")
+@Schema(description = "Append one LLM provider+model binding to the end of a purpose's chain")
 public record CreateAgentLlmRequest(
         @NotNull
         @Schema(description = "LLM provider public ID")
@@ -18,10 +18,9 @@ public record CreateAgentLlmRequest(
                 + "UNAVAILABLE rows count — the status is advisory)")
         String model,
 
-        @Schema(description = "Binding role (default CHAT), unique per agent. CHAT — the agent-loop "
-                + "model; IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings, override "
-                + "the capability-based auto-match; ROUTINE — the platform's chores (conversation "
-                + "compaction, session titles), falls back to CHAT")
+        @Schema(description = "Binding role (default CHAT). CHAT — the agent-loop model; "
+                + "IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings; ROUTINE — the "
+                + "platform's chores (conversation compaction, session titles), falls back to CHAT")
         LlmPurpose purpose
 ) {
 }

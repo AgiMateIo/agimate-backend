@@ -74,7 +74,13 @@ public final class PlatformLlmDtos {
     public record AgentLlmBindingList(List<AgentLlmBinding> items, boolean truncated) {
     }
 
-    public record AgentLlmBinding(String purpose, String providerId, String providerName, String model) {
+    /** {@code priority} is the position in the purpose's chain — the resolver tries the lower ones first. */
+    public record AgentLlmBinding(String purpose, int priority, String providerId, String providerName,
+                                  String model) {
+    }
+
+    /** One link of a chain as the tool takes it: the provider and the model, in the caller's order. */
+    public record AgentLlmBindingInput(String providerId, String model) {
     }
 
     // ---- usage -----------------------------------------------------------------------------

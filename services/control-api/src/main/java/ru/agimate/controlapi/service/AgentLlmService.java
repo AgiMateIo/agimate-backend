@@ -2,8 +2,10 @@ package ru.agimate.controlapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -20,27 +22,46 @@ import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * The CRUD of {@code agent_llms}: a purpose holds an ordered chain of bindings, and the resolver takes
+ * the first eligible one (docs/decisions/agent-llm-purpose-chain.md). The order is set by a human —
+ * {@link #create} appends, {@link #replaceChain} rewrites the whole chain.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AgentLlmService {
 
+    /**
+     * Ceiling on a purpose's chain: resolution runs on every llm call and every candidate costs a
+     * registry read and a quota query. Beyond five it is a profile, not a fallback path.
+     */
+    public static final int MAX_BINDINGS_PER_PURPOSE = 5;
+
     private final AgentLlmRepository agentLlmRepository;
     private final AgentRepository agentRepository;
     private final LlmProviderRepository llmProviderRepository;
     private final LlmProviderService llmProviderService;
 
+    /** One link of a chain, as the platform connector passes it (no {@code controller/**} dependency). */
+    public record Binding(UUID llmProviderId, String model) {
+    }
+
     public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurpose(agent.getId());
+        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agent.getId());
         if (bindings.isEmpty()) {
             return runsOnPlatformModels(agent) ? platformFallbackEntry() : List.of();
         }
@@ -55,12 +76,13 @@ public class AgentLlmService {
             return Map.of();
         }
         List<UUID> agentIds = agents.stream().map(Agent::getId).toList();
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAsc(agentIds);
+        List<AgentLlm> bindings =
+                agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAscPriorityAsc(agentIds);
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
 
         Map<UUID, List<AgentLlmResponse>> result = new HashMap<>();
         for (AgentLlm b : bindings) {
-            result.computeIfAbsent(b.getAgentId(), k -> new java.util.ArrayList<>())
+            result.computeIfAbsent(b.getAgentId(), k -> new ArrayList<>())
                     .add(AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())));
         }
         // Agents with no bindings run through the platform fallback — we show the effective model.
@@ -95,92 +117,158 @@ public class AgentLlmService {
 
     @Transactional
     public AgentLlmResponse create(UUID agentId, UUID userId, CreateAgentLlmRequest request) {
-        AgentLlm binding = create(agentId, userId, request.llmProviderId(), request.model(), request.purpose());
+        LlmPurpose purpose = request.purpose() != null ? request.purpose() : LlmPurpose.CHAT;
+        AgentLlm binding = append(agentId, userId, request.llmProviderId(), request.model(), purpose);
         return AgentLlmResponse.from(binding, llmProviderService.requireOwned(request.llmProviderId(), userId));
     }
 
     /** The primitive overload — the platform connector's entry point (no {@code controller/**} dependency). */
     @Transactional
     public AgentLlm create(UUID agentId, UUID userId, UUID llmProviderId, String model, LlmPurpose purpose) {
+        return append(agentId, userId, llmProviderId, model,
+                purpose != null ? purpose : LlmPurpose.CHAT);
+    }
+
+    private AgentLlm append(UUID agentId, UUID userId, UUID llmProviderId, String model, LlmPurpose purpose) {
         Agent agent = requireOwnedAgent(agentId, userId);
         LlmProvider provider = llmProviderService.requireOwned(llmProviderId, userId);
         validateModel(provider, model);
 
-        LlmPurpose resolvedPurpose = purpose != null ? purpose : LlmPurpose.CHAT;
-        if (agentLlmRepository.existsByAgentIdAndPurpose(agent.getId(), resolvedPurpose)) {
-            throw new ConflictStatusException(
-                    "Agent already has an LLM binding for purpose " + resolvedPurpose + "; replace it with PUT");
+        List<AgentLlm> chain =
+                agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agent.getId(), purpose);
+        if (chain.size() >= MAX_BINDINGS_PER_PURPOSE) {
+            throw new ConflictStatusException("The " + purpose + " chain of this agent is full ("
+                    + MAX_BINDINGS_PER_PURPOSE + " bindings); remove one before adding another");
+        }
+        if (chain.stream().anyMatch(b -> sameBinding(b, provider.getId(), model))) {
+            throw new ConflictStatusException("The " + purpose + " chain already binds model '" + model
+                    + "' of provider '" + provider.getName() + "'");
         }
 
-        AgentLlm binding = AgentLlm.builder()
+        int priority = chain.stream().mapToInt(AgentLlm::getPriority).max().orElse(-1) + 1;
+        AgentLlm binding = agentLlmRepository.save(AgentLlm.builder()
                 .userId(userId)
                 .agentId(agent.getId())
                 .llmProviderId(provider.getId())
                 .model(model)
-                .purpose(resolvedPurpose)
-                .build();
-        binding = agentLlmRepository.save(binding);
+                .purpose(purpose)
+                .priority(priority)
+                .build());
+        try {
+            // Flush now: two POSTs compute the same max + 1, and the loser must get a conflict, not
+            // a persistence error thrown from the commit after the method has returned.
+            agentLlmRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictStatusException("LLM bindings changed concurrently — retry");
+        }
 
-        log.info("Created agent_llm: agent={} purpose={} provider={} model={}",
-                agent.getId(), binding.getPurpose(), provider.getId(), binding.getModel());
+        log.info("Appended agent_llm: agent={} purpose={} provider={} model={} priority={}",
+                agent.getId(), purpose, provider.getId(), binding.getModel(), priority);
         return binding;
     }
 
     @Transactional
-    public AgentLlmResponse replace(UUID agentId, UUID userId, LlmPurpose purpose, UpdateAgentLlmRequest request) {
-        AgentLlm binding = replace(agentId, userId, purpose, request.llmProviderId(), request.model());
-        return AgentLlmResponse.from(binding, llmProviderService.requireOwned(request.llmProviderId(), userId));
+    public List<AgentLlmResponse> replaceChain(UUID agentId, UUID userId, LlmPurpose purpose,
+                                               UpdateAgentLlmRequest request) {
+        List<Binding> bindings = request.bindings().stream()
+                .map(b -> new Binding(b.llmProviderId(), b.model()))
+                .toList();
+        List<AgentLlm> chain = replaceChain(agentId, userId, purpose, bindings);
+        Map<UUID, LlmProvider> providersById = loadProviders(chain);
+        return chain.stream()
+                .map(b -> AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())))
+                .toList();
     }
 
-    /** The primitive overload — the platform connector's entry point (no {@code controller/**} dependency). */
+    /**
+     * Rewrites the purpose's chain: the old rows are deleted and the list is inserted with
+     * {@code priority} taken from the position. A delete-then-insert in one transaction, because the
+     * unique {@code (agent_id, purpose, priority)} does not survive an in-place swap.
+     *
+     * @param bindings the chain in the wanted order; empty removes the purpose
+     */
     @Transactional
-    public AgentLlm replace(UUID agentId, UUID userId, LlmPurpose purpose,
-                            UUID llmProviderId, String model) {
+    public List<AgentLlm> replaceChain(UUID agentId, UUID userId, LlmPurpose purpose,
+                                       List<Binding> bindings) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        AgentLlm binding = requireBinding(agent.getId(), purpose);
-        LlmProvider provider = llmProviderService.requireOwned(llmProviderId, userId);
-        validateModel(provider, model);
+        if (bindings.size() > MAX_BINDINGS_PER_PURPOSE) {
+            throw new ConflictStatusException("A purpose chain holds at most "
+                    + MAX_BINDINGS_PER_PURPOSE + " bindings, got " + bindings.size());
+        }
 
-        binding.setLlmProviderId(provider.getId());
-        binding.setModel(model);
-        binding = agentLlmRepository.save(binding);
+        Set<String> seen = new HashSet<>();
+        List<AgentLlm> rows = new ArrayList<>(bindings.size());
+        int priority = 0;
+        for (Binding binding : bindings) {
+            LlmProvider provider = llmProviderService.requireOwned(binding.llmProviderId(), userId);
+            String model = binding.model();
+            if (model == null || model.isBlank()) {
+                throw new BadRequestStatusException("Model is required for every binding");
+            }
+            validateModel(provider, model);
+            if (!seen.add(provider.getId() + "\u0000" + model)) {
+                throw new BadRequestStatusException("Duplicate binding of model '" + model
+                        + "' of provider '" + provider.getName() + "' in one " + purpose + " chain");
+            }
+            rows.add(AgentLlm.builder()
+                    .userId(userId)
+                    .agentId(agent.getId())
+                    .llmProviderId(provider.getId())
+                    .model(model)
+                    .purpose(purpose)
+                    .priority(priority++)
+                    .build());
+        }
 
-        log.info("Replaced agent_llm: agent={} purpose={} provider={} model={}",
-                agent.getId(), purpose, provider.getId(), binding.getModel());
-        return binding;
+        agentLlmRepository.deleteAllInBatch(
+                agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agent.getId(), purpose));
+        List<AgentLlm> saved = agentLlmRepository.saveAll(rows);
+
+        log.info("Replaced agent_llm chain: agent={} purpose={} bindings={}",
+                agent.getId(), purpose, saved.size());
+        return saved;
     }
 
     @Transactional
     public void delete(UUID agentId, UUID userId, LlmPurpose purpose) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        agentLlmRepository.delete(requireBinding(agent.getId(), purpose));
-        log.info("Deleted agent_llm: agent={} purpose={}", agent.getId(), purpose);
+        List<AgentLlm> chain =
+                agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agent.getId(), purpose);
+        if (chain.isEmpty()) {
+            throw new NotFoundStatusException("No LLM binding for purpose " + purpose + " on this agent");
+        }
+        agentLlmRepository.deleteAllInBatch(chain);
+        log.info("Deleted agent_llm chain: agent={} purpose={} bindings={}",
+                agent.getId(), purpose, chain.size());
     }
 
     public List<AgentLlmRuntimeResponse> runtimeForAgent(UUID agentId) {
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurpose(agentId);
+        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agentId);
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
         return bindings.stream()
                 .map(b -> toRuntime(b, providersById.get(b.getLlmProviderId())))
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .toList();
     }
 
+    /** The first binding of the purpose whose provider is enabled — the same order the resolver walks. */
     public AgentLlmRuntimeResponse runtimeForAgentByPurpose(UUID agentId, LlmPurpose purpose) {
-        AgentLlm binding = requireBinding(agentId, purpose);
-        LlmProvider provider = llmProviderRepository.findById(binding.getLlmProviderId())
-                .orElseThrow(() -> new NotFoundStatusException("Linked LLM provider not found"));
-        AgentLlmRuntimeResponse runtime = toRuntime(binding, provider);
-        if (runtime == null) {
-            throw new NotFoundStatusException("LLM provider for purpose " + purpose + " is disabled");
+        List<AgentLlm> chain =
+                agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, purpose);
+        if (chain.isEmpty()) {
+            throw new NotFoundStatusException("No LLM binding for purpose " + purpose + " on this agent");
         }
-        return runtime;
+        Map<UUID, LlmProvider> providersById = loadProviders(chain);
+        return chain.stream()
+                .map(b -> toRuntime(b, providersById.get(b.getLlmProviderId())))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElseThrow(() -> new NotFoundStatusException(
+                        "LLM provider for purpose " + purpose + " is disabled"));
     }
 
-    private AgentLlm requireBinding(UUID agentId, LlmPurpose purpose) {
-        return agentLlmRepository.findByAgentIdAndPurpose(agentId, purpose)
-                .orElseThrow(() -> new NotFoundStatusException(
-                        "No LLM binding for purpose " + purpose + " on this agent"));
+    private static boolean sameBinding(AgentLlm binding, UUID providerId, String model) {
+        return binding.getLlmProviderId().equals(providerId) && binding.getModel().equals(model);
     }
 
     private AgentLlmRuntimeResponse toRuntime(AgentLlm binding, LlmProvider provider) {
@@ -191,7 +279,8 @@ public class AgentLlmService {
                 binding.getPurpose(),
                 provider.getProviderType(),
                 provider.getBaseUrl(),
-                binding.getModel()
+                binding.getModel(),
+                binding.getPriority()
         );
     }
 

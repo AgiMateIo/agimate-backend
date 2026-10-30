@@ -17,26 +17,32 @@ import ru.agimate.controlapi.service.LlmProviderService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * The single pipeline for issuing LLM credentials: provider/model selection → the {@code enabled}
- * check → the quota → key decryption → the {@code extra_body} deep merge. Its consumers are the
- * worker's gRPC path ({@code GetLlmCredentials} → {@link #resolveChat}) and the connector's media
- * path ({@link #resolveForCapability}). The logic lives in one place so the paths do not drift apart
- * on quotas and extra_body.
+ * The single pipeline for issuing LLM credentials: chain resolution → eligibility → the quota → key
+ * decryption → the {@code extra_body} deep merge. Consumers are the worker's gRPC path
+ * ({@code GetLlmCredentials}), the connector's media path and the platform's routines — all through
+ * {@link #resolveFor}, so the paths cannot drift apart on quotas and extra_body.
  *
- * <p>The model is never guessed. Outside an explicit {@code agent_llms} binding it comes from the
- * provider's {@code purpose_priority} allowlist and nowhere else: a purpose the user has not
- * configured produces a message addressed to them, not a capability search through the registry that
- * silently spends their money on a model they never chose.
+ * <p>A purpose holds an ordered chain of bindings ({@code agent_llms.priority}) and the resolver takes
+ * the first <em>eligible</em> one — an ineligible binding never stops the call while a later one is
+ * usable (docs/decisions/agent-llm-purpose-chain.md). Only a rejection known before the provider is
+ * contacted skips a binding: a disabled provider, an {@code UNAVAILABLE} model, an exhausted quota, a
+ * model that cannot do the purpose's modality. A failed call is not retried on the next binding — it
+ * may already have been paid for.
  *
- * <p>Not {@code @Transactional}: it only reads by id, so it needs no transaction of its own. The key is decrypted at
- * call time and leaves only inside the return value — the caller must not persist it (into DBOS
- * checkpoints included).
+ * <p>Explicit bindings are a closed set: if the agent has rows for the purpose, the platform is never
+ * appended, or an exhausted user quota would quietly spend the platform's money. The platform serves
+ * only a purpose with no explicit bindings.
+ *
+ * <p>Not {@code @Transactional}: it only reads by id, so it needs no transaction of its own. The key is
+ * decrypted at call time and leaves only inside the return value — the caller must not persist it
+ * (into DBOS checkpoints included).
  */
 @Component
 @RequiredArgsConstructor
@@ -56,18 +62,20 @@ public class LlmCredentialsResolver {
      */
     static final int MAX_TOKENS_CAP = 32_768;
 
+    /** The modality value in the registry ({@code architecture.input/output_modalities} of /models). */
+    private static final String IMAGE_MODALITY = "image";
+
     /**
      * The resolution's result. {@code extraBody} is the final deep merge of the registry defaults
-     * ({@link #registryDefaults}, chat/completions callers only), the provider-level one and the
-     * per-model one, each level winning over the one below (see {@link ExtraBodyMerge}); an empty map
-     * means no extra fields.
-     * The modalities come from the model's registry row ({@code llm_provider_models}, with the
+     * ({@link #registryDefaults}, text purposes only), the provider-level one and the per-model one,
+     * each level winning over the one below (see {@link ExtraBodyMerge}); an empty map means no extra
+     * fields. The modalities come from the model's registry row ({@code llm_provider_models}, with the
      * {@code llm_model_defaults} fallback merged in at write time); an empty list means the model is
-     * unknown to the registry — «not declared», never «cannot». {@code modelMetadata} is that row's
-     * raw listing entry, in the provider's own shape: only a transport built for that provider may
-     * read it, and only it knows what the shape means.
+     * unknown to the registry — «not declared», never «cannot». {@code modelMetadata} is that row's raw
+     * listing entry, in the provider's own shape: only a transport built for that provider may read it,
+     * and only it knows what the shape means.
      *
-     * @param platformFallback {@code true} — the platform provider was issued (the agent has no binding)
+     * @param platformFallback {@code true} — the platform provider was issued (no explicit binding on the purpose)
      */
     public record ResolvedLlm(
             LlmProvider provider,
@@ -81,207 +89,237 @@ public class LlmCredentialsResolver {
     }
 
     /**
-     * The chat model of the agent loop: the agent's {@code purpose = CHAT} binding (there is exactly
-     * one — uniqueness on {@code (agent_id, purpose)}), otherwise a fallback to the platform provider
-     * and the first live model of its {@code CHAT} list (a personal binding always wins). Tool
-     * bindings (IMAGE/VISION/…) never reach here.
+     * The model of a purpose — the first eligible binding of its chain. The chain is rebuilt before
+     * every call, so a model may change mid-run when the current binding stops being eligible; that is
+     * accepted, a dead binding being worse than a cold prompt cache.
      *
-     * @throws NotFoundStatusException      the binding's provider is gone / its model is no longer listed / there is no binding and the platform cannot serve CHAT
-     * @throws LlmProviderDisabledException the binding's provider is disabled
-     * @throws QuotaExceededException       the provider's quota is exhausted
+     * @throws QuotaExceededException       every candidate hit an exhausted quota; the text comes from
+     *                                      {@link LlmQuotaService} and reaches the user verbatim
+     * @throws LlmProviderDisabledException every candidate's provider is disabled
+     * @throws NoCapableModelException      media: nothing eligible (its text is shown to the agent)
+     * @throws NotFoundStatusException      CHAT/ROUTINE: nothing eligible (the worker shows its own text)
      */
-    public ResolvedLlm resolveChat(UUID agentId, UUID userId) {
-        LlmProvider provider;
-        Pick pick;
-        boolean platformFallback = false;
+    public ResolvedLlm resolveFor(UUID agentId, UUID userId, LlmPurpose purpose) {
+        Chain chain = chainFor(agentId, purpose);
+        Candidate pick = firstEligible(chain, purpose, userId, agentId);
+        return toResolved(pick, purpose);
+    }
 
-        AgentLlm binding = agentLlmRepository
-                .findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT)
-                .orElse(null);
-        if (binding != null) {
-            provider = boundProvider(binding);
-            pick = boundPick(provider, binding);
-            if (isGone(pick.row())) {
-                throw new NotFoundStatusException(boundModelGone(provider, LlmPurpose.CHAT, pick.model()));
-            }
-        } else {
-            provider = llmProviderService.findUsablePlatformProvider()
-                    .orElseThrow(() -> new NotFoundStatusException(
-                            "No LLM binding for agent " + agentId + " and no platform provider available"));
-            LlmProvider platform = provider;
-            pick = pickModel(platform, LlmPurpose.CHAT)
-                    .orElseThrow(() -> new NotFoundStatusException(
-                            "No chat model available for agent " + agentId + ": "
-                                    + miss(platform, LlmPurpose.CHAT)));
-            platformFallback = true;
-        }
+    // ---- the chain -------------------------------------------------------------------------
 
-        // Before every LLM call (the credentials are requested inline on each llm_call).
-        llmQuotaService.check(provider, userId, agentId);
+    /** Candidates in the order they are tried plus the provider-level reasons collected on the way. */
+    private record Chain(List<Candidate> candidates, List<String> misses) {
+    }
 
-        return resolved(provider, pick, platformFallback, true);
+    /** A model to try together with its registry row, read once and carried to the end. */
+    private record Candidate(LlmProvider provider, String model, LlmProviderModel row) {
     }
 
     /**
-     * A tool model for a purpose (the media connector). The cascade: an explicit agent binding with
-     * that {@code purpose} (it always wins — the lists are not consulted at all) → the
-     * {@code purpose_priority} list of the provider behind the agent's chat binding (media follows the
-     * billing the user has already chosen) → the same list on the platform provider. No search by
-     * modality: if neither declares the purpose, the caller is told so.
-     *
-     * @throws IllegalArgumentException     {@code purpose == CHAT} — the chat model is issued by {@link #resolveChat}
-     * @throws NoCapableModelException      the bound model is no longer listed, or no provider of the chain declares a usable one
-     * @throws LlmProviderDisabledException the explicit binding's provider is disabled (loudly, with no fallback)
-     * @throws QuotaExceededException       the provider's quota is exhausted
+     * The policy of each purpose — the only place they differ:
+     * <ul>
+     *   <li>explicit bindings of any purpose always win and close the chain;</li>
+     *   <li>{@code CHAT} without bindings: the platform's CHAT list;</li>
+     *   <li>media without bindings: the purpose lists of the chat providers in chain order, then the
+     *       platform;</li>
+     *   <li>{@code ROUTINE} without bindings: the ROUTINE lists of the chat providers, then the
+     *       agent's own CHAT model — never the platform behind an agent that brought its own.</li>
+     * </ul>
      */
-    public ResolvedLlm resolveForCapability(UUID agentId, UUID userId, LlmPurpose purpose) {
-        if (purpose == LlmPurpose.CHAT) {
-            throw new IllegalArgumentException("CHAT is resolved via resolveChat");
+    private Chain chainFor(UUID agentId, LlmPurpose purpose) {
+        List<AgentLlm> explicit = bindings(agentId, purpose);
+        if (!explicit.isEmpty()) {
+            return new Chain(explicitCandidates(explicit), List.of());
         }
-        LlmProvider provider;
-        Pick pick;
-        boolean platformFallback = false;
+        return switch (purpose) {
+            case CHAT -> platformChatChain();
+            case ROUTINE -> routineChain(agentId);
+            default -> mediaChain(agentId, purpose);
+        };
+    }
 
-        AgentLlm binding = agentLlmRepository
-                .findByAgentIdAndPurpose(agentId, purpose)
-                .orElse(null);
-        if (binding != null) {
-            provider = boundProvider(binding);
-            pick = boundPick(provider, binding);
-            if (isGone(pick.row())) {
-                throw new NoCapableModelException(boundModelGone(provider, purpose, pick.model()));
-            }
-        } else {
-            Candidate candidate = fromChain(agentId, purpose);
-            provider = candidate.provider();
-            pick = candidate.pick();
-            platformFallback = LlmProviderService.isPlatform(provider);
+    private Chain platformChatChain() {
+        Optional<LlmProvider> platform = llmProviderService.findUsablePlatformProvider();
+        if (platform.isEmpty()) {
+            return new Chain(List.of(),
+                    List.of("the agent has no chat provider and there is no platform provider"));
         }
+        return providerLists(List.of(platform.get()), LlmPurpose.CHAT, false);
+    }
 
-        llmQuotaService.check(provider, userId, agentId);
+    private Chain routineChain(UUID agentId) {
+        List<AgentLlm> chatBindings = bindings(agentId, LlmPurpose.CHAT);
+        Chain lists = providerLists(chatProviders(chatBindings), LlmPurpose.ROUTINE, false);
+        // The chore falls back to the model the agent already talks through — not to the platform,
+        // which would bill somebody else for our idea.
+        Chain chat = chatBindings.isEmpty()
+                ? platformChatChain()
+                : new Chain(explicitCandidates(chatBindings), List.of());
+        return new Chain(concat(lists.candidates(), chat.candidates()),
+                concat(lists.misses(), chat.misses()));
+    }
 
-        return resolved(provider, pick, platformFallback, purpose == LlmPurpose.ROUTINE);
+    private Chain mediaChain(UUID agentId, LlmPurpose purpose) {
+        List<LlmProvider> providers = new ArrayList<>(
+                chatProviders(bindings(agentId, LlmPurpose.CHAT)));
+        if (providers.stream().noneMatch(LlmProviderService::isPlatform)) {
+            llmProviderService.findUsablePlatformProvider().ifPresent(providers::add);
+        }
+        return providerLists(providers, purpose, true);
     }
 
     /**
-     * The model for the platform's chores ({@link LlmPurpose#ROUTINE}): the agent's ROUTINE binding,
-     * then the ROUTINE list of the provider the agent already talks through, then the agent's own
-     * CHAT model. Never the platform provider behind an agent that brought its own: a chore is not a
-     * reason to bill somebody else.
-     *
-     * @throws NoCapableModelException      the bound ROUTINE model is no longer listed
-     * @throws LlmProviderDisabledException the bound provider is disabled
-     * @throws NotFoundStatusException      no ROUTINE model and the CHAT fallback cannot resolve either
-     * @throws QuotaExceededException       the provider's quota is exhausted
+     * The providers of the agent's chat chain, enabled and in binding order. No chat bindings means the
+     * agent runs on the platform, so the platform is the chat provider.
      */
-    public ResolvedLlm resolveRoutine(UUID agentId, UUID userId) {
-        AgentLlm binding = agentLlmRepository
-                .findByAgentIdAndPurpose(agentId, LlmPurpose.ROUTINE)
-                .orElse(null);
-        if (binding != null) {
-            return resolveForCapability(agentId, userId, LlmPurpose.ROUTINE);
+    private List<LlmProvider> chatProviders(List<AgentLlm> chatBindings) {
+        if (chatBindings.isEmpty()) {
+            return llmProviderService.findUsablePlatformProvider()
+                    .map(List::of).orElse(List.of());
         }
-        Optional<LlmProvider> chatProvider = agentLlmRepository
-                .findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT)
-                .map(AgentLlm::getLlmProviderId)
-                .flatMap(llmProviderRepository::findById)
-                .or(llmProviderService::findUsablePlatformProvider)
-                .filter(LlmProvider::isEnabled);
-        Optional<Pick> pick = chatProvider.flatMap(provider -> pickModel(provider, LlmPurpose.ROUTINE));
-        if (pick.isEmpty()) {
-            return resolveChat(agentId, userId);
-        }
-        LlmProvider provider = chatProvider.get();
-        llmQuotaService.check(provider, userId, agentId);
-        return resolved(provider, pick.get(), LlmProviderService.isPlatform(provider), true);
-    }
-
-    private record Candidate(LlmProvider provider, Pick pick) {
+        return providersInOrder(chatBindings).stream().filter(LlmProvider::isEnabled).toList();
     }
 
     /**
-     * A chosen model together with its registry row, carried to the end of the resolution so the row
-     * is read once: the same row answers «is the model still listed», {@code extra_body} and
-     * {@code input_modalities}, and resolveChat runs inline on every llm_call.
-     *
-     * @param row {@code null} — the model is not in the registry at all (configured before the first
-     *            discovery, which is legitimate and not an error)
+     * The declared purpose lists of the providers, in order. A missing key is a gap and the next
+     * provider continues; an empty list is an explicit «off» — it drops that provider from the chain,
+     * so one provider's {@code []} cannot close the purpose on the next one. The platform's explicit
+     * «off» is the exception: appending it would silently change who pays.
      */
-    private record Pick(String model, LlmProviderModel row) {
-    }
-
-    /**
-     * The first provider of the chain that declares a usable model for the purpose. The failure
-     * message carries the reason for every provider tried, because «no vision model» has three very
-     * different fixes depending on whether the list is absent, empty or dead. An empty list stops the
-     * chain: it is an explicit «off», not a gap for the next provider to fill.
-     */
-    private Candidate fromChain(UUID agentId, LlmPurpose purpose) {
-        List<LlmProvider> chain = capabilityChain(agentId);
+    private Chain providerLists(List<LlmProvider> providers, LlmPurpose purpose, boolean platformEmptyStops) {
+        List<Candidate> candidates = new ArrayList<>();
         List<String> misses = new ArrayList<>();
-        for (LlmProvider provider : chain) {
-            Optional<Pick> pick = pickModel(provider, purpose);
-            if (pick.isPresent()) {
-                return new Candidate(provider, pick.get());
+        for (LlmProvider provider : providers) {
+            Optional<List<String>> declared = provider.modelsFor(purpose);
+            if (declared.isEmpty() || declared.get().isEmpty()) {
+                misses.add(miss(provider, purpose));
+                if (platformEmptyStops && declared.isPresent() && LlmProviderService.isPlatform(provider)) {
+                    break;
+                }
+                continue;
             }
-            misses.add(miss(provider, purpose));
-            if (provider.modelsFor(purpose).map(List::isEmpty).orElse(false)) {
-                // An explicit empty list is a decision to keep the purpose off; walking on to the
-                // platform would quietly undo it. A missing key is a gap and does continue.
-                break;
+            Map<String, LlmProviderModel> registry = registryOf(provider);
+            for (String model : declared.get()) {
+                candidates.add(new Candidate(provider, model, registry.get(model)));
             }
         }
-        String reason = misses.isEmpty()
-                ? "the agent has no chat provider and there is no platform provider"
-                : String.join("; ", misses);
-        throw new NoCapableModelException("No " + purpose + " model available: " + reason
-                + ". Bind a " + purpose + " model to this agent or add one to the provider's "
-                + purpose + " list.");
+        return new Chain(candidates, misses);
     }
 
-    /**
-     * Where a tool model is looked for, in order: the provider of the agent's chat binding, then the
-     * platform one. Disabled providers drop out of the chain rather than failing it — the media tool
-     * is not the place to discover that the chat provider was switched off.
-     */
-    private List<LlmProvider> capabilityChain(UUID agentId) {
-        List<LlmProvider> chain = new ArrayList<>();
-        agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT)
+    /** The bound model plus its registry row — each binding names one model, so it is a direct lookup. */
+    private List<Candidate> explicitCandidates(List<AgentLlm> bindings) {
+        List<Candidate> result = new ArrayList<>(bindings.size());
+        Map<UUID, LlmProvider> byId = providersById(bindings);
+        for (AgentLlm binding : bindings) {
+            LlmProvider provider = byId.get(binding.getLlmProviderId());
+            if (provider == null) {
+                continue;
+            }
+            // A disabled provider is skipped by eligibility before anything else — its registry row
+            // would be read only to be discarded.
+            LlmProviderModel row = provider.isEnabled()
+                    ? llmProviderModelRepository
+                            .findByLlmProviderIdAndModel(provider.getId(), binding.getModel())
+                            .orElse(null)
+                    : null;
+            result.add(new Candidate(provider, binding.getModel(), row));
+        }
+        return result;
+    }
+
+    private List<AgentLlm> bindings(UUID agentId, LlmPurpose purpose) {
+        return agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, purpose);
+    }
+
+    private Map<UUID, LlmProvider> providersById(List<AgentLlm> bindings) {
+        List<UUID> ids = bindings.stream().map(AgentLlm::getLlmProviderId).distinct().toList();
+        return llmProviderRepository.findAllByIdIn(ids).stream()
+                .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
+    }
+
+    private List<LlmProvider> providersInOrder(List<AgentLlm> bindings) {
+        Map<UUID, LlmProvider> byId = providersById(bindings);
+        return bindings.stream()
                 .map(AgentLlm::getLlmProviderId)
-                .flatMap(llmProviderRepository::findById)
-                .filter(LlmProvider::isEnabled)
-                .ifPresent(chain::add);
-        llmProviderService.findUsablePlatformProvider()
-                .filter(platform -> chain.stream().noneMatch(p -> p.getId().equals(platform.getId())))
-                .ifPresent(chain::add);
-        return chain;
+                .distinct()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .toList();
     }
+
+    private Map<String, LlmProviderModel> registryOf(LlmProvider provider) {
+        return llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()).stream()
+                .collect(Collectors.toMap(LlmProviderModel::getModel, Function.identity()));
+    }
+
+    // ---- eligibility -----------------------------------------------------------------------
 
     /**
-     * The first model of the provider's list for the purpose that is not known to be gone: the
-     * declared order is the user's, UNAVAILABLE registry rows are skipped (a declared list is also a
-     * fallback chain), and a model with no registry row at all is taken as-is — configuring one before
-     * the first discovery is legitimate.
+     * Walks the chain and returns the first candidate that may be called. The quota check is the last
+     * one — it is the only check that touches another service and the only one whose failure has a
+     * user-facing text of its own. The type of the refusal names the common cause, because the worker
+     * turns the gRPC status into what the human sees: all quotas exhausted → {@code RESOURCE_EXHAUSTED},
+     * all providers off → {@code FAILED_PRECONDITION}, everything else → the media text or
+     * {@code NOT_FOUND}.
      */
-    private Optional<Pick> pickModel(LlmProvider provider, LlmPurpose purpose) {
-        List<String> declared = provider.modelsFor(purpose).orElse(List.of());
-        if (declared.isEmpty()) {
-            return Optional.empty();
+    private Candidate firstEligible(Chain chain, LlmPurpose purpose, UUID userId, UUID agentId) {
+        List<String> reasons = new ArrayList<>(chain.misses());
+        List<String> quotaMessages = new ArrayList<>();
+        int disabled = 0;
+        int quota = 0;
+        List<Candidate> candidates = chain.candidates();
+        for (Candidate candidate : candidates) {
+            LlmProvider provider = candidate.provider();
+            if (!provider.isEnabled()) {
+                reasons.add("provider '" + provider.getName() + "' is disabled");
+                disabled++;
+                continue;
+            }
+            if (isGone(candidate.row())) {
+                reasons.add("model '" + candidate.model() + "' of provider '" + provider.getName()
+                        + "' is no longer listed");
+                continue;
+            }
+            if (!supportsPurpose(candidate.row(), purpose)) {
+                reasons.add(modalityMiss(candidate, purpose));
+                continue;
+            }
+            try {
+                llmQuotaService.check(provider, userId, agentId);
+            } catch (QuotaExceededException e) {
+                quotaMessages.add(e.getMessage());
+                reasons.add(e.getMessage());
+                quota++;
+                continue;
+            }
+            return candidate;
         }
-        Map<String, LlmProviderModel> registry = llmProviderModelRepository
-                .findAllByLlmProviderIdOrderByModel(provider.getId()).stream()
-                .collect(Collectors.toMap(LlmProviderModel::getModel, Function.identity()));
-        return declared.stream()
-                .map(model -> new Pick(model, registry.get(model)))
-                .filter(pick -> !isGone(pick.row()))
-                .findFirst();
+
+        if (!candidates.isEmpty() && quota == candidates.size()) {
+            throw new QuotaExceededException(String.join(" ", distinct(quotaMessages)));
+        }
+        if (!candidates.isEmpty() && disabled == candidates.size()) {
+            String names = candidates.stream().map(c -> "'" + c.provider().getName() + "'")
+                    .distinct().collect(Collectors.joining(", "));
+            throw new LlmProviderDisabledException(
+                    "All providers of the " + purpose + " chain are disabled: " + names);
+        }
+        throw refusal(purpose, reasons, agentId);
     }
 
-    /** The bound model plus its registry row — the binding names one model, so it is a direct lookup. */
-    private Pick boundPick(LlmProvider provider, AgentLlm binding) {
-        return new Pick(binding.getModel(), llmProviderModelRepository
-                .findByLlmProviderIdAndModel(provider.getId(), binding.getModel())
-                .orElse(null));
+    private RuntimeException refusal(LlmPurpose purpose, List<String> reasons, UUID agentId) {
+        String detail = reasons.isEmpty()
+                ? "no binding is configured for " + purpose + " and no provider declares a model for it"
+                : String.join("; ", reasons);
+        if (!purpose.isText()) {
+            return new NoCapableModelException("No " + purpose + " model available: " + detail
+                    + ". Bind a " + purpose + " model to this agent or add one to the provider's "
+                    + purpose + " list.");
+        }
+        // The worker replaces the text of NOT_FOUND with its own «no model» template; the chain is
+        // what an operator needs to read.
+        log.warn("No {} model for agent {}: {}", purpose, agentId, detail);
+        return new NotFoundStatusException("No " + purpose + " model available: " + detail);
     }
 
     /** Known to the registry and gone from the provider's last listing. A model it never saw is not «gone». */
@@ -290,18 +328,35 @@ public class LlmCredentialsResolver {
     }
 
     /**
-     * A binding whose model has dropped out of the listing. There is no fallback here on purpose: the
-     * model was named by a human, and quietly answering from a different one would be the guess this
-     * whole path exists to avoid.
+     * The purpose's modality against the model's declared one. An empty list means «not declared»,
+     * never «cannot»: a model configured before the first discovery stays usable.
      */
-    private static String boundModelGone(LlmProvider provider, LlmPurpose purpose, String model) {
-        return "Model '" + model + "' bound to this agent for " + purpose
-                + " is no longer listed by provider '" + provider.getName()
-                + "'. Rebind the agent or refresh the provider's models.";
+    private static boolean supportsPurpose(LlmProviderModel row, LlmPurpose purpose) {
+        List<String> declared = declaredModality(row, purpose);
+        return declared == null || declared.isEmpty() || declared.contains(IMAGE_MODALITY);
+    }
+
+    private static String modalityMiss(Candidate candidate, LlmPurpose purpose) {
+        boolean generating = purpose == LlmPurpose.IMAGE;
+        return "model '" + candidate.model() + "' of provider '" + candidate.provider().getName()
+                + "' cannot " + (generating ? "generate" : "accept") + " images: it declares "
+                + (generating ? "output" : "input") + " modalities "
+                + declaredModality(candidate.row(), purpose);
+    }
+
+    private static List<String> declaredModality(LlmProviderModel row, LlmPurpose purpose) {
+        if (row == null) {
+            return null;
+        }
+        return switch (purpose) {
+            case IMAGE -> row.getOutputModalities();
+            case VISION -> row.getInputModalities();
+            default -> null;
+        };
     }
 
     /** Why this provider cannot serve the purpose — user-facing text, not a log line. */
-    private String miss(LlmProvider provider, LlmPurpose purpose) {
+    private static String miss(LlmProvider provider, LlmPurpose purpose) {
         Optional<List<String>> declared = provider.modelsFor(purpose);
         if (declared.isEmpty()) {
             return "provider '" + provider.getName() + "' has no models configured for " + purpose;
@@ -313,27 +368,17 @@ public class LlmCredentialsResolver {
                 + "' are unavailable: " + declared.get();
     }
 
-    private LlmProvider boundProvider(AgentLlm binding) {
-        LlmProvider provider = llmProviderRepository.findById(binding.getLlmProviderId())
-                .orElseThrow(() -> new NotFoundStatusException(
-                        "LLM provider not found: " + binding.getLlmProviderId()));
-        if (!provider.isEnabled()) {
-            throw new LlmProviderDisabledException("LLM provider disabled");
-        }
-        return provider;
-    }
+    // ---- finalisation ----------------------------------------------------------------------
 
     /**
      * Finalisation: key decryption plus the extra_body merge and the modalities of the picked row.
-     *
-     * @param chatCompletions the caller sends the body to {@code /chat/completions}; only there do the
-     *                        registry defaults belong — an images or audio endpoint may reject them
      */
-    private ResolvedLlm resolved(LlmProvider provider, Pick pick, boolean platformFallback,
-                                 boolean chatCompletions) {
+    private ResolvedLlm toResolved(Candidate pick, LlmPurpose purpose) {
+        LlmProvider provider = pick.provider();
         String apiKey = llmProviderService.decryptApiKey(provider);
         LlmProviderModel row = pick.row();
-        Map<String, Object> defaults = chatCompletions ? registryDefaults(row) : Map.of();
+        // The registry defaults belong to chat/completions only: an images or audio endpoint rejects them.
+        Map<String, Object> defaults = purpose.isText() ? registryDefaults(row) : Map.of();
         Map<String, Object> extraBody = ExtraBodyMerge.merge(
                 ExtraBodyMerge.merge(defaults, provider.getExtraBody()),
                 row != null ? row.getExtraBody() : null);
@@ -342,7 +387,7 @@ public class LlmCredentialsResolver {
         return new ResolvedLlm(provider, pick.model(), apiKey, extraBody,
                 modalities(row == null ? null : row.getInputModalities()),
                 modalities(row == null ? null : row.getOutputModalities()),
-                metadata, platformFallback);
+                metadata, LlmProviderService.isPlatform(provider));
     }
 
     /**
@@ -380,4 +425,17 @@ public class LlmCredentialsResolver {
         return declared == null ? List.of() : List.copyOf(declared);
     }
 
+    private static <T> List<T> concat(List<T> first, List<T> second) {
+        if (second.isEmpty()) {
+            return first;
+        }
+        List<T> result = new ArrayList<>(first.size() + second.size());
+        result.addAll(first);
+        result.addAll(second);
+        return result;
+    }
+
+    private static List<String> distinct(List<String> values) {
+        return values.stream().distinct().toList();
+    }
 }

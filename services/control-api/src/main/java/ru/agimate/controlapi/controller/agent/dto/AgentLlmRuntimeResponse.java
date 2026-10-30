@@ -22,6 +22,9 @@ public record AgentLlmRuntimeResponse(
         String baseUrl,
 
         @Schema(description = "Model to use")
-        String model
+        String model,
+
+        @Schema(description = "Position in the purpose's chain; the resolver tries the lower ones first")
+        int priority
 ) {
 }

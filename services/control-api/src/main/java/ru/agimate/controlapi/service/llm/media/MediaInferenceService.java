@@ -30,10 +30,10 @@ import java.util.UUID;
 
 /**
  * The gate of «model as a tool» media inference (docs/connectors/media.md): resolving the model by
- * purpose ({@link LlmCredentialsResolver#resolveForCapability}) → the provider's dialect
- * ({@link MediaTransport}) → bytes into the file layer → usage accounting. The only point where the
- * media connector touches the LLM infrastructure: the connector itself knows nothing about
- * providers, keys or the registry.
+ * purpose ({@link LlmCredentialsResolver#resolveFor}, which also skips a model without the purpose's
+ * modality) → the provider's dialect ({@link MediaTransport}) → bytes into the file layer → usage
+ * accounting. The only point where the media connector touches the LLM infrastructure: the connector
+ * itself knows nothing about providers, keys or the registry.
  *
  * <p>Generation goes through a transport because providers disagree on how a picture is requested;
  * vision does not — an image in a chat message is the one thing every OpenAI-compatible provider
@@ -58,9 +58,6 @@ public class MediaInferenceService {
     /** No known image model handles more than 4 references — we cut it off before the HTTP call. */
     private static final int MAX_INPUT_IMAGES = 4;
     private static final String DEFAULT_DESCRIBE_PROMPT = "Describe this image in detail.";
-    /** The modality value in the registry ({@code architecture.input/output_modalities} of /models). */
-    private static final String IMAGE_MODALITY = "image";
-
     private final LlmCredentialsResolver credentialsResolver;
     private final MediaInferenceHttp http;
     private final MediaTransportRegistry transports;
@@ -90,9 +87,8 @@ public class MediaInferenceService {
      */
     public ImageResult generateImage(MediaCall call, String prompt, List<String> sourceFileIds) {
         List<String> sourceIds = sourceFileIds == null ? List.of() : sourceFileIds;
-        ResolvedLlm resolved = credentialsResolver.resolveForCapability(
+        ResolvedLlm resolved = credentialsResolver.resolveFor(
                 call.agentId(), call.userId(), LlmPurpose.IMAGE);
-        requireImageModality(resolved, LlmPurpose.IMAGE);
         List<InputImage> sources = loadSources(call, sourceIds);
 
         MediaTransport transport = transports.forProvider(resolved.provider());
@@ -120,9 +116,8 @@ public class MediaInferenceService {
 
     /** Vision over a file: a description of, or an answer about, the image {@code fileId}. */
     public String describeImage(MediaCall call, String fileId, String question) {
-        ResolvedLlm resolved = credentialsResolver.resolveForCapability(
+        ResolvedLlm resolved = credentialsResolver.resolveFor(
                 call.agentId(), call.userId(), LlmPurpose.VISION);
-        requireImageModality(resolved, LlmPurpose.VISION);
         String prompt = question == null || question.isBlank() ? DEFAULT_DESCRIBE_PROMPT : question;
         String dataUri = ChatModalitiesTransport.dataUri(loadImage(call, fileId));
         Map<String, Object> body = requestBody(resolved, Map.of(
@@ -132,27 +127,6 @@ public class MediaInferenceService {
         Map<String, Object> response = http.chatCompletions(resolved.provider(), resolved.apiKey(), body);
         recordUsage(call, resolved, MediaInferenceHttp.usage(response));
         return MediaInferenceHttp.messageText(response);
-    }
-
-    /**
-     * The registry's verdict on «can this model do it at all», checked before HTTP: a model that
-     * declares its modalities and has no {@code image} among them will never return a picture, and the
-     * provider's own refusal for that case is unreadable (Polza answers a bare 500). A model the
-     * registry knows nothing about passes — an empty list means «not declared», never «cannot», and
-     * configuring a model before the first {@code refreshModels} is legitimate (see
-     * {@link LlmCredentialsResolver}).
-     */
-    private static void requireImageModality(ResolvedLlm resolved, LlmPurpose purpose) {
-        boolean generating = purpose == LlmPurpose.IMAGE;
-        List<String> declared = generating ? resolved.outputModalities() : resolved.inputModalities();
-        if (declared.isEmpty() || declared.contains(IMAGE_MODALITY)) {
-            return;
-        }
-        throw new NoCapableModelException("Model '" + resolved.model() + "' of provider '"
-                + resolved.provider().getName() + "' cannot " + (generating ? "generate" : "accept")
-                + " images: it declares " + (generating ? "output" : "input") + " modalities "
-                + declared + ". Bind a suitable model to this agent for " + purpose
-                + " or fix the provider's " + purpose + " list.");
     }
 
     /** The final request body: the resolution's extra_body underneath, with the core (model/messages) winning. */

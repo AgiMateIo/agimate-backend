@@ -117,7 +117,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("happy path: тело с modalities и extra_body, байты в storage, usage учтён")
         void happyPath() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("img-model", Map.of("provider", Map.of("only", List.of("google")))));
             when(http.chatCompletions(eq(provider), eq("sk-key"), any()))
                     .thenReturn(imageResponse("готово"));
@@ -161,7 +161,7 @@ class MediaInferenceServiceTest {
         @DisplayName("непрозрачный PNG от модели ложится в storage JPEG'ом")
         void opaquePngStoredAsJpeg() {
             byte[] png = JpegRecompressorTest.photoLikePng(BufferedImage.TYPE_INT_RGB);
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("img-model", Map.of()));
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse("",
                     "data:image/png;base64," + Base64.getEncoder().encodeToString(png)));
@@ -179,7 +179,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("отказ модели (текст без картинки): file=null, текст — результат; usage учтён")
         void refusalReturnsTextOnly() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("img-model", Map.of()));
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(Map.of(
                     "choices", List.of(Map.of("message", Map.of("content", "не буду рисовать")))));
@@ -199,7 +199,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("edit-режим: исходник уезжает data-URI-частью рядом с промптом")
         void editSendsSourceImage() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("img-model", Map.of()));
             stubOpenImage("agf_src", "image/jpeg", new byte[]{1, 2, 3});
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse(""));
@@ -216,7 +216,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("композиция: картинки уезжают частями в порядке списка")
         void combineSendsAllSourcesInOrder() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("img-model", Map.of()));
             stubOpenImage("agf_a", "image/png", new byte[]{1});
             stubOpenImage("agf_b", "image/jpeg", new byte[]{2});
@@ -236,24 +236,9 @@ class MediaInferenceServiceTest {
         }
 
         @Test
-        @DisplayName("модель не объявляет image в output — отказ до HTTP-вызова")
-        void rejectsModelThatCannotDrawAccordingToRegistry() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
-                    .thenReturn(resolved("chat-model", Map.of(),
-                            List.of("text", "image"), List.of("text")));
-
-            NoCapableModelException e = assertThrows(NoCapableModelException.class,
-                    () -> service.generateImage(call, "нарисуй кота", List.of()));
-
-            assertTrue(e.getMessage().contains("chat-model"), e.getMessage());
-            assertTrue(e.getMessage().contains("cannot generate images"), e.getMessage());
-            verify(http, never()).chatCompletions(any(), anyString(), any());
-        }
-
-        @Test
         @DisplayName("модели нет в реестре (модальности не объявлены) — вызов идёт, guard не мешает")
         void unknownModalitiesPassTheGuard() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("hand-typed-model", Map.of(), List.of(), List.of()));
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse(""));
             when(fileStorageService.store(any(NewFile.class), any()))
@@ -267,7 +252,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("больше четырёх входных картинок — отказ до HTTP-вызова")
         void rejectsTooManySources() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("img-model", Map.of()));
 
             MediaInferenceException e = assertThrows(MediaInferenceException.class,
@@ -281,7 +266,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("суммарный бюджет входных картинок — отказ до HTTP-вызова")
         void rejectsOversizedTotal() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("img-model", Map.of()));
             byte[] big = new byte[13 * 1024 * 1024];
             stubOpenImage("agf_a", "image/png", big);
@@ -310,7 +295,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("вопрос + data-URI картинки → текст ответа; usage учтён")
         void happyPath() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.VISION))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.VISION))
                     .thenReturn(resolved("vision-model", Map.of()));
             stubOpenImage("agf_img", "image/png", PNG_BYTES);
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(Map.of(
@@ -324,23 +309,9 @@ class MediaInferenceServiceTest {
         }
 
         @Test
-        @DisplayName("модель не объявляет image во входе — отказ до чтения файла")
-        void rejectsModelThatCannotSeeAccordingToRegistry() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.VISION))
-                    .thenReturn(resolved("text-model", Map.of(), List.of("text"), List.of("text")));
-
-            NoCapableModelException e = assertThrows(NoCapableModelException.class,
-                    () -> service.describeImage(call, "agf_img", null));
-
-            assertTrue(e.getMessage().contains("cannot accept images"), e.getMessage());
-            verify(fileStorageService, never()).open(any(), anyString());
-            verify(http, never()).chatCompletions(any(), anyString(), any());
-        }
-
-        @Test
         @DisplayName("не-image файл отвергается до HTTP-вызова")
         void rejectsNonImage() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.VISION))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.VISION))
                     .thenReturn(resolved("vision-model", Map.of()));
             stubOpenFile("agf_doc", "application/pdf", new byte[]{1}, 1L);
 
@@ -354,7 +325,7 @@ class MediaInferenceServiceTest {
         @Test
         @DisplayName("слишком большая картинка отвергается до чтения байтов")
         void rejectsOversized() {
-            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.VISION))
+            when(credentialsResolver.resolveFor(agentId, userId, LlmPurpose.VISION))
                     .thenReturn(resolved("vision-model", Map.of()));
             stubOpenFile("agf_big", "image/png", PNG_BYTES, 21L * 1024 * 1024);
 

@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.grpc.mapper.RunContextMapper;
 import ru.agimate.controlapi.service.LlmUsageService;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
@@ -229,7 +230,8 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
             Agent agent = agentRepository.findById(agentId)
                     .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
-            ResolvedLlm resolved = llmCredentialsResolver.resolveChat(agentId, agent.getUserId());
+            ResolvedLlm resolved = llmCredentialsResolver.resolveFor(
+                    agentId, agent.getUserId(), LlmPurpose.CHAT);
 
             LlmCredentials response = LlmCredentials.newBuilder()
                     .setProviderType(resolved.provider().getProviderType().name())

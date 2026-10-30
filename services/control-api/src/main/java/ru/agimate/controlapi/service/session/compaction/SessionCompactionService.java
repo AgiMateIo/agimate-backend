@@ -14,6 +14,7 @@ import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.entities.LlmUsageLog;
 import ru.agimate.controlapi.database.enums.AgentSessionScope;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.enums.SessionTitleSource;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
@@ -157,7 +158,8 @@ public class SessionCompactionService {
             return Set.of();
         }
 
-        ResolvedLlm llm = credentialsResolver.resolveRoutine(session.getAgentId(), session.getUserId());
+        ResolvedLlm llm = credentialsResolver.resolveFor(
+                session.getAgentId(), session.getUserId(), LlmPurpose.ROUTINE);
         Map<String, Object> answer;
         if (retelling.isPresent()) {
             answer = ask(llm, session, SUMMARY_INSTRUCTIONS,

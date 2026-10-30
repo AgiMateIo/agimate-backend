@@ -37,7 +37,7 @@ public class ManageAgentLlmController {
         return SuccessResponse.ok(agentLlmService.listForAgent(agentId, userId));
     }
 
-    @Operation(summary = "Create an LLM binding for the agent")
+    @Operation(summary = "Append an LLM binding to the end of a purpose's chain")
     @PostMapping("/")
     public SuccessResponse<AgentLlmResponse> create(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -48,16 +48,16 @@ public class ManageAgentLlmController {
         return SuccessResponse.ok(agentLlmService.create(agentId, userId, request));
     }
 
-    @Operation(summary = "Replace the LLM binding for the given purpose")
+    @Operation(summary = "Replace the ordered chain of bindings for the given purpose")
     @PutMapping("/{purpose}")
-    public SuccessResponse<AgentLlmResponse> replace(
+    public SuccessResponse<List<AgentLlmResponse>> replace(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId,
             @PathVariable LlmPurpose purpose,
             @Valid @RequestBody UpdateAgentLlmRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(agentLlmService.replace(agentId, userId, purpose, request));
+        return SuccessResponse.ok(agentLlmService.replaceChain(agentId, userId, purpose, request));
     }
 
     @Operation(summary = "Delete the LLM binding for the given purpose")

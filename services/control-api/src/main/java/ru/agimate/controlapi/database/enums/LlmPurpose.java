@@ -2,9 +2,10 @@ package ru.agimate.controlapi.database.enums;
 
 /**
  * Purpose of an agent's LLM binding ({@code agent_llms.purpose}): what role the model plays for the
- * agent. {@link #CHAT} is the main model of the agent loop (the one {@code GetLlmCredentials}
- * returns); IMAGE/VISION/AUDIO_* are tool models of the media connector, resolved by purpose with a
- * fallback to a capability match against the registry ({@code input/output_modalities}).
+ * agent. Each purpose holds an ordered chain of bindings, and the resolver takes the first eligible
+ * one (docs/decisions/agent-llm-purpose-chain.md). {@link #CHAT} is the main model of the agent loop
+ * (the one {@code GetLlmCredentials} returns); IMAGE/VISION/AUDIO_* are tool models of the media
+ * connector, which additionally require the declared modality.
  */
 public enum LlmPurpose {
 
@@ -28,5 +29,13 @@ public enum LlmPurpose {
      * session. Falls back to the agent's CHAT model rather than failing: the chore is the platform's
      * idea, and it must not stop working because nobody configured a model for it.
      */
-    ROUTINE
+    ROUTINE;
+
+    /**
+     * A text purpose speaks chat/completions, where the registry defaults belong. Media endpoints
+     * reject them, so the purpose decides — a new text purpose must be added here.
+     */
+    public boolean isText() {
+        return this == CHAT || this == ROUTINE;
+    }
 }

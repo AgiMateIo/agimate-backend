@@ -6,17 +6,14 @@ import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface AgentLlmRepository extends JpaRepository<AgentLlm, UUID> {
 
-    List<AgentLlm> findAllByAgentIdOrderByPurpose(UUID agentId);
+    List<AgentLlm> findAllByAgentIdOrderByPurposeAscPriorityAsc(UUID agentId);
 
-    List<AgentLlm> findAllByAgentIdInOrderByAgentIdAscPurposeAsc(List<UUID> agentIds);
+    List<AgentLlm> findAllByAgentIdInOrderByAgentIdAscPurposeAscPriorityAsc(List<UUID> agentIds);
 
-    Optional<AgentLlm> findByAgentIdAndPurpose(UUID agentId, LlmPurpose purpose);
-
-    boolean existsByAgentIdAndPurpose(UUID agentId, LlmPurpose purpose);
+    List<AgentLlm> findAllByAgentIdAndPurposeOrderByPriorityAsc(UUID agentId, LlmPurpose purpose);
 }

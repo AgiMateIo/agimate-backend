@@ -11,8 +11,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "agent_llms", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_agent_llms_agent_id_purpose",
-                columnNames = {"agent_id", "purpose"})
+        @UniqueConstraint(name = "uq_agent_llms_agent_id_purpose_priority",
+                columnNames = {"agent_id", "purpose", "priority"})
 })
 @Getter
 @Setter
@@ -43,4 +43,12 @@ public class AgentLlm extends BaseEntity {
     @Column(name = "purpose", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
     private LlmPurpose purpose = LlmPurpose.CHAT;
+
+    /**
+     * Position of the binding in its purpose's chain — set by a human, never sorted automatically.
+     * The resolver takes the first eligible row; a purpose the user has pinned to one provider is a
+     * chain of length one, not a special case.
+     */
+    @Column(name = "priority", nullable = false)
+    private int priority;
 }

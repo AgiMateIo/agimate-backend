@@ -14,9 +14,13 @@ public record AgentLlmResponse(
         @Schema(description = "Model name")
         String model,
 
-        @Schema(description = "Binding role, unique per agent: CHAT — agent-loop model, "
+        @Schema(description = "Binding role: CHAT — the agent-loop model, "
                 + "IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings, ROUTINE — platform chores")
         LlmPurpose purpose,
+
+        @Schema(description = "Position in the purpose's chain; the resolver takes the first eligible "
+                + "binding. Null for the synthetic platform row")
+        Integer priority,
 
         @Schema(description = "LLM provider public ID (null for the platform fallback)")
         UUID llmProviderId,
@@ -37,6 +41,7 @@ public record AgentLlmResponse(
         return new AgentLlmResponse(
                 binding.getModel(),
                 binding.getPurpose(),
+                binding.getPriority(),
                 binding.getLlmProviderId(),
                 provider != null ? provider.getName() : null,
                 provider != null ? provider.getProviderType() : null,
@@ -50,6 +55,7 @@ public record AgentLlmResponse(
                 platformProvider.modelsFor(LlmPurpose.CHAT).stream()
                         .flatMap(List::stream).findFirst().orElse(null),
                 LlmPurpose.CHAT,
+                null,
                 null,
                 platformProvider.getName(),
                 platformProvider.getProviderType(),

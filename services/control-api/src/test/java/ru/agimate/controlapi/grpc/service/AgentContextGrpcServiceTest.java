@@ -177,8 +177,8 @@ class AgentContextGrpcServiceTest {
                     .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
                     .enabled(true)
                     .build();
-            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
-                    .thenReturn(Optional.empty());
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
             when(llmProviderService.decryptApiKey(platform)).thenReturn("sk-platform-key");
 
@@ -194,8 +194,8 @@ class AgentContextGrpcServiceTest {
         @Test
         @DisplayName("нет привязки и платформенный недоступен → NOT_FOUND")
         void notFoundWithoutBindingAndPlatform() {
-            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
-                    .thenReturn(Optional.empty());
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
 
             StatusRuntimeException error = assertThrows(StatusRuntimeException.class,
@@ -217,9 +217,9 @@ class AgentContextGrpcServiceTest {
                     .providerType(LlmProviderType.OPENAI)
                     .enabled(true)
                     .build();
-            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
-                    .thenReturn(Optional.of(binding));
-            when(llmProviderRepository.findById(providerId)).thenReturn(Optional.of(provider));
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of(binding));
+            when(llmProviderRepository.findAllByIdIn(List.of(providerId))).thenReturn(List.of(provider));
             when(llmProviderService.decryptApiKey(provider)).thenReturn("sk-user-key");
 
             LlmCredentials creds = callGetLlmCredentials(agentId);
@@ -241,8 +241,8 @@ class AgentContextGrpcServiceTest {
                     .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
                     .enabled(true)
                     .build();
-            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
-                    .thenReturn(Optional.empty());
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
             org.mockito.Mockito.doThrow(new QuotaExceededException("Дневной лимит исчерпан"))
                     .when(llmQuotaService).check(platform, userId, agentId);

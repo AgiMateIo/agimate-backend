@@ -16,6 +16,7 @@ import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.entities.LlmUsageLog;
 import ru.agimate.controlapi.database.enums.AgentSessionScope;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.enums.SessionTitleSource;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
@@ -110,7 +111,7 @@ class SessionCompactionServiceTest {
     private void routineAnswers(String content) {
         LlmProvider provider = LlmProvider.builder().build();
         provider.setId(PROVIDER_ID);
-        when(credentialsResolver.resolveRoutine(AGENT_ID, USER_ID)).thenReturn(new ResolvedLlm(
+        when(credentialsResolver.resolveFor(AGENT_ID, USER_ID, LlmPurpose.ROUTINE)).thenReturn(new ResolvedLlm(
                 provider, "cheap", "key", Map.of(), List.of(), List.of(), Map.of(), false));
         when(http.post(eq(provider), eq("key"), any(), any())).thenReturn(Map.of("choices",
                 List.of(Map.of("message", Map.of("content", content)))));

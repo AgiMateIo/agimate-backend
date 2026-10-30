@@ -190,51 +190,49 @@ class PlatformLlmToolServiceTest {
     }
 
     @Test
-    @DisplayName("set_agent_llm: без существующей привязки — create с purpose CHAT по умолчанию")
-    void agentLlmSetCreatesWhenAbsent() {
+    @DisplayName("set_agent_llm: заменяет цепочку назначения списком в заданном порядке")
+    void agentLlmSetReplacesTheWholeChain() {
         UUID agentId = UUID.randomUUID();
-        UUID providerId = UUID.randomUUID();
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
         stubOwnedAgent(agentId);
-        AgentLlm binding = AgentLlm.builder()
-                .id(UUID.randomUUID()).agentId(agentId).llmProviderId(providerId)
-                .model("gpt-4o").purpose(LlmPurpose.CHAT).build();
-        when(agentLlmRepository.findAllByAgentIdOrderByPurpose(agentId)).thenReturn(List.of());
-        when(agentLlmService.create(eq(agentId), eq(USER_ID), eq(providerId), eq("gpt-4o"),
-                eq(LlmPurpose.CHAT))).thenReturn(binding);
-        when(llmProviderRepository.findById(providerId)).thenReturn(Optional.of(
-                LlmProvider.builder().id(providerId).name("my-openai").build()));
+        AgentLlm primary = AgentLlm.builder()
+                .id(UUID.randomUUID()).agentId(agentId).llmProviderId(first)
+                .model("gpt-4o").purpose(LlmPurpose.CHAT).priority(0).build();
+        AgentLlm fallback = AgentLlm.builder()
+                .id(UUID.randomUUID()).agentId(agentId).llmProviderId(second)
+                .model("gpt-4o-mini").purpose(LlmPurpose.CHAT).priority(1).build();
+        when(agentLlmService.replaceChain(eq(agentId), eq(USER_ID), eq(LlmPurpose.CHAT),
+                eq(List.of(new AgentLlmService.Binding(first, "gpt-4o"),
+                        new AgentLlmService.Binding(second, "gpt-4o-mini")))))
+                .thenReturn(List.of(primary, fallback));
+        when(llmProviderRepository.findAllByIdIn(List.of(first, second))).thenReturn(List.of(
+                LlmProvider.builder().id(first).name("my-openai").build(),
+                LlmProvider.builder().id(second).name("backup").build()));
 
         Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "set_agent_llm",
-                Map.of("agentId", agentId.toString(), "providerId", providerId.toString(),
-                        "model", "gpt-4o"));
+                Map.of("agentId", agentId.toString(), "bindings", List.of(
+                        Map.of("providerId", first.toString(), "model", "gpt-4o"),
+                        Map.of("providerId", second.toString(), "model", "gpt-4o-mini"))));
 
-        verify(agentLlmService).create(eq(agentId), eq(USER_ID), eq(providerId), eq("gpt-4o"),
-                eq(LlmPurpose.CHAT));
-        assertEquals("CHAT", result.get("purpose"));
+        List<?> items = (List<?>) result.get("items");
+        assertEquals(2, items.size());
+        assertEquals(0, ((Number) ((Map<?, ?>) items.get(0)).get("priority")).intValue());
+        assertEquals("backup", ((Map<?, ?>) items.get(1)).get("providerName"));
+        assertEquals("CHAT", ((Map<?, ?>) items.get(0)).get("purpose"));
     }
 
     @Test
-    @DisplayName("set_agent_llm: существующая привязка — replace (upsert)")
-    void agentLlmSetReplacesWhenPresent() {
+    @DisplayName("set_agent_llm: без списка привязок — ConnectorException, сервис не зовётся")
+    void agentLlmSetRequiresBindings() {
         UUID agentId = UUID.randomUUID();
-        UUID providerId = UUID.randomUUID();
         stubOwnedAgent(agentId);
-        AgentLlm binding = AgentLlm.builder()
-                .id(UUID.randomUUID()).agentId(agentId).llmProviderId(providerId)
-                .model("gpt-4o").purpose(LlmPurpose.VISION).build();
-        when(agentLlmRepository.findAllByAgentIdOrderByPurpose(agentId)).thenReturn(List.of(binding));
-        when(agentLlmService.replace(eq(agentId), eq(USER_ID), eq(LlmPurpose.VISION),
-                eq(providerId), eq("gpt-4o"))).thenReturn(binding);
-        when(llmProviderRepository.findById(providerId)).thenReturn(Optional.of(
-                LlmProvider.builder().id(providerId).name("my-openai").build()));
 
-        Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "set_agent_llm",
-                Map.of("agentId", agentId.toString(), "purpose", "VISION",
-                        "providerId", providerId.toString(), "model", "gpt-4o"));
+        var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(ownerEnv(),
+                "set_agent_llm", Map.of("agentId", agentId.toString())));
 
-        verify(agentLlmService).replace(eq(agentId), eq(USER_ID), eq(LlmPurpose.VISION),
-                eq(providerId), eq("gpt-4o"));
-        assertEquals("VISION", result.get("purpose"));
+        assertTrue(ex.getMessage().contains("bindings"), ex.getMessage());
+        verifyNoInteractions(agentLlmService);
     }
 
     @Test
@@ -304,13 +302,14 @@ class PlatformLlmToolServiceTest {
     void listAgentLlmsOfSelfIsAllowed() {
         when(agentRepository.findById(SELF_AGENT_ID)).thenReturn(Optional.of(
                 Agent.builder().id(SELF_AGENT_ID).userId(USER_ID).type(AgentType.GENERIC).build()));
-        when(agentLlmRepository.findAllByAgentIdOrderByPurpose(SELF_AGENT_ID)).thenReturn(List.of());
+        when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(SELF_AGENT_ID))
+                .thenReturn(List.of());
 
         Map<?, ?> result = (Map<?, ?>) handler.executeTool(selfEnv(),
                 "list_agent_llms", Map.of("agentId", SELF_AGENT_ID.toString()));
 
         assertEquals(List.of(), result.get("items"));
-        verify(agentLlmRepository).findAllByAgentIdOrderByPurpose(SELF_AGENT_ID);
+        verify(agentLlmRepository).findAllByAgentIdOrderByPurposeAscPriorityAsc(SELF_AGENT_ID);
     }
 
     @Test
@@ -325,8 +324,10 @@ class PlatformLlmToolServiceTest {
                 .llmProviderId(providerId)
                 .model("gpt-4o")
                 .purpose(LlmPurpose.CHAT)
+                .priority(0)
                 .build();
-        when(agentLlmRepository.findAllByAgentIdOrderByPurpose(agentId)).thenReturn(List.of(binding));
+        when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agentId))
+                .thenReturn(List.of(binding));
         when(llmProviderRepository.findAllByIdIn(List.of(providerId))).thenReturn(List.of(
                 LlmProvider.builder().id(providerId).name("my-openai").build()));
 
@@ -340,6 +341,7 @@ class PlatformLlmToolServiceTest {
         assertEquals(providerId.toString(), item.get("providerId"));
         assertEquals("my-openai", item.get("providerName"));
         assertEquals("gpt-4o", item.get("model"));
+        assertEquals(0, ((Number) item.get("priority")).intValue());
     }
 
     private void stubOwnedAgent(UUID agentId) {
