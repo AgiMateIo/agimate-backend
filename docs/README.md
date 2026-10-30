@@ -151,6 +151,7 @@ SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
 | [skill-jobs.md](decisions/skill-jobs.md) | Расписание в навыке: кто объявляет фоновую задачу агента — коннектор `@Job` или сам навык |
 | [progressive-disclosure.md](decisions/progressive-disclosure.md) | Постепенное раскрытие контекста: тела навыков и схемы тулов уезжают по требованию, а не все сразу в каждом ране |
 | [mcp-server-oauth.md](decisions/mcp-server-oauth.md) | OAuth на MCP-сервере: подключение по одной ссылке, CIMD в первой фазе, DCR — под вопросом |
+| [agent-llm-purpose-chain.md](decisions/agent-llm-purpose-chain.md) | Несколько провайдеров у агента на одно назначение: назначение — ось, привязки — упорядоченная цепочка, выбирается первая пригодная, платформа — только когда явных привязок нет |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md), [agent-skill-references](decisions/deferred/agent-skill-references.md), [workflow-connector](decisions/deferred/workflow-connector.md) |
 
 ## Как ведётся документация
