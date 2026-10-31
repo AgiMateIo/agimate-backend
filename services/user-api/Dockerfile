@@ -1,6 +1,12 @@
 # Multi-stage build for user-api
 FROM eclipse-temurin:25-jdk AS builder
 
+# Temurin 25 offers the hybrid X25519MLKEM768 group by default, and the deploy runner's
+# network path terminates the TLS 1.3 handshake to Maven Central when it is offered —
+# Gradle then cannot resolve the Spring Boot plugin. Classical groups only; the wrapper
+# and the forked Gradle daemon both need the property, hence JAVA_TOOL_OPTIONS.
+ENV JAVA_TOOL_OPTIONS="-Djdk.tls.namedGroups=x25519,secp256r1,secp384r1"
+
 WORKDIR /app
 
 # Copy gradle wrapper and build files
