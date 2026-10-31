@@ -16,11 +16,14 @@ import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.PlatformLlm;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.PlatformLlmRepository;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -38,6 +41,14 @@ import java.util.stream.Collectors;
  * The CRUD of {@code agent_llms}: a purpose holds an ordered chain of bindings, and the resolver takes
  * the first eligible one (docs/decisions/agent-llm-purpose-chain.md). The order is set by a human —
  * {@link #create} appends, {@link #replaceChain} rewrites the whole chain.
+ *
+ * <p>The agent's source decides whether the rows are effective
+ * (docs/decisions/platform-llm-purposes-and-agent-source.md): a {@code PLATFORM} agent keeps its
+ * bindings but lists the platform's effective configuration beside them as inactive; a {@code BYOK}
+ * agent uses the rows alone. The manage endpoints refuse to add or replace bindings on a PLATFORM
+ * agent — the explicit switch changes the payer — while deletion and {@code PUT []} stay allowed as
+ * cleanup. The platform connector's {@link #setAgentLlm} is the one exception: a non-empty chain
+ * switches the agent to BYOK atomically, so the meta-agent can finish a BYOK setup in one call.
  */
 @Slf4j
 @Service
@@ -52,6 +63,7 @@ public class AgentLlmService {
     public static final int MAX_BINDINGS_PER_PURPOSE = 5;
 
     private final AgentLlmRepository agentLlmRepository;
+    private final PlatformLlmRepository platformLlmRepository;
     private final AgentRepository agentRepository;
     private final LlmProviderRepository llmProviderRepository;
     private final LlmProviderService llmProviderService;
@@ -69,15 +81,13 @@ public class AgentLlmService {
 
     public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agent.getId())
-                .stream().sorted(BY_PURPOSE_THEN_PRIORITY).toList();
-        if (bindings.isEmpty()) {
-            return runsOnPlatformModels(agent) ? platformFallbackEntry() : List.of();
-        }
+        List<AgentLlm> bindings = agentLlmRepository
+                .findAllByAgentIdOrderByPurposeAscPriorityAsc(agent.getId());
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
-        return bindings.stream()
-                .map(b -> AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())))
-                .toList();
+        List<PlatformLlm> platformRows = agent.getLlmSource() == LlmSource.PLATFORM
+                ? platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc() : List.of();
+        return effectiveBindings(agent, bindings, providersById, platformRows,
+                loadPlatformProviders(platformRows));
     }
 
     public Map<UUID, List<AgentLlmResponse>> listForAgents(List<Agent> agents) {
@@ -88,50 +98,61 @@ public class AgentLlmService {
         List<AgentLlm> bindings =
                 agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAscPriorityAsc(agentIds);
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
+        Map<UUID, List<AgentLlm>> bindingsByAgent = bindings.stream()
+                .collect(Collectors.groupingBy(AgentLlm::getAgentId));
+
+        List<PlatformLlm> platformRows = agents.stream()
+                .anyMatch(a -> a.getLlmSource() == LlmSource.PLATFORM)
+                ? platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc()
+                : List.of();
+        Map<UUID, LlmProvider> platformProviders = loadPlatformProviders(platformRows);
 
         Map<UUID, List<AgentLlmResponse>> result = new HashMap<>();
-        for (AgentLlm b : bindings) {
-            result.computeIfAbsent(b.getAgentId(), k -> new ArrayList<>())
-                    .add(AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())));
-        }
-        result.values().forEach(list -> list.sort(Comparator
-                .comparing(AgentLlmResponse::purpose)
-                .thenComparingInt(AgentLlmResponse::priority)));
-        // Agents with no bindings run through the platform fallback — we show the effective model.
-        List<AgentLlmResponse> fallback = platformFallbackEntry();
-        if (!fallback.isEmpty()) {
-            agents.stream()
-                    .filter(AgentLlmService::runsOnPlatformModels)
-                    .map(Agent::getId)
-                    .filter(id -> !result.containsKey(id))
-                    .forEach(id -> result.put(id, fallback));
+        for (Agent agent : agents) {
+            result.put(agent.getId(), effectiveBindings(agent,
+                    bindingsByAgent.getOrDefault(agent.getId(), List.of()),
+                    providersById, platformRows, platformProviders));
         }
         return result;
     }
 
     /**
-     * Whether the platform's own model is what this agent's loop would run on. Only ours is: an
-     * external brain comes with its own model and never asks us for credentials, so «runs on the
-     * platform model» would be a plain lie in its card. Explicit bindings are still shown for every
-     * type — they drive the tool-side purposes (media), which the platform executes itself.
+     * The listing of an agent: the effective platform configuration for a PLATFORM agent (all
+     * purposes for {@code GENERIC}, media only for an external brain — it has no agent loop to serve
+     * CHAT or ROUTINE), then its own inactive rows with {@code active = false}. A BYOK agent lists its
+     * own rows alone; all of them are active.
      */
-    private static boolean runsOnPlatformModels(Agent agent) {
-        return agent.getType() == AgentType.GENERIC;
-    }
-
-    /** Empty when the platform has no CHAT models declared — there is nothing to fall back to, so we show nothing. */
-    private List<AgentLlmResponse> platformFallbackEntry() {
-        return llmProviderService.findUsablePlatformProvider()
-                .filter(p -> p.modelsFor(LlmPurpose.CHAT).map(m -> !m.isEmpty()).orElse(false))
-                .map(p -> List.of(AgentLlmResponse.platformFallback(p)))
-                .orElse(List.of());
+    private List<AgentLlmResponse> effectiveBindings(Agent agent, List<AgentLlm> bindings,
+                                                     Map<UUID, LlmProvider> providersById,
+                                                     List<PlatformLlm> platformRows,
+                                                     Map<UUID, LlmProvider> platformProviders) {
+        List<AgentLlmResponse> result = new ArrayList<>();
+        boolean platform = agent.getLlmSource() == LlmSource.PLATFORM;
+        if (platform) {
+            boolean generic = agent.getType() == AgentType.GENERIC;
+            for (PlatformLlm row : platformRows) {
+                if (!generic && !row.getPurpose().isMedia()) {
+                    continue;
+                }
+                result.add(AgentLlmResponse.platform(row, platformProviders.get(row.getLlmProviderId())));
+            }
+        }
+        for (AgentLlm binding : bindings) {
+            result.add(AgentLlmResponse.from(binding,
+                    providersById.get(binding.getLlmProviderId()), !platform));
+        }
+        result.sort(Comparator.comparing(AgentLlmResponse::purpose)
+                .thenComparing(r -> r.source() == AgentLlmResponse.Source.PLATFORM ? 0 : 1)
+                .thenComparingInt(AgentLlmResponse::priority));
+        return result;
     }
 
     @Transactional
     public AgentLlmResponse create(UUID agentId, UUID userId, CreateAgentLlmRequest request) {
         LlmPurpose purpose = request.purpose() != null ? request.purpose() : LlmPurpose.CHAT;
         AgentLlm binding = append(agentId, userId, request.llmProviderId(), request.model(), purpose);
-        return AgentLlmResponse.from(binding, llmProviderService.requireOwned(request.llmProviderId(), userId));
+        return AgentLlmResponse.from(binding,
+                llmProviderService.requireOwned(request.llmProviderId(), userId), true);
     }
 
     @Transactional
@@ -142,6 +163,7 @@ public class AgentLlmService {
 
     private AgentLlm append(UUID agentId, UUID userId, UUID llmProviderId, String model, LlmPurpose purpose) {
         Agent agent = requireOwnedAgent(agentId, userId);
+        requireByokForManage(agent);
         LlmProvider provider = llmProviderService.requireOwned(llmProviderId, userId);
         validateModel(provider, model);
 
@@ -188,7 +210,7 @@ public class AgentLlmService {
         List<AgentLlm> chain = replaceChain(agentId, userId, purpose, bindings);
         Map<UUID, LlmProvider> providersById = loadProviders(chain);
         return chain.stream()
-                .map(b -> AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())))
+                .map(b -> AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId()), true))
                 .toList();
     }
 
@@ -197,12 +219,40 @@ public class AgentLlmService {
      * {@code priority} taken from the position. A delete-then-insert in one transaction, because the
      * unique {@code (agent_id, purpose, priority)} does not survive an in-place swap.
      *
+     * <p>A PLATFORM agent refuses a non-empty chain — the payer changes only through the explicit
+     * switch — but {@code []} is cleanup and stays allowed.
+     *
      * @param bindings the chain in the wanted order; empty removes the purpose
      */
     @Transactional
     public List<AgentLlm> replaceChain(UUID agentId, UUID userId, LlmPurpose purpose,
                                        List<Binding> bindings) {
         Agent agent = requireOwnedAgent(agentId, userId);
+        if (agent.getLlmSource() == LlmSource.PLATFORM && !bindings.isEmpty()) {
+            throw platformSourceRefusal();
+        }
+        return doReplaceChain(agent, userId, purpose, bindings);
+    }
+
+    /**
+     * The platform connector's entry point. A non-empty chain on a PLATFORM agent switches the agent
+     * to BYOK in the same transaction that writes the chain — one call finishes a BYOK setup, and a
+     * failed chain write rolls the switch back. An empty list is cleanup and never changes the source.
+     */
+    @Transactional
+    public List<AgentLlm> setAgentLlm(UUID agentId, UUID userId, LlmPurpose purpose,
+                                      List<Binding> bindings) {
+        Agent agent = requireOwnedAgent(agentId, userId);
+        if (!bindings.isEmpty() && agent.getLlmSource() != LlmSource.BYOK) {
+            agent.setLlmSource(LlmSource.BYOK);
+            agentRepository.save(agent);
+            log.info("Switched agent to BYOK via set_agent_llm: agent={}", agent.getId());
+        }
+        return doReplaceChain(agent, userId, purpose, bindings);
+    }
+
+    private List<AgentLlm> doReplaceChain(Agent agent, UUID userId, LlmPurpose purpose,
+                                          List<Binding> bindings) {
         if (bindings.size() > MAX_BINDINGS_PER_PURPOSE) {
             throw new ConflictStatusException("A purpose chain holds at most "
                     + MAX_BINDINGS_PER_PURPOSE + " bindings, got " + bindings.size());
@@ -263,7 +313,12 @@ public class AgentLlmService {
                 agent.getId(), purpose, chain.size());
     }
 
+    /** The external listing: only active BYOK bindings; a PLATFORM agent exposes nothing. */
     public List<AgentLlmRuntimeResponse> runtimeForAgent(UUID agentId) {
+        Agent agent = requireAgent(agentId);
+        if (agent.getLlmSource() == LlmSource.PLATFORM) {
+            return List.of();
+        }
         List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agentId)
                 .stream().sorted(BY_PURPOSE_THEN_PRIORITY).toList();
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
@@ -273,8 +328,13 @@ public class AgentLlmService {
                 .toList();
     }
 
-    /** The first binding of the purpose whose provider is enabled — the same order the resolver walks. */
+    /** The first active binding of the purpose whose provider is enabled; a PLATFORM agent is a 404. */
     public AgentLlmRuntimeResponse runtimeForAgentByPurpose(UUID agentId, LlmPurpose purpose) {
+        Agent agent = requireAgent(agentId);
+        if (agent.getLlmSource() == LlmSource.PLATFORM) {
+            throw new NotFoundStatusException(
+                    "The agent runs on the platform LLM source; no own binding is exposed");
+        }
         List<AgentLlm> chain =
                 agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, purpose);
         if (chain.isEmpty()) {
@@ -307,21 +367,44 @@ public class AgentLlmService {
     }
 
     private Map<UUID, LlmProvider> loadProviders(List<AgentLlm> bindings) {
-        if (bindings.isEmpty()) {
+        return loadProvidersByIds(bindings.stream().map(AgentLlm::getLlmProviderId).toList());
+    }
+
+    private Map<UUID, LlmProvider> loadPlatformProviders(List<PlatformLlm> bindings) {
+        return loadProvidersByIds(bindings.stream().map(PlatformLlm::getLlmProviderId).toList());
+    }
+
+    private Map<UUID, LlmProvider> loadProvidersByIds(List<UUID> providerIds) {
+        List<UUID> ids = providerIds.stream().distinct().toList();
+        if (ids.isEmpty()) {
             return Map.of();
         }
-        List<UUID> ids = bindings.stream().map(AgentLlm::getLlmProviderId).distinct().toList();
         return llmProviderRepository.findAllByIdIn(ids).stream()
                 .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
     }
 
     private Agent requireOwnedAgent(UUID agentId, UUID userId) {
-        Agent agent = agentRepository.findById(agentId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+        Agent agent = requireAgent(agentId);
         if (!agent.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
         return agent;
+    }
+
+    private Agent requireAgent(UUID agentId) {
+        return agentRepository.findById(agentId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+    }
+
+    private static void requireByokForManage(Agent agent) {
+        if (agent.getLlmSource() == LlmSource.PLATFORM) {
+            throw platformSourceRefusal();
+        }
+    }
+
+    private static BadRequestStatusException platformSourceRefusal() {
+        return new BadRequestStatusException("The agent runs on the platform models; "
+                + "switch its LLM source to BYOK first");
     }
 
     private void validateModel(LlmProvider provider, String model) {

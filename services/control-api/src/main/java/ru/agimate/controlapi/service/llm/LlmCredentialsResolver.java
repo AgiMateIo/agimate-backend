@@ -4,14 +4,19 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.entities.LlmProviderModel;
+import ru.agimate.controlapi.database.entities.PlatformLlm;
 import ru.agimate.controlapi.database.enums.LlmProviderModelStatus;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.PlatformLlmRepository;
 import ru.agimate.controlapi.service.LlmProviderService;
 
 import java.util.ArrayList;
@@ -29,16 +34,20 @@ import java.util.stream.Collectors;
  * ({@code GetLlmCredentials}), the connector's media path and the platform's routines — all through
  * {@link #resolveFor}, so the paths cannot drift apart on quotas and extra_body.
  *
- * <p>A purpose holds an ordered chain of bindings ({@code agent_llms.priority}) and the resolver takes
- * the first <em>eligible</em> one — an ineligible binding never stops the call while a later one is
- * usable (docs/decisions/agent-llm-purpose-chain.md). Only a rejection known before the provider is
+ * <p>A purpose holds an ordered chain of bindings ({@code agent_llms.priority} or
+ * {@code platform_llms.priority}) and the resolver takes the first <em>eligible</em> one — an
+ * ineligible binding never stops the call while a later one is usable
+ * (docs/decisions/agent-llm-purpose-chain.md). Only a rejection known before the provider is
  * contacted skips a binding: a disabled provider, an {@code UNAVAILABLE} model, an exhausted quota, a
  * model that cannot do the purpose's modality. A failed call is not retried on the next binding — it
  * may already have been paid for.
  *
- * <p>Explicit bindings are a closed set: if the agent has rows for the purpose, the platform is never
- * appended, or an exhausted user quota would quietly spend the platform's money. The platform serves
- * only a purpose with no explicit bindings.
+ * <p>The agent's source decides the chain, and the chains never mix
+ * (docs/decisions/platform-llm-purposes-and-agent-source.md): {@code PLATFORM} resolves only
+ * {@code platform_llms}, {@code BYOK} only the agent's own bindings and the purpose lists of its chat
+ * providers. An explicit binding set is a closed set — an exhausted user quota must not quietly spend
+ * the platform's money, and a BYOK agent with no CHAT binding is a configured state that answers a
+ * clear refusal, not a reason to fall back.
  *
  * <p>Not {@code @Transactional}: it only reads by id, so it needs no transaction of its own. The key is
  * decrypted at call time and leaves only inside the return value — the caller must not persist it
@@ -49,7 +58,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class LlmCredentialsResolver {
 
+    private final AgentRepository agentRepository;
     private final AgentLlmRepository agentLlmRepository;
+    private final PlatformLlmRepository platformLlmRepository;
     private final LlmProviderRepository llmProviderRepository;
     private final LlmProviderModelRepository llmProviderModelRepository;
     private final LlmProviderService llmProviderService;
@@ -75,7 +86,7 @@ public class LlmCredentialsResolver {
      * listing entry, in the provider's own shape: only a transport built for that provider may read it,
      * and only it knows what the shape means.
      *
-     * @param platformFallback {@code true} — the platform provider was issued (no explicit binding on the purpose)
+     * @param platformFallback {@code true} — the agent is on the platform source, so the platform pays
      */
     public record ResolvedLlm(
             LlmProvider provider,
@@ -100,9 +111,11 @@ public class LlmCredentialsResolver {
      * @throws NotFoundStatusException      CHAT/ROUTINE: nothing eligible (the worker shows its own text)
      */
     public ResolvedLlm resolveFor(UUID agentId, UUID userId, LlmPurpose purpose) {
-        Chain chain = chainFor(agentId, purpose);
-        Candidate pick = firstEligible(chain, purpose, userId, agentId);
-        return toResolved(pick, purpose);
+        Agent agent = agentRepository.findById(agentId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+        Chain chain = chainFor(agent, purpose);
+        Candidate pick = firstEligible(chain, purpose, userId, agentId, agent.getLlmSource());
+        return toResolved(pick, purpose, agent.getLlmSource());
     }
 
     // ---- the chain -------------------------------------------------------------------------
@@ -116,86 +129,102 @@ public class LlmCredentialsResolver {
     }
 
     /**
-     * The policy of each purpose — the only place they differ:
-     * <ul>
-     *   <li>explicit bindings of any purpose always win and close the chain;</li>
-     *   <li>{@code CHAT} without bindings: the platform's CHAT list;</li>
-     *   <li>media without bindings: the purpose lists of the chat providers in chain order, then the
-     *       platform;</li>
-     *   <li>{@code ROUTINE} without bindings: the ROUTINE lists of the chat providers, then the
-     *       agent's own CHAT model — never the platform behind an agent that brought its own.</li>
-     * </ul>
+     * The source, not the presence of bindings, decides the chain. {@code PLATFORM} reads only the
+     * platform chains; {@code BYOK} reads only the agent's own bindings and its chat providers'
+     * purpose lists. The two never mix.
      */
-    private Chain chainFor(UUID agentId, LlmPurpose purpose) {
+    private Chain chainFor(Agent agent, LlmPurpose purpose) {
+        return agent.getLlmSource() == LlmSource.PLATFORM
+                ? platformChain(purpose)
+                : byokChain(agent.getId(), purpose);
+    }
+
+    /**
+     * Platform chains, one per purpose. {@code ROUTINE} falls back to {@code CHAT}, exactly as an
+     * agent's own ROUTINE does; media uses the purpose's own chain and nothing else.
+     */
+    private Chain platformChain(LlmPurpose purpose) {
+        if (purpose == LlmPurpose.ROUTINE) {
+            Chain routine = platformCandidates(LlmPurpose.ROUTINE);
+            Chain chat = platformCandidates(LlmPurpose.CHAT);
+            return new Chain(concat(routine.candidates(), chat.candidates()),
+                    concat(routine.misses(), chat.misses()));
+        }
+        return platformCandidates(purpose);
+    }
+
+    /** The platform purpose's rows, each paired with its provider and registry row. */
+    private Chain platformCandidates(LlmPurpose purpose) {
+        List<PlatformLlm> rows = platformLlmRepository.findAllByPurposeOrderByPriorityAsc(purpose);
+        if (rows.isEmpty()) {
+            return new Chain(List.of(), List.of("the platform declares no " + purpose + " models"));
+        }
+        Map<UUID, LlmProvider> providersById = providersByIdPlatformRows(rows);
+        List<Candidate> candidates = new ArrayList<>(rows.size());
+        for (PlatformLlm row : rows) {
+            LlmProvider provider = providersById.get(row.getLlmProviderId());
+            if (provider == null) {
+                continue;
+            }
+            // A disabled provider is skipped by eligibility before anything else — its registry row
+            // would be read only to be discarded.
+            LlmProviderModel modelRow = provider.isEnabled()
+                    ? llmProviderModelRepository
+                            .findByLlmProviderIdAndModel(provider.getId(), row.getModel())
+                            .orElse(null)
+                    : null;
+            candidates.add(new Candidate(provider, row.getModel(), modelRow));
+        }
+        return new Chain(candidates, List.of());
+    }
+
+    private Chain byokChain(UUID agentId, LlmPurpose purpose) {
         List<AgentLlm> explicit = bindings(agentId, purpose);
         if (!explicit.isEmpty()) {
             return new Chain(explicitCandidates(explicit), List.of());
         }
         return switch (purpose) {
-            case CHAT -> platformChatChain();
-            case ROUTINE -> routineChain(agentId);
-            default -> mediaChain(agentId, purpose);
+            case CHAT -> new Chain(List.of(),
+                    List.of("the agent runs on BYOK and has no CHAT binding"));
+            case ROUTINE -> byokRoutineChain(agentId);
+            default -> byokMediaChain(agentId, purpose);
         };
     }
 
-    private Chain platformChatChain() {
-        Optional<LlmProvider> platform = llmProviderService.findUsablePlatformProvider();
-        if (platform.isEmpty()) {
-            return new Chain(List.of(),
-                    List.of("the agent has no chat provider and there is no platform provider"));
-        }
-        return providerLists(List.of(platform.get()), LlmPurpose.CHAT, false);
-    }
-
-    private Chain routineChain(UUID agentId) {
+    private Chain byokRoutineChain(UUID agentId) {
         List<AgentLlm> chatBindings = bindings(agentId, LlmPurpose.CHAT);
-        Chain lists = providerLists(chatProviders(chatBindings), LlmPurpose.ROUTINE, false);
-        // The chore falls back to the model the agent already talks through — not to the platform,
-        // which would bill somebody else for our idea.
-        Chain chat = chatBindings.isEmpty()
-                ? platformChatChain()
-                : new Chain(explicitCandidates(chatBindings), List.of());
+        Chain lists = providerLists(chatProviders(chatBindings), LlmPurpose.ROUTINE);
+        // The chore falls back to the model the agent already talks through — the platform is not
+        // appended behind an agent that brought its own keys.
+        Chain chat = new Chain(explicitCandidates(chatBindings), List.of());
         return new Chain(concat(lists.candidates(), chat.candidates()),
                 concat(lists.misses(), chat.misses()));
     }
 
-    private Chain mediaChain(UUID agentId, LlmPurpose purpose) {
-        List<LlmProvider> providers = new ArrayList<>(
-                chatProviders(bindings(agentId, LlmPurpose.CHAT)));
-        if (providers.stream().noneMatch(LlmProviderService::isPlatform)) {
-            llmProviderService.findUsablePlatformProvider().ifPresent(providers::add);
-        }
-        return providerLists(providers, purpose, true);
+    private Chain byokMediaChain(UUID agentId, LlmPurpose purpose) {
+        return providerLists(chatProviders(bindings(agentId, LlmPurpose.CHAT)), purpose);
     }
 
     /**
-     * The providers of the agent's chat chain, enabled and in binding order. No chat bindings means the
-     * agent runs on the platform, so the platform is the chat provider.
+     * The providers of the agent's chat chain, enabled and in binding order. No chat bindings means no
+     * chat providers: under BYOK the platform never steps in.
      */
     private List<LlmProvider> chatProviders(List<AgentLlm> chatBindings) {
-        if (chatBindings.isEmpty()) {
-            return llmProviderService.findUsablePlatformProvider()
-                    .map(List::of).orElse(List.of());
-        }
         return providersInOrder(chatBindings).stream().filter(LlmProvider::isEnabled).toList();
     }
 
     /**
      * The declared purpose lists of the providers, in order. A missing key is a gap and the next
-     * provider continues; an empty list is an explicit «off» — it drops that provider from the chain,
-     * so one provider's {@code []} cannot close the purpose on the next one. The platform's explicit
-     * «off» is the exception: appending it would silently change who pays.
+     * provider continues; an empty list is an explicit «off» on that provider — it drops it from the
+     * chain, so one provider's {@code []} cannot close the purpose on the next one.
      */
-    private Chain providerLists(List<LlmProvider> providers, LlmPurpose purpose, boolean platformEmptyStops) {
+    private Chain providerLists(List<LlmProvider> providers, LlmPurpose purpose) {
         List<Candidate> candidates = new ArrayList<>();
         List<String> misses = new ArrayList<>();
         for (LlmProvider provider : providers) {
             Optional<List<String>> declared = provider.modelsFor(purpose);
             if (declared.isEmpty() || declared.get().isEmpty()) {
                 misses.add(miss(provider, purpose));
-                if (platformEmptyStops && declared.isPresent() && LlmProviderService.isPlatform(provider)) {
-                    break;
-                }
                 continue;
             }
             Map<String, LlmProviderModel> registry = registryOf(provider);
@@ -215,8 +244,6 @@ public class LlmCredentialsResolver {
             if (provider == null) {
                 continue;
             }
-            // A disabled provider is skipped by eligibility before anything else — its registry row
-            // would be read only to be discarded.
             LlmProviderModel row = provider.isEnabled()
                     ? llmProviderModelRepository
                             .findByLlmProviderIdAndModel(provider.getId(), binding.getModel())
@@ -233,6 +260,12 @@ public class LlmCredentialsResolver {
 
     private Map<UUID, LlmProvider> providersById(List<AgentLlm> bindings) {
         List<UUID> ids = bindings.stream().map(AgentLlm::getLlmProviderId).distinct().toList();
+        return llmProviderRepository.findAllByIdIn(ids).stream()
+                .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
+    }
+
+    private Map<UUID, LlmProvider> providersByIdPlatformRows(List<PlatformLlm> bindings) {
+        List<UUID> ids = bindings.stream().map(PlatformLlm::getLlmProviderId).distinct().toList();
         return llmProviderRepository.findAllByIdIn(ids).stream()
                 .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
     }
@@ -262,7 +295,8 @@ public class LlmCredentialsResolver {
      * all providers off → {@code FAILED_PRECONDITION}, everything else → the media text or
      * {@code NOT_FOUND}.
      */
-    private Candidate firstEligible(Chain chain, LlmPurpose purpose, UUID userId, UUID agentId) {
+    private Candidate firstEligible(Chain chain, LlmPurpose purpose, UUID userId, UUID agentId,
+                                    LlmSource source) {
         List<String> reasons = new ArrayList<>(chain.misses());
         List<String> quotaMessages = new ArrayList<>();
         int disabled = 0;
@@ -304,17 +338,21 @@ public class LlmCredentialsResolver {
             throw new LlmProviderDisabledException(
                     "All providers of the " + purpose + " chain are disabled: " + names);
         }
-        throw refusal(purpose, reasons, agentId);
+        throw refusal(purpose, reasons, agentId, source);
     }
 
-    private RuntimeException refusal(LlmPurpose purpose, List<String> reasons, UUID agentId) {
+    private RuntimeException refusal(LlmPurpose purpose, List<String> reasons, UUID agentId,
+                                     LlmSource source) {
         String detail = reasons.isEmpty()
                 ? "no binding is configured for " + purpose + " and no provider declares a model for it"
                 : String.join("; ", reasons);
         if (!purpose.isText()) {
-            return new NoCapableModelException("No " + purpose + " model available: " + detail
-                    + ". Bind a " + purpose + " model to this agent or add one to the provider's "
-                    + purpose + " list.");
+            String advice = source == LlmSource.BYOK
+                    ? " Bind a " + purpose + " model to this agent or add one to the provider's "
+                    + purpose + " list. Or switch the agent to the platform model source."
+                    : " The platform admin must add a " + purpose + " model to the platform chain.";
+            return new NoCapableModelException(
+                    "No " + purpose + " model available: " + detail + "." + advice);
         }
         // The worker replaces the text of NOT_FOUND with its own «no model» template; the chain is
         // what an operator needs to read.
@@ -373,7 +411,7 @@ public class LlmCredentialsResolver {
     /**
      * Finalisation: key decryption plus the extra_body merge and the modalities of the picked row.
      */
-    private ResolvedLlm toResolved(Candidate pick, LlmPurpose purpose) {
+    private ResolvedLlm toResolved(Candidate pick, LlmPurpose purpose, LlmSource source) {
         LlmProvider provider = pick.provider();
         String apiKey = llmProviderService.decryptApiKey(provider);
         LlmProviderModel row = pick.row();
@@ -387,7 +425,7 @@ public class LlmCredentialsResolver {
         return new ResolvedLlm(provider, pick.model(), apiKey, extraBody,
                 modalities(row == null ? null : row.getInputModalities()),
                 modalities(row == null ? null : row.getOutputModalities()),
-                metadata, LlmProviderService.isPlatform(provider));
+                metadata, source == LlmSource.PLATFORM);
     }
 
     /**

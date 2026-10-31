@@ -27,7 +27,7 @@ public class ManageAdminLlmUsageController {
     @Operation(summary = "Usage per provider for a given user",
             description = "The same shape as /manage/llm-usage, but for the user in the path. An unknown "
                     + "user id is not an error: control-api does not own the user directory, so the answer "
-                    + "is simply the platform provider with zero usage")
+                    + "is the enabled platform providers with zero usage (possibly none)")
     @GetMapping("/{userId}/")
     public SuccessResponse<List<LlmUsageResponse>> usage(@PathVariable UUID userId) {
         return SuccessResponse.ok(llmUsageQueryService.usageForUser(userId));

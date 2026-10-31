@@ -123,7 +123,8 @@ public class PlatformAgentToolService {
         return new AgentDetail(agent.getId().toString(), agent.getName(), agent.getDescription(),
                 agent.getInstructions(), agent.getType().name(), agent.isEnabled(),
                 agent.getAgenticTeamId() == null ? null : agent.getAgenticTeamId().toString(),
-                agent.getWebhookUrl(), agent.hasWebhookAuth(), skills);
+                agent.getWebhookUrl(), agent.hasWebhookAuth(), skills,
+                agent.getLlmSource().name());
     }
 
     @Tool(name = "create_agent",
@@ -595,7 +596,8 @@ public class PlatformAgentToolService {
     private AgentBrief toAgentBrief(Agent agent) {
         return new AgentBrief(agent.getId().toString(), agent.getName(), agent.getDescription(),
                 agent.getType().name(), agent.isEnabled(),
-                agent.getAgenticTeamId() == null ? null : agent.getAgenticTeamId().toString());
+                agent.getAgenticTeamId() == null ? null : agent.getAgenticTeamId().toString(),
+                agent.getLlmSource().name());
     }
 
     private static boolean isSystem(Skill skill) {

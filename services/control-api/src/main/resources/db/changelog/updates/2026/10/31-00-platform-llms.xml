@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Platform purposes become ordered chains, mirroring agent_llms
+         (docs/decisions/platform-llm-purposes-and-agent-source.md). There is no user_id: platform
+         configuration belongs to the platform, and every llm_providers row owned by SYSTEM_USER_ID
+         is a platform provider. purpose_priority of those rows is copied, not cleared — old
+         instances still read only that field during the rollout, so clearing it in this release
+         would take the platform fallback away from them. -->
+    <changeSet id="platform-llms-table" author="agimate">
+        <createTable tableName="platform_llms">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="llm_provider_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="priority" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="model" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="purpose" type="TEXT" defaultValue="CHAT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="platform_llms"
+                             columnNames="purpose, priority"
+                             constraintName="uq_platform_llms_purpose_priority"/>
+
+        <!-- RESTRICT, not CASCADE: a provider referenced by a platform purpose cannot be deleted,
+             and the rule must hold for direct SQL and in a race with an insert. -->
+        <addForeignKeyConstraint baseTableName="platform_llms"
+                                 baseColumnNames="llm_provider_id"
+                                 constraintName="fk_platform_llms_llm_provider"
+                                 referencedTableName="llm_providers"
+                                 referencedColumnNames="id"
+                                 onDelete="RESTRICT"/>
+
+        <createIndex tableName="platform_llms" indexName="idx_platform_llms_llm_provider_id">
+            <column name="llm_provider_id"/>
+        </createIndex>
+
+        <!-- One row per (provider, model) in a purpose; the order is preserved by priority.
+             The row number runs over every value of the purpose across all system providers,
+             ordered the way a single provider's list is read. rn <= 5 trims an oversized list to
+             the service ceiling; duplicates and purposes outside LlmPurpose are dropped after
+             numbering, exactly as the decision describes. The IS NULL guards keep malformed JSONB
+             (a scalar, a non-array value) from failing the migration; non-string array elements
+             (JSON null, nested arrays/objects, numbers) are dropped too, since only a string is a
+             model id. -->
+        <sql>
+            WITH ranked AS (
+                SELECT p.id AS provider_id,
+                       m.value #>> '{}' AS model,
+                       pj.key AS purpose,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY pj.key
+                           ORDER BY p.created_at, p.name, m.ord
+                       ) AS rn
+                FROM llm_providers p
+                CROSS JOIN LATERAL jsonb_each(
+                    CASE WHEN jsonb_typeof(p.purpose_priority) = 'object'
+                         THEN p.purpose_priority END
+                ) AS pj(key, models)
+                CROSS JOIN LATERAL jsonb_array_elements(
+                    CASE WHEN jsonb_typeof(pj.models) = 'array'
+                         THEN pj.models END
+                ) WITH ORDINALITY AS m(value, ord)
+                WHERE p.user_id = '00000000-0000-0000-0000-000000000000'
+                  AND pj.key IN ('CHAT', 'IMAGE', 'VISION', 'AUDIO_IN', 'AUDIO_OUT', 'ROUTINE')
+                  AND jsonb_typeof(m.value) = 'string'
+                  AND btrim(m.value #>> '{}') &lt;&gt; ''
+            ),
+            trimmed AS (
+                SELECT * FROM ranked WHERE rn &lt;= 5
+            ),
+            deduped AS (
+                SELECT DISTINCT ON (purpose, provider_id, model)
+                       provider_id, model, purpose, rn
+                FROM trimmed
+                ORDER BY purpose, provider_id, model, rn
+            )
+            INSERT INTO platform_llms (llm_provider_id, model, purpose, priority)
+            SELECT provider_id, model, purpose, rn - 1
+            FROM deduped
+            ORDER BY purpose, rn;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

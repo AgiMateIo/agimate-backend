@@ -123,7 +123,7 @@ class LlmQuotaServiceTest {
 
             QuotaExceededException e = assertThrows(QuotaExceededException.class,
                     () -> service.check(platformProvider(), USER_ID, AGENT_ID));
-            assertTrue(e.getMessage().contains("платформенной модели"));
+            assertTrue(e.getMessage().contains("платформенного провайдера"));
             assertTrue(e.getMessage().contains("00:00 UTC"));
             assertTrue(e.getMessage().contains("подключите свой LLM-ключ"));
         }

@@ -13,7 +13,7 @@ import ru.agimate.controlapi.database.enums.UsageWindow;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.LlmQuotaRepository;
 import ru.agimate.controlapi.database.repositories.LlmUsageCounterRepository;
-import ru.agimate.controlapi.service.LlmProviderService;
+import ru.agimate.controlapi.service.SystemSkillBootstrap;
 import ru.agimate.controlapi.service.dto.llm.LlmUsageSnapshot;
 
 import java.time.LocalDate;
@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 public class LlmUsageQueryService {
 
     private final LlmProviderRepository llmProviderRepository;
-    private final LlmProviderService llmProviderService;
     private final LlmQuotaRepository quotaRepository;
     private final LlmUsageCounterRepository counterRepository;
 
@@ -96,8 +95,11 @@ public class LlmUsageQueryService {
             subjects.add(new Subject(provider, UsageSubjectKind.TOTAL, LlmUsageCounter.TOTAL_SUBJECT_ID,
                     AgentLlmResponse.Source.USER));
         }
-        llmProviderService.findUsablePlatformProvider().ifPresent(platform ->
-                subjects.add(new Subject(platform, UsageSubjectKind.USER, userId,
+        // Every enabled platform provider is its own subject: several vendors mean several budgets.
+        llmProviderRepository
+                .findAllByUserIdOrderByCreatedAtDesc(SystemSkillBootstrap.SYSTEM_USER_ID).stream()
+                .filter(LlmProvider::isEnabled)
+                .forEach(platform -> subjects.add(new Subject(platform, UsageSubjectKind.USER, userId,
                         AgentLlmResponse.Source.PLATFORM)));
         return subjects;
     }

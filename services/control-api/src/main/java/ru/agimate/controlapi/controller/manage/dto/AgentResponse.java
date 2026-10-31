@@ -6,6 +6,7 @@ import ru.agimate.controlapi.controller.manage.dto.llm.AgentLlmResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.service.AgentService;
 
 import java.time.LocalDateTime;
@@ -31,6 +32,9 @@ public record AgentResponse(
 
         @Schema(description = "Agent type")
         AgentType type,
+
+        @Schema(description = "Who pays for the agent's models: PLATFORM or BYOK")
+        LlmSource llmSource,
 
         @Schema(description = "Webhook URL")
         String webhookUrl,
@@ -69,6 +73,7 @@ public record AgentResponse(
                 maskedKeyId,
                 agent.getInstructions(),
                 agent.getType(),
+                agent.getLlmSource(),
                 agent.getWebhookUrl(),
                 agent.hasWebhookAuth(),
                 agent.isEnabled(),

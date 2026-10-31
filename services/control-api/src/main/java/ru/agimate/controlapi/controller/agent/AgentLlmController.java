@@ -27,8 +27,10 @@ public class AgentLlmController {
     private final AgentLlmService agentLlmService;
 
     @Operation(
-            summary = "List LLM bindings with decrypted credentials",
-            description = "Returns all enabled LLM bindings of the current agent — model metadata, without credentials"
+            summary = "List the active BYOK LLM bindings of the current agent",
+            description = "Returns the active own bindings of the current agent — model metadata, "
+                    + "without credentials. A PLATFORM agent has none: the list is empty, because "
+                    + "platform configuration is not exposed"
     )
     @GetMapping("/")
     public SuccessResponse<List<AgentLlmRuntimeResponse>> list(
@@ -38,8 +40,9 @@ public class AgentLlmController {
     }
 
     @Operation(
-            summary = "Get a single LLM binding by purpose",
-            description = "Returns the LLM binding for the given purpose (e.g. CHAT)"
+            summary = "Get the active BYOK LLM binding by purpose",
+            description = "Returns the first enabled own binding for the given purpose (e.g. CHAT). "
+                    + "A PLATFORM agent answers 404: platform configuration is not exposed"
     )
     @GetMapping("/{purpose}")
     public SuccessResponse<AgentLlmRuntimeResponse> getByPurpose(

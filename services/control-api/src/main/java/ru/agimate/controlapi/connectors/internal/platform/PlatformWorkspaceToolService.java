@@ -281,7 +281,8 @@ public class PlatformWorkspaceToolService {
     private static AgentBrief toAgentBrief(Agent agent) {
         return new AgentBrief(agent.getId().toString(), agent.getName(), agent.getDescription(),
                 agent.getType().name(), agent.isEnabled(),
-                agent.getAgenticTeamId() == null ? null : agent.getAgenticTeamId().toString());
+                agent.getAgenticTeamId() == null ? null : agent.getAgenticTeamId().toString(),
+                agent.getLlmSource().name());
     }
 
     private static PresetBrief toPresetBrief(AgentPreset preset) {

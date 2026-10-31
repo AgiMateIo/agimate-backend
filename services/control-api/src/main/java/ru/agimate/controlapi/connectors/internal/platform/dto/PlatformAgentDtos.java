@@ -20,7 +20,7 @@ public final class PlatformAgentDtos {
 
     public record AgentDetail(String id, String name, String description, String instructions,
                               String type, boolean enabled, String teamId, String webhookUrl,
-                              boolean hasWebhookAuth, List<BoundSkill> skills) {
+                              boolean hasWebhookAuth, List<BoundSkill> skills, String llmSource) {
     }
 
     /** {@code keyUrl} opens the UI page where the key is shown once; tools never return secrets. */

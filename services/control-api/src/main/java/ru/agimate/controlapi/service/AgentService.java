@@ -35,6 +35,7 @@ import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.service.dto.agent.AgentCreateCommand;
 import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
 import ru.agimate.controlapi.database.enums.PolicyKind;
@@ -494,6 +495,17 @@ public class AgentService {
         agent = agentRepository.save(agent);
 
         log.info("Patched agent id={}", id);
+        return detailResponse(agent);
+    }
+
+    @Transactional
+    public AgentResponse switchLlmSource(UUID id, UUID userId, LlmSource source) {
+        Agent agent = ownedAgent(id, userId);
+        if (agent.getLlmSource() != source) {
+            agent.setLlmSource(source);
+            agent = agentRepository.save(agent);
+            log.info("Switched agent {} LLM source to {}", id, source);
+        }
         return detailResponse(agent);
     }
 

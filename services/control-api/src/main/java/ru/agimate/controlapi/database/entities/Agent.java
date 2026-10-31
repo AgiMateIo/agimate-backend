@@ -8,6 +8,7 @@ import org.hibernate.annotations.SQLRestriction;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
+import ru.agimate.controlapi.database.enums.LlmSource;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -58,6 +59,16 @@ public class Agent extends BaseEntity {
     @Column(name = "type", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
     private AgentType type = AgentType.CENTRIFUGO;
+
+    /**
+     * Who pays for the models: the platform or the user's keys. The source decides the chain; a
+     * PLATFORM agent's bindings stay in the database but are inactive
+     * (docs/decisions/platform-llm-purposes-and-agent-source.md).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "llm_source", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private LlmSource llmSource = LlmSource.PLATFORM;
 
     @Column(name = "webhook_url", columnDefinition = "TEXT")
     private String webhookUrl;

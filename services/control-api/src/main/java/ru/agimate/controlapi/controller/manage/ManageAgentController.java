@@ -14,6 +14,7 @@ import ru.agimate.controlapi.controller.manage.dto.AgentResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.PatchAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentRequest;
+import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmSourceRequest;
 import ru.agimate.controlapi.service.AgentService;
 
 import java.util.UUID;
@@ -88,6 +89,20 @@ public class ManageAgentController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(agentService.patch(agentId, userId, request));
+    }
+
+    @Operation(summary = "Switch the agent's LLM source",
+            description = "PLATFORM makes the platform's chains effective and the agent's own bindings "
+                    + "inactive; BYOK makes the own bindings effective again. A BYOK agent without a "
+                    + "CHAT binding is allowed and answers a clear refusal")
+    @PutMapping("/{agentId}/llm-source")
+    public SuccessResponse<AgentResponse> updateLlmSource(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID agentId,
+            @Valid @RequestBody UpdateAgentLlmSourceRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentService.switchLlmSource(agentId, userId, request.source()));
     }
 
     @Operation(summary = "Delete an agent")

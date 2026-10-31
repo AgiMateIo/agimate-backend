@@ -10,9 +10,11 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.PlatformLlm;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.enums.UsageSubjectKind;
 import ru.agimate.controlapi.database.enums.UsageWindow;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
@@ -20,6 +22,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderCatalogRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.PlatformLlmRepository;
 import ru.agimate.controlapi.service.AgentLlmService;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.dto.llm.LlmProviderUpdateCommand;
@@ -54,6 +57,7 @@ class PlatformLlmToolServiceTest {
     private static final UUID OTHER_AGENT_ID = UUID.randomUUID();
 
     private final LlmProviderRepository llmProviderRepository = mock(LlmProviderRepository.class);
+    private final PlatformLlmRepository platformLlmRepository = mock(PlatformLlmRepository.class);
     private final LlmProviderModelRepository llmProviderModelRepository = mock(LlmProviderModelRepository.class);
     private final LlmProviderCatalogRepository llmProviderCatalogRepository = mock(LlmProviderCatalogRepository.class);
     private final AgentLlmRepository agentLlmRepository = mock(AgentLlmRepository.class);
@@ -64,9 +68,9 @@ class PlatformLlmToolServiceTest {
     private final LlmUsageQueryService llmUsageQueryService = mock(LlmUsageQueryService.class);
 
     private final PlatformLlmToolService llmTools = new PlatformLlmToolService(
-            llmProviderRepository, llmProviderModelRepository, llmProviderCatalogRepository,
-            agentLlmRepository, agentRepository, llmProviderService, llmQuotaService,
-            agentLlmService, llmUsageQueryService);
+            llmProviderRepository, platformLlmRepository, llmProviderModelRepository,
+            llmProviderCatalogRepository, agentLlmRepository, agentRepository, llmProviderService,
+            llmQuotaService, agentLlmService, llmUsageQueryService);
     private final PlatformConnectorService handler = new PlatformConnectorService(
             mock(PlatformAgentToolService.class), mock(PlatformConnectionToolService.class), llmTools,
             mock(PlatformWorkspaceToolService.class), mock(PlatformObservabilityToolService.class));
@@ -202,7 +206,7 @@ class PlatformLlmToolServiceTest {
         AgentLlm fallback = AgentLlm.builder()
                 .id(UUID.randomUUID()).agentId(agentId).llmProviderId(second)
                 .model("gpt-4o-mini").purpose(LlmPurpose.CHAT).priority(1).build();
-        when(agentLlmService.replaceChain(eq(agentId), eq(USER_ID), eq(LlmPurpose.CHAT),
+        when(agentLlmService.setAgentLlm(eq(agentId), eq(USER_ID), eq(LlmPurpose.CHAT),
                 eq(List.of(new AgentLlmService.Binding(first, "gpt-4o"),
                         new AgentLlmService.Binding(second, "gpt-4o-mini")))))
                 .thenReturn(List.of(primary, fallback));
@@ -342,6 +346,67 @@ class PlatformLlmToolServiceTest {
         assertEquals("my-openai", item.get("providerName"));
         assertEquals("gpt-4o", item.get("model"));
         assertEquals(0, ((Number) item.get("priority")).intValue());
+    }
+
+    @Test
+    @DisplayName("list_agent_llms: PLATFORM-агент — платформенные строки и свои неактивные")
+    void listAgentLlmsForPlatformAgent() {
+        UUID agentId = UUID.randomUUID();
+        UUID platformId = UUID.randomUUID();
+        UUID ownId = UUID.randomUUID();
+        when(agentRepository.findById(agentId)).thenReturn(Optional.of(Agent.builder()
+                .id(agentId).userId(USER_ID).type(AgentType.GENERIC)
+                .llmSource(LlmSource.PLATFORM).build()));
+        when(platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc()).thenReturn(List.of(
+                PlatformLlm.builder().llmProviderId(platformId).model("plat-chat")
+                        .purpose(LlmPurpose.CHAT).priority(0).build()));
+        when(llmProviderRepository.findAllByIdIn(List.of(platformId))).thenReturn(List.of(
+                LlmProvider.builder().id(platformId).name("platform").build()));
+        when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agentId)).thenReturn(List.of(
+                AgentLlm.builder().id(UUID.randomUUID()).agentId(agentId).llmProviderId(ownId)
+                        .model("own-chat").purpose(LlmPurpose.CHAT).priority(0).build()));
+        when(llmProviderRepository.findAllByIdIn(List.of(ownId))).thenReturn(List.of(
+                LlmProvider.builder().id(ownId).name("my-openai").build()));
+
+        Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "list_agent_llms",
+                Map.of("agentId", agentId.toString()));
+
+        List<?> items = (List<?>) result.get("items");
+        assertEquals(2, items.size());
+        Map<?, ?> platformItem = (Map<?, ?>) items.get(0);
+        assertEquals("PLATFORM", platformItem.get("source"));
+        assertTrue((Boolean) platformItem.get("active"));
+        assertNull(platformItem.get("providerId"));
+        assertEquals("platform", platformItem.get("providerName"));
+        Map<?, ?> ownItem = (Map<?, ?>) items.get(1);
+        assertEquals("USER", ownItem.get("source"));
+        assertFalse((Boolean) ownItem.get("active"));
+    }
+
+    @Test
+    @DisplayName("list_agent_llms: внешнему PLATFORM-агенту видны только медиа-назначения")
+    void listAgentLlmsForExternalPlatformAgentSkipsChat() {
+        UUID agentId = UUID.randomUUID();
+        UUID platformId = UUID.randomUUID();
+        when(agentRepository.findById(agentId)).thenReturn(Optional.of(Agent.builder()
+                .id(agentId).userId(USER_ID).type(AgentType.MCP)
+                .llmSource(LlmSource.PLATFORM).build()));
+        when(platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc()).thenReturn(List.of(
+                PlatformLlm.builder().llmProviderId(platformId).model("plat-chat")
+                        .purpose(LlmPurpose.CHAT).priority(0).build(),
+                PlatformLlm.builder().llmProviderId(platformId).model("plat-image")
+                        .purpose(LlmPurpose.IMAGE).priority(0).build()));
+        when(llmProviderRepository.findAllByIdIn(List.of(platformId))).thenReturn(List.of(
+                LlmProvider.builder().id(platformId).name("platform").build()));
+        when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agentId))
+                .thenReturn(List.of());
+
+        Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "list_agent_llms",
+                Map.of("agentId", agentId.toString()));
+
+        List<?> items = (List<?>) result.get("items");
+        assertEquals(1, items.size());
+        assertEquals("IMAGE", ((Map<?, ?>) items.get(0)).get("purpose"));
     }
 
     private void stubOwnedAgent(UUID agentId) {

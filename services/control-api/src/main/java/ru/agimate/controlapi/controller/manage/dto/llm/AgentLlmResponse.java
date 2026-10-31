@@ -3,10 +3,10 @@ package ru.agimate.controlapi.controller.manage.dto.llm;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.PlatformLlm;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 
-import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "Agent ↔ LLM binding (no api_key)")
@@ -19,10 +19,10 @@ public record AgentLlmResponse(
         LlmPurpose purpose,
 
         @Schema(description = "Position in the purpose's chain; the resolver takes the first eligible "
-                + "binding. Null for the synthetic platform row")
-        Integer priority,
+                + "binding")
+        int priority,
 
-        @Schema(description = "LLM provider public ID (null for the platform fallback)")
+        @Schema(description = "LLM provider public ID (null for a platform row)")
         UUID llmProviderId,
 
         @Schema(description = "LLM provider human-readable name")
@@ -31,13 +31,17 @@ public record AgentLlmResponse(
         @Schema(description = "LLM provider type")
         LlmProviderType providerType,
 
-        @Schema(description = "Where the binding comes from: USER — explicit agent_llms row, "
-                + "PLATFORM — implicit fallback to the platform provider")
-        Source source
+        @Schema(description = "Where the binding comes from: USER — the agent's own agent_llms row, "
+                + "PLATFORM — the platform's platform_llms row")
+        Source source,
+
+        @Schema(description = "Whether the binding is effective. A PLATFORM agent's own rows are kept "
+                + "but inactive; the platform rows serve it")
+        boolean active
 ) {
     public enum Source { USER, PLATFORM }
 
-    public static AgentLlmResponse from(AgentLlm binding, LlmProvider provider) {
+    public static AgentLlmResponse from(AgentLlm binding, LlmProvider provider, boolean active) {
         return new AgentLlmResponse(
                 binding.getModel(),
                 binding.getPurpose(),
@@ -45,21 +49,22 @@ public record AgentLlmResponse(
                 binding.getLlmProviderId(),
                 provider != null ? provider.getName() : null,
                 provider != null ? provider.getProviderType() : null,
-                Source.USER
+                Source.USER,
+                active
         );
     }
 
-    /** The agent's effective model with no bindings: the platform fallback (its id is not addressable by the user). */
-    public static AgentLlmResponse platformFallback(LlmProvider platformProvider) {
+    /** One effective platform row; its provider id is not addressable by the user. */
+    public static AgentLlmResponse platform(PlatformLlm binding, LlmProvider provider) {
         return new AgentLlmResponse(
-                platformProvider.modelsFor(LlmPurpose.CHAT).stream()
-                        .flatMap(List::stream).findFirst().orElse(null),
-                LlmPurpose.CHAT,
+                binding.getModel(),
+                binding.getPurpose(),
+                binding.getPriority(),
                 null,
-                null,
-                platformProvider.getName(),
-                platformProvider.getProviderType(),
-                Source.PLATFORM
+                provider != null ? provider.getName() : null,
+                provider != null ? provider.getProviderType() : null,
+                Source.PLATFORM,
+                true
         );
     }
 }

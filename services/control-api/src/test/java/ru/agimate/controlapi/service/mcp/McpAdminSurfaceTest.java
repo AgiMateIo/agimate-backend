@@ -119,7 +119,9 @@ class McpAdminSurfaceTest {
             mock(ConnectionService.class), mock(ConnectionBindingService.class),
             mock(ru.agimate.controlapi.abac.AgentConnectionPolicyService.class), mock(ChannelService.class));
     private final PlatformLlmToolService llmTools = new PlatformLlmToolService(
-            mock(LlmProviderRepository.class), mock(LlmProviderModelRepository.class),
+            mock(LlmProviderRepository.class),
+            mock(ru.agimate.controlapi.database.repositories.PlatformLlmRepository.class),
+            mock(LlmProviderModelRepository.class),
             mock(LlmProviderCatalogRepository.class), mock(AgentLlmRepository.class), agentRepository,
             mock(ru.agimate.controlapi.service.LlmProviderService.class),
             mock(ru.agimate.controlapi.service.llm.LlmQuotaService.class),

@@ -27,11 +27,15 @@ import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.Ll
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmUsageItem;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmUsageList;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmUsageWindow;
+import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.entities.LlmQuota;
+import ru.agimate.controlapi.database.entities.PlatformLlm;
+import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.enums.MediaTransportType;
 import ru.agimate.controlapi.database.enums.UsageSubjectKind;
 import ru.agimate.controlapi.database.enums.UsageWindow;
@@ -40,6 +44,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderCatalogRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.PlatformLlmRepository;
 import ru.agimate.controlapi.service.AgentLlmService;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.dto.llm.LlmProviderUpdateCommand;
@@ -49,6 +54,8 @@ import ru.agimate.controlapi.service.llm.LlmUsageQueryService;
 
 import java.nio.charset.StandardCharsets;
 import java.net.URLEncoder;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -76,6 +83,7 @@ import java.util.stream.Collectors;
 public class PlatformLlmToolService {
 
     private final LlmProviderRepository llmProviderRepository;
+    private final PlatformLlmRepository platformLlmRepository;
     private final LlmProviderModelRepository llmProviderModelRepository;
     private final LlmProviderCatalogRepository llmProviderCatalogRepository;
     private final AgentLlmRepository agentLlmRepository;
@@ -188,9 +196,9 @@ public class PlatformLlmToolService {
 
     @Tool(name = "delete_llm_provider",
             description = "Delete one of your LLM providers. Cascades to its agent bindings: the next "
-                    + "binding of each purpose's chain takes over, and the platform model is used only "
-                    + "when the purpose has no bindings left. Deletes the stored key. The platform "
-                    + "provider cannot be deleted — disable it instead",
+                    + "binding of each purpose's chain takes over, and an agent may be left without a "
+                    + "CHAT binding — that is a valid BYOK state with a clear refusal, not an error. "
+                    + "Deletes the stored key. Platform providers are managed by the platform admin",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult deleteLlmProvider(@ToolParam("Provider public ID") String id) {
         UUID providerId = PlatformToolsSupport.parseUuid(id, "id");
@@ -319,28 +327,31 @@ public class PlatformLlmToolService {
     // ---- agent LLM bindings ----------------------------------------------------------------
 
     @Tool(name = "list_agent_llms",
-            description = "List the LLM bindings of an agent you own in chain order: which provider and "
-                    + "model serve each purpose (CHAT, IMAGE, VISION, AUDIO_IN, AUDIO_OUT, ROUTINE) and "
-                    + "at what priority. An agent with no bindings runs on the platform model",
+            description = "List an agent's effective LLM configuration in chain order. A PLATFORM agent "
+                    + "shows the platform's rows (all purposes for GENERIC; only IMAGE/VISION/AUDIO_IN/"
+                    + "AUDIO_OUT for an external-brain agent) plus its own inactive bindings "
+                    + "(active=false). A BYOK agent shows its own active bindings only",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public AgentLlmBindingList listAgentLlms(@ToolParam("Agent public ID") String agentId) {
         // Read-only listing — no self-guard, same as list_agent_skills; owner scope stays.
-        UUID id = PlatformToolsSupport.ownedAgent(agentRepository, PlatformToolsSupport.parseUuid(agentId, "agentId")).getId();
-        var capped = PlatformToolsSupport.cap(toAgentLlmBindings(
-                agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(id).stream()
-                        .limit(PlatformToolsSupport.MAX_LISTING + 1)
-                        .toList()));
+        var agent = PlatformToolsSupport.ownedAgent(agentRepository,
+                PlatformToolsSupport.parseUuid(agentId, "agentId"));
+        var capped = PlatformToolsSupport.cap(effectiveBindings(agent).stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
+                .toList());
         return new AgentLlmBindingList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "set_agent_llm",
             description = "Replace the ordered chain of LLM bindings for a purpose on an agent you own. "
-                    + "The resolver takes the first eligible binding, so a fallback goes after the "
-                    + "preferred one; at most five, no duplicate provider+model pair. purpose defaults to "
-                    + "CHAT (the agent-loop model); IMAGE, VISION, AUDIO_IN and AUDIO_OUT are media "
-                    + "model-as-tool bindings; ROUTINE serves the platform's chores (conversation "
-                    + "compaction, session titles) and falls back to CHAT. Every model must exist in the "
-                    + "provider's model registry if it is non-empty",
+                    + "A non-empty chain on a PLATFORM agent switches it to BYOK in the same call; an "
+                    + "empty list removes the purpose and never changes the source. The resolver takes "
+                    + "the first eligible binding, so a fallback goes after the preferred one; at most "
+                    + "five, no duplicate provider+model pair. purpose defaults to CHAT (the agent-loop "
+                    + "model); IMAGE, VISION, AUDIO_IN and AUDIO_OUT are media model-as-tool bindings; "
+                    + "ROUTINE serves the platform's chores (conversation compaction, session titles) and "
+                    + "falls back to CHAT. Every model must exist in the provider's model registry if it "
+                    + "is non-empty",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public AgentLlmBindingList setAgentLlm(
             @ToolParam("Agent public ID") String agentId,
@@ -360,15 +371,14 @@ public class PlatformLlmToolService {
                         PlatformToolsSupport.requireText(binding.model(), "model")))
                 .toList();
         List<AgentLlm> saved = PlatformToolsSupport.domain(() ->
-                agentLlmService.replaceChain(agent, PlatformToolsSupport.userId(), resolved, chain));
-        return new AgentLlmBindingList(toAgentLlmBindings(saved), false);
+                agentLlmService.setAgentLlm(agent, PlatformToolsSupport.userId(), resolved, chain));
+        return new AgentLlmBindingList(toAgentLlmBindings(saved, true), false);
     }
 
     @Tool(name = "delete_agent_llm",
-            description = "Remove every LLM binding of a given purpose from an agent you own; the "
-                    + "purpose then resolves by its default rule: the provider lists of the agent's "
-                    + "chat providers, then the platform model — except ROUTINE, which uses the "
-                    + "agent's CHAT model instead of the platform",
+            description = "Remove every LLM binding of a given purpose from an agent you own. Under "
+                    + "BYOK nothing is appended in its place: a missing CHAT binding is a clear refusal "
+                    + "until a model is bound, and ROUTINE falls back to the agent's own CHAT model",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult deleteAgentLlm(
             @ToolParam("Agent public ID") String agentId,
@@ -387,8 +397,8 @@ public class PlatformLlmToolService {
 
     @Tool(name = "get_llm_usage",
             description = "Your token usage and remaining quota per provider, for the current DAY and "
-                    + "MONTH windows. Own (BYOK) providers show whole-provider usage; the platform "
-                    + "provider shows your usage",
+                    + "MONTH windows. Own (BYOK) providers show whole-provider usage; each enabled "
+                    + "platform provider is its own subject and shows your usage",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public LlmUsageList getLlmUsage() {
         var capped = PlatformToolsSupport.cap(llmUsageQueryService
@@ -509,7 +519,35 @@ public class PlatformLlmToolService {
                 q.getLimitTokens());
     }
 
-    private List<AgentLlmBinding> toAgentLlmBindings(List<AgentLlm> bindings) {
+    /** The effective configuration the agent's source implies, with its inactive own rows kept. */
+    private List<AgentLlmBinding> effectiveBindings(Agent agent) {
+        boolean platform = agent.getLlmSource() == LlmSource.PLATFORM;
+        List<AgentLlmBinding> result = new ArrayList<>();
+        if (platform) {
+            boolean generic = agent.getType() == AgentType.GENERIC;
+            List<PlatformLlm> rows = platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc();
+            Map<UUID, LlmProvider> providersById = llmProviderRepository.findAllByIdIn(
+                            rows.stream().map(PlatformLlm::getLlmProviderId).distinct().toList()).stream()
+                    .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
+            for (PlatformLlm row : rows) {
+                if (!generic && !row.getPurpose().isMedia()) {
+                    continue;
+                }
+                LlmProvider provider = providersById.get(row.getLlmProviderId());
+                result.add(new AgentLlmBinding(row.getPurpose().name(), row.getPriority(), null,
+                        provider != null ? provider.getName() : null, row.getModel(),
+                        true, "PLATFORM"));
+            }
+        }
+        result.addAll(toAgentLlmBindings(
+                agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(agent.getId()), !platform));
+        result.sort(Comparator.comparing((AgentLlmBinding b) -> LlmPurpose.valueOf(b.purpose()))
+                .thenComparing(b -> "PLATFORM".equals(b.source()) ? 0 : 1)
+                .thenComparingInt(AgentLlmBinding::priority));
+        return result;
+    }
+
+    private List<AgentLlmBinding> toAgentLlmBindings(List<AgentLlm> bindings, boolean active) {
         if (bindings.isEmpty()) {
             return List.of();
         }
@@ -517,14 +555,15 @@ public class PlatformLlmToolService {
                 .findAllByIdIn(bindings.stream().map(AgentLlm::getLlmProviderId).distinct().toList())
                 .stream()
                 .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
-        return bindings.stream().map(b -> toAgentLlmBinding(b, providersById)).toList();
+        return bindings.stream().map(b -> toAgentLlmBinding(b, providersById, active)).toList();
     }
 
-    private static AgentLlmBinding toAgentLlmBinding(AgentLlm binding, Map<UUID, LlmProvider> providersById) {
+    private static AgentLlmBinding toAgentLlmBinding(AgentLlm binding, Map<UUID, LlmProvider> providersById,
+                                                     boolean active) {
         LlmProvider provider = providersById.get(binding.getLlmProviderId());
         return new AgentLlmBinding(binding.getPurpose().name(), binding.getPriority(),
                 binding.getLlmProviderId().toString(),
-                provider != null ? provider.getName() : null, binding.getModel());
+                provider != null ? provider.getName() : null, binding.getModel(), active, "USER");
     }
 
     private LlmUsageItem toUsageItem(LlmUsageSnapshot s) {

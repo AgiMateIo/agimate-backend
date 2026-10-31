@@ -18,7 +18,7 @@ public final class PlatformDtos {
     }
 
     public record AgentBrief(String id, String name, String description, String type,
-                             boolean enabled, String teamId) {
+                             boolean enabled, String teamId, String llmSource) {
     }
 
     public record OperationResult(boolean ok, String message) {

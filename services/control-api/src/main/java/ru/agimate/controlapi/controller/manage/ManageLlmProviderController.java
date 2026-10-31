@@ -60,8 +60,8 @@ public class ManageLlmProviderController {
         return SuccessResponse.ok(llmProviderService.create(userId, request));
     }
 
-    @Operation(summary = "Create the platform (free-tier) LLM provider. ADMIN only; "
-            + "name is forced to \"platform\", created disabled")
+    @Operation(summary = "Create a platform (free-tier) LLM provider. ADMIN only; the name is unique "
+            + "among platform providers, the row is created disabled")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/platform")
     public SuccessResponse<LlmProviderResponse> createPlatform(

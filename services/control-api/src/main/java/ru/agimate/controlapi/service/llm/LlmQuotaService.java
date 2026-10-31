@@ -121,7 +121,8 @@ public class LlmQuotaService {
                 ? "Лимит обновится в 00:00 UTC."
                 : "Лимит обновится 1-го числа (UTC).";
         if (SystemSkillBootstrap.SYSTEM_USER_ID.equals(provider.getUserId())) {
-            return window + " лимит токенов платформенной модели исчерпан. " + reset
+            return window + " лимит токенов платформенного провайдера «" + provider.getName()
+                    + "» исчерпан. " + reset
                     + " Чтобы снять ограничение, подключите свой LLM-ключ в настройках.";
         }
         return window + " лимит токенов провайдера «" + provider.getName() + "» исчерпан. "

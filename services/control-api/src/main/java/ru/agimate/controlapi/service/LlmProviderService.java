@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -28,6 +29,7 @@ import ru.agimate.controlapi.database.enums.MediaTransportType;
 import ru.agimate.controlapi.database.repositories.LlmModelDefaultsRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.PlatformLlmRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.discovery.LlmModelDiscoveryService;
 import ru.agimate.controlapi.service.dto.llm.LlmProviderUpdateCommand;
@@ -57,17 +59,15 @@ public class LlmProviderService {
     /** Cap on the serialised extra_body (both provider-level and per-model). */
     private static final int EXTRA_BODY_MAX_CHARS = 16 * 1024;
 
-    /** Name of the platform provider under {@link SystemSkillBootstrap#SYSTEM_USER_ID}. */
-    public static final String PLATFORM_PROVIDER_NAME = "platform";
-
     private final LlmProviderRepository llmProviderRepository;
+    private final PlatformLlmRepository platformLlmRepository;
     private final LlmProviderModelRepository llmProviderModelRepository;
     private final LlmModelDefaultsRepository llmModelDefaultsRepository;
     private final SecretRepository secretRepository;
     private final SecretService secretService;
     private final LlmModelDiscoveryService modelDiscoveryService;
 
-    /** An admin also sees the platform row in the list (the free tier is managed through the same endpoints). */
+    /** An admin also sees every platform row in the list (the free tier is managed through the same endpoints). */
     public List<LlmProviderResponse> listForUser(UUID userId, boolean admin) {
         List<LlmProviderResponse> result = new java.util.ArrayList<>(
                 llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
@@ -75,23 +75,11 @@ public class LlmProviderService {
                         .toList());
         if (admin) {
             llmProviderRepository
-                    .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME)
+                    .findAllByUserIdOrderByCreatedAtDesc(SystemSkillBootstrap.SYSTEM_USER_ID).stream()
                     .map(LlmProviderResponse::from)
-                    .ifPresent(result::add);
+                    .forEach(result::add);
         }
         return result;
-    }
-
-    /**
-     * The platform provider fit for a fallback issue: just «enabled». Whether it can serve a given
-     * purpose is decided by the caller against {@code purpose_priority} — that way the refusal names
-     * the purpose that is unconfigured instead of the row silently disappearing from the fallback.
-     * The users' manage paths never look here — the system row belongs to no userId.
-     */
-    public Optional<LlmProvider> findUsablePlatformProvider() {
-        return llmProviderRepository
-                .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME)
-                .filter(LlmProvider::isEnabled);
     }
 
     public LlmProviderResponse getForUser(UUID id, UUID userId, boolean admin) {
@@ -129,26 +117,23 @@ public class LlmProviderService {
     }
 
     /**
-     * Create a platform provider from the admin UI. The name is forced to
-     * {@link #PLATFORM_PROVIDER_NAME} (the key of the fallback issue), and it is created disabled —
-     * enabling comes after the quotas are configured. A singleton: creating it again is a 409.
+     * Create a platform provider from the admin UI. The name is unique among platform providers —
+     * several vendors may serve the platform — and the row is created disabled: enabling comes after
+     * the quotas and the purpose chains are configured.
      */
     @Transactional
     public LlmProviderResponse createPlatformProvider(CreatePlatformLlmProviderRequest request) {
-        if (llmProviderRepository
-                .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME)
-                .isPresent()) {
-            throw new ConflictStatusException("Platform provider already exists");
-        }
         validateBaseUrl(request.providerType(), request.baseUrl());
-        validatePurposePriority(request.purposePriority());
+        if (llmProviderRepository.existsByUserIdAndName(
+                SystemSkillBootstrap.SYSTEM_USER_ID, request.name())) {
+            throw new ConflictStatusException("Platform provider with this name already exists");
+        }
 
         LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
                 .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
-                .name(PLATFORM_PROVIDER_NAME)
+                .name(request.name())
                 .providerType(request.providerType())
                 .baseUrl(blankToNull(request.baseUrl()))
-                .purposePriority(emptyToNull(request.purposePriority()))
                 .apiKeyMask(buildMask(request.apiKey()))
                 .enabled(false)
                 .build());
@@ -157,8 +142,8 @@ public class LlmProviderService {
         provider.setSecretId(secret.getId());
         provider = llmProviderRepository.save(provider);
 
-        log.info("Created platform LLM provider id={} type={} (enabled=false)",
-                provider.getId(), provider.getProviderType());
+        log.info("Created platform LLM provider id={} name={} type={} (enabled=false)",
+                provider.getId(), provider.getName(), provider.getProviderType());
         return LlmProviderResponse.from(provider);
     }
 
@@ -228,16 +213,17 @@ public class LlmProviderService {
             throw new BadRequestStatusException("Provider name must not be blank");
         }
         if (name != null && !name.equals(provider.getName())) {
-            if (isPlatform(provider)) {
-                // The name «platform» is the key of the fallback lookup; renaming would break credential issuing.
-                throw new BadRequestStatusException("Platform provider cannot be renamed");
-            }
-            if (llmProviderRepository.existsByUserIdAndName(userId, name)) {
+            // The owner of the row, not the caller: a platform row's namespace is the system user's.
+            if (llmProviderRepository.existsByUserIdAndName(provider.getUserId(), name)) {
                 throw new ConflictStatusException("LLM provider with this name already exists");
             }
             provider.setName(name);
         }
         if (purposePriority != null) {
+            if (isPlatform(provider)) {
+                throw new BadRequestStatusException("Platform providers have no purpose lists; "
+                        + "configure platform purposes via /manage/admin/platform-llms");
+            }
             validatePurposePriority(purposePriority);
             validateModelsKnown(provider, purposePriority.values().stream()
                     .flatMap(List::stream).toList());
@@ -275,12 +261,21 @@ public class LlmProviderService {
     @Transactional
     public void delete(UUID id, UUID userId, boolean admin) {
         LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
-        if (isPlatform(provider)) {
-            // A sudden loss of the fallback (plus a cascade of quotas); to switch it off, use enabled.
-            throw new BadRequestStatusException("Platform provider cannot be deleted; disable it instead");
+        if (isPlatform(provider) && platformLlmRepository.existsByLlmProviderId(provider.getId())) {
+            throw new BadRequestStatusException(
+                    "Platform provider still serves platform purposes; remove them first");
         }
         UUID secretId = provider.getSecretId();
-        llmProviderRepository.delete(provider);
+        try {
+            llmProviderRepository.delete(provider);
+            // Flush now: a platform purpose inserted after the check must answer the friendly 400,
+            // not a persistence error from the commit after the method returned.
+            llmProviderRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Platform provider {} is still referenced by platform_llms", id, e);
+            throw new BadRequestStatusException(
+                    "Platform provider still serves platform purposes; remove them first");
+        }
         if (secretId != null) {
             secretRepository.deleteById(secretId);
         }

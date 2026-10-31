@@ -38,4 +38,12 @@ public enum LlmPurpose {
     public boolean isText() {
         return this == CHAT || this == ROUTINE;
     }
+
+    /**
+     * A media purpose is served by the media connector; an external-brain agent has no agent loop, so
+     * only these purposes are effective for it on the platform source.
+     */
+    public boolean isMedia() {
+        return !isText();
+    }
 }

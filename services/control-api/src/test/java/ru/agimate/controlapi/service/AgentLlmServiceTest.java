@@ -16,12 +16,15 @@ import ru.agimate.controlapi.controller.manage.dto.llm.CreateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.PlatformLlm;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.PlatformLlmRepository;
 import ru.agimate.controlapi.service.AgentLlmService.Binding;
 
 import java.util.List;
@@ -30,6 +33,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -41,19 +45,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("AgentLlmService — цепочка привязок на назначение")
+@DisplayName("AgentLlmService — цепочка привязок и источник моделей")
 class AgentLlmServiceTest {
 
     private static final UUID AGENT_ID = UUID.randomUUID();
-
-    /** Платформенный фолбэк показывается только агентам, чей цикл крутим мы. */
-    private static final Agent GENERIC_AGENT = Agent.builder()
-            .id(AGENT_ID).userId(UUID.randomUUID()).type(AgentType.GENERIC).build();
 
     private final UUID userId = UUID.randomUUID();
 
     @Mock
     private AgentLlmRepository agentLlmRepository;
+    @Mock
+    private PlatformLlmRepository platformLlmRepository;
     @Mock
     private AgentRepository agentRepository;
     @Mock
@@ -68,10 +70,9 @@ class AgentLlmServiceTest {
         return LlmProvider.builder()
                 .id(UUID.randomUUID())
                 .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
-                .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
+                .name("platform")
                 .providerType(LlmProviderType.OPENAI_COMPATIBLE)
                 .baseUrl("https://openrouter.ai/api/v1")
-                .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
                 .enabled(true)
                 .build();
     }
@@ -88,15 +89,26 @@ class AgentLlmServiceTest {
         return provider;
     }
 
-    private void stubOwnedAgent() {
+    private void stubOwnedAgent(LlmSource source) {
         when(agentRepository.findById(AGENT_ID))
-                .thenReturn(Optional.of(Agent.builder().id(AGENT_ID).userId(userId).build()));
+                .thenReturn(Optional.of(Agent.builder()
+                        .id(AGENT_ID).userId(userId).type(AgentType.GENERIC).llmSource(source).build()));
     }
 
     private static AgentLlm binding(LlmProvider provider, String model, LlmPurpose purpose, int priority) {
         return AgentLlm.builder()
                 .agentId(AGENT_ID)
                 .userId(UUID.randomUUID())
+                .llmProviderId(provider.getId())
+                .model(model)
+                .purpose(purpose)
+                .priority(priority)
+                .build();
+    }
+
+    private static PlatformLlm platformBinding(LlmProvider provider, String model, LlmPurpose purpose,
+                                               int priority) {
+        return PlatformLlm.builder()
                 .llmProviderId(provider.getId())
                 .model(model)
                 .purpose(purpose)
@@ -111,7 +123,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("на пустом назначении получает priority 0")
         void firstBindingGetsZero() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
                     .thenReturn(List.of());
@@ -126,7 +138,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("к существующей цепочке добавляется с priority max + 1")
         void appendsAfterMax() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
                     .thenReturn(List.of(
@@ -141,7 +153,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("дубль (провайдер, модель) в назначении → 409, строка не пишется")
         void duplicatePairConflicts() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.IMAGE))
                     .thenReturn(List.of(binding(provider, "image-model", LlmPurpose.IMAGE, 0)));
@@ -154,7 +166,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("цепочка уже из пяти привязок → 409, шестая не пишется")
         void fullChainConflicts() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
                     .thenReturn(List.of(
@@ -172,7 +184,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("проигранная гонка за priority → 409, а не исключение персистентности")
         void lostRaceIsConflict() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
                     .thenReturn(List.of());
@@ -187,7 +199,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("purpose не задан → CHAT по умолчанию")
         void purposeDefaultsToChat() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
                     .thenReturn(List.of());
@@ -198,6 +210,17 @@ class AgentLlmServiceTest {
 
             assertEquals(LlmPurpose.CHAT, response.purpose());
             assertEquals(0, response.priority());
+            assertTrue(response.active());
+        }
+
+        @Test
+        @DisplayName("PLATFORM-агенту manage-добавление запрещено — 400, платёж меняется только переключателем")
+        void managedAppendOnPlatformRejected() {
+            stubOwnedAgent(LlmSource.PLATFORM);
+
+            assertThrows(BadRequestStatusException.class, () -> service.create(
+                    AGENT_ID, userId, UUID.randomUUID(), "gpt-4o", LlmPurpose.CHAT));
+            verify(agentLlmRepository, never()).save(any());
         }
     }
 
@@ -208,7 +231,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("старые строки назначения удаляются, новые получают priority по позиции")
         void replacesWithPositions() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             AgentLlm old = binding(provider, "old", LlmPurpose.IMAGE, 0);
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.IMAGE))
@@ -227,7 +250,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("пустое назначение — PUT создаёт цепочку, а не отвечает 404")
         void createsOnEmptyPurpose() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.VISION))
                     .thenReturn(List.of());
@@ -243,7 +266,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("пустой список снимает назначение целиком")
         void emptyListClearsPurpose() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             UUID providerId = UUID.randomUUID();
             AgentLlm old = AgentLlm.builder()
                     .agentId(AGENT_ID).llmProviderId(providerId).model("old")
@@ -259,7 +282,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("дубль (провайдер, модель) внутри списка → 400, ничего не пишется")
         void duplicateInListRejected() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
 
             assertThrows(BadRequestStatusException.class, () -> service.replaceChain(AGENT_ID, userId,
@@ -272,7 +295,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("список длиннее пяти → 409, ничего не пишется")
         void tooLongRejected() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             UUID providerId = UUID.randomUUID();
 
             List<Binding> six = List.of(
@@ -288,7 +311,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("проигранная гонка PUT с другим писателем → 409, а не исключение персистентности")
         void lostReplaceRaceIsConflict() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider provider = userProvider();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.IMAGE))
                     .thenReturn(List.of());
@@ -303,7 +326,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("каждый элемент проходит requireOwned — чужого провайдера в цепочку не подложить")
         void everyElementIsOwned() {
-            stubOwnedAgent();
+            stubOwnedAgent(LlmSource.BYOK);
             LlmProvider mine = userProvider();
             UUID foreign = UUID.randomUUID();
             when(llmProviderService.requireOwned(foreign, userId))
@@ -315,15 +338,88 @@ class AgentLlmServiceTest {
                             new Binding(foreign, "foreign"))));
             verify(agentLlmRepository, never()).saveAll(anyList());
         }
+
+        @Test
+        @DisplayName("PLATFORM-агенту непустая замена запрещена — 400")
+        void nonEmptyReplaceOnPlatformRejected() {
+            stubOwnedAgent(LlmSource.PLATFORM);
+
+            assertThrows(BadRequestStatusException.class, () -> service.replaceChain(AGENT_ID, userId,
+                    LlmPurpose.IMAGE, List.of(new Binding(UUID.randomUUID(), "photo"))));
+            verify(agentLlmRepository, never()).saveAll(anyList());
+        }
+
+        @Test
+        @DisplayName("PLATFORM-агенту PUT [] разрешён — это уборка, платёж не меняется")
+        void emptyReplaceOnPlatformIsCleanup() {
+            stubOwnedAgent(LlmSource.PLATFORM);
+            UUID providerId = UUID.randomUUID();
+            AgentLlm old = AgentLlm.builder()
+                    .agentId(AGENT_ID).llmProviderId(providerId).model("old")
+                    .purpose(LlmPurpose.IMAGE).build();
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.IMAGE))
+                    .thenReturn(List.of(old));
+            when(agentLlmRepository.saveAll(anyList())).thenReturn(List.of());
+
+            assertTrue(service.replaceChain(AGENT_ID, userId, LlmPurpose.IMAGE, List.of()).isEmpty());
+            verify(agentLlmRepository).deleteAllInBatch(List.of(old));
+        }
+    }
+
+    @Nested
+    @DisplayName("setAgentLlm — исключение коннектора")
+    class SetAgentLlm {
+
+        @Test
+        @DisplayName("непустая цепочка на PLATFORM-агенте переключает его в BYOK")
+        void nonEmptyChainSwitchesToByok() {
+            Agent agent = Agent.builder()
+                    .id(AGENT_ID).userId(userId).type(AgentType.GENERIC).llmSource(LlmSource.PLATFORM).build();
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(agent));
+            LlmProvider provider = userProvider();
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
+            when(agentLlmRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+
+            List<AgentLlm> chain = service.setAgentLlm(AGENT_ID, userId, LlmPurpose.CHAT,
+                    List.of(new Binding(provider.getId(), "gpt-4o")));
+
+            assertEquals(LlmSource.BYOK, agent.getLlmSource());
+            verify(agentRepository).save(agent);
+            assertEquals(1, chain.size());
+        }
+
+        @Test
+        @DisplayName("пустая цепочка на PLATFORM-агенте — уборка без смены источника")
+        void emptyChainDoesNotSwitch() {
+            Agent agent = Agent.builder()
+                    .id(AGENT_ID).userId(userId).type(AgentType.GENERIC).llmSource(LlmSource.PLATFORM).build();
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(agent));
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
+            when(agentLlmRepository.saveAll(anyList())).thenReturn(List.of());
+
+            service.setAgentLlm(AGENT_ID, userId, LlmPurpose.CHAT, List.of());
+
+            assertEquals(LlmSource.PLATFORM, agent.getLlmSource());
+            verify(agentRepository, never()).save(any());
+        }
     }
 
     @Nested
     @DisplayName("runtime-листинги")
     class Runtime {
 
+        private void stubByokAgent() {
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
+                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.GENERIC)
+                            .llmSource(LlmSource.BYOK).build()));
+        }
+
         @Test
         @DisplayName("GET по назначению отдаёт первую по priority привязку с включённым провайдером")
         void firstEnabledBinding() {
+            stubByokAgent();
             LlmProvider enabled = LlmProvider.builder()
                     .id(UUID.randomUUID()).userId(userId).name("on")
                     .providerType(LlmProviderType.OPENAI).enabled(true).build();
@@ -343,6 +439,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("назначение без строк → 404")
         void noBindingsNotFound() {
+            stubByokAgent();
             when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.VISION))
                     .thenReturn(List.of());
 
@@ -353,6 +450,7 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("все провайдеры назначения выключены → 404, а не строка выключенного")
         void allDisabledNotFound() {
+            stubByokAgent();
             LlmProvider disabled = LlmProvider.builder()
                     .id(UUID.randomUUID()).userId(userId).name("off")
                     .providerType(LlmProviderType.OPENAI).enabled(false).build();
@@ -366,14 +464,24 @@ class AgentLlmServiceTest {
         }
 
         @Test
+        @DisplayName("PLATFORM-агент наружу не отдаёт ни одной привязки: список пуст, назначение — 404")
+        void platformSourceExposesNothing() {
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
+                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.GENERIC)
+                            .llmSource(LlmSource.PLATFORM).build()));
+
+            assertTrue(service.runtimeForAgent(AGENT_ID).isEmpty());
+            assertThrows(NotFoundStatusException.class,
+                    () -> service.runtimeForAgentByPurpose(AGENT_ID, LlmPurpose.CHAT));
+        }
+
+        @Test
         @DisplayName("назначения идут в порядке объявления LlmPurpose, а не по алфавиту TEXT-колонки")
         void purposesFollowEnumOrder() {
+            stubByokAgent();
             LlmProvider provider = LlmProvider.builder()
                     .id(UUID.randomUUID()).name("my-openai")
                     .providerType(LlmProviderType.OPENAI).enabled(true).build();
-            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
-                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.GENERIC).build()));
-            // база отдала текстовый порядок: VISION < CHAT по алфавиту, но не по объявлению enum
             when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(AGENT_ID))
                     .thenReturn(List.of(binding(provider, "vision", LlmPurpose.VISION, 0),
                             binding(provider, "chat", LlmPurpose.CHAT, 0)));
@@ -388,11 +496,10 @@ class AgentLlmServiceTest {
         @Test
         @DisplayName("список для агента отдаёт priority каждой привязки")
         void listCarriesPriority() {
+            stubByokAgent();
             LlmProvider provider = LlmProvider.builder()
                     .id(UUID.randomUUID()).name("my-openai")
                     .providerType(LlmProviderType.OPENAI).enabled(true).build();
-            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
-                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.GENERIC).build()));
             when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(AGENT_ID))
                     .thenReturn(List.of(binding(provider, "m0", LlmPurpose.CHAT, 0),
                             binding(provider, "m1", LlmPurpose.CHAT, 1)));
@@ -402,6 +509,66 @@ class AgentLlmServiceTest {
             List<AgentLlmResponse> llms = service.listForAgent(AGENT_ID, userId);
 
             assertEquals(List.of(0, 1), llms.stream().map(AgentLlmResponse::priority).toList());
+            assertTrue(llms.stream().allMatch(AgentLlmResponse::active));
+        }
+
+        @Test
+        @DisplayName("PLATFORM-агент: платформенные строки эффективны, свои — неактивны")
+        void platformListingShowsPlatformRowsAndInactiveOwnRows() {
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
+                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.GENERIC)
+                            .llmSource(LlmSource.PLATFORM).build()));
+            LlmProvider platform = platformProvider();
+            PlatformLlm platformChat = platformBinding(platform, "plat-chat", LlmPurpose.CHAT, 0);
+            PlatformLlm platformImage = platformBinding(platform, "plat-image", LlmPurpose.IMAGE, 0);
+            when(platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc())
+                    .thenReturn(List.of(platformChat, platformImage));
+            when(llmProviderRepository.findAllByIdIn(List.of(platform.getId())))
+                    .thenReturn(List.of(platform));
+
+            LlmProvider own = LlmProvider.builder()
+                    .id(UUID.randomUUID()).userId(userId).name("my-openai")
+                    .providerType(LlmProviderType.OPENAI).enabled(true).build();
+            when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(AGENT_ID))
+                    .thenReturn(List.of(binding(own, "own-chat", LlmPurpose.CHAT, 0)));
+            when(llmProviderRepository.findAllByIdIn(List.of(own.getId())))
+                    .thenReturn(List.of(own));
+
+            List<AgentLlmResponse> llms = service.listForAgent(AGENT_ID, userId);
+
+            assertEquals(3, llms.size());
+            AgentLlmResponse chat = llms.get(0);
+            assertEquals(AgentLlmResponse.Source.PLATFORM, chat.source());
+            assertEquals(0, chat.priority());
+            assertNull(chat.llmProviderId(), "платформенный провайдер не адресуем пользователем");
+            assertTrue(chat.active());
+
+            AgentLlmResponse ownChat = llms.get(1);
+            assertEquals(AgentLlmResponse.Source.USER, ownChat.source());
+            assertFalse(ownChat.active(), "свои строки PLATFORM-агента неактивны");
+
+            assertEquals(LlmPurpose.IMAGE, llms.get(2).purpose());
+        }
+
+        @Test
+        @DisplayName("внешнему PLATFORM-агенту видны только медиа-назначения платформы")
+        void externalPlatformListingOnlyMedia() {
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
+                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.MCP)
+                            .llmSource(LlmSource.PLATFORM).build()));
+            LlmProvider platform = platformProvider();
+            when(platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc()).thenReturn(List.of(
+                    platformBinding(platform, "plat-chat", LlmPurpose.CHAT, 0),
+                    platformBinding(platform, "plat-routine", LlmPurpose.ROUTINE, 0),
+                    platformBinding(platform, "plat-image", LlmPurpose.IMAGE, 0)));
+            when(llmProviderRepository.findAllByIdIn(List.of(platform.getId())))
+                    .thenReturn(List.of(platform));
+            when(agentLlmRepository.findAllByAgentIdOrderByPurposeAscPriorityAsc(AGENT_ID))
+                    .thenReturn(List.of());
+
+            assertEquals(List.of(LlmPurpose.IMAGE),
+                    service.listForAgent(AGENT_ID, userId).stream()
+                            .map(AgentLlmResponse::purpose).toList());
         }
     }
 
@@ -410,27 +577,34 @@ class AgentLlmServiceTest {
     class ListForAgents {
 
         @Test
-        @DisplayName("агент без привязок → синтетическая запись source=PLATFORM без provider id")
+        @DisplayName("PLATFORM-агент без привязок показывает платформенную строку с фактическим priority")
         void platformEntryForAgentWithoutBindings() {
+            LlmProvider platform = platformProvider();
             when(agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAscPriorityAsc(List.of(AGENT_ID)))
                     .thenReturn(List.of());
-            when(llmProviderService.findUsablePlatformProvider())
-                    .thenReturn(Optional.of(platformProvider()));
+            when(platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc())
+                    .thenReturn(List.of(platformBinding(platform, "gpt-5-mini", LlmPurpose.CHAT, 0)));
+            when(llmProviderRepository.findAllByIdIn(List.of(platform.getId())))
+                    .thenReturn(List.of(platform));
+            Agent agent = Agent.builder()
+                    .id(AGENT_ID).userId(userId).type(AgentType.GENERIC)
+                    .llmSource(LlmSource.PLATFORM).build();
 
-            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(GENERIC_AGENT));
+            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(agent));
 
             List<AgentLlmResponse> llms = result.get(AGENT_ID);
             assertEquals(1, llms.size());
             AgentLlmResponse entry = llms.get(0);
             assertEquals(AgentLlmResponse.Source.PLATFORM, entry.source());
             assertEquals("gpt-5-mini", entry.model());
-            assertNull(entry.priority(), "у синтетической платформенной строки позиции нет");
+            assertEquals(0, entry.priority());
+            assertTrue(entry.active());
             assertNull(entry.llmProviderId(), "платформенный провайдер не адресуем пользователем");
         }
 
         @Test
-        @DisplayName("агент с привязкой → source=USER, платформенная запись не подмешивается")
-        void userBindingsKeepUserSource() {
+        @DisplayName("своя привязка PLATFORM-агента попадает в ответ неактивной")
+        void userBindingsStayInactiveOnPlatform() {
             UUID providerId = UUID.randomUUID();
             AgentLlm binding = AgentLlm.builder()
                     .agentId(AGENT_ID)
@@ -447,37 +621,33 @@ class AgentLlmServiceTest {
                     .thenReturn(List.of(binding));
             when(llmProviderRepository.findAllByIdIn(List.of(providerId)))
                     .thenReturn(List.of(provider));
-            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
+            when(platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc()).thenReturn(List.of());
+            Agent agent = Agent.builder()
+                    .id(AGENT_ID).userId(userId).type(AgentType.GENERIC)
+                    .llmSource(LlmSource.PLATFORM).build();
 
-            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(GENERIC_AGENT));
+            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(agent));
 
             List<AgentLlmResponse> llms = result.get(AGENT_ID);
             assertEquals(1, llms.size());
             assertEquals(AgentLlmResponse.Source.USER, llms.get(0).source());
             assertEquals(providerId, llms.get(0).llmProviderId());
+            assertFalse(llms.get(0).active());
         }
 
         @Test
-        @DisplayName("платформенный недоступен и привязок нет → агент без записей")
+        @DisplayName("нет платформенных строк и привязок → пустой список у агента")
         void emptyWhenNoPlatformAndNoBindings() {
             when(agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAscPriorityAsc(List.of(AGENT_ID)))
                     .thenReturn(List.of());
-            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
+            when(platformLlmRepository.findAllByOrderByPurposeAscPriorityAsc()).thenReturn(List.of());
+            Agent agent = Agent.builder()
+                    .id(AGENT_ID).userId(userId).type(AgentType.GENERIC)
+                    .llmSource(LlmSource.PLATFORM).build();
 
-            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(GENERIC_AGENT));
+            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(agent));
 
-            assertTrue(result.isEmpty());
+            assertTrue(result.get(AGENT_ID).isEmpty());
         }
-    }
-
-    @Test
-    @DisplayName("внешний агент без привязок — платформенная модель не подставляется")
-    void noPlatformFallbackForExternalAgent() {
-        Agent external = Agent.builder().id(AGENT_ID).userId(UUID.randomUUID()).type(AgentType.MCP).build();
-        when(agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAscPriorityAsc(List.of(AGENT_ID)))
-                .thenReturn(List.of());
-
-        assertTrue(service.listForAgents(List.of(external)).isEmpty(),
-                "модель у клиента — карточка не должна обещать платформенную");
     }
 }

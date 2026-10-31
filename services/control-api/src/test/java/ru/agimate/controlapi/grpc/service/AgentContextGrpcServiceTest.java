@@ -20,12 +20,15 @@ import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.PlatformLlm;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.PlatformLlmRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContext;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.LlmProviderService;
@@ -68,6 +71,7 @@ class AgentContextGrpcServiceTest {
 
     private final RunContextService runContextService = mock(RunContextService.class);
     private final AgentLlmRepository agentLlmRepository = mock(AgentLlmRepository.class);
+    private final PlatformLlmRepository platformLlmRepository = mock(PlatformLlmRepository.class);
     private final LlmProviderRepository llmProviderRepository = mock(LlmProviderRepository.class);
     private final ru.agimate.controlapi.database.repositories.LlmProviderModelRepository
             llmProviderModelRepository =
@@ -80,7 +84,9 @@ class AgentContextGrpcServiceTest {
             mock(ru.agimate.controlapi.storage.FileStorageService.class);
     // Резолвер — настоящий, поверх тех же моков: тесты остаются контрактными, через gRPC-поверхность.
     private final LlmCredentialsResolver llmCredentialsResolver = new LlmCredentialsResolver(
+            agentRepository,
             agentLlmRepository,
+            platformLlmRepository,
             llmProviderRepository,
             llmProviderModelRepository,
             llmProviderService,
@@ -157,29 +163,43 @@ class AgentContextGrpcServiceTest {
         private final UUID agentId = UUID.randomUUID();
         private final UUID userId = UUID.randomUUID();
 
-        @org.junit.jupiter.api.BeforeEach
-        void stubAgent() {
+        private void stubAgent(LlmSource source) {
             Agent agent = new Agent();
             agent.setId(agentId);
             agent.setUserId(userId);
+            agent.setLlmSource(source);
             when(agentRepository.findById(agentId)).thenReturn(Optional.of(agent));
         }
 
-        @Test
-        @DisplayName("нет привязки + платформенный провайдер включён → креденшлы с default_model")
-        void fallsBackToPlatformProvider() throws Exception {
-            LlmProvider platform = LlmProvider.builder()
+        private LlmProvider platformProvider() {
+            return LlmProvider.builder()
                     .id(UUID.randomUUID())
                     .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
-                    .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
+                    .name("platform")
                     .providerType(LlmProviderType.OPENAI_COMPATIBLE)
                     .baseUrl("https://openrouter.ai/api/v1")
-                    .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
                     .enabled(true)
                     .build();
-            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, LlmPurpose.CHAT))
-                    .thenReturn(List.of());
-            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+        }
+
+        private void stubPlatformChain(LlmProvider platform, String model) {
+            when(platformLlmRepository.findAllByPurposeOrderByPriorityAsc(LlmPurpose.CHAT))
+                    .thenReturn(List.of(PlatformLlm.builder()
+                            .llmProviderId(platform.getId())
+                            .model(model)
+                            .purpose(LlmPurpose.CHAT)
+                            .priority(0)
+                            .build()));
+            when(llmProviderRepository.findAllByIdIn(List.of(platform.getId())))
+                    .thenReturn(List.of(platform));
+        }
+
+        @Test
+        @DisplayName("нет привязки + платформенная цепочка CHAT → креденшлы с моделью платформы")
+        void fallsBackToPlatformProvider() throws Exception {
+            stubAgent(LlmSource.PLATFORM);
+            LlmProvider platform = platformProvider();
+            stubPlatformChain(platform, "gpt-5-mini");
             when(llmProviderService.decryptApiKey(platform)).thenReturn("sk-platform-key");
 
             LlmCredentials creds = callGetLlmCredentials(agentId);
@@ -192,11 +212,11 @@ class AgentContextGrpcServiceTest {
         }
 
         @Test
-        @DisplayName("нет привязки и платформенный недоступен → NOT_FOUND")
+        @DisplayName("нет платформенной цепочки → NOT_FOUND")
         void notFoundWithoutBindingAndPlatform() {
-            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, LlmPurpose.CHAT))
+            stubAgent(LlmSource.PLATFORM);
+            when(platformLlmRepository.findAllByPurposeOrderByPriorityAsc(LlmPurpose.CHAT))
                     .thenReturn(List.of());
-            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
 
             StatusRuntimeException error = assertThrows(StatusRuntimeException.class,
                     () -> callGetLlmCredentials(agentId));
@@ -204,8 +224,9 @@ class AgentContextGrpcServiceTest {
         }
 
         @Test
-        @DisplayName("личная привязка побеждает: платформенный провайдер не опрашивается")
+        @DisplayName("личная привязка побеждает: платформа не опрашивается")
         void userBindingWinsOverPlatform() throws Exception {
+            stubAgent(LlmSource.BYOK);
             UUID providerId = UUID.randomUUID();
             AgentLlm binding = AgentLlm.builder()
                     .agentId(agentId)
@@ -226,24 +247,15 @@ class AgentContextGrpcServiceTest {
 
             assertEquals("user-model", creds.getModel());
             assertEquals("sk-user-key", creds.getApiKey());
-            verify(llmProviderService, never()).findUsablePlatformProvider();
+            verify(platformLlmRepository, never()).findAllByPurposeOrderByPriorityAsc(any());
         }
 
         @Test
         @DisplayName("квота исчерпана → RESOURCE_EXHAUSTED с человекочитаемым текстом")
         void quotaExceededMapsToResourceExhausted() {
-            LlmProvider platform = LlmProvider.builder()
-                    .id(UUID.randomUUID())
-                    .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
-                    .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
-                    .providerType(LlmProviderType.OPENAI_COMPATIBLE)
-                    .baseUrl("https://openrouter.ai/api/v1")
-                    .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
-                    .enabled(true)
-                    .build();
-            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(agentId, LlmPurpose.CHAT))
-                    .thenReturn(List.of());
-            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+            stubAgent(LlmSource.PLATFORM);
+            LlmProvider platform = platformProvider();
+            stubPlatformChain(platform, "gpt-5-mini");
             org.mockito.Mockito.doThrow(new QuotaExceededException("Дневной лимит исчерпан"))
                     .when(llmQuotaService).check(platform, userId, agentId);
 

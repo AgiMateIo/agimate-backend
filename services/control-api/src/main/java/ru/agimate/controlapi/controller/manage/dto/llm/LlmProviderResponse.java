@@ -48,8 +48,8 @@ public record LlmProviderResponse(
         @Schema(description = "Whether the provider is enabled")
         boolean enabled,
 
-        @Schema(description = "True for the system-owned platform provider (visible to ADMIN only; "
-                + "rename/delete are rejected)")
+        @Schema(description = "True for a system-owned platform provider (visible to ADMIN only); "
+                + "its purposes live in platform_llms, not in purposePriority")
         boolean platform,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -57,18 +57,21 @@ public record LlmProviderResponse(
         LocalDateTime createdAt
 ) {
     public static LlmProviderResponse from(LlmProvider provider) {
+        boolean platform = SystemSkillBootstrap.SYSTEM_USER_ID.equals(provider.getUserId());
         return new LlmProviderResponse(
                 provider.getId(),
                 provider.getName(),
                 provider.getProviderType(),
                 provider.getBaseUrl(),
-                provider.getPurposePriority(),
+                // Platform purposes live in platform_llms; the old column stays in the database until
+                // the cleanup release but is no longer read or shown.
+                platform ? null : provider.getPurposePriority(),
                 provider.getApiKeyMask(),
                 provider.getExtraBody(),
                 provider.getMediaTransport(),
                 provider.getModelsRefreshedAt(),
                 provider.isEnabled(),
-                SystemSkillBootstrap.SYSTEM_USER_ID.equals(provider.getUserId()),
+                platform,
                 provider.getCreatedAt()
         );
     }

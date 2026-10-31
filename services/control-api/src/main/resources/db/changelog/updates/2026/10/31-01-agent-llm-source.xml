@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- The agent's model source becomes explicit: PLATFORM or BYOK. The backfill is abrupt, not a
+         mixed mode (docs/decisions/platform-llm-purposes-and-agent-source.md): any binding means
+         the user already chose their own keys, and keeping such an agent on PLATFORM would silently
+         move its media to the platform. Column, check and backfill share one changeset so there is
+         no window between them. -->
+    <changeSet id="agents-llm-source" author="agimate">
+        <addColumn tableName="agents">
+            <column name="llm_source" type="TEXT" defaultValue="PLATFORM">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE agents
+                ADD CONSTRAINT chk_agents_llm_source CHECK (llm_source IN ('PLATFORM', 'BYOK'));
+        </sql>
+        <sql>
+            UPDATE agents
+            SET llm_source = 'BYOK'
+            WHERE EXISTS (SELECT 1 FROM agent_llms WHERE agent_llms.agent_id = agents.id);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
