@@ -270,6 +270,8 @@ class LlmProviderServiceTest {
 
             assertTrue(response.enabled());
             assertTrue(response.platform());
+            assertNull(response.purposePriority(),
+                    "purpose_priority платформенной строки не читается и не отдаётся");
         }
 
         @Test
@@ -286,6 +288,105 @@ class LlmProviderServiceTest {
 
             assertEquals(ru.agimate.controlapi.database.enums.MediaTransportType.MEDIA_ENDPOINT,
                     response.mediaTransport());
+        }
+    }
+
+    @Nested
+    @DisplayName("validateModelsKnown")
+    class ValidateModelsKnown {
+
+        private final UUID userId = UUID.randomUUID();
+
+        @Test
+        @DisplayName("модели нет в реестре → 400: опечатка ловится на записи, не на вызове")
+        void unknownModelIsRejected() {
+            LlmProvider provider = provider();
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
+                    .thenReturn(List.of(LlmProviderModel.builder().model("known").build()));
+
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.validateModelsKnown(provider, List.of("typo")));
+        }
+
+        @Test
+        @DisplayName("реестр пуст → всё разрешено: discovery ещё не запускался")
+        void emptyRegistryAllowsEverything() {
+            LlmProvider provider = provider();
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
+                    .thenReturn(List.of());
+
+            service.validateModelsKnown(provider, List.of("anything"));
+        }
+
+        @Test
+        @DisplayName("UNAVAILABLE-строка проходит: выпавшую из листинга модель назвать снова можно")
+        void unavailableRowStaysAllowed() {
+            LlmProvider provider = provider();
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
+                    .thenReturn(List.of(LlmProviderModel.builder()
+                            .model("gone").status(LlmProviderModelStatus.UNAVAILABLE).build()));
+
+            service.validateModelsKnown(provider, List.of("gone"));
+        }
+
+        private LlmProvider provider() {
+            return LlmProvider.builder()
+                    .id(UUID.randomUUID()).userId(userId).name("my-openai")
+                    .providerType(LlmProviderType.OPENAI).enabled(true).build();
+        }
+    }
+
+    @Nested
+    @DisplayName("BYOK — форма purpose_priority")
+    class ByokPurposeShape {
+
+        private final UUID userId = UUID.randomUUID();
+
+        private LlmProvider ownedProvider() {
+            LlmProvider provider = LlmProvider.builder()
+                    .id(UUID.randomUUID()).userId(userId).name("my-openai")
+                    .providerType(LlmProviderType.OPENAI).enabled(true).build();
+            when(llmProviderRepository.findByIdAndUserId(provider.getId(), userId))
+                    .thenReturn(Optional.of(provider));
+            return provider;
+        }
+
+        @Test
+        @DisplayName("пустая строка в списке — 400")
+        void blankModelRejected() {
+            LlmProvider provider = ownedProvider();
+
+            assertThrows(BadRequestStatusException.class, () -> service.update(
+                    provider.getId(), userId, false,
+                    new UpdateLlmProviderRequest(null, null, null,
+                            Map.of(LlmPurpose.CHAT, List.of(" ")), null, null, null)));
+            verify(llmProviderRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("дубль в списке — 400")
+        void duplicateModelRejected() {
+            LlmProvider provider = ownedProvider();
+
+            assertThrows(BadRequestStatusException.class, () -> service.update(
+                    provider.getId(), userId, false,
+                    new UpdateLlmProviderRequest(null, null, null,
+                            Map.of(LlmPurpose.CHAT, List.of("m", "m")), null, null, null)));
+            verify(llmProviderRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("null вместо списка — 400: [] уже значит «выключено»")
+        void nullListRejected() {
+            LlmProvider provider = ownedProvider();
+            Map<LlmPurpose, List<String>> purposePriority = new java.util.HashMap<>();
+            purposePriority.put(LlmPurpose.CHAT, null);
+
+            assertThrows(BadRequestStatusException.class, () -> service.update(
+                    provider.getId(), userId, false,
+                    new UpdateLlmProviderRequest(null, null, null,
+                            purposePriority, null, null, null)));
+            verify(llmProviderRepository, never()).save(any());
         }
     }
 

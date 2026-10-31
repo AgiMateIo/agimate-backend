@@ -133,6 +133,7 @@ class AgentLlmServiceTest {
 
             assertEquals(0, binding.getPriority());
             assertEquals(LlmPurpose.CHAT, binding.getPurpose());
+            verify(llmProviderService).validateModelsKnown(provider, List.of("gpt-4o"));
         }
 
         @Test
@@ -242,6 +243,8 @@ class AgentLlmServiceTest {
                     List.of(new Binding(provider.getId(), "first"), new Binding(provider.getId(), "second")));
 
             verify(agentLlmRepository).deleteAllInBatch(List.of(old));
+            verify(llmProviderService).validateModelsKnown(provider, List.of("first"));
+            verify(llmProviderService).validateModelsKnown(provider, List.of("second"));
             assertEquals(List.of("first", "second"),
                     chain.stream().map(AgentLlm::getModel).toList());
             assertEquals(List.of(0, 1), chain.stream().map(AgentLlm::getPriority).toList());
@@ -363,6 +366,38 @@ class AgentLlmServiceTest {
 
             assertTrue(service.replaceChain(AGENT_ID, userId, LlmPurpose.IMAGE, List.of()).isEmpty());
             verify(agentLlmRepository).deleteAllInBatch(List.of(old));
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE — уборка назначения")
+    class Delete {
+
+        @Test
+        @DisplayName("неактивная привязка PLATFORM-агента удаляется — это уборка, платёж не меняется")
+        void inactiveBindingOnPlatformIsDeletable() {
+            stubOwnedAgent(LlmSource.PLATFORM);
+            LlmProvider provider = LlmProvider.builder()
+                    .id(UUID.randomUUID()).userId(userId).name("my-openai")
+                    .providerType(LlmProviderType.OPENAI).enabled(true).build();
+            AgentLlm old = binding(provider, "stale", LlmPurpose.CHAT, 0);
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
+                    .thenReturn(List.of(old));
+
+            service.delete(AGENT_ID, userId, LlmPurpose.CHAT);
+
+            verify(agentLlmRepository).deleteAllInBatch(List.of(old));
+        }
+
+        @Test
+        @DisplayName("пустое назначение — 404")
+        void missingChainIsNotFound() {
+            stubOwnedAgent(LlmSource.BYOK);
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByPriorityAsc(AGENT_ID, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
+
+            assertThrows(NotFoundStatusException.class,
+                    () -> service.delete(AGENT_ID, userId, LlmPurpose.CHAT));
         }
     }
 

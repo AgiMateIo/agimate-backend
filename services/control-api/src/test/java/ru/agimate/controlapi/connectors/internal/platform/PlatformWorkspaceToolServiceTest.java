@@ -20,6 +20,7 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.ConnectorJobKind;
 import ru.agimate.controlapi.database.enums.ConnectorJobStatus;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
@@ -100,7 +101,7 @@ class PlatformWorkspaceToolServiceTest {
         AgenticTeam team = AgenticTeam.builder().id(teamId).userId(USER_ID).name("Team").build();
         when(agenticTeamRepository.findById(teamId)).thenReturn(Optional.of(team));
         Agent member = Agent.builder().id(UUID.randomUUID()).userId(USER_ID).name("Bot")
-                .type(AgentType.GENERIC).agenticTeamId(teamId).build();
+                .type(AgentType.GENERIC).agenticTeamId(teamId).llmSource(LlmSource.BYOK).build();
         when(agentRepository.findByUserIdAndAgenticTeamId(USER_ID, teamId)).thenReturn(List.of(member));
 
         Map<?, ?> result = (Map<?, ?>) handler.executeTool(selfEnv(), "get_team",
@@ -109,6 +110,7 @@ class PlatformWorkspaceToolServiceTest {
         List<?> members = (List<?>) result.get("members");
         assertEquals(1, members.size());
         assertEquals("Bot", ((Map<?, ?>) members.getFirst()).get("name"));
+        assertEquals("BYOK", ((Map<?, ?>) members.getFirst()).get("llmSource"));
     }
 
     @Test

@@ -317,11 +317,13 @@ class PlatformLlmToolServiceTest {
     }
 
     @Test
-    @DisplayName("list_agent_llms: привязки своего агента мапятся с именем провайдера")
+    @DisplayName("list_agent_llms: BYOK-агент — только свои активные строки, платформа не читается")
     void listAgentLlmsMapsBindings() {
         UUID agentId = UUID.randomUUID();
         UUID providerId = UUID.randomUUID();
-        stubOwnedAgent(agentId);
+        when(agentRepository.findById(agentId)).thenReturn(Optional.of(Agent.builder()
+                .id(agentId).userId(USER_ID).type(AgentType.GENERIC)
+                .llmSource(LlmSource.BYOK).build()));
         AgentLlm binding = AgentLlm.builder()
                 .id(UUID.randomUUID())
                 .agentId(agentId)
@@ -346,6 +348,9 @@ class PlatformLlmToolServiceTest {
         assertEquals("my-openai", item.get("providerName"));
         assertEquals("gpt-4o", item.get("model"));
         assertEquals(0, ((Number) item.get("priority")).intValue());
+        assertEquals(true, item.get("active"));
+        assertEquals("USER", item.get("source"));
+        verifyNoInteractions(platformLlmRepository);
     }
 
     @Test

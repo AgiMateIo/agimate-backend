@@ -62,22 +62,34 @@ class LlmUsageQueryServiceTest {
         when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(
                 SystemSkillBootstrap.SYSTEM_USER_ID)).thenReturn(List.of(platform));
 
-        // Квоты и счётчики читаются одним запросом на всех провайдеров, поэтому у платформенного
-        // здесь просто нет строк — это и есть его нулевой расход без квоты.
+        // Квоты и счётчики читаются одним запросом на всех провайдеров; платформенный субъект —
+        // USER, поэтому его строка ищется по id пользователя, а не по TOTAL_SUBJECT_ID.
         when(quotaRepository.findAllByLlmProviderIdIn(anyCollection())).thenReturn(List.of(
                 LlmQuota.builder().llmProviderId(byokId)
                         .subjectKind(UsageSubjectKind.TOTAL).window(UsageWindow.DAY).limitTokens(1000L)
+                        .build(),
+                LlmQuota.builder().llmProviderId(platform.getId())
+                        .subjectKind(UsageSubjectKind.USER).window(UsageWindow.DAY).limitTokens(500L)
                         .build()));
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         when(counterRepository.findForSubjects(anyCollection(), anyCollection(), anyCollection()))
-                .thenReturn(List.of(LlmUsageCounter.builder()
-                        .llmProviderId(byokId)
-                        .subjectKind(UsageSubjectKind.TOTAL)
-                        .subjectId(LlmUsageCounter.TOTAL_SUBJECT_ID)
-                        .window(UsageWindow.DAY)
-                        .windowStart(today)
-                        .tokens(300L).requests(7)
-                        .build()));
+                .thenReturn(List.of(
+                        LlmUsageCounter.builder()
+                                .llmProviderId(byokId)
+                                .subjectKind(UsageSubjectKind.TOTAL)
+                                .subjectId(LlmUsageCounter.TOTAL_SUBJECT_ID)
+                                .window(UsageWindow.DAY)
+                                .windowStart(today)
+                                .tokens(300L).requests(7)
+                                .build(),
+                        LlmUsageCounter.builder()
+                                .llmProviderId(platform.getId())
+                                .subjectKind(UsageSubjectKind.USER)
+                                .subjectId(USER_ID)
+                                .window(UsageWindow.DAY)
+                                .windowStart(today)
+                                .tokens(100L).requests(2)
+                                .build()));
 
         List<LlmUsageResponse> result = service.usageForUser(USER_ID);
 
@@ -101,7 +113,12 @@ class LlmUsageQueryServiceTest {
         LlmUsageResponse platformUsage = result.get(1);
         assertNull(platformUsage.llmProviderId(), "платформенный провайдер не адресуем");
         assertEquals(AgentLlmResponse.Source.PLATFORM, platformUsage.source());
-        assertEquals(0L, platformUsage.windows().get(0).usedTokens());
+        LlmUsageResponse.WindowUsage platformDay = platformUsage.windows().stream()
+                .filter(w -> w.window() == UsageWindow.DAY).findFirst().orElseThrow();
+        assertEquals(100L, platformDay.usedTokens(), "платформенный субъект — USER, не TOTAL");
+        assertEquals(2, platformDay.requests());
+        assertEquals(500L, platformDay.limitTokens());
+        assertEquals(400L, platformDay.remainingTokens());
     }
 
     @Test

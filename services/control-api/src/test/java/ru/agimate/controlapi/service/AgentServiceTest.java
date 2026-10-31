@@ -13,7 +13,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
+import ru.agimate.controlapi.controller.manage.dto.AgentResponse;
 import ru.agimate.controlapi.database.entities.AgentPreset;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
@@ -25,6 +27,7 @@ import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
@@ -377,6 +380,57 @@ class AgentServiceTest {
                             new PatchAgentRequest(null, null, null, AgentType.MCP, null, null, null)));
 
             assertEquals(AgentType.CENTRIFUGO, agent.getType());
+        }
+    }
+
+    @Nested
+    @DisplayName("switchLlmSource — источник моделей агента")
+    class SwitchLlmSource {
+
+        @Test
+        @DisplayName("PLATFORM → BYOK без CHAT-привязки разрешён, chatBinding не требуется")
+        void platformToByokWithoutChatBinding() {
+            agent.setLlmSource(LlmSource.PLATFORM);
+
+            AgentResponse response = service.switchLlmSource(AGENT_ID, USER_ID, LlmSource.BYOK);
+
+            assertEquals(LlmSource.BYOK, response.llmSource());
+            assertEquals(LlmSource.BYOK, agent.getLlmSource());
+            verify(agentRepository).save(agent);
+        }
+
+        @Test
+        @DisplayName("BYOK → PLATFORM: привязки не удаляются, ответ несёт новый llmSource")
+        void byokToPlatformKeepsBindings() {
+            agent.setLlmSource(LlmSource.BYOK);
+
+            AgentResponse response = service.switchLlmSource(AGENT_ID, USER_ID, LlmSource.PLATFORM);
+
+            assertEquals(LlmSource.PLATFORM, response.llmSource());
+            verify(agentLlmService).listForAgents(List.of(agent));
+        }
+
+        @Test
+        @DisplayName("тот же источник — no-op без сохранения")
+        void sameSourceIsNoop() {
+            agent.setLlmSource(LlmSource.PLATFORM);
+
+            service.switchLlmSource(AGENT_ID, USER_ID, LlmSource.PLATFORM);
+
+            verify(agentRepository, never()).save(agent);
+        }
+
+        @Test
+        @DisplayName("чужой агент — 403")
+        void foreignAgentIsForbidden() {
+            Agent foreign = Agent.builder()
+                    .id(AGENT_ID).userId(UUID.randomUUID())
+                    .keyId("Z3h5YWJjZGVl").keyHash("hash").build();
+            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(foreign));
+
+            assertThrows(ForbiddenStatusException.class,
+                    () -> service.switchLlmSource(AGENT_ID, USER_ID, LlmSource.BYOK));
+            verify(agentRepository, never()).save(any());
         }
     }
 }

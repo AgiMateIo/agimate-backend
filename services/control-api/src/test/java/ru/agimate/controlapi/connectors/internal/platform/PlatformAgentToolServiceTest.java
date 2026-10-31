@@ -18,6 +18,7 @@ import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.FileStatus;
+import ru.agimate.controlapi.database.enums.LlmSource;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
@@ -588,6 +589,7 @@ class PlatformAgentToolServiceTest {
             UUID agentId = UUID.randomUUID();
             when(agentRepository.findById(agentId)).thenReturn(Optional.of(Agent.builder()
                     .id(agentId).userId(USER_ID).name("Hook").type(AgentType.WEBHOOK)
+                    .llmSource(LlmSource.BYOK)
                     .webhookUrl("https://hooks.example.com/wh")
                     .webhookAuthSecretId(UUID.randomUUID())
                     .build()));
@@ -599,6 +601,22 @@ class PlatformAgentToolServiceTest {
             assertEquals("https://hooks.example.com/wh", result.get("webhookUrl"));
             assertEquals(true, result.get("hasWebhookAuth"));
             assertFalse(result.containsKey("webhookAuthHeader"));
+            assertEquals("BYOK", result.get("llmSource"));
         }
+    }
+
+    @Test
+    @DisplayName("list_agents: llmSource доезжает до AgentBrief")
+    void listAgentsCarriesLlmSource() {
+        Agent agent = Agent.builder()
+                .id(UUID.randomUUID()).userId(USER_ID).name("Bot")
+                .type(AgentType.GENERIC).llmSource(LlmSource.BYOK).build();
+        when(agentRepository.findByUserId(eq(USER_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(agent)));
+
+        Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "list_agents", Map.of());
+
+        List<?> agents = (List<?>) result.get("agents");
+        assertEquals("BYOK", ((Map<?, ?>) agents.getFirst()).get("llmSource"));
     }
 }
