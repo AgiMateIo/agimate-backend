@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -82,6 +83,8 @@ class PlatformLlmServiceTest {
                 new Binding(provider.getId(), "second")));
 
         verify(platformLlmRepository).deleteAllInBatch(List.of(old));
+        verify(llmProviderService).validateModelsKnown(provider, List.of("first"));
+        verify(llmProviderService).validateModelsKnown(provider, List.of("second"));
         assertEquals(List.of("first", "second"),
                 chain.stream().map(PlatformLlmResponse::model).toList());
         assertEquals(List.of(0, 1),
@@ -139,6 +142,37 @@ class PlatformLlmServiceTest {
 
         assertThrows(ConflictStatusException.class, () -> service.replaceChain(
                 LlmPurpose.CHAT, List.of(new Binding(provider.getId(), "gpt-4o"))));
+    }
+
+    @Test
+    @DisplayName("провайдера удалили в гонке — 400 «выберите другого», а не 409 retry")
+    void foreignKeyRaceIsBadRequest() {
+        LlmProvider provider = platformProvider();
+        when(llmProviderRepository.findById(provider.getId())).thenReturn(Optional.of(provider));
+        when(platformLlmRepository.findAllByPurposeOrderByPriorityAsc(LlmPurpose.CHAT))
+                .thenReturn(List.of());
+        when(platformLlmRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new DataIntegrityViolationException("fk",
+                new java.sql.SQLException("fk", "23503")))
+                .when(platformLlmRepository).flush();
+
+        assertThrows(BadRequestStatusException.class, () -> service.replaceChain(
+                LlmPurpose.CHAT, List.of(new Binding(provider.getId(), "gpt-4o"))));
+    }
+
+    @Test
+    @DisplayName("PUT [] на существующем назначении удаляет цепочку")
+    void emptyChainDeletesPurpose() {
+        LlmProvider provider = platformProvider();
+        PlatformLlm old = PlatformLlm.builder()
+                .llmProviderId(provider.getId()).model("old")
+                .purpose(LlmPurpose.CHAT).priority(0).build();
+        when(platformLlmRepository.findAllByPurposeOrderByPriorityAsc(LlmPurpose.CHAT))
+                .thenReturn(List.of(old));
+        when(platformLlmRepository.saveAll(anyList())).thenReturn(List.of());
+
+        assertTrue(service.replaceChain(LlmPurpose.CHAT, List.of()).isEmpty());
+        verify(platformLlmRepository).deleteAllInBatch(List.of(old));
     }
 
     @Test

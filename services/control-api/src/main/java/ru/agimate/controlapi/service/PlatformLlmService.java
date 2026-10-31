@@ -108,6 +108,14 @@ public class PlatformLlmService {
             saved = platformLlmRepository.saveAll(rows);
             platformLlmRepository.flush();
         } catch (DataIntegrityViolationException e) {
+            if (isForeignKeyViolation(e)) {
+                // A provider was deleted after validation. A retry cannot help: the provider is gone,
+                // the operator must pick another one.
+                log.warn("A platform provider disappeared during the platform_llm replace: purpose={}",
+                        purpose, e);
+                throw new BadRequestStatusException(
+                        "A bound provider was deleted concurrently — pick another");
+            }
             log.warn("Lost the platform_llm replace race: purpose={}", purpose, e);
             throw new ConflictStatusException("Platform LLM bindings changed concurrently — retry");
         }
@@ -136,5 +144,11 @@ public class PlatformLlmService {
         List<UUID> ids = bindings.stream().map(PlatformLlm::getLlmProviderId).distinct().toList();
         return llmProviderRepository.findAllByIdIn(ids).stream()
                 .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
+    }
+
+    /** SQLSTATE 23503 — the FK backstop fired: a bound provider is gone (the unique race is 23505). */
+    private static boolean isForeignKeyViolation(DataIntegrityViolationException e) {
+        return e.getMostSpecificCause() instanceof java.sql.SQLException sql
+                && "23503".equals(sql.getSQLState());
     }
 }
