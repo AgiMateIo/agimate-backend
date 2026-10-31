@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: partial
 created: 2026-10-30
+updated: 2026-10-31
 ---
 
 # Платформенные назначения и источник моделей агента
@@ -419,40 +420,40 @@ chainFor(agent, purpose):
 
 ## План
 
-- [ ] Предшественник: смержить `feature/agent-llm-purpose-chain` и выкатить на прод; проверить
+- [x] Предшественник: смержить `feature/agent-llm-purpose-chain` и выкатить на прод; проверить
       `agent_llms.priority` и `databasechangelog`.
-- [ ] Миграция `platform_llms`: таблица, unique, FK `ON DELETE RESTRICT`, индекс; перенос
+- [x] Миграция `platform_llms`: таблица, unique, FK `ON DELETE RESTRICT`, индекс; перенос
       `purpose_priority` с `ROW_NUMBER`, обрезкой до пяти, дедупликацией и фильтром известных
       `purpose`; поле не очищается; один changeset.
-- [ ] Миграция `agents.llm_source`: колонка, `chk_agents_llm_source`, backfill «любая привязка →
+- [x] Миграция `agents.llm_source`: колонка, `chk_agents_llm_source`, backfill «любая привязка →
       BYOK, иначе PLATFORM»; один changeset.
-- [ ] `PlatformLlm`, репозиторий, `PlatformLlmService` (потолок, дубли, валидация модели, гонка,
+- [x] `PlatformLlm`, репозиторий, `PlatformLlmService` (потолок, дубли, валидация модели, гонка,
       `flush`, 409).
-- [ ] `LlmCredentialsResolver`: две ветки по режиму; платформенная цепочка; `ROUTINE` → `CHAT`;
+- [x] `LlmCredentialsResolver`: две ветки по режиму; платформенная цепочка; `ROUTINE` → `CHAT`;
       медиа-цепочка без платформенного шага у BYOK; тексты отказа (включая «или переключите на
       платформу»); внешний `/agent/llm` фильтрует по источнику.
-- [ ] `LlmProviderService`: множественные системные провайдеры, создание с именем, переименование с
+- [x] `LlmProviderService`: множественные системные провайдеры, создание с именем, переименование с
       проверкой по `provider.getUserId()`, запрет `purposePriority` у платформенных, удаление с
       гардом ссылок `platform_llms` и маппингом FK в 400, листинг всех системных строк.
-- [ ] `AgentLlmService`: источник в ответе, type-aware листинг (`GENERIC` — все, внешние — медиа) и
+- [x] `AgentLlmService`: источник в ответе, type-aware листинг (`GENERIC` — все, внешние — медиа) и
       `active` в DTO, manage 400 на добавление/замену у PLATFORM, удаление и `PUT []` разрешены,
       отсутствие инварианта BYOK-с-CHAT, отдельный сервисный метод переключения для коннектора.
-- [ ] Переключение режима: `PUT /manage/agents/{agentId}/llm-source` с `{source}`; без `chatBinding`.
-- [ ] Платформенный коннектор: `set_agent_llm` с непустой цепочкой переключает в BYOK, пустой —
+- [x] Переключение режима: `PUT /manage/agents/{agentId}/llm-source` с `{source}`; без `chatBinding`.
+- [x] Платформенный коннектор: `set_agent_llm` с непустой цепочкой переключает в BYOK, пустой —
       уборка; `delete_agent_llm` разрешён; `list_agent_llms` с эффективной конфигурацией и
       активностью; `llmSource` в `AgentDetail`/`AgentBrief`; описания `set_agent_llm`,
       `delete_llm_provider`, `get_llm_usage`.
-- [ ] Учёт: несколько субъектов платформенных провайдеров, `llmProviderId = null`, текст квоты с
+- [x] Учёт: несколько субъектов платформенных провайдеров, `llmProviderId = null`, текст квоты с
       именем провайдера.
-- [ ] Тесты: матрикс PLATFORM/BYOK, платформенные цепочки, BYOK без CHAT, внешний `/agent/llm`,
+- [x] Тесты: матрикс PLATFORM/BYOK, платформенные цепочки, BYOK без CHAT, внешний `/agent/llm`,
       type-aware листинг, переключение коннектором, отсутствие 409/`chatBinding`, гонки
       `platform_llms` и `RESTRICT`, миграционные правила.
-- [ ] Документация: `docs/services/control-api.md`, `docs/connectors/media.md`,
+- [x] Документация: `docs/services/control-api.md`, `docs/connectors/media.md`,
       `docs/connectors/platform.md`, `docs/contracts/api-keys.md`, граница в
       `agent-llm-purpose-chain.md`, строка в `docs/README.md`; аудит строки `platform` — в runbook.
       Seed-текст навыка `platform` обновить в репозитории; на уже засеянных средах он не
       перезаписывается (seed-only-if-missing), дрейф принимается, как у предшественника.
-- [ ] Проверка миграций и констрейнтов на клоне PostgreSQL.
+- [x] Проверка миграций и констрейнтов на клоне PostgreSQL.
 - [ ] Живой прогон: платформенный и BYOK-агент на двух платформенных провайдерах.
 - [ ] После раскатки — отдельная миграция очистки `purpose_priority` у системных строк, только после
       окна отката.

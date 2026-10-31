@@ -369,3 +369,20 @@ For production, ensure:
 3. Set `CENTRIFUGO_PUBLICKEY` in control-api to match `client.token.ecdsa_public_key`
 4. Configure `allowed_origins` appropriately
 5. Disable admin UI or use strong credentials
+
+## Platform LLM sources rollout audit
+
+`platform_llms` and `agents.llm_source` replace the implicit «no bindings means platform» rule
+([decision](../decisions/platform-llm-purposes-and-agent-source.md)). During the rollout the old
+`llm_providers` row named `platform` must stay exactly where it is: old control-api instances still
+find the fallback by that name, and the cleanup of `purpose_priority` is a separate release after the
+rollback window. After the fleet is on the new code and before that cleanup, check:
+
+- the original row still exists and is enabled:
+  `SELECT id, name, enabled FROM llm_providers WHERE user_id = '00000000-0000-0000-0000-000000000000';`
+- `SELECT DISTINCT llm_provider_id FROM platform_llms;` references that same `id` — the migration
+  copied the old purpose lists into it;
+- `llm_usage_log` shows no unexplained gap for the platform provider across the rollout window;
+- the logs have no spike of `No CHAT model available` / the worker's `notice.no-model`.
+
+A mismatch is an incident: do not run the `purpose_priority` cleanup until it is explained.

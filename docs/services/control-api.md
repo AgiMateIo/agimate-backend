@@ -186,27 +186,50 @@ OpenRouter это `provider.require_parameters` (не отдавать запр�
 `input_modalities` для `VISION`; пустой список — «не объявлено», проверка пропускается). Ошибка
 самого вызова следующую привязку не пробует: запрос мог быть уже оплачен.
 
-| Назначение | Порядок |
-|---|---|
-| `CHAT` | привязки `CHAT` по `priority`; если их нет — платформа |
-| `IMAGE`, `VISION`, `AUDIO_*` | привязки назначения; если их нет — списки назначения у провайдеров чата в порядке цепочки → платформа |
-| `ROUTINE` | привязки `ROUTINE`; если их нет — списки `ROUTINE` у провайдеров чата → модель `CHAT` агента; платформа за BYOK-агентом не подставляется |
+Источник моделей агента (`agents.llm_source`) решает, какая цепочка работает
+([решение](../decisions/platform-llm-purposes-and-agent-source.md)): `PLATFORM` читает только
+`platform_llms` — глобальные цепочки платформы на каждое назначение, — а собственные привязки
+агента остаются в базе неактивными; `BYOK` читает только собственные привязки и списки назначения
+своих chat-провайдеров. Цепочки не смешиваются: PLATFORM-агент не тратит пользовательские ключи,
+BYOK-агент — платформенные.
+
+| Источник | Назначение | Порядок |
+|---|---|---|
+| `PLATFORM` | `CHAT` | `platform_llms[CHAT]` |
+| `PLATFORM` | `IMAGE`, `VISION`, `AUDIO_*` | `platform_llms[purpose]` |
+| `PLATFORM` | `ROUTINE` | `platform_llms[ROUTINE]` → `platform_llms[CHAT]` |
+| `BYOK` | `CHAT` | привязки `CHAT` по `priority`; без привязок — понятный отказ, платформа не подставляется |
+| `BYOK` | `IMAGE`, `VISION`, `AUDIO_*` | привязки назначения → списки назначения chat-провайдеров агента |
+| `BYOK` | `ROUTINE` | привязки `ROUTINE` → списки `ROUTINE` chat-провайдеров → модель `CHAT` агента |
 
 Явные привязки — закрытое множество: платформа не подставляется, даже когда непригодны все, иначе
 исчерпанная квота пользователя молча тратила бы деньги платформы. `[]` в `purpose_priority`
-выключает назначение у этого провайдера и не останавливает цепочку, кроме платформенного шага.
+выключает назначение у этого провайдера и не останавливает цепочку. У платформенных назначений
+`[]` больше не существует: выключенное назначение — отсутствие строк в `platform_llms`, а у
+платформенного провайдера поле `purpose_priority` не читается и не отдаётся.
+
+Платформенные назначения настраивает только админ: `GET /manage/admin/platform-llms/`,
+`PUT/DELETE /manage/admin/platform-llms/{purpose}`. Платформенным провайдером считается любая
+строка `llm_providers` с владельцем `SYSTEM_USER_ID`; их может быть несколько, у каждого свой ключ,
+адрес и квоты. Удаление такого провайдера запрещено, пока на него ссылается `platform_llms`
+(`ON DELETE RESTRICT`, сервис отвечает 400).
 
 Тип отказа выбирается по общей причине, а не по последней попытке (от него зависит gRPC-статус):
 все упёрлись в квоту — `QuotaExceededException` с текстом `LlmQuotaService`, все выключены —
-`LlmProviderDisabledException`, остальное — `NoCapableModelException` у медиа (текст видит агент) и
-`NotFoundStatusException` у `CHAT`/`ROUTINE` (воркер подменяет текст своим шаблоном, причины уходят
-в лог).
+`LlmProviderDisabledException`, остальное — `NoCapableModelException` у медиа (текст видит агент,
+у BYOK он дополнен предложением переключить агента на платформу) и `NotFoundStatusException` у
+`CHAT`/`ROUTINE` (воркер подменяет текст своим шаблоном, причины уходят в лог).
 
-API: `GET /manage/agents/{agentId}/llms/` — плоский список с `priority`; `POST /` добавляет в конец
-(`max + 1`); `PUT /{purpose}` заменяет цепочку списком `bindings` (`[]` равносилен `DELETE`, на
-пустом назначении создаёт цепочку); `DELETE /{purpose}` снимает назначение. Дубли
-`(провайдер, модель)` и цепочки длиннее пяти отклоняются. `GET /agent/llm/{purpose}` отдаёт первую
-привязку с включённым провайдером, `GET /agent/llm/` — весь порядок.
+API: `GET /manage/agents/{agentId}/llms/` — плоский список с `priority`, `source` и `active`;
+`POST /` добавляет в конец (`max + 1`); `PUT /{purpose}` заменяет цепочку списком `bindings`
+(`[]` равносилен `DELETE`, на пустом назначении создаёт цепочку); `DELETE /{purpose}` снимает
+назначение. Дубли `(провайдер, модель)` и цепочки длиннее пяти отклоняются. Для PLATFORM-агента
+листинг показывает эффективную платформенную конфигурацию (`GENERIC` — все назначения, внешние —
+только медиа) и собственные строки с `active = false`; добавление и замена в manage API отвечают
+400, удаление и `PUT []` разрешены как уборка. Режим меняет
+`PUT /manage/agents/{agentId}/llm-source` с телом `{source}`. `GET /agent/llm/` и
+`GET /agent/llm/{purpose}` отдают только активные BYOK-привязки; у PLATFORM-агента это пустой
+список и 404 — платформенная конфигурация наружу не выходит.
 
 ### Слои `extra_body`
 
@@ -295,5 +318,5 @@ Migrations: `services/control-api/src/main/resources/db/changelog/`.
 | Connections | `connectors`, `connections`, `connection_tools`, `connection_triggers`, `agent_connections`, `agent_connection_policies`, `connector_jobs`, `mcp_oauth_grants`, `mcp_oauth_tokens` |
 | Channels | `channels`, `agent_sessions`, `channel_session_messages`, `webchat_messages` |
 | Apps and files | `apps`, `files`, `file_references`, `file_versions`, `secrets` |
-| LLM | `llm_providers`, `llm_provider_models`, `llm_model_defaults`, `llm_provider_catalog`, `llm_quotas`, `llm_usage_counters`, `llm_usage_log` |
+| LLM | `llm_providers`, `llm_provider_models`, `llm_model_defaults`, `llm_provider_catalog`, `llm_quotas`, `llm_usage_counters`, `llm_usage_log`, `platform_llms` |
 | Connector data | `persistent_memory_hot`, `persistent_memory_cold`, `sheets`, `sheet_rows`, `boards`, `board_tasks`, `board_task_comments` |
