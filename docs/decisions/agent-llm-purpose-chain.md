@@ -161,6 +161,10 @@ JSONB, API, сид, тесты и документацию — это переи
 
 ### API
 
+> Заменено решением [platform-llm-purposes-and-agent-source.md](platform-llm-purposes-and-agent-source.md):
+> синтетической платформенной строки больше нет (`priority` — всегда число), а `delete_llm_provider`
+> под BYOK не подставляет платформу. Описание ниже — история.
+
 `/manage/agents/{agentId}/llms/` — коллекция, `/{purpose}` — назначение:
 
 - `GET /` — плоский список привязок: `purpose` в порядке объявления `LlmPurpose`, внутри —
