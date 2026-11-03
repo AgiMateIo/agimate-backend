@@ -9,7 +9,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
+import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -188,6 +190,47 @@ class ConnectionBindingServiceTest {
 
             assertTrue(service.listForConnection(USER_ID, CONNECTION_ID).isEmpty());
             verify(agentRepository, never()).findAllById(anyList());
+        }
+    }
+
+    @Nested
+    @DisplayName("Вид коннектора")
+    class Kind {
+
+        static class Internal implements InternalConnectorHandler {
+            @Override
+            public String connectorCode() {
+                return "internal";
+            }
+        }
+
+        static class External implements ConnectorHandler {
+            @Override
+            public String connectorCode() {
+                return "external";
+            }
+        }
+
+        private ConnectionBindingService serviceWith(ConnectorHandler... handlers) {
+            return new ConnectionBindingService(connectionRepository, agentConnectionRepository, policyRepository,
+                    agentRepository, accessEvaluator, eventPublisher, new ConnectorRegistry(List.of(handlers)),
+                    connectorTexts, contentLanguageResolver);
+        }
+
+        @Test
+        @DisplayName("app — внешний экземпляр: строка каталога без handler'а, а не неизвестный код")
+        void appIsExternal() {
+            assertEquals(ConnectionBindingService.ConnectorKind.EXTERNAL, serviceWith().kindOf("app"));
+        }
+
+        @Test
+        @DisplayName("handler'ы решают INTERNAL/EXTERNAL, выдуманный код — UNKNOWN")
+        void handlersDecide() {
+            ConnectionBindingService service = serviceWith(new Internal(), new External());
+
+            assertEquals(ConnectionBindingService.ConnectorKind.INTERNAL, service.kindOf("internal"));
+            assertEquals(ConnectionBindingService.ConnectorKind.EXTERNAL, service.kindOf("external"));
+            assertEquals(ConnectionBindingService.ConnectorKind.UNKNOWN, service.kindOf("ghost"));
         }
     }
 }

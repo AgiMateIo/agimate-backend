@@ -244,7 +244,10 @@ public class ConnectionBindingService {
         return connectorRegistry.findHandler(connectorCode)
                 .map(handler -> handler instanceof InternalConnectorHandler
                         ? ConnectorKind.INTERNAL : ConnectorKind.EXTERNAL)
-                .orElse(ConnectorKind.UNKNOWN);
+                // No handler, but still a catalogue row: app/claude-code are instances like telegram,
+                // bound by an explicit connectionId — «unknown» would bar every skill declaring them.
+                .orElseGet(() -> connectorRegistry.isKnown(connectorCode)
+                        ? ConnectorKind.EXTERNAL : ConnectorKind.UNKNOWN);
     }
 
     public enum ConnectorKind { INTERNAL, EXTERNAL, UNKNOWN }

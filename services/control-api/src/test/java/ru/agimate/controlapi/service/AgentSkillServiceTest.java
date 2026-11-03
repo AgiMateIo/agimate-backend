@@ -119,6 +119,7 @@ class AgentSkillServiceTest {
         });
         when(connectionBindingService.kindOf("telegram")).thenReturn(ConnectorKind.EXTERNAL);
         when(connectionBindingService.kindOf("persist-memory")).thenReturn(ConnectorKind.INTERNAL);
+        when(connectionBindingService.kindOf("app")).thenReturn(ConnectorKind.EXTERNAL);
         when(connectionBindingService.kindOf("ghost")).thenReturn(ConnectorKind.UNKNOWN);
         when(connectionBindingService.ensureModeConnection(USER_ID, "persist-memory")).thenReturn(memory);
         when(connectionRepository.findByIdAndUserIdNotDeleted(TELEGRAM_ID, USER_ID))

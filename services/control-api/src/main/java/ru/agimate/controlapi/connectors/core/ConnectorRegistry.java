@@ -76,6 +76,15 @@ public class ConnectorRegistry {
         return Optional.ofNullable(handlers().get(connectorCode));
     }
 
+    /**
+     * Whether the code names a connector at all. The catalogue is wider than the handler beans: it also
+     * holds rows with no handler ({@link StaticConnector} — {@code app}, {@code claude-code}), and a
+     * question like «does this skill declare a connector we know» must not read those as non-existent.
+     */
+    public boolean isKnown(String connectorCode) {
+        return handlers().containsKey(connectorCode) || StaticConnector.of(connectorCode).isPresent();
+    }
+
     public Optional<IntegrationConnectorHandler> findIntegrationHandler(String connectorCode) {
         return findHandler(connectorCode)
                 .filter(IntegrationConnectorHandler.class::isInstance)
