@@ -1,7 +1,9 @@
 package ru.agimate.controlapi.database.repositories;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,6 +24,14 @@ public interface SkillRepository extends JpaRepository<Skill, UUID>, JpaSpecific
 
     @Query("SELECT s FROM Skill s WHERE s.id = :id AND s.deletedAt IS NULL")
     Optional<Skill> findByIdNotDeleted(@Param("id") UUID id);
+
+    /**
+     * The app's refresh of its skill takes the row for update: a user edit committed in between must
+     * not be overwritten by text the link read before that edit.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Skill s WHERE s.id = :id AND s.deletedAt IS NULL")
+    Optional<Skill> findByIdForUpdate(@Param("id") UUID id);
 
     /** The key {@code (user_id, name, language)} is taken; a {@code null} language matches only a language-less row. */
     default boolean existsByKeyNotDeleted(UUID userId, String name, ContentLanguage language) {

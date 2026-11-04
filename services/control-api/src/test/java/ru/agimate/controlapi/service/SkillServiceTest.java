@@ -14,7 +14,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
@@ -51,7 +54,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -389,6 +391,48 @@ class SkillServiceTest {
     }
 
     @Nested
+    @DisplayName("листинг навыков")
+    class Listing {
+
+        @Test
+        @DisplayName("обычный навык без origin отдаётся с origin=null и не роняет страницу")
+        void plainSkillHasNoOrigin() {
+            Skill skill = Skill.builder().id(SKILL_ID).userId(USER_ID).name("plain").version(1)
+                    .connectors(List.of()).build();
+            when(skillRepository.findAll(any(Specification.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(skill)));
+
+            Page<SkillResponse> page = service.getSkills(USER_ID, SkillListScope.MINE, null, null,
+                    null, null, null, 0, 20);
+
+            assertNull(page.getContent().get(0).origin());
+        }
+
+        @Test
+        @DisplayName("страница со смешанными навыками собирает origin только у app-навыка")
+        void mixedPageEnrichesOnlyOrigin() {
+            UUID originId = UUID.randomUUID();
+            Skill plain = Skill.builder().id(SKILL_ID).userId(USER_ID).name("plain").version(1)
+                    .connectors(List.of()).build();
+            Skill fromApp = Skill.builder().id(UUID.randomUUID()).userId(USER_ID).name("app-desktop")
+                    .version(1).connectors(ConnectorRequirement.ofCodes(List.of("app")))
+                    .originConnectionId(originId).build();
+            when(skillRepository.findAll(any(Specification.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(plain, fromApp)));
+            when(connectionRepository.findByIdInNotDeleted(any())).thenReturn(List.of(
+                    Connection.builder().id(originId).connectorCode("app").build()));
+            when(appRepository.findAllByIdInNotDeleted(any())).thenReturn(List.of(
+                    App.builder().id(originId).code("desktop").title("AgiMate Desktop").version("1.4.2").build()));
+
+            Page<SkillResponse> page = service.getSkills(USER_ID, SkillListScope.MINE, null, null,
+                    null, null, null, 0, 20);
+
+            assertNull(page.getContent().get(0).origin());
+            assertEquals("desktop", page.getContent().get(1).origin().code());
+        }
+    }
+
+    @Nested
     @DisplayName("навык, который принесло приложение")
     class AppBroughtSkills {
 
@@ -486,25 +530,10 @@ class SkillServiceTest {
         }
 
         @Test
-        @DisplayName("гонка по уникальному origin — побеждает уже созданный навык")
-        void originRaceReturnsWinner() {
-            Skill winner = originSkill(SkillUpdatedBy.APP);
-            when(skillRepository.findByOriginConnectionId(originId))
-                    .thenReturn(Optional.empty())
-                    .thenReturn(Optional.of(winner));
-            when(skillRepository.existsByKeyNotDeleted(USER_ID, "app-desktop", null)).thenReturn(false);
-            when(skillRepository.save(any(Skill.class))).thenThrow(new DataIntegrityViolationException("origin"));
-
-            Optional<Skill> result = service.createFromApp(USER_ID, originId, "desktop", "AgiMate Desktop",
-                    declaration());
-
-            assertSame(winner, result.orElseThrow());
-        }
-
-        @Test
         @DisplayName("приложение обновляет текст, пока его не правил пользователь")
         void appRefreshesUntouchedSkill() {
             Skill skill = originSkill(SkillUpdatedBy.APP);
+            when(skillRepository.findByIdForUpdate(SKILL_ID)).thenReturn(Optional.of(skill));
 
             service.applyAppDeclaration(skill, "desktop", "AgiMate Desktop", declaration());
 
@@ -520,11 +549,26 @@ class SkillServiceTest {
         @DisplayName("после правки пользователя приложение не перезаписывает текст")
         void userEditStopsRefresh() {
             Skill skill = originSkill(SkillUpdatedBy.USER);
+            when(skillRepository.findByIdForUpdate(SKILL_ID)).thenReturn(Optional.of(skill));
 
             service.applyAppDeclaration(skill, "desktop", "AgiMate Desktop", declaration());
 
             assertEquals("old body", skill.getMdContent());
             assertEquals(1, skill.getVersion());
+            verify(skillRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("правка, пришедшая между чтением и обновлением, побеждает: перечитываем под блокировкой")
+        void userEditCommittedBeforeRefreshWins() {
+            Skill stale = originSkill(SkillUpdatedBy.APP);
+            Skill edited = originSkill(SkillUpdatedBy.USER);
+            edited.setMdContent("user text");
+            when(skillRepository.findByIdForUpdate(SKILL_ID)).thenReturn(Optional.of(edited));
+
+            service.applyAppDeclaration(stale, "desktop", "AgiMate Desktop", declaration());
+
+            assertEquals("user text", edited.getMdContent());
             verify(skillRepository, never()).save(any());
         }
 

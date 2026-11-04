@@ -49,4 +49,15 @@
                                  referencedColumnNames="id"/>
     </changeSet>
 
+    <!-- Enum values are held by a check constraint everywhere else (chk_skills_disclosure and
+         friends); NULL is the non-origin skill, where nobody's marker applies. A separate changeset
+         on purpose: the one above is already applied on local databases, and editing an applied
+         changeset breaks its checksum and stops the service from starting. -->
+    <changeSet id="skills-updated-by-check" author="agimate">
+        <sql>
+            ALTER TABLE skills
+                ADD CONSTRAINT chk_skills_updated_by CHECK (updated_by IS NULL OR updated_by IN ('APP', 'USER'));
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

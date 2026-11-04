@@ -331,12 +331,11 @@ public class SkillService {
                 .updatedBy(SkillUpdatedBy.APP)
                 .build();
 
-        try {
-            skill = skillRepository.save(skill);
-        } catch (DataIntegrityViolationException e) {
-            // Two links raced on the unique origin: the winner's skill is the one instance's skill.
-            return skillRepository.findByOriginConnectionId(originConnectionId);
-        }
+        // The link path locks the app row (AppRepository.findByIdForUpdate) for the whole call, and it
+        // is the only caller: the check above and this insert are serialised, so there is no unique-
+        // origin race left to catch. Catching it here would be worse than useless — the exception from
+        // the repository proxy marks the caller's transaction rollback-only before the catch runs.
+        skill = skillRepository.save(skill);
 
         log.info("Created app skill '{}' id={} for connection {}", skill.getName(), skill.getId(), originConnectionId);
         return Optional.of(skill);
@@ -349,16 +348,21 @@ public class SkillService {
      */
     @Transactional
     public void applyAppDeclaration(Skill skill, String appCode, String appTitle, AppSkill declaration) {
-        if (skill.getOriginConnectionId() == null || skill.getUpdatedBy() != SkillUpdatedBy.APP) {
+        // Re-read under the row lock: a user edit committed between the link's read and this refresh
+        // must win. Without the lock the link would overwrite the text it never saw, leaving
+        // updated_by=USER over the app's text — the one loss the whole flag exists to prevent.
+        Skill current = skillRepository.findByIdForUpdate(skill.getId()).orElse(null);
+        if (current == null || current.getOriginConnectionId() == null
+                || current.getUpdatedBy() != SkillUpdatedBy.APP) {
             return;
         }
-        skill.setTitle(skillTitle(declaration, appTitle, appCode));
-        skill.setDescription(declaration.description());
-        skill.setMdContent(declaration.body());
-        skill.setStarters(new ArrayList<>(declaration.starters() != null ? declaration.starters() : List.of()));
-        skill.setVersion(skill.getVersion() + 1);
-        skillRepository.save(skill);
-        log.info("Refreshed app skill '{}' id={} version={}", skill.getName(), skill.getId(), skill.getVersion());
+        current.setTitle(skillTitle(declaration, appTitle, appCode));
+        current.setDescription(declaration.description());
+        current.setMdContent(declaration.body());
+        current.setStarters(new ArrayList<>(declaration.starters() != null ? declaration.starters() : List.of()));
+        current.setVersion(current.getVersion() + 1);
+        skillRepository.save(current);
+        log.info("Refreshed app skill '{}' id={} version={}", current.getName(), current.getId(), current.getVersion());
     }
 
     /** The live skill an instance owns, if any — what the app may still refresh at link time. */
@@ -543,7 +547,12 @@ public class SkillService {
         }
         Page<Skill> skills = skillRepository.findAll(spec, pageRequest);
         Map<UUID, SkillOriginResponse> origins = originsOf(skills.getContent());
-        return skills.map(skill -> SkillResponse.from(skill, origins.get(skill.getOriginConnectionId())));
+        // The null guard is not cosmetic: `origins` is `Map.of()` when the page has no app skill, and
+        // `Map.of().get(null)` throws — every ordinary listing would answer 500.
+        return skills.map(skill -> SkillResponse.from(skill,
+                skill.getOriginConnectionId() == null
+                        ? null
+                        : origins.get(skill.getOriginConnectionId())));
     }
 
     private void validateName(String name) {

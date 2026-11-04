@@ -29,7 +29,7 @@ public interface AppRepository extends JpaRepository<App, UUID> {
      * transaction rollback-only, and the caught exception would not save it).
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT a FROM App a WHERE a.id = :id")
+    @Query("SELECT a FROM App a WHERE a.id = :id AND a.deletedAt IS NULL")
     Optional<App> findByIdForUpdate(@Param("id") UUID id);
 
     @Query("SELECT a FROM App a WHERE a.userId = :userId AND a.deletedAt IS NULL AND a.enabled = true")
