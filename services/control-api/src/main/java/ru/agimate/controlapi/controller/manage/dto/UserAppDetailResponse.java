@@ -11,8 +11,14 @@ public record UserAppDetailResponse(
         @Schema(description = "App public ID")
         UUID appId,
 
-        @Schema(description = "App name")
-        String appName,
+        @Schema(description = "App kind the client declared; empty until the first link with the app block")
+        String code,
+
+        @Schema(description = "Human-readable app title")
+        String title,
+
+        @Schema(description = "Client version")
+        String version,
 
         @Schema(description = "Device ID")
         String deviceId,
@@ -44,7 +50,9 @@ public record UserAppDetailResponse(
 
         return new UserAppDetailResponse(
                 app.getId(),
-                app.getName(),
+                app.getCode(),
+                app.getTitle(),
+                app.getVersion(),
                 app.getDeviceId(),
                 deviceName,
                 deviceOs,

@@ -46,7 +46,9 @@ public class SkillSpecs {
     /**
      * The connection serves one of the skill's requirements — {@code skill_fits_connection} over the
      * connection's row, the SQL spelling of
-     * {@link ru.agimate.controlapi.database.model.ConnectorRequirement#fits}. Not indexed, as with
+     * {@link ru.agimate.controlapi.database.model.ConnectorRequirement#fits} — and the skill's origin
+     * admits it: a skill an app brought is shown only on its own instance's page, even though every app
+     * connection would satisfy the requirement by code. Not indexed, as with
      * {@link #hasConnector(String)}.
      */
     public static Specification<Skill> fitsConnection(UUID connectionId) {
@@ -57,7 +59,10 @@ public class SkillSpecs {
                     cb.equal(connection.get("id"), connectionId),
                     cb.isTrue(cb.function("skill_fits_connection", Boolean.class,
                             root.get("connectors"), connection.get("connectorCode"), connection.get("params"))));
-            return cb.exists(fitting);
+            return cb.and(
+                    cb.or(cb.isNull(root.get("originConnectionId")),
+                            cb.equal(root.get("originConnectionId"), connectionId)),
+                    cb.exists(fitting));
         };
     }
 

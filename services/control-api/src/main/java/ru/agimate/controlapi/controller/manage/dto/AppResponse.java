@@ -14,10 +14,17 @@ public record AppResponse(
         @Schema(description = "Public ID of the app")
         UUID id,
 
-        @Schema(description = "App name/label", example = "My Home Device")
-        String name,
+        @Schema(description = "App kind the client declared at link time (desktop, chromium, …); "
+                + "empty until the first link carrying the app block", example = "desktop")
+        String code,
 
-        @Schema(description = "App description")
+        @Schema(description = "Human-readable app title the client declared", example = "AgiMate Desktop")
+        String title,
+
+        @Schema(description = "Client version", example = "1.4.2")
+        String version,
+
+        @Schema(description = "User's note about the key")
         String description,
 
         @Schema(description = "Masked key ID for identification", example = "dvckZ3h5****")
@@ -41,7 +48,9 @@ public record AppResponse(
         String maskedKeyId = AppService.APP_KEY_PREFIX + app.getKeyId().substring(0, 4) + "****";
         return new AppResponse(
                 app.getId(),
-                app.getName(),
+                app.getCode(),
+                app.getTitle(),
+                app.getVersion(),
                 app.getDescription(),
                 maskedKeyId,
                 app.getEnabled(),

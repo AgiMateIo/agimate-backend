@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- An app declares its identity and brings a skill at link time (docs/decisions/app-skills.md).
+         `name` was the user's label for a key; `code` is the app kind the client declares itself
+         (`desktop`, `chromium`). The column keeps its old value until the first link carrying the
+         `app` block, so a row created before this release still reads as a label for a while: the
+         transition marker is empty `title`/`version`, and no backfill is needed. -->
+    <changeSet id="apps-identity-and-skill" author="agimate">
+        <renameColumn tableName="apps" oldColumnName="name" newColumnName="code"/>
+        <dropNotNullConstraint tableName="apps" columnName="code" columnDataType="TEXT"/>
+
+        <addColumn tableName="apps">
+            <column name="title" type="TEXT"/>
+            <column name="version" type="TEXT"/>
+            <!-- The last declaration the app sent at link time: {title, description, body, starters,
+                 language}. The skill row is the user's copy; this stays the app's own declaration and
+                 is what a not-yet-edited copy is refreshed from. -->
+            <column name="skill" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- A skill may be born from an app instance. `origin_connection_id` says which instance, and is
+         also the selector: such a skill resolves to exactly that connection, never to another app.
+         The uniqueness deliberately includes soft-deleted rows — deleting the skill is the user's
+         decision, and the next link must not resurrect or duplicate it. `updated_by` is the edit
+         marker: APP while the text is the app's own, USER after any edit, which is what stops the
+         app from overwriting it. -->
+    <changeSet id="skills-origin-and-updated-by" author="agimate">
+        <addColumn tableName="skills">
+            <column name="origin_connection_id" type="UUID"/>
+            <column name="updated_by" type="TEXT"/>
+        </addColumn>
+
+        <!-- Not partial on purpose: NULLs never collide, and an origin may own one skill even after
+             that skill is soft-deleted. A partial index would let delete + relink create a second one. -->
+        <addUniqueConstraint tableName="skills"
+                             columnNames="origin_connection_id"
+                             constraintName="uq_skills_origin_connection_id"/>
+
+        <addForeignKeyConstraint baseTableName="skills"
+                                 baseColumnNames="origin_connection_id"
+                                 constraintName="fk_skills_origin_connection"
+                                 referencedTableName="connections"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+</databaseChangeLog>

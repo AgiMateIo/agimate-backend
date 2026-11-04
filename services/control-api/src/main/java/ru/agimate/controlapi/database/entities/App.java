@@ -7,6 +7,7 @@ import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.model.AppSkill;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -33,8 +34,25 @@ public class App extends BaseEntity {
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;
 
-    @Column(name = "name", nullable = false, columnDefinition = "TEXT")
-    private String name;
+    /**
+     * The app kind the client declares itself ({@code desktop}, {@code chromium}); {@code null} until
+     * the first link carrying the {@code app} block. A row created before the client sent that block
+     * holds the old user label here — the transition marker is empty {@link #title}/{@link #version}.
+     */
+    @Column(name = "code", columnDefinition = "TEXT")
+    private String code;
+
+    @Column(name = "title", columnDefinition = "TEXT")
+    private String title;
+
+    /** Client version; metadata for the UI and support, not a decision input. */
+    @Column(name = "version", columnDefinition = "TEXT")
+    private String version;
+
+    /** The last skill declaration the app sent; the skill row is the user's copy of it. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "skill", columnDefinition = "JSONB")
+    private AppSkill skill;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;

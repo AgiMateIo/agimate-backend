@@ -29,6 +29,7 @@ import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.service.AppService;
 import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.time.LocalDateTime;
@@ -62,6 +63,7 @@ public class ConnectionService {
     private final SecretService secretService;
     private final ConnectionCredentialStore credentialStore;
     private final ApplicationEventPublisher eventPublisher;
+    private final AppService appService;
 
     @Transactional
     public Connection create(UUID userId, String connectorCode,
@@ -177,6 +179,14 @@ public class ConnectionService {
     @Transactional
     public void delete(UUID id, UUID userId) {
         Connection connection = getOwnedConnection(id, userId);
+
+        // An app instance is deleted by its own routine: the generic path would leave the apps row and
+        // the origin skill behind (integrationHandler throws «Unsupported platform», which the webhook
+        // cleanup swallows). Both endpoints must therefore end in AppService.deleteApp.
+        if (connection.getAppId() != null) {
+            appService.deleteApp(connection.getAppId(), userId);
+            return;
+        }
 
         try {
             var handler = integrationHandler(connection.getConnectorCode());

@@ -4,15 +4,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-@Schema(description = "Request to create a new app")
+@Schema(description = "Request to create a new app key. The app names itself at linking (code/title/version)")
 public record CreateAppRequest(
-        @NotBlank
-        @Size(min = 1, max = 100)
-        @Schema(description = "Name/label for the app", example = "My Home Device")
-        String name,
-
         @Size(max = 500)
-        @Schema(description = "Optional description", example = "App for living room automation")
+        @Schema(description = "Optional note about the key", example = "Living room automation")
         String description,
 
         @NotBlank

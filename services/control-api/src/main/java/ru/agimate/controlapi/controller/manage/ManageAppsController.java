@@ -53,7 +53,6 @@ public class ManageAppsController {
         UUID userId = UUID.fromString(principal.id());
         AppCreateResult result = appService.createApp(
                 userId,
-                request.name(),
                 request.description(),
                 request.connectorCode()
         );
@@ -91,7 +90,6 @@ public class ManageAppsController {
         App updated = appService.updateApp(
                 appId,
                 userId,
-                request.name(),
                 request.description(),
                 request.enabled()
         );

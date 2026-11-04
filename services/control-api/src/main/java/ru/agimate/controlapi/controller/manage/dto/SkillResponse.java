@@ -48,6 +48,9 @@ public record SkillResponse(
         @Schema(description = "True for a system-owned platform skill (rename/hard-delete restricted; editable by ADMIN)")
         boolean system,
 
+        @Schema(description = "The app instance that brought this skill; null for a user-authored one")
+        SkillOriginResponse origin,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the skill was created")
         LocalDateTime createdAt,
@@ -57,6 +60,10 @@ public record SkillResponse(
         LocalDateTime updatedAt
 ) {
     public static SkillResponse from(Skill skill) {
+        return from(skill, null);
+    }
+
+    public static SkillResponse from(Skill skill, SkillOriginResponse origin) {
         return new SkillResponse(
                 skill.getId(),
                 skill.getName(),
@@ -70,6 +77,7 @@ public record SkillResponse(
                 skill.getIsPublic(),
                 skill.getUserId(),
                 SystemSkillBootstrap.SYSTEM_USER_ID.equals(skill.getUserId()),
+                origin,
                 skill.getCreatedAt(),
                 skill.getUpdatedAt()
         );

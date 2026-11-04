@@ -37,7 +37,7 @@ public class AppAuthFilter extends OncePerRequestFilter {
                     .ifPresent(app -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_APP"));
                         var principal = new AppPrincipal(
-                                app.getName(),
+                                app.getCode() != null ? app.getCode() : app.getId().toString(),
                                 app.getId(),
                                 app.getUserId()
                         );
@@ -47,7 +47,7 @@ public class AppAuthFilter extends OncePerRequestFilter {
                         );
 
                         log.debug("App key authenticated for app: {} (user: {})",
-                                app.getName(), app.getUserId());
+                                app.getId(), app.getUserId());
                     });
         }
 

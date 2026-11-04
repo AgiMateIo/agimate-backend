@@ -10,6 +10,7 @@ import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.Disclosure;
+import ru.agimate.controlapi.database.enums.SkillUpdatedBy;
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
 
@@ -20,10 +21,13 @@ import java.util.UUID;
 
 /**
  * Unique by {@code (user_id, name, language)} among live rows, NULLS NOT DISTINCT — the partial index
- * {@code uq_skills_user_id_name_language_active}, which JPA cannot express.
+ * {@code uq_skills_user_id_name_language_active}, which JPA cannot express. {@code origin_connection_id}
+ * is unique across live and soft-deleted rows ({@code uq_skills_origin_connection_id}): an app owns one
+ * skill per instance, and a deleted one is not recreated.
  */
 @Entity
-@Table(name = "skills")
+@Table(name = "skills", uniqueConstraints = @UniqueConstraint(
+        name = "uq_skills_origin_connection_id", columnNames = "origin_connection_id"))
 @Getter
 @Setter
 @Builder
@@ -114,6 +118,18 @@ public class Skill extends BaseEntity {
     @Column(name = "is_public", nullable = false)
     @Builder.Default
     private Boolean isPublic = false;
+
+    /**
+     * The app instance that brought this skill and the instance it always resolves to. Unique across
+     * live and soft-deleted rows: a deleted skill is not recreated by the next app link.
+     */
+    @Column(name = "origin_connection_id")
+    private UUID originConnectionId;
+
+    /** Who last changed the content; {@code null} for a skill no app owns. See {@link #originConnectionId}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "updated_by", columnDefinition = "TEXT")
+    private SkillUpdatedBy updatedBy;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

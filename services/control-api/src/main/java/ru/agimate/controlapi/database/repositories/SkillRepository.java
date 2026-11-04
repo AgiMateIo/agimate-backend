@@ -74,6 +74,13 @@ public interface SkillRepository extends JpaRepository<Skill, UUID>, JpaSpecific
         return Optional.ofNullable(findByNamesInLanguage(userId, List.of(name), language).get(name));
     }
 
+    /** The skill an app instance owns — soft-deleted included: it must not be recreated by the next link. */
+    @Query("SELECT s FROM Skill s WHERE s.originConnectionId = :originConnectionId")
+    Optional<Skill> findByOriginConnectionId(@Param("originConnectionId") UUID originConnectionId);
+
+    @Query("SELECT s FROM Skill s WHERE s.originConnectionId = :originConnectionId AND s.deletedAt IS NULL")
+    Optional<Skill> findByOriginConnectionIdAndDeletedAtIsNull(@Param("originConnectionId") UUID originConnectionId);
+
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Skill s SET s.deletedAt = :now WHERE s.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);

@@ -49,6 +49,9 @@ public record SkillDetailResponse(
         @Schema(description = "True for a system-owned platform skill (rename/hard-delete restricted; editable by ADMIN)")
         boolean system,
 
+        @Schema(description = "The app instance that brought this skill; null for a user-authored one")
+        SkillOriginResponse origin,
+
         @Schema(description = "SKILL.md body (without frontmatter)")
         String mdContent,
 
@@ -69,6 +72,10 @@ public record SkillDetailResponse(
         LocalDateTime updatedAt
 ) {
     public static SkillDetailResponse from(Skill skill) {
+        return from(skill, null);
+    }
+
+    public static SkillDetailResponse from(Skill skill, SkillOriginResponse origin) {
         return new SkillDetailResponse(
                 skill.getId(),
                 skill.getName(),
@@ -82,6 +89,7 @@ public record SkillDetailResponse(
                 skill.getIsPublic(),
                 skill.getUserId(),
                 SystemSkillBootstrap.SYSTEM_USER_ID.equals(skill.getUserId()),
+                origin,
                 skill.getMdContent(),
                 skill.getDisclosure(),
                 List.copyOf(skill.getStarters()),

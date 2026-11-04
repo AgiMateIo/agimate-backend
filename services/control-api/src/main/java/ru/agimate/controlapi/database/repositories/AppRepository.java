@@ -1,8 +1,10 @@
 package ru.agimate.controlapi.database.repositories;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +21,16 @@ public interface AppRepository extends JpaRepository<App, UUID> {
 
     @Query("SELECT a FROM App a WHERE a.id = :id AND a.deletedAt IS NULL")
     Optional<App> findByIdNotDeleted(@Param("id") UUID id);
+
+    /**
+     * The link path takes the row for update: two starts of the same app must not both decide that the
+     * origin skill is missing. The lock serialises them in the database, so the second sees the first
+     * one's skill instead of racing the unique origin index (a lost race would mark the whole
+     * transaction rollback-only, and the caught exception would not save it).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM App a WHERE a.id = :id")
+    Optional<App> findByIdForUpdate(@Param("id") UUID id);
 
     @Query("SELECT a FROM App a WHERE a.userId = :userId AND a.deletedAt IS NULL AND a.enabled = true")
     List<App> findByUserIdNotDeletedAndActive(@Param("userId") UUID userId);
@@ -41,9 +53,6 @@ public interface AppRepository extends JpaRepository<App, UUID> {
     @Modifying
     @Query("UPDATE App a SET a.deletedAt = :now WHERE a.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);
-
-    @Query("SELECT COUNT(a) > 0 FROM App a WHERE a.userId = :userId AND a.name = :name AND a.deletedAt IS NULL")
-    boolean existsByUserIdAndName(@Param("userId") UUID userId, @Param("name") String name);
 
     @Query("SELECT COUNT(a) > 0 FROM App a WHERE a.id = :id AND a.userId = :userId AND a.deletedAt IS NULL")
     boolean existsByIdAndUserId(@Param("id") UUID id, @Param("userId") UUID userId);

@@ -12,13 +12,19 @@ public record AppCreatedResponse(
         @Schema(description = "Public ID of the app")
         UUID id,
 
-        @Schema(description = "App name/label")
-        String name,
+        @Schema(description = "App kind; empty until the app links and names itself", example = "desktop")
+        String code,
+
+        @Schema(description = "Human-readable app title the client declared", example = "AgiMate Desktop")
+        String title,
+
+        @Schema(description = "Client version", example = "1.4.2")
+        String version,
 
         @Schema(description = "The actual key - SAVE THIS NOW, it will not be shown again!")
         String fullKey,
 
-        @Schema(description = "App description")
+        @Schema(description = "User's note about the key")
         String description,
 
         @Schema(description = "Creation timestamp")
@@ -32,7 +38,9 @@ public record AppCreatedResponse(
     public static AppCreatedResponse from(App app, String plaintextKey) {
         return new AppCreatedResponse(
                 app.getId(),
-                app.getName(),
+                app.getCode(),
+                app.getTitle(),
+                app.getVersion(),
                 plaintextKey,
                 app.getDescription(),
                 app.getCreatedAt(),

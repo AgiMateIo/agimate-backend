@@ -26,6 +26,7 @@ import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.Disclosure;
+import ru.agimate.controlapi.database.enums.SkillUpdatedBy;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
@@ -764,6 +765,117 @@ class AgentSkillServiceTest {
             service.markSkillsInstalled(AGENT_ID, USER_ID);
 
             verify(policySync).apply(AGENT_ID, TELEGRAM_ID, SKILL_ID, withRules);
+        }
+    }
+
+    @Nested
+    @DisplayName("origin — выбранный экземпляр навыка приложения")
+    class Origin {
+
+        private final UUID appAId = UUID.randomUUID();
+        private final UUID appBId = UUID.randomUUID();
+        private final Connection appA = connection(appAId, "app", "Телефон A");
+        private final Connection appB = connection(appBId, "app", "Телефон B");
+
+        private Skill originSkill() {
+            Skill skill = Skill.builder()
+                    .id(SKILL_ID).userId(USER_ID).name("app-desktop").version(1)
+                    .connectors(ConnectorRequirement.ofCodes(List.of("app")))
+                    .originConnectionId(appAId).updatedBy(SkillUpdatedBy.APP)
+                    .build();
+            when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(skill));
+            when(skillRepository.findByIdInNotDeleted(any())).thenReturn(List.of(skill));
+            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(
+                    AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
+                            .userId(USER_ID).skillId(SKILL_ID).build()));
+            return skill;
+        }
+
+        private AgentSkillService.RequirementState withheldState() {
+            List<AgentSkillService.WithheldSkill> withheld = service.gate(AGENT_ID).withheld();
+            assertEquals(1, withheld.size(), "навык должен быть удержан");
+            return withheld.get(0).blockers().get(0).state();
+        }
+
+        @Test
+        @DisplayName("навык разрешается ровно в свой экземпляр, даже если привязан другой app")
+        void resolvesToItsOwnInstance() {
+            originSkill();
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA, appB));
+
+            assertEquals(Map.of(SKILL_ID, Set.of(appAId)), service.gate(AGENT_ID).satisfied());
+        }
+
+        @Test
+        @DisplayName("свой экземпляр не привязан, другой app привязан → NOT_BOUND")
+        void ownInstanceNotBound() {
+            originSkill();
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appB));
+            when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of(appA));
+
+            assertEquals(AgentSkillService.RequirementState.NOT_BOUND, withheldState());
+        }
+
+        @Test
+        @DisplayName("свой экземпляр удалён — навык не подхватывает чужой app, а остаётся без выбора")
+        void deletedOriginDoesNotFallBackToAnotherApp() {
+            originSkill();
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appB));
+            when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of());
+
+            assertEquals(AgentSkillService.RequirementState.NOT_CHOSEN, withheldState());
+        }
+
+        @Test
+        @DisplayName("привязка навыка форсирует ссылку на origin")
+        void bindingForcesOriginReference() {
+            originSkill();
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA));
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
+
+            assertEquals(appAId, savedLinks().get(0).getConnectionId());
+        }
+
+        @Test
+        @DisplayName("чужой экземпляр в requested → 400")
+        void anotherInstanceIsRejected() {
+            originSkill();
+
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("app", appBId), null));
+        }
+
+        @Test
+        @DisplayName("matches сужается до origin: в мастере не предлагается другой app")
+        void matchesNarrowToOrigin() {
+            originSkill();
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA, appB));
+            when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of(appA, appB));
+            when(agentSkillRepository.findByAgentId(eq(AGENT_ID), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(AgentSkill.builder().id(AGENT_SKILL_ID)
+                            .agentId(AGENT_ID).userId(USER_ID).skillId(SKILL_ID).installedSkillVersion(1).build())));
+
+            SkillConnectorStatus status = service.getAgentSkills(AGENT_ID, USER_ID, 0, 20)
+                    .getContent().get(0).connectors().get(0);
+
+            assertEquals(List.of(appAId), status.matches().stream()
+                    .map(SkillConnectorStatus.ConnectionMatch::connectionId).toList());
+            assertEquals(appAId, status.connectionId());
+        }
+
+        @Test
+        @DisplayName("план показывает origin как выбранный экземпляр и объясняет, что он не привязан")
+        void planShowsOriginAsChosen() {
+            originSkill();
+            when(connectionRepository.findByIdNotDeleted(appAId)).thenReturn(Optional.of(appA));
+            when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of(appA, appB));
+
+            SkillBindingPlanResponse plan = service.plan(AGENT_ID, SKILL_ID, USER_ID);
+
+            assertFalse(plan.satisfied());
+            assertEquals(appAId, plan.connectors().get(0).connectionId());
+            assertEquals(AgentSkillService.RequirementState.NOT_BOUND, plan.connectors().get(0).state());
         }
     }
 }
