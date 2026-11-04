@@ -1,5 +1,6 @@
 package ru.agimate.agentworker.workers.run;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.openai.core.http.Headers;
 import com.openai.errors.InternalServerException;
 import com.openai.errors.OpenAIInvalidDataException;
@@ -34,6 +35,7 @@ import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
+import ru.agimate.common.util.JsonUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -301,6 +304,95 @@ class LlmCallTest {
             } finally {
                 server.stop(0);
             }
+        }
+
+        /** История ровно того вида, на которой падал ран: тул-цикл, второй ход без рассуждения. */
+        private static List<AgentChatMessage> toolHistory(String reasoning) {
+            return List.of(
+                    AgentChatMessage.user("посмотри окна"),
+                    AgentChatMessage.assistant(null, reasoning, List.of(
+                            new AgentChatMessage.ToolCall("c1", "app_desktop__windows_list", "{}"))),
+                    AgentChatMessage.toolResults(List.of(
+                            new AgentChatMessage.ToolResult("c1", "app_desktop__windows_list", "{}", false))),
+                    AgentChatMessage.assistant(null, null, List.of(
+                            new AgentChatMessage.ToolCall("c2", "app_desktop__screenshot_window", "{}"))),
+                    AgentChatMessage.toolResults(List.of(
+                            new AgentChatMessage.ToolResult("c2", "app_desktop__screenshot_window", "{}", false))));
+        }
+
+        /** Прогоняет вызов через настоящий ModelFactory и возвращает тело, которое увидел бы провайдер. */
+        private String bodySeenByProvider(List<AgentChatMessage> messages, List<ToolDef> tools)
+                throws Exception {
+            AtomicReference<String> wireBody = new AtomicReference<>();
+            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/", exchange -> {
+                try (InputStream in = exchange.getRequestBody()) {
+                    wireBody.set(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+                }
+                byte[] out = SSE_COMPLETION.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+                exchange.sendResponseHeaders(200, out.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(out);
+                }
+            });
+            server.start();
+            try {
+                LlmCredentials creds = LlmCredentials.newBuilder()
+                        .setProviderType("openai_compatible")
+                        .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/v1")
+                        .setApiKey("sk-test")
+                        .setModel("deepseek-flash")
+                        .setProviderId("prov-1")
+                        .build();
+                AgentWorkerClient client = mock(AgentWorkerClient.class);
+                when(client.getLlmCredentials("agent-1")).thenReturn(creds);
+                LlmCall llmCall = new LlmCall(client,
+                        new ModelFactory(localTargetsAllowed(), OutboundTrust.systemDefault(), EgressProxy.NONE),
+                        new LlmMessageMapper(TestTemplates.of("ru")), mock(ResponseTemplates.class), 1,
+                        budgets(Duration.ofSeconds(5)));
+
+                LlmCall.Reply result = llmCall.call(messages, tools, "agent-1", "run-1-0");
+
+                assertFalse(result.failed(), () -> "вызов не дошёл: " + result.message());
+                return wireBody.get();
+            } finally {
+                server.stop(0);
+            }
+        }
+
+        @Test
+        @DisplayName("ход с тулом без рассуждения уезжает с пустым reasoning_content")
+        void silentToolTurnGetsEmptyReasoning() throws Exception {
+            String body = bodySeenByProvider(toolHistory("Сначала список окон"),
+                    List.of(new ToolDef("app_desktop__windows_list", "List windows", "{\"type\":\"object\"}")));
+
+            JsonNode messages = JsonUtils.MAPPER.readTree(body).get("messages");
+            assertEquals("Сначала список окон", messages.get(1).get("reasoning_content").asText());
+            JsonNode filled = messages.get(3).get("reasoning_content");
+            assertNotNull(filled, () -> "поле не дописано:\n" + body);
+            assertEquals("", filled.asText());
+        }
+
+        @Test
+        @DisplayName("история без рассуждений — поля нет вовсе")
+        void noReasoningNoField() throws Exception {
+            String body = bodySeenByProvider(toolHistory(null),
+                    List.of(new ToolDef("app_desktop__windows_list", "List windows", "{\"type\":\"object\"}")));
+
+            assertFalse(body.contains("\"reasoning_content\""),
+                    () -> "поле появилось без рассуждений:\n" + body);
+        }
+
+        @Test
+        @DisplayName("без tools пустой ход поле не получает, подлинное рассуждение остаётся")
+        void withoutToolsNoEmptyEcho() throws Exception {
+            String body = bodySeenByProvider(toolHistory("Сначала список окон"), List.of());
+
+            assertFalse(body.contains("\"reasoning_content\":\"\""),
+                    () -> "пустое поле появилось без tools:\n" + body);
+            assertTrue(body.contains("Сначала список окон"),
+                    () -> "подлинное рассуждение потеряно:\n" + body);
         }
 
         /** Стаб провайдера живёт на loopback — как локальная модель, для которой флаг и существует. */

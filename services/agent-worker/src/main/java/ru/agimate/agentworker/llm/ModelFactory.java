@@ -4,7 +4,11 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.openai.core.http.ProxyAuthenticator;
 import okhttp3.Interceptor;
+import okhttp3.MediaType;
+import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
+import okio.Buffer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -183,7 +187,8 @@ public class ModelFactory {
                 .httpClientBuilderCustomizer(builder -> {
                     builder.sslSocketFactory(publicOnlySslSocketFactory())
                             .trustManager(trust.manager())
-                            .interceptor(this::withReadTimeout);
+                            .interceptor(this::withReadTimeout)
+                            .interceptor(this::withReasoningEcho);
                     if (proxied) {
                         builder.proxy(proxy.proxy()).proxyAuthenticator(proxyAuthenticator());
                     }
@@ -212,6 +217,44 @@ public class ModelFactory {
     private Response withReadTimeout(Interceptor.Chain chain) throws IOException {
         return chain.withReadTimeout((int) readTimeout.toMillis(), TimeUnit.MILLISECONDS)
                 .proceed(chain.request());
+    }
+
+    /**
+     * Keeps a thinking provider's request whole: when the body carries tools and already speaks
+     * {@code reasoning_content}, every assistant message without the field gets an empty one — the
+     * shape DeepSeek validates and Spring AI cannot produce (see {@link ReasoningEcho}). An
+     * application interceptor because only bytes are left at this point: the SDK has already
+     * serialised the request, and no message-level hook exposes the field. Fail-open by design — a
+     * body that cannot be read or parsed goes out untouched.
+     */
+    private Response withReasoningEcho(Interceptor.Chain chain) throws IOException {
+        Request request = chain.request();
+        RequestBody body = request.body();
+        // A one-shot or duplex body cannot be read and then sent again — leave it alone.
+        if (body == null || body.isOneShot() || body.isDuplex()) {
+            return chain.proceed(request);
+        }
+        MediaType contentType = body.contentType();
+        if (contentType == null || !"json".equals(contentType.subtype())) {
+            return chain.proceed(request);
+        }
+        byte[] patched;
+        try {
+            Buffer buffer = new Buffer();
+            body.writeTo(buffer);
+            patched = ReasoningEcho.patch(buffer.readByteArray());
+        } catch (Exception e) {
+            log.warn("reasoning echo: request body left as is ({})", e.getMessage());
+            return chain.proceed(request);
+        }
+        if (patched == null) {
+            return chain.proceed(request);
+        }
+        log.debug("reasoning echo: assistant turns without reasoning_content filled with an empty string");
+        return chain.proceed(request.newBuilder()
+                .method(request.method(), RequestBody.create(contentType, patched))
+                .removeHeader("Content-Length")
+                .build());
     }
 
     /**

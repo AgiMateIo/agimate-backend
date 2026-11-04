@@ -23,6 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * перестало бы класть поле в запрос. Ровно этого молчания стоит 400 от DeepSeek: в режиме
  * размышления с параметром {@code tools} он требует рассуждение прошлых ходов обратно.
  *
+ * <p>Пустую строку этот слой не отправляет ({@code StringUtils.hasText}): ходам без рассуждения поле
+ * дописывает интерсептор воркера уже в теле запроса — {@code agentworker.llm.ReasoningEcho},
+ * проверка на проводе в {@code LlmCallTest}.
+ *
  * <p>Тест в пакете {@code org.springframework.ai.openai} ради доступа к package-private
  * {@code OpenAiChatModel.createRequest}. Сети не требует.
  */

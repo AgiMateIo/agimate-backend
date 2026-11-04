@@ -37,6 +37,12 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 `ToolCallback`s — the loop is driven **manually** (no ToolCallingAdvisor), so tool calls come
 back to us to dispatch on a separate queue instead of Spring AI auto-executing them.
 
+The outgoing body is patched before it leaves: when a request carries `tools` and already speaks
+`reasoning_content` on at least one assistant turn, every assistant turn without the field gets an
+empty string (`ReasoningEcho`, an OkHttp interceptor). DeepSeek validates that shape structurally, and
+Spring AI cannot serialise a blank value — the trigger and the gap it leaves are in
+[decisions/provider-turn-envelope.md](../decisions/provider-turn-envelope.md).
+
 ### `workers/` — DBOS surface
 One workflow, `AgentRunWorkflow.runAgent` on the `agent_exec` queue: enqueued directly by control-api
 (`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session). Its sole
