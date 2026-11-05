@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.1.1" apply false
+    id("org.springframework.boot") version "4.1.2" apply false
     id("org.asciidoctor.jvm.convert") version "4.0.5" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false
 }
@@ -30,14 +30,14 @@ allprojects {
                 // gRPC/protobuf — one version for agentworker-proto, control-api and agent-worker
                 // (gRPC artifacts must move in lockstep). Codegen tool artifacts (protoc,
                 // protoc-gen-grpc-java) live in libs/agentworker-proto — bump them together.
-                implementation("io.grpc:grpc-netty-shaded:1.84.0")
-                implementation("io.grpc:grpc-protobuf:1.84.0")
-                implementation("io.grpc:grpc-stub:1.84.0")
-                implementation("io.grpc:grpc-services:1.84.0")
-                implementation("io.grpc:grpc-inprocess:1.84.0")
-                implementation("io.grpc:grpc-testing:1.84.0")
-                implementation("com.google.protobuf:protobuf-java:3.25.9")
-                implementation("com.google.protobuf:protobuf-java-util:3.25.9")
+                implementation("io.grpc:grpc-netty-shaded:1.84.1")
+                implementation("io.grpc:grpc-protobuf:1.84.1")
+                implementation("io.grpc:grpc-stub:1.84.1")
+                implementation("io.grpc:grpc-services:1.84.1")
+                implementation("io.grpc:grpc-inprocess:1.84.1")
+                implementation("io.grpc:grpc-testing:1.84.1")
+                implementation("com.google.protobuf:protobuf-java:4.36.2")
+                implementation("com.google.protobuf:protobuf-java-util:4.36.2")
 
                 implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
                 implementation("org.springframework.boot:spring-boot-dependencies")
