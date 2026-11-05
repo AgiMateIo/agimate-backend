@@ -190,21 +190,22 @@ public class LlmProviderService {
 
     @Transactional
     public LlmProviderResponse update(UUID id, UUID userId, boolean admin, UpdateLlmProviderRequest request) {
-        return LlmProviderResponse.from(updateInternal(id, userId, admin, request.name(), request.baseUrl(),
-                request.apiKey(), request.purposePriority(), request.extraBody(), request.mediaTransport(),
-                request.enabled()));
+        return LlmProviderResponse.from(updateInternal(id, userId, admin, request.name(),
+                request.providerType(), request.baseUrl(), request.apiKey(), request.purposePriority(),
+                request.extraBody(), request.mediaTransport(), request.enabled()));
     }
 
     /** The command overload — the platform connector's entry point (no {@code controller/**} dependency).
      *  PATCH semantics, as in the controller path: null fields keep the current value. */
     @Transactional
     public LlmProvider update(UUID id, UUID userId, LlmProviderUpdateCommand command) {
-        return updateInternal(id, userId, false, command.name(), command.baseUrl(), command.apiKey(),
+        return updateInternal(id, userId, false, command.name(), null, command.baseUrl(), command.apiKey(),
                 command.purposePriority(), command.extraBody(), command.mediaTransport(), command.enabled());
     }
 
-    private LlmProvider updateInternal(UUID id, UUID userId, boolean admin, String name, String baseUrl,
-                                       String apiKey, Map<LlmPurpose, List<String>> purposePriority,
+    private LlmProvider updateInternal(UUID id, UUID userId, boolean admin, String name,
+                                       LlmProviderType providerType, String baseUrl, String apiKey,
+                                       Map<LlmPurpose, List<String>> purposePriority,
                                        Map<String, Object> extraBody, MediaTransportType mediaTransport,
                                        Boolean enabled) {
         LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
@@ -230,10 +231,18 @@ public class LlmProviderService {
             // The whole map is replaced; an empty object clears it (partial update: null = «leave unchanged»).
             provider.setPurposePriority(emptyToNull(purposePriority));
         }
+        // The type and the url are validated as the pair they will become: switching to
+        // OPENAI_COMPATIBLE without a base_url is rejected even when no base_url was sent.
+        if (providerType != null || baseUrl != null) {
+            validateBaseUrl(providerType != null ? providerType : provider.getProviderType(),
+                    baseUrl != null ? blankToNull(baseUrl) : provider.getBaseUrl());
+        }
+        if (providerType != null) {
+            provider.setProviderType(providerType);
+        }
         if (baseUrl != null) {
-            String normalized = blankToNull(baseUrl);
-            validateBaseUrl(provider.getProviderType(), normalized);
-            provider.setBaseUrl(normalized);
+            // The whole value is replaced; an empty string clears it (partial update: null = «leave unchanged»).
+            provider.setBaseUrl(blankToNull(baseUrl));
         }
         if (apiKey != null && !apiKey.isBlank()) {
             Secret secret = secretRepository.findById(provider.getSecretId())

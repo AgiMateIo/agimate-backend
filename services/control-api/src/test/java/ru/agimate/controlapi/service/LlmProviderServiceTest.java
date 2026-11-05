@@ -200,7 +200,7 @@ class LlmProviderServiceTest {
             when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             var response = service.update(platform.getId(), adminId, true,
-                    new UpdateLlmProviderRequest("platform-2", null, null, null, null, null, null));
+                    new UpdateLlmProviderRequest("platform-2", null, null, null, null, null, null, null));
 
             assertEquals("platform-2", response.name());
         }
@@ -253,7 +253,7 @@ class LlmProviderServiceTest {
 
             assertThrows(BadRequestStatusException.class,
                     () -> service.update(platform.getId(), adminId, true,
-                            new UpdateLlmProviderRequest(null, null, null,
+                            new UpdateLlmProviderRequest(null, null, null, null,
                                     Map.of(LlmPurpose.CHAT, List.of("gemini-flash")), null, null, null)));
             verify(llmProviderRepository, never()).save(any());
         }
@@ -266,7 +266,7 @@ class LlmProviderServiceTest {
             when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
             var response = service.update(platform.getId(), adminId, true,
-                    new UpdateLlmProviderRequest(null, null, null, null, null, null, true));
+                    new UpdateLlmProviderRequest(null, null, null, null, null, null, null, true));
 
             assertTrue(response.enabled());
             assertTrue(response.platform());
@@ -283,11 +283,79 @@ class LlmProviderServiceTest {
 
             var response = service.update(platform.getId(), adminId, true,
                     new UpdateLlmProviderRequest(
-                            null, null, null, null, null,
+                            null, null, null, null, null, null,
                             ru.agimate.controlapi.database.enums.MediaTransportType.MEDIA_ENDPOINT, null));
 
             assertEquals(ru.agimate.controlapi.database.enums.MediaTransportType.MEDIA_ENDPOINT,
                     response.mediaTransport());
+        }
+    }
+
+    @Nested
+    @DisplayName("providerType — смена типа через PATCH")
+    class UpdateProviderType {
+
+        private final UUID userId = UUID.randomUUID();
+
+        private LlmProvider owned(LlmProviderType type, String baseUrl) {
+            LlmProvider provider = LlmProvider.builder()
+                    .id(UUID.randomUUID()).userId(userId).name("moonshot")
+                    .providerType(type).baseUrl(baseUrl).enabled(true).build();
+            when(llmProviderRepository.findByIdAndUserId(provider.getId(), userId))
+                    .thenReturn(Optional.of(provider));
+            return provider;
+        }
+
+        @Test
+        @DisplayName("OPENAI → OPENAI_COMPATIBLE вместе с base_url")
+        void switchesTypeAndBaseUrl() {
+            LlmProvider provider = owned(LlmProviderType.OPENAI, "https://api.moonshot.ai");
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.update(provider.getId(), userId, false,
+                    new UpdateLlmProviderRequest(null, LlmProviderType.OPENAI_COMPATIBLE,
+                            "https://api.moonshot.ai/v1", null, null, null, null, null));
+
+            assertEquals(LlmProviderType.OPENAI_COMPATIBLE, response.providerType());
+            assertEquals("https://api.moonshot.ai/v1", response.baseUrl());
+        }
+
+        @Test
+        @DisplayName("смена на OPENAI_COMPATIBLE без base_url — 400")
+        void switchingToCompatibleRequiresBaseUrl() {
+            LlmProvider provider = owned(LlmProviderType.OPENAI, null);
+
+            assertThrows(BadRequestStatusException.class, () -> service.update(
+                    provider.getId(), userId, false,
+                    new UpdateLlmProviderRequest(null, LlmProviderType.OPENAI_COMPATIBLE,
+                            null, null, null, null, null, null)));
+            verify(llmProviderRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("null — тип не меняется")
+        void nullKeepsCurrentType() {
+            LlmProvider provider = owned(LlmProviderType.OPENAI, null);
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.update(provider.getId(), userId, false,
+                    new UpdateLlmProviderRequest("renamed", null, null, null, null, null, null, null));
+
+            assertEquals(LlmProviderType.OPENAI, response.providerType());
+            assertEquals("renamed", response.name());
+        }
+
+        @Test
+        @DisplayName("OPENAI_COMPATIBLE → OPENAI: base_url больше не обязателен")
+        void switchingToOpenAiDropsBaseRequirement() {
+            LlmProvider provider = owned(LlmProviderType.OPENAI_COMPATIBLE, "https://api.moonshot.ai/v1");
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.update(provider.getId(), userId, false,
+                    new UpdateLlmProviderRequest(null, LlmProviderType.OPENAI,
+                            null, null, null, null, null, null));
+
+            assertEquals(LlmProviderType.OPENAI, response.providerType());
         }
     }
 
@@ -358,7 +426,7 @@ class LlmProviderServiceTest {
 
             assertThrows(BadRequestStatusException.class, () -> service.update(
                     provider.getId(), userId, false,
-                    new UpdateLlmProviderRequest(null, null, null,
+                    new UpdateLlmProviderRequest(null, null, null, null,
                             Map.of(LlmPurpose.CHAT, List.of(" ")), null, null, null)));
             verify(llmProviderRepository, never()).save(any());
         }
@@ -370,7 +438,7 @@ class LlmProviderServiceTest {
 
             assertThrows(BadRequestStatusException.class, () -> service.update(
                     provider.getId(), userId, false,
-                    new UpdateLlmProviderRequest(null, null, null,
+                    new UpdateLlmProviderRequest(null, null, null, null,
                             Map.of(LlmPurpose.CHAT, List.of("m", "m")), null, null, null)));
             verify(llmProviderRepository, never()).save(any());
         }
@@ -384,7 +452,7 @@ class LlmProviderServiceTest {
 
             assertThrows(BadRequestStatusException.class, () -> service.update(
                     provider.getId(), userId, false,
-                    new UpdateLlmProviderRequest(null, null, null,
+                    new UpdateLlmProviderRequest(null, null, null, null,
                             purposePriority, null, null, null)));
             verify(llmProviderRepository, never()).save(any());
         }

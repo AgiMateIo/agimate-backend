@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.controller.manage.dto.llm;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.enums.MediaTransportType;
 
@@ -11,6 +12,10 @@ import java.util.Map;
 public record UpdateLlmProviderRequest(
         @Schema(description = "New name")
         String name,
+
+        @Schema(description = "New provider type; null/absent — kept. baseUrl is re-validated "
+                + "against the resulting type (OPENAI_COMPATIBLE requires it)")
+        LlmProviderType providerType,
 
         @Schema(description = "New base URL")
         String baseUrl,
