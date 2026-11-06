@@ -1,0 +1,18 @@
+# Build outputs and caches
+**/build/
+**/target/
+**/.gradle/
+buildinfo/
+
+# Installed Node dependencies (the ACP bridge is not part of the Gradle build)
+**/node_modules/
+
+# IDE and OS noise
+.idea/
+.vscode/
+.DS_Store
+
+# Local-only configuration and secrets
+services/.env
+**/application-local.yaml
+ops/centrifugo/config.yaml
