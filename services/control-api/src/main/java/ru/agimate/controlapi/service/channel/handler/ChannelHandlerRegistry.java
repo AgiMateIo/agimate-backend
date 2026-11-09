@@ -37,6 +37,11 @@ public class ChannelHandlerRegistry {
         return Optional.ofNullable(byName.get(name));
     }
 
+    /** A capability of the handler resolved by name — the channel-handler mirror of {@code ConnectorRegistry.findCapability}. */
+    public <T> Optional<T> findCapability(String name, Class<T> capability) {
+        return find(name).filter(capability::isInstance).map(capability::cast);
+    }
+
     public Collection<ChannelHandler> all() {
         return byName.values();
     }

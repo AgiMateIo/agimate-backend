@@ -5,9 +5,10 @@ import java.util.Map;
 
 /**
  * The structural record of a single assistant tool turn (protocol v2.1): preamble + calls + results.
- * Persisted into {@code channel_session_messages.message_json} on PROGRESS/TOOL_CALL and handed to the
- * history of later runs as native tool_use/tool_result — the textual 🔧 projection stays channel-only.
- * The field schema mirrors the worker's AgentChatMessage.
+ * The shape of {@code agent_run_turns.tool_calls}/{@code tool_results} — the canonical ledger the
+ * history of later runs is assembled from. {@code SaveMessage}'s {@code tool_turn} mirrors it on the
+ * wire but is no longer stored (docs/decisions/message-stores.md); the textual 🔧 projection stays
+ * channel-only. The field schema mirrors the worker's AgentChatMessage.
  */
 public record ToolTurnRecord(String text, List<Call> calls, List<Result> results) {
 

@@ -26,7 +26,6 @@ import ru.agimate.agentworker.SaveTurnRequest;
 import ru.agimate.agentworker.SaveTurnResponse;
 import ru.agimate.agentworker.ToolCallRec;
 import ru.agimate.agentworker.ToolResultRec;
-import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.TurnRole;
 import java.util.UUID;
 
@@ -59,9 +58,10 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
                     ? null
                     : request.getProgressType().name().replace("PROGRESS_TYPE_", "");
 
+            // The tool turn is accepted on the wire but no longer stored: the history comes from the
+            // turn ledger, and the channel projection keeps text only (docs/decisions/message-stores.md).
             MessageLogService.SaveResult result = messageLogService.save(
-                    agentId, runId, request.getSeq(), kind, progressType, request.getText(),
-                    request.hasToolTurn() ? toDomain(request.getToolTurn()) : null);
+                    agentId, runId, request.getSeq(), kind, progressType, request.getText());
 
             responseObserver.onNext(SaveMessageResponse.newBuilder()
                     .setDuplicate(result.duplicate())
@@ -194,17 +194,5 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             case ASSISTANT -> TurnRole.TURN_ROLE_ASSISTANT;
             case TOOL -> TurnRole.TURN_ROLE_TOOL;
         };
-    }
-
-    private static ToolTurnRecord toDomain(ToolTurn turn) {
-        return new ToolTurnRecord(
-                turn.getText(),
-                turn.getCallsList().stream()
-                        .map(c -> new ToolTurnRecord.Call(c.getId(), c.getName(), c.getArgumentsJson()))
-                        .toList(),
-                turn.getResultsList().stream()
-                        .map(r -> new ToolTurnRecord.Result(r.getId(), r.getName(), r.getOutputJson(),
-                                r.getFailed()))
-                        .toList());
     }
 }

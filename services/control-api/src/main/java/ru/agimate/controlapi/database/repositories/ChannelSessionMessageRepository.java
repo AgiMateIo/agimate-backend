@@ -27,11 +27,10 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
     @Query(value = """
             INSERT INTO channel_session_messages
                 (session_id, agent_id, run_id, seq, kind, progress_type, message,
-                 message_json, trigger_input, completed, created_at, updated_at)
+                 trigger_input, created_at, updated_at)
             VALUES
                 (:sessionId, :agentId, :runId, :seq, :kind, :progressType, :message,
-                 CAST(:messageJson AS jsonb), CAST(:triggerInput AS jsonb), false,
-                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 CAST(:triggerInput AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (run_id, seq) DO NOTHING
             """, nativeQuery = true)
     int insertIgnoreConflict(@Param("sessionId") UUID sessionId,
@@ -41,35 +40,24 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
                              @Param("kind") String kind,
                              @Param("progressType") String progressType,
                              @Param("message") String message,
-                             @Param("messageJson") String messageJson,
                              @Param("triggerInput") String triggerInput);
-
-    /** A final ANSWER completes the run: its whole exchange becomes visible history. */
-    @Modifying
-    @Query("UPDATE ChannelSessionMessage m SET m.completed = true WHERE m.runId = :runId")
-    int markRunCompleted(@Param("runId") UUID runId);
 
     List<ChannelSessionMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
 
     /**
      * A session's history for the manage view. Rows without text are dropped by the query rather
-     * than after the page is fetched: a progress row carries none, and filtering afterwards would
-     * hand back a page shorter than the size that was asked for — with no way to tell that from
-     * the end of the history.
+     * than after the page is fetched: they carry nothing to show (an empty TOOL_RESULT line), and
+     * filtering afterwards would hand back a page shorter than the size that was asked for — with
+     * no way to tell that from the end of the history.
      */
     @Query("""
             SELECT m FROM ChannelSessionMessage m
             WHERE m.sessionId = :sessionId
               AND m.message IS NOT NULL
+              AND m.message <> ''
             """)
     Page<ChannelSessionMessage> findWithMessageBySessionId(@Param("sessionId") UUID sessionId,
                                                            Pageable pageable);
-
-    /**
-     * The tail of history «as the user saw it»: completed runs only, newest first (the caller
-     * reverses). Ordering is by the uuidv7 PK (time plus monotonicity within a run).
-     */
-    List<ChannelSessionMessage> findBySessionIdAndCompletedTrueOrderByIdDesc(UUID sessionId, Pageable pageable);
 
     Optional<ChannelSessionMessage> findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(
             UUID sessionId);

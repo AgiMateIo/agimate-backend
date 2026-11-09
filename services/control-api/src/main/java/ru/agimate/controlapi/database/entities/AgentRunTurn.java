@@ -15,9 +15,9 @@ import java.util.UUID;
 
 /**
  * The canonical full-fidelity turn of a run: one record per worker AgentChatMessage
- * (inbound/assistant/tool), uncapped — unlike the capped channel projection
- * {@link ChannelSessionMessage}. This is the record the history of later runs is assembled from: the
- * projection answers «what did the user see», this one «what was actually said». Written for every
+ * (inbound/assistant/tool), uncapped — the record of «what was actually said», as opposed to the
+ * channel projection {@link ChannelSessionMessage}, which answers «what did the user see». This is
+ * the record the history of later runs is assembled from. Written for every
  * run, including direct ones ({@code session_id} = null), which is why the inbound turn belongs here:
  * a direct run has no channel history, so this is the only row-shaped record of what was asked.
  * Idempotency is UNIQUE (run_id, turn_index).

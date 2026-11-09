@@ -7,10 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageResponse;
 import ru.agimate.controlapi.database.entities.Channel;
+import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
+import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
@@ -18,6 +22,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.webchat.WebchatMessagePublisher;
+import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -47,13 +54,18 @@ class WebchatChannelHandlerTest {
     private ChannelRepository channelRepository;
     @Mock
     private WebchatMessagePublisher webchatMessagePublisher;
+    @Mock
+    private WebchatMessageRepository webchatMessageRepository;
+    @Mock
+    private SignedFileUrlService signedFileUrlService;
 
     private WebchatChannelHandler handler;
     private ChannelConfig config;
 
     @BeforeEach
     void setUp() {
-        handler = new WebchatChannelHandler(channelRepository, webchatMessagePublisher);
+        handler = new WebchatChannelHandler(channelRepository, webchatMessagePublisher,
+                webchatMessageRepository, signedFileUrlService);
         config = new ChannelConfig(AGENT_ID, "webchat", IDENTITY, Map.of());
     }
 
@@ -81,6 +93,39 @@ class WebchatChannelHandlerTest {
         void validateConfigRejectsWrongConnector() {
             ChannelConfig wrong = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of());
             assertThrows(ConnectorException.class, () -> handler.validateConfig(wrong));
+        }
+    }
+
+    @Nested
+    @DisplayName("listMessages — собственный лог канала")
+    class ListMessages {
+
+        @Test
+        @DisplayName("строки UI-лога отдаются в форме истории, вложение получает свежую ссылку")
+        void mapsRows() {
+            WebchatMessage message = WebchatMessage.builder()
+                    .id(UUID.randomUUID())
+                    .userId(USER_ID)
+                    .messageId("m-1")
+                    .direction(WebchatMessageDirection.AGENT)
+                    .stream("answer")
+                    .text("готово")
+                    .parts(List.of(Map.of("type", "image", "fileId", "agf_1",
+                            "mime", "image/png", "size", 10)))
+                    .build();
+            when(webchatMessageRepository.findBySessionId(eq(SESSION_ID), any()))
+                    .thenReturn(new PageImpl<>(List.of(message)));
+            when(signedFileUrlService.issue(any())).thenReturn("/files/agf_1");
+
+            SessionMessageResponse row = handler
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0);
+
+            assertEquals("m-1", row.messageId());
+            assertEquals("AGENT", row.direction());
+            assertEquals("answer", row.stream());
+            assertEquals("готово", row.text());
+            assertEquals(1, row.parts().size());
+            assertEquals("/files/agf_1", row.parts().get(0).url());
         }
     }
 

@@ -1,11 +1,18 @@
 package ru.agimate.controlapi.service.channel.handler;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
+import ru.agimate.common.rest.PageRequests;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageResponse;
 import ru.agimate.controlapi.database.entities.Channel;
+import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
+import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
@@ -16,23 +23,28 @@ import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.channel.handler.dto.TriggerDefinition;
 import ru.agimate.controlapi.service.channel.handler.MediaStubs;
 import ru.agimate.controlapi.service.trigger.Trigger;
+import ru.agimate.controlapi.service.webchat.WebchatAttachment;
 import ru.agimate.controlapi.service.webchat.WebchatMessagePublisher;
+import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * The code handler for webchat channels: inbound arrives as ready text from {@code /manage/webchat}
  * (the trigger {@code message_received}), and outbound is delivered without tools — a UI history row
  * ({@code webchat_messages}) plus a Centrifugo event through {@link WebchatMessagePublisher}. The
  * only handler with {@code deliverProgress=true}: the agent's intermediate output is streamed into
- * the chat.
+ * the chat. It is also the only channel that owns its message log ({@link ChannelMessageLog}):
+ * {@code webchat_messages} is the conversation's store, so the platform does not write the generic
+ * projection {@code channel_session_messages} for it.
  */
 @Component
 @RequiredArgsConstructor
-public class WebchatChannelHandler implements ChannelHandler {
+public class WebchatChannelHandler implements ChannelHandler, ChannelMessageLog {
 
     public static final String NAME = "webchat";
     /** Code of the webchat connector — the single source of truth (for channel connectors it equals {@link #NAME}). */
@@ -44,10 +56,28 @@ public class WebchatChannelHandler implements ChannelHandler {
 
     private final ChannelRepository channelRepository;
     private final WebchatMessagePublisher webchatMessagePublisher;
+    private final WebchatMessageRepository webchatMessageRepository;
+    private final SignedFileUrlService signedFileUrlService;
 
     @Override
     public String name() {
         return NAME;
+    }
+
+    /** The UI log is this channel's message store — the platform's generic projection is not written for it. */
+    @Override
+    public Page<SessionMessageResponse> listMessages(UUID userId, UUID sessionId, int page, int size) {
+        // created_at comes from CURRENT_TIMESTAMP, which is the same for every row a run writes in one
+        // transaction — the id (uuidv7) is what keeps a page from repeating or skipping one of them.
+        PageRequest pageRequest = PageRequests.of(page, size,
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
+        return webchatMessageRepository.findBySessionId(sessionId, pageRequest)
+                .map(message -> SessionMessageResponse.from(message, attachments(message)));
+    }
+
+    /** Stored parts plus a fresh signed link to the contents (expired links are never stored). */
+    private List<WebchatAttachment> attachments(WebchatMessage message) {
+        return WebchatAttachment.fromStored(message.getParts(), message.getUserId(), signedFileUrlService::issue);
     }
 
     @Override

@@ -12,6 +12,12 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * The platform's generic projection of a conversation as the channel delivered it — what the user
+ * saw, as opposed to the model's transcript in {@link AgentRunTurn}. Written only for channels whose
+ * handler has no message log of its own ({@code ChannelMessageLog}); webchat keeps its conversation
+ * in {@code webchat_messages} instead.
+ */
 @Entity
 @Table(name = "channel_session_messages", uniqueConstraints =
         @UniqueConstraint(name = "uq_channel_session_messages_run_id_seq", columnNames = {"run_id", "seq"}))
@@ -45,29 +51,12 @@ public class ChannelSessionMessage extends BaseEntity {
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")
     private ChannelSessionMessageKind kind;
 
-    /** Subtype of a PROGRESS message (THINKING/TOOL_CALL/TEXT) — used by the historyDetail filter. */
+    /** Subtype of a PROGRESS message ({@code THINKING}/{@code TOOL_CALL}/{@code TEXT}); informational. */
     @Column(name = "progress_type", columnDefinition = "TEXT")
     private String progressType;
 
-    /**
-     * Every message of a run is written with false; the final ANSWER marks the whole run_id true.
-     * History of later runs sees only completed ones — unfinished and failed runs drop out.
-     */
-    @Column(name = "completed", nullable = false)
-    private boolean completed;
-
     @Column(name = "message", columnDefinition = "TEXT")
     private String message;
-
-    /**
-     * v2.1: the structural record of a tool turn ({@code ToolTurnRecord}: text + calls + results) on
-     * PROGRESS/TOOL_CALL — history of later runs hands it to the worker as native
-     * tool_use/tool_result. Null on every other row. Pre-reform rows may have stored an
-     * old-format serialised LLM turn here — those are distinguishable by kind (REQUEST/RESPONSE).
-     */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "message_json", columnDefinition = "JSONB")
-    private Map<String, Object> messageJson;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "trigger_input", columnDefinition = "JSONB")

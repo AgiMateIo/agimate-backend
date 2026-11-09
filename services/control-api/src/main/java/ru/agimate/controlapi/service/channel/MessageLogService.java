@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
-import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 
@@ -42,9 +41,9 @@ public class MessageLogService {
     public record SaveResult(boolean duplicate, boolean cancelled, boolean steered) {}
 
     public SaveResult save(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
-                           String progressType, String text, ToolTurnRecord toolTurn) {
+                           String progressType, String text) {
         MessageLogPersistence.Persisted persisted = persistence.persist(
-                agentId, triggerId, seq, kind, progressType, text, toolTurn);
+                agentId, triggerId, seq, kind, progressType, text);
         deliverBestEffort(triggerId, agentId, persisted.channels(), kind, progressType, text, seq);
         return new SaveResult(persisted.duplicate(), persisted.cancelRequested(), persisted.steered());
     }

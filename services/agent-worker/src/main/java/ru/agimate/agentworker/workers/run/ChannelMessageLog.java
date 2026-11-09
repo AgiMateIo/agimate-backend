@@ -46,7 +46,7 @@ public class ChannelMessageLog {
         send(MessageKind.MESSAGE_KIND_INBOUND, ProgressType.PROGRESS_TYPE_UNSPECIFIED, "", null);
     }
 
-    /** A progress line; a tool turn's lines also carry its structural record for history. */
+    /** A progress line; a tool turn's lines also carry its structural record — control-api no longer stores it. */
     public void progress(MessageCodec.ProgressLine line) {
         send(MessageKind.MESSAGE_KIND_PROGRESS, line.type(), line.text(), line.toolTurn());
     }

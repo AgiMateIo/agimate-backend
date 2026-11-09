@@ -99,7 +99,8 @@ credentials deliberately stay a separate inline RPC — fetched per call, the ap
 a checkpoint nor outlives the call.
 
 Stage 3 (`SaveMessage`, `SaveTurn`) makes the worker the single writer of both records: the
-channel projection (`channel_session_messages`, the dialogue «as the user saw it») and the
+channel projection (`channel_session_messages`, the dialogue «as the user saw it» — written for
+channels without a message store of their own) and the
 canonical turn ledger (`agent_run_turns`, the model's own message list, tool turns included).
 `GetRunContext.history` is assembled from the ledger, not the projection: finished runs whose
 ledger is intact, a window counted in runs, the parts (`DIALOG`/`TOOLS`/`REASONING`) chosen by

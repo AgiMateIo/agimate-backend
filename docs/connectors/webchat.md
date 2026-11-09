@@ -89,17 +89,17 @@ PostgreSQL совпадает с временным, поэтому сравне
 листингов между страницами нельзя. Каждое из трёх полей — один батч-запрос на страницу, а не запрос
 на строку.
 
-## Две истории
+## Два хранилища, одно на канал
 
 | Таблица | Что хранит | Кто пишет |
 |---|---|---|
-| `channel_session_messages` | LLM-история сессии (turn'ы для восстановления контекста воркером) | worker (gRPC Append) |
-| `webchat_messages` | UI-лог: что реально показано пользователю (USER + AGENT answer/progress) | control-api на границе доставки |
+| `webchat_messages` | собственный лог вебчата: что реально показано пользователю (USER + AGENT answer/progress) | control-api на границе доставки |
+| `channel_session_messages` | общая проекция доставленного для каналов без своего лога (Telegram, ACP) | control-api из `SaveMessage` |
 
-`GET /manage/sessions/{id}/messages/` выбирает таблицу по коннектору сессии и приводит обе к одной
-форме: у канальной записи `messageId`/`parts` приходят `null`, а `kind` становится `stream`
-(`answer`/`progress`/`error`), `INBOUND` — направлением `USER`. Раздвоение хранилища клиенту не
-видно намеренно: день, когда таблицы схлопнутся, не должен ломать API.
+Вебчат объявляет капабилити `ChannelMessageLog` (`WebchatChannelHandler`), поэтому платформа для него
+`channel_session_messages` не пишет. `GET /manage/sessions/{id}/messages/` спрашивает капабилити
+сессии, а без неё читает общую проекцию и приводит обе к одной форме. Раздвоение хранилища клиенту
+не видно намеренно. См. [../decisions/message-stores.md](../decisions/message-stores.md).
 
 ## Файлы
 

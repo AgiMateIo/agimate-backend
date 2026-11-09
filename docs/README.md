@@ -108,6 +108,7 @@ SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
 | [reasoning-content.md](decisions/reasoning-content.md) | Где живёт рассуждение модели: поле сообщения и `thinking_text`, потому что провайдер требует его назад |
 | [run-cancellation.md](decisions/run-cancellation.md) | Остановка рана: кооперативная отмена на шве, drain тул-хода, точка невозврата по `openWorldHint` |
 | [history-from-turn-ledger.md](decisions/history-from-turn-ledger.md) | История сессии из журнала ходов `agent_run_turns`, а не из проекции канала |
+| [message-stores.md](decisions/message-stores.md) | У каждого канала одно платформенное хранилище сообщений — свой лог плагина или общая проекция; поля-копии без читателей удалены (`message_json`, `completed`) |
 | [steering.md](decisions/steering.md) | Сообщение в занятую сессию подхватывает бегущий ран, а не следующий из очереди |
 | [detached-tools.md](decisions/detached-tools.md) | Результат долгого тул-вызова приходит триггером, а не держит ход модели |
 | [mcp-tasks.md](decisions/mcp-tasks.md) | Долгий вызов по MCP отвечает хэндлом таска; таск — строка `tool_call_logs` |

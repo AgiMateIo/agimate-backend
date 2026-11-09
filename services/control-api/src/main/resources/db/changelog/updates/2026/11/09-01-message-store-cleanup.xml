@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Both columns lost their readers when the history moved to the turn ledger
+         (docs/decisions/history-from-turn-ledger.md): message_json was a capped copy of tool turns,
+         completed gated the projection-based history. The delivered projection now keeps text, kind
+         and trigger_input only — docs/decisions/message-stores.md. -->
+    <changeSet id="drop-channel-session-message-copies" author="agimate">
+        <dropColumn tableName="channel_session_messages" columnName="message_json"/>
+        <dropColumn tableName="channel_session_messages" columnName="completed"/>
+    </changeSet>
+
+</databaseChangeLog>

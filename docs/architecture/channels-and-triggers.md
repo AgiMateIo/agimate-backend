@@ -217,12 +217,17 @@ workflow id), на него опирается и доставка, и реес�
 |---|---|
 | `generic` | data-driven: всё поведение из `config`. Покрывает динамические коннекторы (`app`), где триггеры и тулы объявляет само приложение и хендлер в коде написать нельзя |
 | `telegram` | `supportsOutboundAttachments` — ответ может нести файлы |
-| `webchat` | `deliverProgress` + `supportsOutboundAttachments`: промежуточный вывод стримится в чат |
+| `webchat` | `deliverProgress` + `supportsOutboundAttachments` + `ChannelMessageLog`: промежуточный вывод стримится в чат, а `webchat_messages` — собственное хранилище сообщений канала |
 | `acp` | `deliverProgress` + `contributesPromptTools` — канал приносит в контекст тулы своего коннектора мимо гейта скиллов: пока разговор идёт из IDE, агент получает fs/terminal без ручной настройки навыка |
 
 Хендлер объявляет `listOfTriggers`/`listOfTools`, чтобы создание канала могло сгенерировать
 соответствующие правила `AgentConnectionPolicy`, и `getConfigFields` — JSON Schema для формы в UI.
 Внутри слоя бросается только `ConnectorException`.
+
+Капабилити `ChannelMessageLog` — выбор хранилища сообщений: канал с ней пишет свой лог, и платформа
+не пишет для него общую проекцию `channel_session_messages`. Сейчас её реализует только webchat;
+Telegram, ACP и будущие мессенджеры обслуживает проекция. См.
+[../decisions/message-stores.md](../decisions/message-stores.md).
 
 ---
 

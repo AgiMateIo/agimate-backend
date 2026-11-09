@@ -15,8 +15,9 @@ import java.util.List;
  * Projections of loop messages for the channel progress stream ({@code SaveMessage}); no DBOS or
  * transport here. A tool turn goes out as two lines: TOOL_CALL ({@link #progressLines}) with the
  * calls before the dispatch, TOOL_RESULT ({@link #toolResultLine}) with the results after it. Both
- * carry a structured {@link ToolTurn} besides the text — the {@code 🔧}-text alone taught models to
- * imitate tool calls as text instead of calling them.
+ * carry a structured {@link ToolTurn} besides the text; control-api no longer stores it — the
+ * history of later runs comes from the turn ledger — but the field stays on the wire for
+ * compatibility and for delivery-side rendering.
  */
 public final class MessageCodec {
 

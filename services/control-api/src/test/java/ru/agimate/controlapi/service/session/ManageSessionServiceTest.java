@@ -14,18 +14,18 @@ import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageRespons
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
-import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
-import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.AgentRunQueryService;
-import ru.agimate.controlapi.storage.SignedFileUrlService;
+import ru.agimate.controlapi.service.channel.handler.ChannelMessageLog;
+import ru.agimate.controlapi.service.channel.handler.ChannelMessageLogResolver;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -61,7 +61,9 @@ class ManageSessionServiceTest {
     @Mock
     private ChannelSessionMessageRepository channelSessionMessageRepository;
     @Mock
-    private SignedFileUrlService signedFileUrlService;
+    private ChannelMessageLogResolver channelMessageLogResolver;
+    @Mock
+    private ChannelMessageLog channelMessageLog;
 
     private ManageSessionService manageSessionService;
 
@@ -71,7 +73,7 @@ class ManageSessionServiceTest {
     void setUp() {
         SessionRows sessionRows = new SessionRows(agentSessionRepository, webchatMessageRepository, agentRunQueryService);
         manageSessionService = new ManageSessionService(agentSessionService, sessionRows,
-                webchatMessageRepository, channelSessionMessageRepository, signedFileUrlService);
+                channelSessionMessageRepository, channelMessageLogResolver);
         session = AgentSession.builder()
                 .id(SESSION_ID)
                 .userId(USER_ID)
@@ -144,19 +146,14 @@ class ManageSessionServiceTest {
     class ListMessages {
 
         @Test
-        @DisplayName("вебчат — UI-лог с messageId и стримом")
-        void readsWebchatLog() {
+        @DisplayName("канал со своим логом — историю отдаёт плагин (вебчат: messageId и стрим)")
+        void readsOwnLog() {
             when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
-            WebchatMessage message = WebchatMessage.builder()
-                    .id(UUID.randomUUID())
-                    .userId(USER_ID)
-                    .messageId("m-1")
-                    .direction(WebchatMessageDirection.AGENT)
-                    .stream("answer")
-                    .text("готово")
-                    .build();
-            when(webchatMessageRepository.findBySessionId(eq(SESSION_ID), any()))
-                    .thenReturn(new PageImpl<>(List.of(message)));
+            when(channelMessageLogResolver.find(session)).thenReturn(Optional.of(channelMessageLog));
+            SessionMessageResponse expected = new SessionMessageResponse(
+                    UUID.randomUUID(), "m-1", "AGENT", "answer", "готово", null, LocalDateTime.now());
+            when(channelMessageLog.listMessages(USER_ID, SESSION_ID, 0, 50))
+                    .thenReturn(new PageImpl<>(List.of(expected)));
 
             SessionMessageResponse row = manageSessionService
                     .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0);

@@ -35,7 +35,7 @@ enum MessageKind {
   MESSAGE_KIND_UNSPECIFIED = 0;
   MESSAGE_KIND_INBOUND = 1;   // «the agent received it» ack: text is empty, the backend takes the canonical form from trigger_log itself
   MESSAGE_KIND_PROGRESS = 2;  // intermediate output (thinking/tool/text), refined by progress_type
-  MESSAGE_KIND_ANSWER = 3;    // the LLM's final answer; marks every message of the run completed=true
+  MESSAGE_KIND_ANSWER = 3;    // the LLM's final answer; the backend writes it to agent_runs.result
   MESSAGE_KIND_ERROR = 4;     // user-facing notice about a run failure
 }
 
@@ -56,8 +56,9 @@ message SaveMessageRequest {
   string text = 6;              // empty for INBOUND
   // Structural record of a tool turn (protocol v2.1), split across two rows (v2.1a): under
   // PROGRESS/TOOL_CALL only calls (text is the 🔧 channel projection, delivered right away, before
-  // execution), under PROGRESS/TOOL_RESULT only results (text empty, history-only). Into the
-  // history of later runs the backend hands both back as a native tool_use/tool_result pair.
+  // execution), under PROGRESS/TOOL_RESULT only results (text empty). Kept on the wire for
+  // compatibility; control-api no longer stores it — the history of later runs comes from the
+  // canonical turn ledger (agent_run_turns), and the channel projection keeps text only.
   ToolTurn tool_turn = 7;
 }
 

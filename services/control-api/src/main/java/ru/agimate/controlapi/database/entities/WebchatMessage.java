@@ -24,10 +24,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * UI log of the webchat channel: what was actually shown to the user (their messages and the agent's
- * delivered output), as opposed to {@link ChannelSessionMessage} — the session's LLM history.
- * {@code (session_id, message_id)} is unique: the worker sends deterministic {@code message_id}s, so
- * a DBOS replay creates no duplicates.
+ * UI log of the webchat channel — the conversation's own message store: what was actually shown to
+ * the user (their messages and the agent's delivered output). The platform's generic projection for
+ * channels without a store of their own is {@link ChannelSessionMessage}; the model's transcript is
+ * {@link AgentRunTurn}. {@code (session_id, message_id)} is unique: the worker sends deterministic
+ * {@code message_id}s, so a DBOS replay creates no duplicates.
  */
 @Entity
 @Table(name = "webchat_messages", uniqueConstraints = {

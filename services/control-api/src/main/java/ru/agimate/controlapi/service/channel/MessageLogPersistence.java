@@ -9,12 +9,14 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.AgentRun;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentRunTurnService;
-import ru.agimate.controlapi.service.dto.ToolTurnRecord;
+import ru.agimate.controlapi.service.channel.handler.ChannelMessageLog;
+import ru.agimate.controlapi.service.channel.handler.ChannelMessageLogResolver;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.session.AgentSessionService;
@@ -34,8 +36,11 @@ import java.util.UUID;
  * <p>INBOUND is the «agent received it» ack: the worker sends no text, and the canonical form is
  * taken from the trigger's persistent data ({@link InboundTextResolver} / a compact JSON of the
  * event); {@code trigger_input} is filled from {@code trigger_log.input} of a channel message only —
- * the old reply-address lookup for snapshots with no address, which an event must not overwrite. A final ANSWER marks every message of the run {@code completed=true} — only those are
- * visible to the history of later runs.
+ * the old reply-address lookup for snapshots with no address, which an event must not overwrite.
+ *
+ * <p>The generic projection is written only for channels whose handler has no own message log
+ * ({@link ChannelMessageLog}): webchat stores its conversation in {@code webchat_messages} and is
+ * skipped here; external channels and ACP are served by this table.
  */
 @Slf4j
 @Service
@@ -48,6 +53,7 @@ public class MessageLogPersistence {
     private final AgentRunTurnService turnService;
     private final ApplicationEventPublisher eventPublisher;
     private final AgentSessionService agentSessionService;
+    private final ChannelMessageLogResolver channelMessageLogResolver;
 
     /**
      * @param cancelRequested rides back to the worker in the SaveMessage answer — the whole cancel transport
@@ -57,12 +63,9 @@ public class MessageLogPersistence {
      */
     public record Persisted(boolean duplicate, Channels channels, boolean cancelRequested, boolean steered) {}
 
-    /** Cap on a single JSON (arguments or result) in {@code message_json} — it protects a history row from gigantic outputs. */
-    static final int TOOL_JSON_WRITE_CAP = 32 * 1024;
-
     @Transactional
     public Persisted persist(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
-                             String progressType, String text, ToolTurnRecord toolTurn) {
+                             String progressType, String text) {
         AgentRun run = agentRunRepository.findById(triggerId)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + triggerId));
         if (!run.getAgent().getId().equals(agentId)) {
@@ -99,27 +102,27 @@ public class MessageLogPersistence {
         }
 
         // A channel run: those same ANSWER/ERROR are additionally projected into channel_session_messages
-        // (delivery). A direct run with no channel: there is no history row, and the outcome is already recorded
-        // on the run above.
+        // (delivery), unless the channel plugin keeps its own message log. A direct run with no channel:
+        // there is no history row, and the outcome is already recorded on the run above.
         if (sessionId != null) {
-            String message = kind == ChannelSessionMessageKind.INBOUND
-                    ? canonicalInbound(run, channels)
-                    : text;
-            String triggerInput = kind == ChannelSessionMessageKind.INBOUND && channels.prompt() != null
-                    ? JsonUtils.writeValueAsString(run.getTriggerLog().getInput())
-                    : null;
-            String messageJson = toolTurn != null && !toolTurn.isEmpty()
-                    ? JsonUtils.writeValueAsString(capToolTurn(toolTurn))
-                    : null;
-            int inserted = messageRepository.insertIgnoreConflict(
-                    sessionId, agentId, triggerId, seq, kind.name(), progressType, message,
-                    messageJson, triggerInput);
-            duplicate = inserted == 0;
-            if (kind == ChannelSessionMessageKind.ANSWER) {
-                messageRepository.markRunCompleted(triggerId);
-                if (run.getStatus() == RunStatus.DONE) {
-                    eventPublisher.publishEvent(new RunFinished(triggerId, agentId, run.getAgent().getUserId(), sessionId));
-                }
+            // A blank PROGRESS line (TOOL_RESULT) carries nothing to show: the turn lives in the ledger,
+            // and an empty projection row would only be filtered out by every reader.
+            boolean blankProgress = kind == ChannelSessionMessageKind.PROGRESS
+                    && (text == null || text.isBlank());
+            if (!blankProgress && !ownsMessageLog(sessionId)) {
+                String message = kind == ChannelSessionMessageKind.INBOUND
+                        ? canonicalInbound(run, channels)
+                        : text;
+                String triggerInput = kind == ChannelSessionMessageKind.INBOUND && channels.prompt() != null
+                        ? JsonUtils.writeValueAsString(run.getTriggerLog().getInput())
+                        : null;
+                int inserted = messageRepository.insertIgnoreConflict(
+                        sessionId, agentId, triggerId, seq, kind.name(), progressType, message,
+                        triggerInput);
+                duplicate = inserted == 0;
+            }
+            if (kind == ChannelSessionMessageKind.ANSWER && run.getStatus() == RunStatus.DONE) {
+                eventPublisher.publishEvent(new RunFinished(triggerId, agentId, run.getAgent().getUserId(), sessionId));
             }
         }
 
@@ -175,6 +178,12 @@ public class MessageLogPersistence {
         run.setLastActivityAt(LocalDateTime.now());
     }
 
+    /** A channel plugin with its own message log is not projected into the generic store. */
+    private boolean ownsMessageLog(UUID sessionId) {
+        AgentSession session = agentSessionService.getById(sessionId);
+        return channelMessageLogResolver.find(session).isPresent();
+    }
+
     /** The canonical inbound: the channel's text (the same handleInput as at dispatch) or a compact JSON of the event. */
     private String canonicalInbound(AgentRun run, Channels channels) {
         Trigger trigger = Trigger.fromLog(run.getTriggerLog());
@@ -183,30 +192,6 @@ public class MessageLogPersistence {
                     .orElseGet(trigger::compactJson);
         }
         return trigger.compactJson();
-    }
-
-    /**
-     * Capping the JSON fields of a tool turn on write ({@value #TOOL_JSON_WRITE_CAP} characters per
-     * field): session history is not an audit trail (the full data is in tool_call_logs), and a
-     * gigantic tool output must not bloat the row. A truncated value stops being valid JSON — to the
-     * consumer (the LLM's context) it is just a string, and the marker makes the truncation explicit.
-     */
-    private static ToolTurnRecord capToolTurn(ToolTurnRecord turn) {
-        return new ToolTurnRecord(
-                turn.text(),
-                turn.calls().stream()
-                        .map(c -> new ToolTurnRecord.Call(c.id(), c.name(), cap(c.argumentsJson())))
-                        .toList(),
-                turn.results().stream()
-                        .map(r -> new ToolTurnRecord.Result(r.id(), r.name(), cap(r.outputJson()), r.failed()))
-                        .toList());
-    }
-
-    private static String cap(String json) {
-        if (json == null || json.length() <= TOOL_JSON_WRITE_CAP) {
-            return json;
-        }
-        return json.substring(0, TOOL_JSON_WRITE_CAP) + "…[truncated]";
     }
 
 }

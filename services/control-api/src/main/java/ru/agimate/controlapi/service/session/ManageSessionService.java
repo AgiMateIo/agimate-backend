@@ -12,14 +12,11 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.database.entities.AgentSession;
-import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
-import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
-import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
-import ru.agimate.controlapi.service.webchat.WebchatAttachment;
-import ru.agimate.controlapi.storage.SignedFileUrlService;
+import ru.agimate.controlapi.service.channel.handler.ChannelMessageLog;
+import ru.agimate.controlapi.service.channel.handler.ChannelMessageLogResolver;
 
-import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -36,9 +33,8 @@ public class ManageSessionService {
 
     private final AgentSessionService agentSessionService;
     private final SessionRows sessionRows;
-    private final WebchatMessageRepository webchatMessageRepository;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
-    private final SignedFileUrlService signedFileUrlService;
+    private final ChannelMessageLogResolver channelMessageLogResolver;
 
     /** The user's conversations, freshest first; each row is built by {@link SessionRows}. */
     public Page<SessionResponse> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
@@ -80,26 +76,22 @@ public class ManageSessionService {
 
     /**
      * The session's history, newest first (page 0 is the freshest; the frontend reverses it when
-     * rendering). Which store answers is decided by the connector — see
-     * {@link SessionMessageResponse}.
+     * rendering). Which store answers is decided by the channel plugin: a handler with its own
+     * {@link ChannelMessageLog} reads it, everyone else is served by the platform's generic
+     * projection — see {@link SessionMessageResponse}.
      */
     public Page<SessionMessageResponse> listMessages(UUID userId, UUID sessionId, int page, int size) {
         AgentSession session = requireOwned(userId, sessionId);
+        Optional<ChannelMessageLog> ownLog = channelMessageLogResolver.find(session);
+        if (ownLog.isPresent()) {
+            return ownLog.get().listMessages(userId, sessionId, page, size);
+        }
         // created_at comes from CURRENT_TIMESTAMP, which is the same for every row a run writes in one
         // transaction — the id (uuidv7) is what keeps a page from repeating or skipping one of them.
         PageRequest pageRequest = PageRequests.of(page, size,
                 Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
-        if (WebchatChannelHandler.CONNECTOR_CODE.equals(session.getConnectorCode())) {
-            return webchatMessageRepository.findBySessionId(sessionId, pageRequest)
-                    .map(message -> SessionMessageResponse.from(message, attachments(message)));
-        }
         return channelSessionMessageRepository.findWithMessageBySessionId(sessionId, pageRequest)
                 .map(SessionMessageResponse::from);
-    }
-
-    /** Stored parts plus a fresh signed link to the contents (expired links are never stored). */
-    private List<WebchatAttachment> attachments(WebchatMessage message) {
-        return WebchatAttachment.fromStored(message.getParts(), message.getUserId(), signedFileUrlService::issue);
     }
 
     private AgentSession requireOwned(UUID userId, UUID sessionId) {
