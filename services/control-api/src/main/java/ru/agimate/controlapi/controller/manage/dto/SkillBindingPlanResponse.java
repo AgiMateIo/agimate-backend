@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * What binding this skill to this agent would take — the connection wizard's input. The order the
- * wizard must follow: create the missing connection, bind it to the agent, then bind the skill with
- * the connections map keyed by requirement key; the rules are written at that last step and need the
- * binding to exist.
+ * What binding this skill to this agent would take — the connection wizard's input. External
+ * requirements follow the order: create the missing connection, bind it to the agent, then bind the
+ * skill with the connections map keyed by requirement key; the rules are written at that last step
+ * and need the binding to exist. Internal ones are opened by the skill binding itself.
  */
 @Schema(description = "Plan of binding a skill to an agent: per requirement, what fits and what is missing")
 public record SkillBindingPlanResponse(

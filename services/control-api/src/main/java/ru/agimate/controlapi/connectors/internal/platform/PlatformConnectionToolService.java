@@ -270,8 +270,9 @@ public class PlatformConnectionToolService {
 
     @Tool(name = "list_agent_connections",
             description = "List the connector connections bound to an agent (the availability gate): "
-                    + "external instances by id, internal mode rows by code. managedBySkills=true means the "
-                    + "binding came from a skill. Use with list_agent_skills to find missing connections",
+                    + "external instances by id, internal mode rows by code. managedBySkills=true means an "
+                    + "internal connector a skill depends on — unbinding it makes that skill unsatisfied. "
+                    + "Use with list_agent_skills to find missing connections",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public AgentConnectionList listAgentConnections(@ToolParam("Agent public ID") String agentId) {
         UUID agent = PlatformToolsSupport.parseUuid(agentId, "agentId");

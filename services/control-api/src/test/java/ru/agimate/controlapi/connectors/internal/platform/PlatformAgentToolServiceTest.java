@@ -24,7 +24,6 @@ import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.StoredFileRepository;
 import ru.agimate.controlapi.service.AgentService;
-import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.AgentService.AgentCreateResult;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.SkillService;
@@ -51,7 +50,6 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -73,12 +71,10 @@ class PlatformAgentToolServiceTest {
     private final AgentSkillService agentSkillService = mock(AgentSkillService.class);
     private final UserFileService userFileService = mock(UserFileService.class);
 
-    private final ConnectionBindingService connectionBindingService = mock(ConnectionBindingService.class);
-
     private final PlatformAgentToolService agentTools = new PlatformAgentToolService(
             agentRepository, agentSkillRepository, skillRepository,
             storedFileRepository, agentService, skillService, agentSkillService, userFileService,
-            connectionBindingService, mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class),
+            mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class),
             mock(ru.agimate.controlapi.service.AgentStarterService.class));
     private final PlatformConnectorService handler = new PlatformConnectorService(
             agentTools, mock(PlatformConnectionToolService.class), mock(PlatformLlmToolService.class),
@@ -279,46 +275,6 @@ class PlatformAgentToolServiceTest {
             assertEquals(AgentType.GENERIC, captor.getValue().type());
         }
 
-        @Test
-        @DisplayName("skillIds: внутренние коннекторы навыков открываются после создания")
-        void skillIdsOpenInternalConnectors() {
-            UUID agentId = UUID.randomUUID();
-            Agent agent = Agent.builder().id(agentId).userId(USER_ID).name("Meta")
-                    .type(AgentType.GENERIC).build();
-            UUID skillId = UUID.randomUUID();
-            when(agentService.create(eq(USER_ID), any(AgentCreateCommand.class)))
-                    .thenReturn(new AgentCreateResult(agent, null, "key"));
-            when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(
-                    Skill.builder().id(skillId).name("platform").connectors(ConnectorRequirement.ofCodes(List.of("platform"))).build()));
-            when(connectionBindingService.kindOf("platform"))
-                    .thenReturn(ConnectionBindingService.ConnectorKind.INTERNAL);
-
-            handler.executeTool(selfEnv(), "create_agent",
-                    Map.of("name", "Meta", "skillIds", List.of(skillId.toString())));
-
-            verify(connectionBindingService).bindInternal(USER_ID, agentId, "platform");
-        }
-
-        @Test
-        @DisplayName("skillIds: внешние коннекторы не открываются без выбора инстанса")
-        void skillIdsLeaveExternalConnectorsClosed() {
-            UUID agentId = UUID.randomUUID();
-            Agent agent = Agent.builder().id(agentId).userId(USER_ID).name("Meta")
-                    .type(AgentType.GENERIC).build();
-            UUID skillId = UUID.randomUUID();
-            when(agentService.create(eq(USER_ID), any(AgentCreateCommand.class)))
-                    .thenReturn(new AgentCreateResult(agent, null, "key"));
-            when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(
-                    Skill.builder().id(skillId).name("with-telegram")
-                            .connectors(ConnectorRequirement.ofCodes(List.of("telegram"))).build()));
-            when(connectionBindingService.kindOf("telegram"))
-                    .thenReturn(ConnectionBindingService.ConnectorKind.EXTERNAL);
-
-            handler.executeTool(selfEnv(), "create_agent",
-                    Map.of("name", "Meta", "skillIds", List.of(skillId.toString())));
-
-            verify(connectionBindingService, never()).bindInternal(any(), any(), any());
-        }
     }
 
     @Nested
@@ -326,43 +282,16 @@ class PlatformAgentToolServiceTest {
     class BindSkill {
 
         @Test
-        @DisplayName("внутренние коннекторы навыка открываются (как UI-флоу), внешние — нет")
-        void opensInternalConnectorsOnly() {
+        @DisplayName("привязка уходит в AgentSkillService — открытие внутренних коннекторов живёт там")
+        void delegatesToTheSkillService() {
             UUID agentId = UUID.randomUUID();
             UUID skillId = UUID.randomUUID();
-            Skill skill = Skill.builder().id(skillId).name("meta")
-                    .connectors(ConnectorRequirement.ofCodes(List.of("platform", "telegram"))).build();
-            when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(skill));
-            when(connectionBindingService.kindOf("platform"))
-                    .thenReturn(ConnectionBindingService.ConnectorKind.INTERNAL);
-            when(connectionBindingService.kindOf("telegram"))
-                    .thenReturn(ConnectionBindingService.ConnectorKind.EXTERNAL);
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(selfEnv(), "bind_skill",
                     Map.of("agentId", agentId.toString(), "skillId", skillId.toString()));
 
             assertEquals(true, result.get("ok"));
             verify(agentSkillService).create(agentId, skillId, USER_ID);
-            verify(connectionBindingService).bindInternal(USER_ID, agentId, "platform");
-            verify(connectionBindingService, never()).bindInternal(eq(USER_ID), eq(agentId), eq("telegram"));
-        }
-
-        @Test
-        @DisplayName("неизвестный коннектор навыка не роняет привязку")
-        void unknownConnectorIsSkipped() {
-            UUID agentId = UUID.randomUUID();
-            UUID skillId = UUID.randomUUID();
-            Skill skill = Skill.builder().id(skillId).name("legacy")
-                    .connectors(ConnectorRequirement.ofCodes(List.of("gone-connector"))).build();
-            when(skillRepository.findByIdNotDeleted(skillId)).thenReturn(Optional.of(skill));
-            when(connectionBindingService.kindOf("gone-connector"))
-                    .thenReturn(ConnectionBindingService.ConnectorKind.UNKNOWN);
-
-            handler.executeTool(selfEnv(), "bind_skill",
-                    Map.of("agentId", agentId.toString(), "skillId", skillId.toString()));
-
-            verify(agentSkillService).create(agentId, skillId, USER_ID);
-            verify(connectionBindingService, never()).bindInternal(any(), any(), any());
         }
     }
 

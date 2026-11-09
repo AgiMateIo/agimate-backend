@@ -225,9 +225,11 @@ public class AgentSkillService {
 
     /**
      * Bind a skill, recording which instance it means for every requirement it declares
-     * ({@code requested}: requirement key → connection). The reference is not a grant — the tools open
-     * through {@code agent_connections} as before; this only fixes «which of the two telegrams». The
-     * rules the skill declares are written onto the bindings its instances already have.
+     * ({@code requested}: requirement key → connection), and open the internal ones for the agent: a
+     * mode row is their only legal instance, so there is nothing for the user to choose and binding
+     * the skill is the consent. External instances stay the user's to pick — a skill never opens one
+     * and goes unsatisfied until an instance is bound explicitly. The rules the skill declares are
+     * written onto the bindings its instances have.
      *
      * @param disclosure the binding's override of the skill's axis; {@code null} — the skill's own applies
      */
@@ -253,7 +255,9 @@ public class AgentSkillService {
             throw new ConflictStatusException("Skill is already bound to this agent");
         }
 
-        applyPolicies(agentId, skill, storeConnections(agentSkill.getId(), skill, userId, requested));
+        List<AgentSkillConnection> references = storeConnections(agentSkill.getId(), skill, userId, requested);
+        openInternalConnectors(agentId, userId, skill);
+        applyPolicies(agentId, skill, references);
 
         log.info("Bound skill {} to agent {} for user {}", skillId, agentId, userId);
         return response(agentSkill, skill, userId);
@@ -307,9 +311,9 @@ public class AgentSkillService {
             throw new NotFoundStatusException("Agent-skill binding not found");
         }
 
-        // Access is not revoked here: the skill never granted it. The connection stays bound until the
-        // user unbinds it — that is what «skills and connections are managed separately» means. The
-        // rules the skill wrote are its own and leave with it.
+        // Access is not revoked here: a grant is not one skill's to take — another skill, a channel or
+        // the user may rely on the same mode row — so only the user closes it. The rules the skill
+        // wrote are its own and leave with it.
         policySync.remove(agentId, skillId);
         agentSkillRepository.delete(agentSkill);
 
@@ -361,7 +365,9 @@ public class AgentSkillService {
                 .orElseThrow(() -> new NotFoundStatusException("Skill is not bound to this agent"));
 
         agentSkillConnectionRepository.deleteByAgentSkillId(agentSkill.getId());
-        applyPolicies(agentId, skill, storeConnections(agentSkill.getId(), skill, userId, requested));
+        List<AgentSkillConnection> references = storeConnections(agentSkill.getId(), skill, userId, requested);
+        openInternalConnectors(agentId, userId, skill);
+        applyPolicies(agentId, skill, references);
         return response(agentSkill, skill, userId);
     }
 
@@ -689,7 +695,27 @@ public class AgentSkillService {
         return rows;
     }
 
-    /** The skill's rules onto the bindings of the instances it references; unbound instances wait for the wizard's order. */
+    /**
+     * Open the internal connectors the skill declares — a mode row is their only legal instance, so
+     * the user has nothing to choose and binding the skill is the consent. External codes are
+     * untouched (an instance is the user's to pick), unknown ones have no instance at all. Runs before
+     * {@link #applyPolicies}, which writes the declared rules onto an existing binding.
+     */
+    private void openInternalConnectors(UUID agentId, UUID userId, Skill skill) {
+        // An app skill owns exactly its origin instance — nothing internal is addressable through it.
+        if (skill.getOriginConnectionId() != null) {
+            return;
+        }
+        Set<String> codes = new LinkedHashSet<>();
+        for (ConnectorRequirement requirement : skill.getConnectors()) {
+            if (connectionBindingService.kindOf(requirement.code()) == ConnectorKind.INTERNAL) {
+                codes.add(requirement.code());
+            }
+        }
+        codes.forEach(code -> connectionBindingService.bindInternal(userId, agentId, code));
+    }
+
+    /** The skill's rules onto the bindings of the instances it references; an unbound external instance waits for the wizard's order. */
     private void applyPolicies(UUID agentId, Skill skill, List<AgentSkillConnection> references) {
         for (AgentSkillConnection reference : references) {
             ConnectorRequirement requirement = skill.requirement(reference.getConnectorKey());

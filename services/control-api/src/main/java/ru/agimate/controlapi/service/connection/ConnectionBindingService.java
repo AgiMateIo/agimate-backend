@@ -36,10 +36,10 @@ import java.util.stream.Collectors;
  * <p>Internal connectors (board/memory/time/media/webchat/acp): a connection is a mode row, <b>one per
  * user</b> ({@link #ensureModeConnection}, find-or-create by {@code (connector_code, user_id)}). The
  * data's owner is resolved by the connector's code at call time from {@code ConnectorEnv} (the rule is
- * the connector's knowledge, see docs/architecture/connectors.md). Access is granted the same way as
- * for an external instance — by the user, through the manage API — except that the connector is named
- * by code, because the mode row may not exist yet. The channel services (webchat/acp) also open one
- * through {@link #bindInternal} when they create a channel.
+ * the connector's knowledge, see docs/architecture/connectors.md). Access is granted by the user
+ * through the manage API — the connector is named by code, because the mode row may not exist yet —
+ * by the channel services when they create a channel, and by binding a skill that declares the
+ * connector: the mode row is the only legal instance, so there is nothing for the user to choose.
  *
  * <p>External connectors (telegram/mcp/app): a connection is a concrete instance with credentials, and
  * binding is only ever to an existing id ({@link #ensureBindingToExisting}).
@@ -116,9 +116,10 @@ public class ConnectionBindingService {
     /**
      * A binding together with its connection — for the manage API (the list and the binding response).
      *
-     * @param managedBySkills the binding belongs to an internal connector, so it is not removable here:
-     *                        skills are its source of truth. Computed rather than left to the caller —
-     *                        otherwise every client would have to keep its own list of internal codes.
+     * @param managedBySkills the binding belongs to an internal connector, so a skill may depend on it
+     *                        and unbinding makes that skill unsatisfied. Computed rather than left to
+     *                        the caller — otherwise every client would have to keep its own list of
+     *                        internal codes.
      */
     public record AgentConnectionView(AgentConnection binding, Connection connection, boolean managedBySkills) {}
 
@@ -211,9 +212,9 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Close a connector for an agent. Any kind: nothing recreates a binding behind the user's back —
-     * a skill only declares the instance it means — so this is the last word, and the skills that
-     * pointed at this instance simply go unsatisfied.
+     * Close a connector for an agent. Any kind: only a new consent recreates it — binding a skill that
+     * declares an internal connector, or the user binding the instance again — so this is the last
+     * word, and the skills that pointed at this instance simply go unsatisfied.
      */
     @Transactional
     public void unbind(UUID userId, UUID agentId, UUID connectionId) {

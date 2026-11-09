@@ -51,10 +51,10 @@ import ru.agimate.controlapi.database.repositories.TriggerLogRepository;
 import ru.agimate.controlapi.database.repositories.WebhookDeliveryLogRepository;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.AgentSkillService;
-import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.SkillService;
 import ru.agimate.controlapi.service.AgentLlmService;
 import ru.agimate.controlapi.service.channel.ChannelService;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.connection.ConnectionService;
 import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 import ru.agimate.controlapi.service.session.AgentSessionService;
@@ -104,13 +104,12 @@ class McpAdminSurfaceTest {
     private final ConnectionToolRepository connectionToolRepository = mock(ConnectionToolRepository.class);
     private final ConnectionAccessEvaluator accessEvaluator = mock(ConnectionAccessEvaluator.class);
 
-    private final ConnectionBindingService connectionBindingService = mock(ConnectionBindingService.class);
     private final AgentSkillService agentSkillService = mock(AgentSkillService.class);
 
     private final PlatformAgentToolService agentTools = new PlatformAgentToolService(
             agentRepository, agentSkillRepository, skillRepository, storedFileRepository,
             mock(AgentService.class), mock(SkillService.class), agentSkillService,
-            mock(ru.agimate.controlapi.service.file.UserFileService.class), connectionBindingService,
+            mock(ru.agimate.controlapi.service.file.UserFileService.class),
             mock(ru.agimate.controlapi.service.seed.ContentLanguageResolver.class),
             mock(ru.agimate.controlapi.service.AgentStarterService.class));
     private final PlatformConnectionToolService connectionTools = new PlatformConnectionToolService(

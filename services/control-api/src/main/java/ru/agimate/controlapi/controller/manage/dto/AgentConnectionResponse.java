@@ -27,7 +27,7 @@ public record AgentConnectionResponse(
         @Schema(description = "Whether the connection is enabled")
         boolean enabled,
 
-        @Schema(description = "Binding of an internal connector: not removable here, its source of truth is the agent's skills")
+        @Schema(description = "Internal connector bound by a skill: unbinding it makes that skill unsatisfied")
         boolean managedBySkills,
 
         @Schema(description = "How many of the agent's skills work with this instance — what breaks if it is unbound")

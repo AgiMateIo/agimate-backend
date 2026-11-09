@@ -61,6 +61,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -225,6 +226,46 @@ class AgentSkillServiceTest {
             assertEquals(1, links.size());
             assertEquals("persist-memory", links.get(0).getConnectorKey());
             assertEquals(MEMORY_MODE_ID, links.get(0).getConnectionId());
+        }
+
+        @Test
+        @DisplayName("внутренний коннектор открывается агенту: экземпляр один, выбирать нечего")
+        void internalConnectorIsOpened() {
+            skill("persist-memory");
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
+
+            verify(connectionBindingService).bindInternal(USER_ID, AGENT_ID, "persist-memory");
+        }
+
+        @Test
+        @DisplayName("внешний коннектор навык не открывает — инстанс выбирает пользователь")
+        void externalConnectorIsNotOpened() {
+            skill("telegram");
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
+
+            verify(connectionBindingService, never()).bindInternal(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("неизвестный код не открывается — открывать нечего")
+        void unknownConnectorIsNotOpened() {
+            skill("ghost");
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
+
+            verify(connectionBindingService, never()).bindInternal(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("два ключа одного внутреннего кода открывают его один раз")
+        void oneInternalCodeOpensOnce() {
+            skill(List.of(requirement("persist-memory", "first"), requirement("persist-memory", "second")));
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
+
+            verify(connectionBindingService, times(1)).bindInternal(USER_ID, AGENT_ID, "persist-memory");
         }
 
         @Test
@@ -547,6 +588,18 @@ class AgentSkillServiceTest {
 
         verify(agentSkillConnectionRepository).deleteByAgentSkillId(AGENT_SKILL_ID);
         assertEquals(TELEGRAM_ID, savedLinks().get(0).getConnectionId());
+    }
+
+    @Test
+    @DisplayName("замена ссылок открывает внутренний коннектор, который выбрал сервер")
+    void replaceConnectionsOpensInternal() {
+        skill("persist-memory");
+        when(agentSkillRepository.findByAgentIdAndSkillId(AGENT_ID, SKILL_ID)).thenReturn(Optional.of(
+                AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID).userId(USER_ID).skillId(SKILL_ID).build()));
+
+        service.replaceConnections(AGENT_ID, SKILL_ID, USER_ID, Map.of());
+
+        verify(connectionBindingService).bindInternal(USER_ID, AGENT_ID, "persist-memory");
     }
 
     @Nested

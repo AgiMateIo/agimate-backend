@@ -48,7 +48,6 @@ import ru.agimate.controlapi.service.SystemSkillBootstrap;
 import ru.agimate.controlapi.service.dto.agent.AgentCreateCommand;
 import ru.agimate.controlapi.service.dto.agent.AgentStarters;
 import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
-import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.file.UserFileService;
 import ru.agimate.controlapi.service.seed.ContentLanguageResolver;
 import ru.agimate.controlapi.storage.FileIds;
@@ -86,7 +85,6 @@ public class PlatformAgentToolService {
     private final SkillService skillService;
     private final AgentSkillService agentSkillService;
     private final UserFileService userFileService;
-    private final ConnectionBindingService connectionBindingService;
     private final ContentLanguageResolver contentLanguageResolver;
     private final AgentStarterService agentStarterService;
 
@@ -158,16 +156,6 @@ public class PlatformAgentToolService {
                 PlatformToolsSupport.parseUuidOrNull(teamId, "teamId"), skills, null,
                 PlatformToolsSupport.callerLanguage(agentRepository, contentLanguageResolver));
         var result = PlatformToolsSupport.domain(() -> agentService.create(PlatformToolsSupport.userId(), command));
-        // The same second step the UI performs after creating an agent from a preset: a skill binding
-        // is a declaration, and the agent only reaches the skill's tools once its connectors are open.
-        // Internal connectors have exactly one instance per user, so the server opens them without
-        // asking; external ones need an instance chosen (bind_connection) and stay a declaration.
-        if (skills != null) {
-            PlatformToolsSupport.domain(() -> {
-                openInternalSkillConnectors(result.agent().getId(), skills);
-                return null;
-            });
-        }
         return new CreatedAgent(result.agent().getId().toString(), result.agent().getName(),
                 frontendBaseUrl + "/dashboard/agents/" + result.agent().getId());
     }
@@ -504,9 +492,6 @@ public class PlatformAgentToolService {
         PlatformToolsSupport.requireNotSelf(agent);
         UUID skill = PlatformToolsSupport.parseUuid(skillId, "skillId");
         PlatformToolsSupport.domain(() -> {
-            // The UI's bind flow opens the skill's connectors as a separate step; the tool does both —
-            // bindings first, because the skill's rules are written onto bindings that already exist.
-            openInternalSkillConnectors(agent, List.of(skill));
             agentSkillService.create(agent, skill, PlatformToolsSupport.userId());
             return null;
         });
@@ -552,26 +537,6 @@ public class PlatformAgentToolService {
                 .map(PlatformAgentToolService::toFileBrief)
                 .toList();
         return new FileList(briefs, PlatformToolsSupport.truncated(page));
-    }
-
-
-    /**
-     * Opens the internal connectors a set of skills declares, mirroring the UI's {@code openAgentAccess}
-     * step: for an INTERNAL connector the mode row is the single legal instance, so the server opens
-     * it without asking; EXTERNAL connectors need a user-chosen instance and UNKNOWN codes have no
-     * instance at all — both stay closed, and the skill reads as unsatisfied until bound explicitly.
-     */
-    private void openInternalSkillConnectors(UUID agentId, List<UUID> skillIds) {
-        UUID userId = PlatformToolsSupport.userId();
-        for (UUID skillId : skillIds) {
-            skillRepository.findByIdNotDeleted(skillId).ifPresent(skill -> {
-                for (String code : skill.getConnectorCodes()) {
-                    if (connectionBindingService.kindOf(code) == ConnectionBindingService.ConnectorKind.INTERNAL) {
-                        connectionBindingService.bindInternal(userId, agentId, code);
-                    }
-                }
-            });
-        }
     }
 
 

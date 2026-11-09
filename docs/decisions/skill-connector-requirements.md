@@ -9,6 +9,10 @@ implemented: 2026-09-14
 > С 2026-10-23 экземпляр находится не через `identifierOf(params)` → `sub_code`, а по открытой части
 > учётных данных подключения (`connections.params @> params`); `identifierOf` и
 > `SkillConnectorStatus.identity` удалены — [skills-for-connection.md](skills-for-connection.md).
+>
+> С 2026-11-09 привязка навыка открывает его внутренние коннекторы: строка-режим — единственный
+> легальный экземпляр, выбора нет. Внешние по-прежнему выбирает пользователь, удаление навыка грант не
+> снимает — [skill-binding-opens-internal-connectors.md](skill-binding-opens-internal-connectors.md).
 
 Навык сегодня объявляет только **коды** коннекторов (`connectors: [mcp, persist-memory]`). Этого
 хватало, пока внешний коннектор был один и у пользователя был один его экземпляр. Навык «программист»

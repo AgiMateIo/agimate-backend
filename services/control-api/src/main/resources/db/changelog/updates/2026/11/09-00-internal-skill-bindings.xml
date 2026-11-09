@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Binding a skill now opens the internal connectors it declares: a mode row is the only legal
+      instance, so there is nothing for the user to choose and the skill binding is the consent
+      (docs/decisions/skill-binding-opens-internal-connectors.md). Existing skill references were
+      supposed to be opened by the client's wizard, and the server-side installs — the agents skill
+      added to an agent created in a team, create_agent/bind_skill of the platform connector — were
+      the ones that skipped the step. This brings the data in line.
+
+      Only mode rows are touched: full_code = connector_code || '_' || user_id is how
+      ConnectionBindingService.createModeConnection spells them; an external instance (telegram, mcp,
+      app) is the user's to pick and is never opened by a skill. A soft-deleted binding means the
+      user or a channel already closed it — their decision stands, so the whole row (not just an
+      active one) is the guard against re-opening.
+    -->
+    <changeSet id="open-internal-connectors-of-bound-skills" author="agimate">
+        <sql>
+            INSERT INTO agent_connections (agent_id, connection_id)
+            SELECT DISTINCT ags.agent_id, ask.connection_id
+            FROM agent_skill_connections ask
+                     JOIN agent_skills ags ON ags.id = ask.agent_skill_id
+                     JOIN agents a ON a.id = ags.agent_id AND a.deleted_at IS NULL
+                     JOIN connections c ON c.id = ask.connection_id
+                AND c.deleted_at IS NULL AND c.user_id = a.user_id
+            WHERE c.full_code = c.connector_code || '_' || c.user_id
+              AND NOT EXISTS (SELECT 1
+                              FROM agent_connections ac
+                              WHERE ac.agent_id = ags.agent_id
+                                AND ac.connection_id = ask.connection_id)
+            ON CONFLICT (agent_id, connection_id) WHERE deleted_at IS NULL DO NOTHING;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
