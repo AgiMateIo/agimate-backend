@@ -591,7 +591,7 @@ class AgentSkillServiceTest {
     }
 
     @Test
-    @DisplayName("замена ссылок открывает внутренний коннектор, который выбрал сервер")
+    @DisplayName("замена ссылок открывает внутренний коннектор, не отменяя явную отвязку")
     void replaceConnectionsOpensInternal() {
         skill("persist-memory");
         when(agentSkillRepository.findByAgentIdAndSkillId(AGENT_ID, SKILL_ID)).thenReturn(Optional.of(
@@ -599,7 +599,8 @@ class AgentSkillServiceTest {
 
         service.replaceConnections(AGENT_ID, SKILL_ID, USER_ID, Map.of());
 
-        verify(connectionBindingService).bindInternal(USER_ID, AGENT_ID, "persist-memory");
+        verify(connectionBindingService).bindInternalIfNeverBound(USER_ID, AGENT_ID, "persist-memory");
+        verify(connectionBindingService, never()).bindInternal(USER_ID, AGENT_ID, "persist-memory");
     }
 
     @Nested

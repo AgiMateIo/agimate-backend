@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -190,6 +191,50 @@ class ConnectionBindingServiceTest {
 
             assertTrue(service.listForConnection(USER_ID, CONNECTION_ID).isEmpty());
             verify(agentRepository, never()).findAllById(anyList());
+        }
+    }
+
+    @Nested
+    @DisplayName("Открытие внутреннего коннектора навыком")
+    class InternalBindingOfSkill {
+
+        private static final String CODE = "persist-memory";
+
+        private void modeConnection() {
+            InternalConnectorHandler handler = mock(InternalConnectorHandler.class);
+            when(connectorRegistry.findHandler(CODE)).thenReturn(Optional.of(handler));
+            Connection mode = new Connection();
+            mode.setId(CONNECTION_ID);
+            mode.setUserId(USER_ID);
+            when(connectionRepository.findByUserIdAndConnectorCodeNotDeleted(USER_ID, CODE))
+                    .thenReturn(List.of(mode));
+        }
+
+        @Test
+        @DisplayName("явная отвязка (soft-deleted строка) остаётся: строка есть — не открываем")
+        void softDeletedStaysClosed() {
+            UUID agentId = UUID.randomUUID();
+            modeConnection();
+            when(agentConnectionRepository.existsByAgentIdAndConnectionId(agentId, CONNECTION_ID)).thenReturn(true);
+
+            service.bindInternalIfNeverBound(USER_ID, agentId, CODE);
+
+            verify(agentConnectionRepository, never()).insertBindingIfAbsent(any(), any());
+            verifyNoInteractions(accessEvaluator);
+        }
+
+        @Test
+        @DisplayName("ни одной строки, включая soft-deleted, — открываем")
+        void neverBoundOpens() {
+            UUID agentId = UUID.randomUUID();
+            modeConnection();
+            when(agentConnectionRepository.existsByAgentIdAndConnectionId(agentId, CONNECTION_ID)).thenReturn(false);
+            when(agentConnectionRepository.findActiveBinding(agentId, CONNECTION_ID))
+                    .thenReturn(Optional.of(binding(agentId)));
+
+            service.bindInternalIfNeverBound(USER_ID, agentId, CODE);
+
+            verify(agentConnectionRepository).insertBindingIfAbsent(agentId, CONNECTION_ID);
         }
     }
 

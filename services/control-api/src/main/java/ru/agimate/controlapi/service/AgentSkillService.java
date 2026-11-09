@@ -366,7 +366,7 @@ public class AgentSkillService {
 
         agentSkillConnectionRepository.deleteByAgentSkillId(agentSkill.getId());
         List<AgentSkillConnection> references = storeConnections(agentSkill.getId(), skill, userId, requested);
-        openInternalConnectors(agentId, userId, skill);
+        openInternalConnectorsIfNeverBound(agentId, userId, skill);
         applyPolicies(agentId, skill, references);
         return response(agentSkill, skill, userId);
     }
@@ -702,17 +702,31 @@ public class AgentSkillService {
      * {@link #applyPolicies}, which writes the declared rules onto an existing binding.
      */
     private void openInternalConnectors(UUID agentId, UUID userId, Skill skill) {
-        // An app skill owns exactly its origin instance — nothing internal is addressable through it.
-        if (skill.getOriginConnectionId() != null) {
-            return;
-        }
+        internalCodes(skill).forEach(code -> connectionBindingService.bindInternal(userId, agentId, code));
+    }
+
+    /**
+     * The same for a replaced reference set, which is not a new consent to the connector: a code the
+     * user explicitly unbound (a soft-deleted row) stays closed, while one never bound — a declaration
+     * the author added in a new version — opens.
+     */
+    private void openInternalConnectorsIfNeverBound(UUID agentId, UUID userId, Skill skill) {
+        internalCodes(skill).forEach(code ->
+                connectionBindingService.bindInternalIfNeverBound(userId, agentId, code));
+    }
+
+    /** An app skill owns exactly its origin instance — nothing internal is addressable through it. */
+    private Set<String> internalCodes(Skill skill) {
         Set<String> codes = new LinkedHashSet<>();
+        if (skill.getOriginConnectionId() != null) {
+            return codes;
+        }
         for (ConnectorRequirement requirement : skill.getConnectors()) {
             if (connectionBindingService.kindOf(requirement.code()) == ConnectorKind.INTERNAL) {
                 codes.add(requirement.code());
             }
         }
-        codes.forEach(code -> connectionBindingService.bindInternal(userId, agentId, code));
+        return codes;
     }
 
     /** The skill's rules onto the bindings of the instances it references; an unbound external instance waits for the wizard's order. */

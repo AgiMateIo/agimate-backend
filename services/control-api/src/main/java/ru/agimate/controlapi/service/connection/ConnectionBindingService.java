@@ -71,6 +71,21 @@ public class ConnectionBindingService {
         return ensureBinding(agentId, connection.getId());
     }
 
+    /**
+     * Open an internal connector only when the agent never had a binding to its mode row: a
+     * soft-deleted row is the user's explicit unbind and stands. This is the path for a skill whose
+     * instance references are being replaced — unlike binding the skill itself, that is not a new
+     * consent to the connector.
+     */
+    @Transactional
+    public void bindInternalIfNeverBound(UUID userId, UUID agentId, String connectorCode) {
+        Connection connection = ensureModeConnection(userId, connectorCode);
+        if (agentConnectionRepository.existsByAgentIdAndConnectionId(agentId, connection.getId())) {
+            return;
+        }
+        ensureBinding(agentId, connection.getId());
+    }
+
     /** The mode row of an internal connector (one per user): find-or-create. */
     @Transactional
     public Connection ensureModeConnection(UUID userId, String connectorCode) {

@@ -20,9 +20,10 @@ import java.util.UUID;
  * connectors a connection is a mode row, one per user: all of that user's agents using the connector
  * point at it, and the data owner is resolved by the connector's code from {@code ConnectorEnv}.
  * Every binding is the user's explicit decision — internal connectors included (they are addressed by
- * code, their mode row is materialised on the spot). Skills do not create or remove bindings: they
- * declare which instance they work with and go unsatisfied while it is not open. The exception is a
- * channel (webchat/acp), which creates its binding together with itself.
+ * code, their mode row is materialised on the spot). A skill opens the internal connectors it declares
+ * when it is bound, but never removes a binding: it declares which instance it works with and goes
+ * unsatisfied while it is not open. The exception is a channel (webchat/acp), which creates its
+ * binding together with itself.
  *
  * <p>Tools are allowed by default once a binding exists; {@link AgentConnectionPolicy} only refines
  * that (DENY of specific ones, an allow-list via a wildcard, {@code params_filter}).

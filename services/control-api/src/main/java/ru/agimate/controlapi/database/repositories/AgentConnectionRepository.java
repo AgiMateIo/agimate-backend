@@ -37,6 +37,12 @@ public interface AgentConnectionRepository extends JpaRepository<AgentConnection
     List<AgentConnection> findActiveByConnectionId(@Param("connectionId") UUID connectionId);
 
     /**
+     * Any row of the pair, a soft-deleted one included: «was this pair ever bound». A soft-deleted
+     * row is the user's explicit unbind, so opening must not silently resurrect it.
+     */
+    boolean existsByAgentIdAndConnectionId(UUID agentId, UUID connectionId);
+
+    /**
      * Idempotent binding: an INSERT that silently loses the race on the partial index
      * {@code uq_agent_connections_agent_id_connection_id_active} (see the rationale on
      * {@code ConnectionRepository.insertModeConnectionIfAbsent}). {@code id} and the timestamps come
