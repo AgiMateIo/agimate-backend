@@ -16,9 +16,11 @@ import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
 import ru.agimate.controlapi.realtime.RealtimeEvent.AppToolCall;
 import ru.agimate.controlapi.realtime.RealtimeEvent.BoardTaskChanged;
 import ru.agimate.controlapi.realtime.RealtimeEvent.SessionChanged;
+import ru.agimate.controlapi.realtime.RealtimeEvent.SessionToolCallUpdated;
 import ru.agimate.controlapi.realtime.RealtimeEvent.WebchatMessageRecorded;
 import ru.agimate.controlapi.realtime.RealtimeMessages.Message;
 import ru.agimate.controlapi.realtime.dto.CentrifugoMessage;
+import ru.agimate.controlapi.realtime.dto.SessionToolCallPayload;
 import ru.agimate.controlapi.realtime.dto.ToolCallPayload;
 import ru.agimate.controlapi.realtime.dto.WebchatMessagePayload;
 import ru.agimate.controlapi.controller.manage.dto.agentrequest.AgentRequestResponse;
@@ -64,6 +66,20 @@ class RealtimeMessagesTest {
 
     private static String type(Message message) {
         return ((CentrifugoMessage<?>) message.data()).type();
+    }
+
+    @Test
+    @DisplayName("session.tool_call: результаты вызовов — сигнал в user: с тегами сессии")
+    void sessionToolCall() {
+        List<Message> out = messages.render(
+                new SessionToolCallUpdated(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2")));
+
+        assertEquals(1, out.size());
+        assertEquals(USER, out.get(0).channel());
+        assertEquals("session.tool_call", type(out.get(0)));
+        assertEquals(new SessionToolCallPayload(SESSION_ID, List.of("c1", "c2")), payload(out.get(0)));
+        assertEquals(Map.of("entity", "session.tool_call", "agentId", AGENT_ID.toString(),
+                "sessionId", SESSION_ID.toString()), out.get(0).tags());
     }
 
     @Nested
@@ -124,7 +140,7 @@ class RealtimeMessagesTest {
         private WebchatMessageRecorded message(String direction, String stream, String text,
                                                List<Map<String, Object>> parts) {
             return new WebchatMessageRecorded(USER_ID, AGENT_ID, UUID.randomUUID(), SESSION_ID, "m1",
-                    direction, stream, text, parts, "2026-09-22T10:00:00Z");
+                    direction, stream, text, parts, null, "2026-09-22T10:00:00Z");
         }
 
         @Test

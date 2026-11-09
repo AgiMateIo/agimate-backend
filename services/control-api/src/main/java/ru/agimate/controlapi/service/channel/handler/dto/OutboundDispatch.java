@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.channel.handler.dto;
 
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,6 +22,9 @@ import java.util.UUID;
  * @param runId        the run whose output this is; {@code null} for a platform line with no run behind
  *                     it (the stop command's reply). The subagent channel needs it: its output is
  *                     the report of exactly that run
+ * @param toolCallIds  ids of the tool calls a {@code TOOL_CALL} line names, in call order; empty on
+ *                     every other line. The channel stores the ids with the message; an inline view
+ *                     resolves its data from them (docs/decisions/connector-views.md)
  */
 public record OutboundDispatch(
         String messageId,
@@ -29,11 +33,17 @@ public record OutboundDispatch(
         UUID channelId,
         UUID sessionId,
         Map<String, Object> address,
-        UUID runId
+        UUID runId,
+        List<String> toolCallIds
 ) {
 
     public OutboundDispatch(String messageId, String stream, String progressType, UUID channelId,
                             UUID sessionId, Map<String, Object> address) {
-        this(messageId, stream, progressType, channelId, sessionId, address, null);
+        this(messageId, stream, progressType, channelId, sessionId, address, null, List.of());
+    }
+
+    public OutboundDispatch(String messageId, String stream, String progressType, UUID channelId,
+                            UUID sessionId, Map<String, Object> address, UUID runId) {
+        this(messageId, stream, progressType, channelId, sessionId, address, runId, List.of());
     }
 }

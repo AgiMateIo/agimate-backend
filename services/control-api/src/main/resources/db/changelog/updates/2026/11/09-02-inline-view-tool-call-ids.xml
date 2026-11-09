@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Inline connector views (docs/decisions/connector-views.md, phase 2): a delivered tool-call
+         line names its calls, and the view data is resolved read-time from tool_call_logs. Ids only —
+         arguments and results are not copied into the message store (docs/decisions/message-stores.md).
+         The column lives in the store the channel already owes its messages: webchat_messages for
+         webchat, the generic projection for every other channel. -->
+    <changeSet id="add-message-tool-call-ids" author="agimate">
+        <addColumn tableName="webchat_messages">
+            <column name="tool_call_ids" type="JSONB"/>
+        </addColumn>
+        <addColumn tableName="channel_session_messages">
+            <column name="tool_call_ids" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

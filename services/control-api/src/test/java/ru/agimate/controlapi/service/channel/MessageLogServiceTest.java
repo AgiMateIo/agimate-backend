@@ -28,11 +28,14 @@ import ru.agimate.controlapi.service.trigger.RunFinished;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import ru.agimate.controlapi.realtime.RealtimeEvent.SessionToolCallUpdated;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -119,14 +122,14 @@ class MessageLogServiceTest {
             run(SESSION_ID, dialogueChannels());
             when(inboundTextResolver.resolveText(eq(PROMPT_CHANNEL), any())).thenReturn(Optional.of("hi"));
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), isNull(), anyString(), anyString())).thenReturn(1);
+                    anyString(), isNull(), anyString(), anyString(), isNull())).thenReturn(1);
 
             var result = service.save(AGENT_ID, TRIGGER_ID, 0,
                     ChannelSessionMessageKind.INBOUND, null, "");
 
             assertFalse(result.duplicate());
             verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
-                    eq(0), eq("INBOUND"), isNull(), eq("hi"), contains("\"text\""));
+                    eq(0), eq("INBOUND"), isNull(), eq("hi"), contains("\"text\""), isNull());
             verifyNoInteractions(outboundService);
         }
 
@@ -135,12 +138,12 @@ class MessageLogServiceTest {
         void eventInboundKeepsNoTriggerInput() {
             run(SESSION_ID, new Channels(null, null, new ChannelInfo(PROMPT_CHANNEL, SESSION_ID, null)));
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), isNull(), anyString(), isNull())).thenReturn(1);
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
 
             service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "");
 
             verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
-                    eq(0), eq("INBOUND"), isNull(), contains("\"text\""), isNull());
+                    eq(0), eq("INBOUND"), isNull(), contains("\"text\""), isNull(), isNull());
         }
 
         @Test
@@ -148,7 +151,7 @@ class MessageLogServiceTest {
         void duplicate() {
             run(SESSION_ID, dialogueChannels());
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), anyString(), anyString(), isNull())).thenReturn(0);
+                    anyString(), anyString(), anyString(), isNull(), isNull())).thenReturn(0);
 
             var result = service.save(AGENT_ID, TRIGGER_ID, 3,
                     ChannelSessionMessageKind.PROGRESS, "TOOL_CALL", "🔧 get_tasks");
@@ -163,7 +166,7 @@ class MessageLogServiceTest {
         void answerCompletesRun() {
             AgentRun run = run(SESSION_ID, dialogueChannels());
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), isNull(), anyString(), isNull())).thenReturn(1);
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
 
             service.save(AGENT_ID, TRIGGER_ID, 5, ChannelSessionMessageKind.ANSWER, null, "done");
 
@@ -172,6 +175,39 @@ class MessageLogServiceTest {
             verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, null, SESSION_ID));
             // The finish takes «working now» off the chat list.
             verify(agentSessionService).runStateChanged(SESSION_ID);
+        }
+
+        @Test
+        @DisplayName("TOOL_CALL: в проекцию едут только идентификаторы вызовов, сами вызовы — нет")
+        void toolCallIdsProjected() {
+            run(SESSION_ID, dialogueChannels());
+            when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(), anyString(), anyString(),
+                    anyString(), any(), anyString())).thenReturn(1);
+
+            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TOOL_CALL",
+                    "\uD83D\uDD27 get_memory",
+                    new ToolTurnRecord("", List.of(new ToolTurnRecord.Call("c1", "get_memory", "{\"q\":1}")), List.of()));
+
+            var idsJson = org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID), eq(2),
+                    eq("PROGRESS"), eq("TOOL_CALL"), eq("\uD83D\uDD27 get_memory"), isNull(), idsJson.capture());
+            assertEquals("[\"c1\"]", idsJson.getValue());
+        }
+
+        @Test
+        @DisplayName("TOOL_RESULT: в хранилище ничего, но вью получает сигнал, какие вызовы готовы")
+        void toolResultSignalsViews() {
+            run(SESSION_ID, dialogueChannels());
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.PROGRESS, "TOOL_RESULT", "",
+                    new ToolTurnRecord("", List.of(), List.of(
+                            new ToolTurnRecord.Result("c1", "get_memory", "{}", false, null),
+                            new ToolTurnRecord.Result("c2", "get_memory_notes", "{}", false, null))));
+
+            verifyNoInteractions(messageRepository);
+            verifyNoInteractions(outboundService);
+            verify(eventPublisher).publishEvent(new SessionToolCallUpdated(
+                    null, AGENT_ID, SESSION_ID, List.of("c1", "c2")));
         }
 
         @Test
@@ -205,7 +241,7 @@ class MessageLogServiceTest {
         void answerStampsLedgerVerdict() {
             AgentRun run = run(SESSION_ID, dialogueChannels());
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), isNull(), anyString(), isNull())).thenReturn(1);
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
             when(turnService.isLedgerIntact(TRIGGER_ID)).thenReturn(false);
 
             service.save(AGENT_ID, TRIGGER_ID, 5, ChannelSessionMessageKind.ANSWER, null, "done");
@@ -218,7 +254,7 @@ class MessageLogServiceTest {
         void channelErrorRecordsOnRun() {
             AgentRun run = run(SESSION_ID, dialogueChannels());
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), isNull(), anyString(), isNull())).thenReturn(1);
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
 
             service.save(AGENT_ID, TRIGGER_ID, 6, ChannelSessionMessageKind.ERROR, null, "boom");
 
@@ -250,7 +286,7 @@ class MessageLogServiceTest {
         @BeforeEach
         void stubInsert() {
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), any(), anyString(), any())).thenReturn(1);
+                    anyString(), any(), anyString(), any(), any())).thenReturn(1);
         }
 
         @Test
@@ -266,7 +302,23 @@ class MessageLogServiceTest {
                     any(OutboundMessage.class),
                     eq(UUID.nameUUIDFromBytes(("agimate-msglog:" + TRIGGER_ID + ":1")
                             .getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString()),
-                    eq("progress"), eq("TEXT"), eq(TRIGGER_ID));
+                    eq("progress"), eq("TEXT"), eq(TRIGGER_ID), eq(java.util.List.of()));
+        }
+
+        @Test
+        @DisplayName("TOOL_CALL: идентификаторы вызовов уезжают в канал — по ним монтируется inline-вью")
+        void toolCallLineCarriesItsCallIds() {
+            run(SESSION_ID, dialogueChannels());
+
+            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TOOL_CALL",
+                    "\uD83D\uDD27 get_memory\n\uD83D\uDD27 get_memory_notes",
+                    new ToolTurnRecord("", List.of(
+                            new ToolTurnRecord.Call("c1", "get_memory", "{}"),
+                            new ToolTurnRecord.Call("c2", "get_memory_notes", "{}")), List.of()));
+
+            verify(outboundService).send(eq(AGENT_ID), eq(new ChannelInfo(PROGRESS_CHANNEL, SESSION_ID, null)),
+                    any(OutboundMessage.class), anyString(), eq("progress"), eq("TOOL_CALL"),
+                    eq(TRIGGER_ID), eq(List.of("c1", "c2")));
         }
 
         @Test
@@ -277,7 +329,7 @@ class MessageLogServiceTest {
             service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done");
 
             verify(outboundService).send(eq(AGENT_ID), eq(new ChannelInfo(PROMPT_CHANNEL, SESSION_ID, null)),
-                    any(OutboundMessage.class), anyString(), eq("answer"), isNull(), eq(TRIGGER_ID));
+                    any(OutboundMessage.class), anyString(), eq("answer"), isNull(), eq(TRIGGER_ID), eq(java.util.List.of()));
         }
 
         @Test
@@ -287,21 +339,21 @@ class MessageLogServiceTest {
 
             service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TEXT", "line");
 
-            verify(outboundService, never()).send(any(), any(), any(), any(), any(), any(), any());
+            verify(outboundService, never()).send(any(), any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
         @DisplayName("сбой доставки (канал удалён mid-run) не роняет запись — history-only")
         void deliveryFailureDoesNotFailSave() {
             run(SESSION_ID, dialogueChannels());
-            when(outboundService.send(any(), any(), any(), any(), any(), any(), any()))
+            when(outboundService.send(any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenThrow(new NotFoundStatusException("Channel not found"));
 
             var result = service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done");
 
             assertFalse(result.duplicate());
             verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
-                    eq(4), eq("ANSWER"), isNull(), eq("done"), isNull());
+                    eq(4), eq("ANSWER"), isNull(), eq("done"), isNull(), isNull());
         }
     }
 
@@ -312,7 +364,7 @@ class MessageLogServiceTest {
         @BeforeEach
         void stubInsert() {
             org.mockito.Mockito.lenient().when(messageRepository.insertIgnoreConflict(any(), any(), any(),
-                    anyInt(), anyString(), any(), anyString(), any())).thenReturn(1);
+                    anyInt(), anyString(), any(), anyString(), any(), any())).thenReturn(1);
         }
 
         @Test

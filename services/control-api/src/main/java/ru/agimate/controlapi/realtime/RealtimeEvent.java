@@ -29,11 +29,21 @@ public sealed interface RealtimeEvent {
     /**
      * A message landed in the webchat UI log.
      *
-     * @param parts the stored attachments; the links to them are signed when the event is sent
+     * @param parts       the stored attachments; the links to them are signed when the event is sent
+     * @param toolCallIds ids of the tool calls a {@code TOOL_CALL} line names; null on other lines
      */
     record WebchatMessageRecorded(UUID userId, UUID agentId, UUID channelId, UUID sessionId,
                                   String messageId, String direction, String stream, String text,
-                                  List<Map<String, Object>> parts, String createdAt) implements RealtimeEvent {
+                                  List<Map<String, Object>> parts, List<String> toolCallIds,
+                                  String createdAt) implements RealtimeEvent {
+    }
+
+    /**
+     * The results of tool calls landed: an inline view mounted for those calls re-reads them. A signal,
+     * not the data — the view resolves the {@code CallToolResult} from {@code tool_call_logs} itself.
+     */
+    record SessionToolCallUpdated(UUID userId, UUID agentId, UUID sessionId, List<String> toolCallIds)
+            implements RealtimeEvent {
     }
 
     /** A board task changed; {@code type} is one of {@code BoardEventType}. */

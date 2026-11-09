@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -86,8 +87,9 @@ class WebchatMessagePublisherTest {
                 WebchatMessageDirection.USER, null, "m1", "привет", null);
 
         verify(webchatMessageRepository).insertIgnoreConflict(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                "USER", null, "m1", "привет", null);
+                "USER", null, "m1", "привет", null, null);
         assertNull(capturedEvent().parts());
+        assertNull(capturedEvent().toolCallIds());
     }
 
     @Test
@@ -102,7 +104,7 @@ class WebchatMessagePublisherTest {
         ArgumentCaptor<String> partsJson = ArgumentCaptor.forClass(String.class);
         verify(webchatMessageRepository).insertIgnoreConflict(eq(USER_ID), eq(AGENT_ID), eq(CHANNEL_ID),
                 eq(SESSION_ID), eq("AGENT"), eq("answer"), eq("m2"), eq("вот скриншот"),
-                partsJson.capture());
+                partsJson.capture(), isNull());
         assertTrue(partsJson.getValue().contains("\"fileId\":\"" + fileId + "\""));
         assertFalse(partsJson.getValue().contains("url"));
 
@@ -116,12 +118,27 @@ class WebchatMessagePublisherTest {
     @DisplayName("повтор доставки (строка уже есть) — событие публикуется снова, клиент уберёт дубль")
     void replayRepublishes() {
         when(webchatMessageRepository.insertIgnoreConflict(any(), any(), any(), any(), anyString(), any(),
-                anyString(), any(), any())).thenReturn(0);
+                anyString(), any(), any(), any())).thenReturn(0);
 
         publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
                 WebchatMessageDirection.AGENT, "answer", "m3", "готово", null);
 
         assertEquals("m3", capturedEvent().messageId());
+    }
+
+    @Test
+    @DisplayName("TOOL_CALL: идентификаторы вызовов хранятся в строке и едут в событие")
+    void toolCallIdsStored() {
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "progress", "m5", "\uD83D\uDD27 get_memory", null,
+                List.of("c1", "c2"));
+
+        ArgumentCaptor<String> idsJson = ArgumentCaptor.forClass(String.class);
+        verify(webchatMessageRepository).insertIgnoreConflict(eq(USER_ID), eq(AGENT_ID), eq(CHANNEL_ID),
+                eq(SESSION_ID), eq("AGENT"), eq("progress"), eq("m5"), eq("\uD83D\uDD27 get_memory"),
+                isNull(), idsJson.capture());
+        assertEquals("[\"c1\",\"c2\"]", idsJson.getValue());
+        assertEquals(List.of("c1", "c2"), capturedEvent().toolCallIds());
     }
 
     private WebchatMessageRecorded capturedEvent() {

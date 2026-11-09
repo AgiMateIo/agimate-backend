@@ -5,10 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -42,20 +44,45 @@ public class MessageLogService {
 
     public SaveResult save(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
                            String progressType, String text) {
+        return save(agentId, triggerId, seq, kind, progressType, text, null);
+    }
+
+    /**
+     * @param toolTurn the structural turn behind a {@code TOOL_CALL}/{@code TOOL_RESULT} line; its ids
+     *                 are the link between the delivered message and {@code tool_call_logs}. The
+     *                 history itself still comes from the turn ledger — the turn is not stored here.
+     */
+    public SaveResult save(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
+                           String progressType, String text, ToolTurnRecord toolTurn) {
         MessageLogPersistence.Persisted persisted = persistence.persist(
-                agentId, triggerId, seq, kind, progressType, text);
-        deliverBestEffort(triggerId, agentId, persisted.channels(), kind, progressType, text, seq);
+                agentId, triggerId, seq, kind, progressType, text, toolTurn);
+        deliverBestEffort(triggerId, agentId, persisted.channels(), kind, progressType, text, seq, toolTurn);
         return new SaveResult(persisted.duplicate(), persisted.cancelRequested(), persisted.steered());
     }
 
     private void deliverBestEffort(UUID runId, UUID agentId, Channels channels,
-                                   ChannelSessionMessageKind kind, String progressType, String text, int seq) {
+                                   ChannelSessionMessageKind kind, String progressType, String text, int seq,
+                                   ToolTurnRecord toolTurn) {
         try {
-            deliver(runId, agentId, channels, kind, progressType, text, seq);
+            deliver(runId, agentId, channels, kind, progressType, text, seq, toolTurn);
         } catch (Exception e) {
             log.warn("delivery failed for run={} seq={} kind={} — history-only: {}",
                     runId, seq, kind, e.getMessage());
         }
+    }
+
+    /**
+     * A delivered tool-call line names its calls by id; the channel stores the ids and the inline view
+     * resolves arguments and results from {@code tool_call_logs} when it mounts. A {@code TOOL_RESULT}
+     * line names none — it is history-only and never delivered.
+     */
+    private static List<String> toolCallIds(ChannelSessionMessageKind kind, String progressType,
+                                            ToolTurnRecord toolTurn) {
+        if (kind != ChannelSessionMessageKind.PROGRESS || !"TOOL_CALL".equals(progressType)
+                || toolTurn == null) {
+            return List.of();
+        }
+        return toolTurn.callIds();
     }
 
     /**
@@ -64,7 +91,7 @@ public class MessageLogService {
      * answer, else prompt. With no channel the event stays in the history and the run's row alone.
      */
     private void deliver(UUID runId, UUID agentId, Channels channels, ChannelSessionMessageKind kind,
-                         String progressType, String text, int seq) {
+                         String progressType, String text, int seq, ToolTurnRecord toolTurn) {
         if (channels == null || kind == ChannelSessionMessageKind.INBOUND
                 || text == null || text.isBlank()) {
             return;
@@ -84,7 +111,8 @@ public class MessageLogService {
         }
         String messageId = deterministicId(runId, seq);
         outboundService.send(agentId, target,
-                OutboundMessage.text(text), messageId, kind.name().toLowerCase(), progressType, runId);
+                OutboundMessage.text(text), messageId, kind.name().toLowerCase(), progressType, runId,
+                toolCallIds(kind, progressType, toolTurn));
     }
 
     /** A deterministic message_id from (run_id, seq): a retry sends the same id and downstream deduplicates. */

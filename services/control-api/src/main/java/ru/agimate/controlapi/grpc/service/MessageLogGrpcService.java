@@ -26,6 +26,7 @@ import ru.agimate.agentworker.SaveTurnRequest;
 import ru.agimate.agentworker.SaveTurnResponse;
 import ru.agimate.agentworker.ToolCallRec;
 import ru.agimate.agentworker.ToolResultRec;
+import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.TurnRole;
 import java.util.UUID;
 
@@ -58,10 +59,12 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
                     ? null
                     : request.getProgressType().name().replace("PROGRESS_TYPE_", "");
 
-            // The tool turn is accepted on the wire but no longer stored: the history comes from the
-            // turn ledger, and the channel projection keeps text only (docs/decisions/message-stores.md).
+            // The turn is not stored as history — that comes from the ledger — but the ids of its calls
+            // link a delivered TOOL_CALL line to tool_call_logs, which is what an inline view reads
+            // (docs/decisions/connector-views.md, docs/decisions/message-stores.md).
+            ToolTurnRecord toolTurn = request.hasToolTurn() ? toDomain(request.getToolTurn()) : null;
             MessageLogService.SaveResult result = messageLogService.save(
-                    agentId, runId, request.getSeq(), kind, progressType, request.getText());
+                    agentId, runId, request.getSeq(), kind, progressType, request.getText(), toolTurn);
 
             responseObserver.onNext(SaveMessageResponse.newBuilder()
                     .setDuplicate(result.duplicate())
@@ -139,6 +142,18 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             handleError(e, responseObserver, "SavePrompt agent=" + request.getAgentId()
                     + " run=" + request.getRunId());
         }
+    }
+
+    private static ToolTurnRecord toDomain(ToolTurn turn) {
+        return new ToolTurnRecord(
+                turn.getText(),
+                turn.getCallsList().stream()
+                        .map(c -> new ToolTurnRecord.Call(c.getId(), c.getName(), c.getArgumentsJson()))
+                        .toList(),
+                turn.getResultsList().stream()
+                        .map(r -> new ToolTurnRecord.Result(r.getId(), r.getName(), r.getOutputJson(),
+                                r.getFailed(), ContextMaterialMapper.toDomain(r.getMaterial())))
+                        .toList());
     }
 
     private static AgentTurnRole toDomain(TurnRole role) {

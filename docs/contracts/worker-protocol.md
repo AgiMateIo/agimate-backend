@@ -196,8 +196,12 @@ XML-тегом у рендерера, пустой `name` — сырой тек�
 `(run_id, seq)` с `ON CONFLICT DO NOTHING`; доставка дедуплицируется детерминированным `message_id`
 от `(run_id, seq)`.
 
-Поле `tool_turn` на проводе остаётся, но control-api его больше не хранит: структурный ход живёт в
-журнале `agent_run_turns` (`SaveTurn`), а проекция хранит только текст — [message-stores.md](../decisions/message-stores.md).
+Поле `tool_turn` на проводе остаётся, и control-api берёт из него **только идентификаторы вызовов**:
+на `TOOL_CALL` они ложатся в хранилище сообщения канала (`webchat_messages.tool_call_ids` или
+`channel_session_messages.tool_call_ids`), а на `TOOL_RESULT` дают сигнал `session.tool_call` —
+по ним фронт монтирует inline-вью и дочитывает аргументы и результат из `tool_call_logs`. Сам
+структурный ход по-прежнему живёт в журнале `agent_run_turns` (`SaveTurn`), а проекция хранит
+текст — [message-stores.md](../decisions/message-stores.md), [connector-views.md](../decisions/connector-views.md).
 Проекция пишется только для каналов без собственного лога сообщений (`ChannelMessageLog`): webchat
 пишет свой `webchat_messages`, пустая PROGRESS-строка (`TOOL_RESULT`) в проекцию не попадает.
 

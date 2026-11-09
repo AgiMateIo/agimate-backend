@@ -204,7 +204,7 @@ class WebchatChannelHandlerTest {
             assertTrue(handler.handleOutput(config, OutboundMessage.text("готово"), dispatch).isEmpty());
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                    WebchatMessageDirection.AGENT, "answer", "msg-1", "готово", List.of());
+                    WebchatMessageDirection.AGENT, "answer", "msg-1", "готово", List.of(), List.of());
         }
 
         @Test
@@ -217,7 +217,7 @@ class WebchatChannelHandlerTest {
             handler.handleOutput(config, new OutboundMessage("вот скриншот", parts), dispatch);
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                    WebchatMessageDirection.AGENT, "answer", "msg-4", "вот скриншот", parts);
+                    WebchatMessageDirection.AGENT, "answer", "msg-4", "вот скриншот", parts, List.of());
         }
 
         @Test
@@ -229,7 +229,7 @@ class WebchatChannelHandlerTest {
             handler.handleOutput(config, OutboundMessage.text("думаю..."), dispatch);
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                    WebchatMessageDirection.AGENT, "progress", "msg-2", "думаю...", List.of());
+                    WebchatMessageDirection.AGENT, "progress", "msg-2", "думаю...", List.of(), List.of());
         }
 
         @Test

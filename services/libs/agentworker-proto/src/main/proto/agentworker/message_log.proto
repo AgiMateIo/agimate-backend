@@ -56,9 +56,9 @@ message SaveMessageRequest {
   string text = 6;              // empty for INBOUND
   // Structural record of a tool turn (protocol v2.1), split across two rows (v2.1a): under
   // PROGRESS/TOOL_CALL only calls (text is the 🔧 channel projection, delivered right away, before
-  // execution), under PROGRESS/TOOL_RESULT only results (text empty). Kept on the wire for
-  // compatibility; control-api no longer stores it — the history of later runs comes from the
-  // canonical turn ledger (agent_run_turns), and the channel projection keeps text only.
+  // execution), under PROGRESS/TOOL_RESULT only results (text empty). control-api stores just the
+  // calls' ids with the delivered message — they link it to tool_call_logs for an inline view; the
+  // history of later runs comes from the canonical turn ledger (agent_run_turns).
   ToolTurn tool_turn = 7;
 }
 

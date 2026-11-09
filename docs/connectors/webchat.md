@@ -93,8 +93,12 @@ PostgreSQL совпадает с временным, поэтому сравне
 
 | Таблица | Что хранит | Кто пишет |
 |---|---|---|
-| `webchat_messages` | собственный лог вебчата: что реально показано пользователю (USER + AGENT answer/progress) | control-api на границе доставки |
+| `webchat_messages` | собственный лог вебчата: что реально показано пользователю (USER + AGENT answer/progress), вложения в `parts` и идентификаторы вызовов тулов в `tool_call_ids` | control-api на границе доставки |
 | `channel_session_messages` | общая проекция доставленного для каналов без своего лога (Telegram, ACP) | control-api из `SaveMessage` |
+
+`tool_call_ids` — единственное, что строка `TOOL_CALL` знает о вызовах: сами аргументы и результаты
+остаются в `tool_call_logs`, а вью по ним резолвит
+`GET /manage/sessions/{id}/tool-calls/{toolCallId}` ([connector-views.md](../decisions/connector-views.md)).
 
 Вебчат объявляет капабилити `ChannelMessageLog` (`WebchatChannelHandler`), поэтому платформа для него
 `channel_session_messages` не пишет. `GET /manage/sessions/{id}/messages/` спрашивает капабилити

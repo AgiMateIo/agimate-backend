@@ -10,8 +10,10 @@ import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
 import ru.agimate.controlapi.realtime.RealtimeEvent.AppToolCall;
 import ru.agimate.controlapi.realtime.RealtimeEvent.BoardTaskChanged;
 import ru.agimate.controlapi.realtime.RealtimeEvent.SessionChanged;
+import ru.agimate.controlapi.realtime.RealtimeEvent.SessionToolCallUpdated;
 import ru.agimate.controlapi.realtime.RealtimeEvent.WebchatMessageRecorded;
 import ru.agimate.controlapi.realtime.dto.CentrifugoMessage;
+import ru.agimate.controlapi.realtime.dto.SessionToolCallPayload;
 import ru.agimate.controlapi.realtime.dto.WebchatMessagePayload;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
 import ru.agimate.controlapi.service.session.SessionRows;
@@ -38,6 +40,7 @@ public class RealtimeMessages {
     public static final String SESSION_UPDATED = "session.updated";
     public static final String WEBCHAT_AGENT_UPDATED = "webchat.agent.updated";
     public static final String WEBCHAT_MESSAGE = "webchat.message";
+    public static final String SESSION_TOOL_CALL = "session.tool_call";
     public static final String TOOL_CALL = "toolCall";
 
     private final AgentSessionRepository agentSessionRepository;
@@ -57,6 +60,11 @@ public class RealtimeMessages {
     public List<Message> render(RealtimeEvent event) {
         return switch (event) {
             case SessionChanged e -> session(e);
+            case SessionToolCallUpdated e -> List.of(Message.of(RealtimeChannels.user(e.userId()),
+                    SESSION_TOOL_CALL, new SessionToolCallPayload(e.sessionId(), e.toolCallIds()),
+                    Map.of("entity", "session.tool_call",
+                            "agentId", e.agentId().toString(),
+                            "sessionId", e.sessionId().toString())));
             case WebchatMessageRecorded e -> webchatMessage(e);
             case BoardTaskChanged e -> List.of(Message.of(RealtimeChannels.user(e.userId()), e.type(), e.task(),
                     Map.of("entity", "board.task", "boardId", e.boardId().toString())));
@@ -96,7 +104,7 @@ public class RealtimeMessages {
         WebchatMessagePayload payload = new WebchatMessagePayload(e.sessionId(), e.channelId(), e.agentId(),
                 e.messageId(), e.direction(), e.stream(), e.text(),
                 WebchatAttachment.fromStored(e.parts(), e.userId(), signedFileUrlService::issue),
-                e.createdAt());
+                e.toolCallIds(), e.createdAt());
         return List.of(Message.of(RealtimeChannels.user(e.userId()), WEBCHAT_MESSAGE, payload,
                 Map.of("entity", "webchat.message",
                         "agentId", e.agentId().toString(), "sessionId", e.sessionId().toString())));

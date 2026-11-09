@@ -14,9 +14,11 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
+import ru.agimate.controlapi.realtime.RealtimeEvent.SessionToolCallUpdated;
 import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLog;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLogResolver;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.session.AgentSessionService;
@@ -65,7 +67,7 @@ public class MessageLogPersistence {
 
     @Transactional
     public Persisted persist(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
-                             String progressType, String text) {
+                             String progressType, String text, ToolTurnRecord toolTurn) {
         AgentRun run = agentRunRepository.findById(triggerId)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + triggerId));
         if (!run.getAgent().getId().equals(agentId)) {
@@ -118,8 +120,15 @@ public class MessageLogPersistence {
                         : null;
                 int inserted = messageRepository.insertIgnoreConflict(
                         sessionId, agentId, triggerId, seq, kind.name(), progressType, message,
-                        triggerInput);
+                        triggerInput, toolCallIdsJson(kind, progressType, toolTurn));
                 duplicate = inserted == 0;
+            }
+            // An inline view mounted for these calls re-reads its result from tool_call_logs; the ids
+            // are the only thing the delivered line and the log share.
+            if (kind == ChannelSessionMessageKind.PROGRESS && "TOOL_RESULT".equals(progressType)
+                    && toolTurn != null && !toolTurn.resultIds().isEmpty()) {
+                eventPublisher.publishEvent(new SessionToolCallUpdated(
+                        run.getAgent().getUserId(), agentId, sessionId, toolTurn.resultIds()));
             }
             if (kind == ChannelSessionMessageKind.ANSWER && run.getStatus() == RunStatus.DONE) {
                 eventPublisher.publishEvent(new RunFinished(triggerId, agentId, run.getAgent().getUserId(), sessionId));
@@ -176,6 +185,19 @@ public class MessageLogPersistence {
             default -> { }
         }
         run.setLastActivityAt(LocalDateTime.now());
+    }
+
+    /**
+     * The generic projection keeps the ids of a delivered tool-call line; the turn itself stays in
+     * the ledger (docs/decisions/message-stores.md). Null — a line that names no calls.
+     */
+    private static String toolCallIdsJson(ChannelSessionMessageKind kind, String progressType,
+                                          ToolTurnRecord toolTurn) {
+        if (kind != ChannelSessionMessageKind.PROGRESS || !"TOOL_CALL".equals(progressType)
+                || toolTurn == null || toolTurn.callIds().isEmpty()) {
+            return null;
+        }
+        return JsonUtils.writeValueAsString(toolTurn.callIds());
     }
 
     /** A channel plugin with its own message log is not projected into the generic store. */

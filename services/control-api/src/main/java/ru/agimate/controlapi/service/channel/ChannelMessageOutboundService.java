@@ -56,6 +56,15 @@ public class ChannelMessageOutboundService {
      */
     public OutboundResult send(UUID agentId, ChannelInfo target, OutboundMessage outbound, String messageId,
                                String stream, String progressType, UUID runId) {
+        return send(agentId, target, outbound, messageId, stream, progressType, runId, List.of());
+    }
+
+    /**
+     * @param toolCallIds ids of the tool calls a {@code TOOL_CALL} line names; empty on other lines —
+     *                    the channel's message store keeps them for the inline views
+     */
+    public OutboundResult send(UUID agentId, ChannelInfo target, OutboundMessage outbound, String messageId,
+                               String stream, String progressType, UUID runId, List<String> toolCallIds) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(target.channelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
 
@@ -94,7 +103,8 @@ public class ChannelMessageOutboundService {
         ChannelConfig config = new ChannelConfig(
                 channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
         OutboundDispatch dispatch = new OutboundDispatch(
-                effectiveMessageId, stream, progressType, channel.getId(), session.getId(), address, runId);
+                effectiveMessageId, stream, progressType, channel.getId(), session.getId(), address, runId,
+                toolCallIds == null ? List.of() : toolCallIds);
 
         dispatchAll(channel, handler.handleOutput(config, effectiveOutbound, dispatch));
         // The single funnel of everything outgoing: the parts are already resolved from [[attach:…]],

@@ -9,6 +9,7 @@ import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -61,4 +62,12 @@ public class ChannelSessionMessage extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "trigger_input", columnDefinition = "JSONB")
     private Map<String, Object> triggerInput;
+
+    /**
+     * The ids of the tool calls a {@code TOOL_CALL} line names, in call order. Ids only — the same
+     * contract as {@code webchat_messages.tool_call_ids} (docs/decisions/message-stores.md).
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tool_call_ids", columnDefinition = "JSONB")
+    private List<String> toolCallIds;
 }

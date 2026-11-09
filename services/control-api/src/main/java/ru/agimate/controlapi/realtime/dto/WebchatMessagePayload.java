@@ -11,9 +11,12 @@ import java.util.UUID;
  *
  * @param direction {@code USER} (an echo of the user's message) or {@code AGENT}
  * @param stream    the agent's output stream: {@code answer}/{@code progress}/{@code error}; null for USER
- * @param parts     attachments with fresh signed links; null — a message with no attachments. A link
- *                  lives {@code app.files.url-ttl} — once it expires the frontend re-reads the history
- *                  and gets a new one
+ * @param parts       attachments with fresh signed links; null — a message with no attachments. A link
+ *                    lives {@code app.files.url-ttl} — once it expires the frontend re-reads the history
+ *                    and gets a new one
+ * @param toolCallIds ids of the tool calls a {@code TOOL_CALL} progress line names; null on other
+ *                    lines. The inline view for a call is resolved when its result signal arrives
+ *                    ({@code session.tool_call})
  */
 public record WebchatMessagePayload(
         UUID sessionId,
@@ -24,6 +27,7 @@ public record WebchatMessagePayload(
         String stream,
         String text,
         List<WebchatAttachment> parts,
+        List<String> toolCallIds,
         String createdAt
 ) {
 }

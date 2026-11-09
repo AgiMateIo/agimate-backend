@@ -69,4 +69,18 @@ public record ToolTurnRecord(String text, List<Call> calls, List<Result> results
     public boolean isEmpty() {
         return calls.isEmpty() && results.isEmpty();
     }
+
+    /** Ids of the turn's calls, in order — the identity a delivered {@code TOOL_CALL} line refers to. */
+    public List<String> callIds() {
+        return ids(calls.stream().map(Call::id).toList());
+    }
+
+    /** Ids of the turn's results, in order — what a {@code TOOL_RESULT} line settles. */
+    public List<String> resultIds() {
+        return ids(results.stream().map(Result::id).toList());
+    }
+
+    private static List<String> ids(List<String> ids) {
+        return ids.stream().filter(id -> id != null && !id.isBlank()).toList();
+    }
 }

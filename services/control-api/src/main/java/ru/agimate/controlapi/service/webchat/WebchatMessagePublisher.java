@@ -43,20 +43,35 @@ public class WebchatMessagePublisher {
     private final ApplicationEventPublisher eventPublisher;
     private final AgentSessionService agentSessionService;
 
+    /** Annotated too, not only the full form: a self-call would not pass through the transactional proxy. */
     @Transactional
     public void record(UUID userId, UUID agentId, UUID channelId, UUID sessionId,
                        WebchatMessageDirection direction, String stream, String messageId, String text,
                        List<Part> parts) {
+        record(userId, agentId, channelId, sessionId, direction, stream, messageId, text, parts, null);
+    }
+
+    /**
+     * @param toolCallIds ids of the tool calls a {@code TOOL_CALL} progress line names; null on every
+     *                    other message. Ids only — an inline view reads the data from
+     *                    {@code tool_call_logs} (docs/decisions/connector-views.md)
+     */
+    @Transactional
+    public void record(UUID userId, UUID agentId, UUID channelId, UUID sessionId,
+                       WebchatMessageDirection direction, String stream, String messageId, String text,
+                       List<Part> parts, List<String> toolCallIds) {
         List<Map<String, Object>> storedParts = storedParts(parts);
+        List<String> storedToolCalls = toolCallIds == null || toolCallIds.isEmpty() ? null : toolCallIds;
         int inserted = webchatMessageRepository.insertIgnoreConflict(
                 userId, agentId, channelId, sessionId, direction.name(), stream, messageId, text,
-                storedParts == null ? null : JsonUtils.writeValueAsString(storedParts));
+                storedParts == null ? null : JsonUtils.writeValueAsString(storedParts),
+                storedToolCalls == null ? null : JsonUtils.writeValueAsString(storedToolCalls));
         if (inserted == 0) {
             log.debug("Webchat message {} already recorded in session {} (replay) - republishing event",
                     messageId, sessionId);
         }
         realtime.publish(new WebchatMessageRecorded(userId, agentId, channelId, sessionId, messageId,
-                direction.name(), stream, text, storedParts, Instant.now().toString()));
+                direction.name(), stream, text, storedParts, storedToolCalls, Instant.now().toString()));
 
         if (!STREAM_PROGRESS.equals(stream)) {
             // The preview moves whoever spoke: one's own message sent from another device included.

@@ -154,7 +154,7 @@ public class WebchatChannelHandler implements ChannelHandler, ChannelMessageLog 
         webchatMessagePublisher.record(
                 channel.getUserId(), config.agentId(), channel.getId(), dispatch.sessionId(),
                 WebchatMessageDirection.AGENT, stream, dispatch.messageId(), outbound.text(),
-                outbound.parts());
+                outbound.parts(), dispatch.toolCallIds());
         return List.of();
     }
 }

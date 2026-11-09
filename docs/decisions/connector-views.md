@@ -1,7 +1,7 @@
 ---
 status: partial
 created: 2026-09-16
-updated: 2026-09-16
+updated: 2026-11-09
 ---
 
 # Вью коннекторов: интерактивная панель вместо текста
@@ -323,6 +323,44 @@ origin) и по нашему же разбору в [deferred/page-publishing.md
 `fetch`. Вью, которой нужна сеть, у нас не заработает; разрешать объявленное (возможно, с согласия
 владельца коннекции) будем, когда появится такая вью, которая действительно нужна.
 
+## Фаза 2 — inline: как сделано
+
+Фаза 1 обкатала мост на холодной панели; inline добавляет к нему ровно одно — **вызов, к которому
+привязана вью**. Разбор в [message-stores.md](message-stores.md) свёл выбор к «ссылке»: сообщение
+хранит идентификатор вызова, данные резолвятся при чтении.
+
+- **В хранилище сообщения — только `tool_call_ids`.** Строка `TOOL_CALL` («🔧 name») несёт id
+  вызовов своего хода; `TOOL_RESULT` — нет, он не доставляется вовсе. Аргументы и результаты не
+  копируются: они уже есть в `tool_call_logs`, а `SaveMessage.tool_turn` даёт только эту связь
+  ([worker-protocol.md](../contracts/worker-protocol.md)). Поле есть у обоих хранилищ: у webchat —
+  `webchat_messages`, у остальных — общая проекция.
+- **Джойн-ключ — `toolCallId`, а не имя.** `tool_call_logs` ищется по `(agent_id, external_id)`,
+  и сама строка журнала знает `connection_id` и коннекторное имя тула — по ним находится запись
+  каталога. Имя, под которым тул знал модель (`{namespace}.{name}`), для джойна не используется
+  и в сообщение не кладётся.
+- **Вью резолвится по текущему каталогу.** `GET /manage/sessions/{id}/tool-calls/{toolCallId}`
+  проверяет владение сессией, требует `agentSessionId` = сессии, и ищет тул в
+  `McpToolCatalog.forAgent(agent, ALL)`. Отзыв привязки, политика, скрывшая тул, или снятая
+  видимость `app` — и вызов остаётся без вью; данные из журнала при этом не отдаются.
+- **Ответ эндпойнта** — `{toolCallId, name, connectionId, viewUri, input, result}`. `viewUri`
+  `null` — у вызова нет вью (дешёвый ответ на вопрос про любой вызов); `result` — `CallToolResult`
+  (`content`/`structuredContent`/`isError`), `null`, пока вызов идёт. Ошибка исполнения и отказ
+  ABAC приходят как `isError: true`, а не как HTTP-ошибка. HTML вью по-прежнему едет отдельно,
+  через `/manage/agents/{agentId}/views/content`: байты не дублируются в каждом вызове.
+- **Живой сигнал — `session.tool_call`.** На `TOOL_RESULT` бэкенд публикует
+  `{sessionId, toolCallIds}` в `user:`; вью монтируется, когда результат появился, и потому
+  состояние «вызов ещё идёт» на экране не заводится. Для detached-вызовов результат приезжает
+  отдельным раном: сигнала на него нет, и открытая вью дочитывается по следующему событию
+  сессии или перезагрузке истории.
+- **Мост не менялся.** После `ui/initialize` хост шлёт вью `ui/notifications/tool-input`
+  (аргументы) и `ui/notifications/tool-result` (`CallToolResult`) — те же два метода спеки,
+  которых лаунчеру не нужно. Фронт — по
+  [../tmpspec/connector-views-inline-frontend.md](../tmpspec/connector-views-inline-frontend.md).
+
+Разделение «текст для модели / данные для вью» inline не потребовалось: вью читает полный
+`tool_call_logs.output` через `ViewProvider.toViewResult`, а модель — то же, что и раньше. Это
+остаётся отдельной сменой контракта тула.
+
 ## Состояние спеки на 2026-09-16
 
 Ядро протокола — `2026-07-28`, статус **current**, новее ревизии нет; наш `/mcp` на ней и стоит.
@@ -421,7 +459,15 @@ origin) и по нашему же разбору в [deferred/page-publishing.md
 
 Фаза 2 — inline (вью рядом с результатом вызова в переписке):
 
-- [ ] Part с вызовом тула в `webchat_messages` и в обеих ветках `GET /manage/sessions/{id}/messages/`
-- [ ] Разделение «текст для модели» / «данные для вью» в результате тула
-- [ ] Джойн-ключ «вызов → вью» между сообщением и листингом
-- [ ] Доставка входа и результата вызова во вью через мост
+- [x] Ссылка на вызов в хранилище сообщения канала: `tool_call_ids` в `webchat_messages` и
+      `channel_session_messages` (миграция `09-02`), в обеих ветках `GET /manage/sessions/{id}/messages/`
+- [x] Джойн-ключ «вызов → вью»: `toolCallId` → `tool_call_logs` → текущий каталог агента;
+      `GET /manage/sessions/{id}/tool-calls/{toolCallId}`
+- [x] Вход и результат для вью на бэкенде: аргументы и `CallToolResult` в ответе эндпойнта,
+      сигнал `session.tool_call` на `TOOL_RESULT`
+- [ ] Фронт: после `ui/initialize` слать `ui/notifications/tool-input` и `…/tool-result`,
+      монтировать вью по `session.tool_call` — дельта
+      [../tmpspec/connector-views-inline-frontend.md](../tmpspec/connector-views-inline-frontend.md)
+- [ ] Разделение «текст для модели» / «данные для вью» в результате тула — отдельная смена
+      контракта тула; inline её не требует, `toViewResult` восстанавливает `structuredContent`
+      из полного `tool_call_logs.output`

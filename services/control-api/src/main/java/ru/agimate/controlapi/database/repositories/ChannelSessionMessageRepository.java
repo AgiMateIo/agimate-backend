@@ -27,10 +27,10 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
     @Query(value = """
             INSERT INTO channel_session_messages
                 (session_id, agent_id, run_id, seq, kind, progress_type, message,
-                 trigger_input, created_at, updated_at)
+                 trigger_input, tool_call_ids, created_at, updated_at)
             VALUES
                 (:sessionId, :agentId, :runId, :seq, :kind, :progressType, :message,
-                 CAST(:triggerInput AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 CAST(:triggerInput AS jsonb), CAST(:toolCallIdsJson AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (run_id, seq) DO NOTHING
             """, nativeQuery = true)
     int insertIgnoreConflict(@Param("sessionId") UUID sessionId,
@@ -40,7 +40,8 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
                              @Param("kind") String kind,
                              @Param("progressType") String progressType,
                              @Param("message") String message,
-                             @Param("triggerInput") String triggerInput);
+                             @Param("triggerInput") String triggerInput,
+                             @Param("toolCallIdsJson") String toolCallIdsJson);
 
     List<ChannelSessionMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
 

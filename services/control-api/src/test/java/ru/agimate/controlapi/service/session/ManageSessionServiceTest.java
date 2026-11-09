@@ -151,7 +151,7 @@ class ManageSessionServiceTest {
             when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
             when(channelMessageLogResolver.find(session)).thenReturn(Optional.of(channelMessageLog));
             SessionMessageResponse expected = new SessionMessageResponse(
-                    UUID.randomUUID(), "m-1", "AGENT", "answer", "готово", null, LocalDateTime.now());
+                    UUID.randomUUID(), "m-1", "AGENT", "answer", "готово", null, null, LocalDateTime.now());
             when(channelMessageLog.listMessages(USER_ID, SESSION_ID, 0, 50))
                     .thenReturn(new PageImpl<>(List.of(expected)));
 

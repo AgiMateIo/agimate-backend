@@ -19,8 +19,10 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.session.MarkSessionReadRequest;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionToolCallResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.UpdateSessionRequest;
 import ru.agimate.controlapi.service.session.ManageSessionService;
+import ru.agimate.controlapi.service.view.SessionToolCallService;
 
 import java.util.UUID;
 
@@ -37,6 +39,7 @@ public class ManageSessionController {
     public static final String PATH = "/manage/sessions";
 
     private final ManageSessionService manageSessionService;
+    private final SessionToolCallService sessionToolCallService;
 
     @Operation(summary = "List sessions, freshest activity first",
             description = "parentSessionId narrows the listing to the subagent sessions working for one conversation")
@@ -100,6 +103,20 @@ public class ManageSessionController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(manageSessionService.listMessages(userId, id, page, size)));
+    }
+
+    @Operation(summary = "Resolve a tool call of a message to its inline view",
+            description = "toolCallId comes from the message's toolCallIds. The view is looked up in the agent's "
+                    + "current catalog, so a revoked binding or a tool hidden from views answers without viewUri; "
+                    + "result is null while the call runs")
+    @GetMapping("/{id}/tool-calls/{toolCallId}")
+    public SuccessResponse<SessionToolCallResponse> toolCall(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID id,
+            @PathVariable String toolCallId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(sessionToolCallService.get(userId, id, toolCallId));
     }
 
     @Operation(summary = "Mark a session read",

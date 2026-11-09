@@ -150,7 +150,7 @@ public class AgentViewService {
         };
     }
 
-    private Agent ownedAgent(UUID agentId, UUID userId) {
+    Agent ownedAgent(UUID agentId, UUID userId) {
         Agent agent = agentService.findById(agentId);
         if (!agent.getUserId().equals(userId)) {
             throw new NotFoundStatusException("Agent not found");
@@ -159,7 +159,7 @@ public class AgentViewService {
     }
 
     /** The agent's tools of connections whose connector serves views; listed wide, see {@link #call}. */
-    private List<McpToolCatalog.ToolEntry> viewCatalog(Agent agent) {
+    List<McpToolCatalog.ToolEntry> viewCatalog(Agent agent) {
         Map<String, Optional<ViewProvider>> providers = new LinkedHashMap<>();
         return toolCatalog.forAgent(agent, ToolAudience.ALL).values().stream()
                 .filter(entry -> providers.computeIfAbsent(entry.connectorCode(),
@@ -167,11 +167,11 @@ public class AgentViewService {
                 .toList();
     }
 
-    private static boolean linksView(McpToolCatalog.ToolEntry entry) {
+    static boolean linksView(McpToolCatalog.ToolEntry entry) {
         return entry.spec().ui() != null && entry.spec().ui().resourceUri() != null;
     }
 
-    private ViewProvider viewProvider(McpToolCatalog.ToolEntry entry) {
+    ViewProvider viewProvider(McpToolCatalog.ToolEntry entry) {
         return connectorRegistry.findCapability(entry.connectorCode(), ViewProvider.class)
                 .orElseThrow(() -> new NotFoundStatusException("View not found"));
     }

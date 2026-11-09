@@ -38,6 +38,10 @@ public record SessionMessageResponse(
         @Schema(description = "Attachments with fresh signed content URLs; null when there are none")
         List<WebchatAttachment> parts,
 
+        @Schema(description = "Ids of the tool calls a TOOL_CALL progress line names; null on other lines. "
+                + "Resolve a call to its inline view through GET /manage/sessions/{id}/tool-calls/{toolCallId}")
+        List<String> toolCallIds,
+
         @Schema(description = "Creation timestamp")
         LocalDateTime createdAt
 ) {
@@ -53,6 +57,7 @@ public record SessionMessageResponse(
                 message.getStream(),
                 message.getText(),
                 parts,
+                message.getToolCallIds(),
                 message.getCreatedAt());
     }
 
@@ -65,6 +70,7 @@ public record SessionMessageResponse(
                 inbound ? null : message.getKind().name().toLowerCase(),
                 message.getMessage(),
                 null,
+                message.getToolCallIds(),
                 message.getCreatedAt());
     }
 }

@@ -78,4 +78,12 @@ public class WebchatMessage extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "parts", columnDefinition = "JSONB")
     private List<Map<String, Object>> parts;
+
+    /**
+     * The ids of the tool calls this line names ({@code TOOL_CALL} progress), in call order. Ids only:
+     * arguments and results stay in {@code tool_call_logs} and are read on demand for an inline view.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tool_call_ids", columnDefinition = "JSONB")
+    private List<String> toolCallIds;
 }
