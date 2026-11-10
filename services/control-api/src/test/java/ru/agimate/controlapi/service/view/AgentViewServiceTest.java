@@ -18,10 +18,12 @@ import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.ViewCspPolicy;
 import ru.agimate.controlapi.connectors.core.ViewProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.ToolUi;
 import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
+import ru.agimate.controlapi.connectors.core.dto.ViewCsp;
 import ru.agimate.controlapi.connectors.core.dto.ViewPage;
 import ru.agimate.controlapi.controller.manage.dto.AgentViewContentResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentViewResponse;
@@ -80,6 +82,8 @@ class AgentViewServiceTest {
     private AgentToolCallService agentToolCallService;
     @Mock
     private InboundRateLimiter rateLimiter;
+    @Mock
+    private ViewCspPolicy viewCspPolicy;
 
     @InjectMocks
     private AgentViewService service;
@@ -151,17 +155,22 @@ class AgentViewServiceTest {
         }
 
         @Test
-        @DisplayName("страница коннектора отдаётся как есть")
+        @DisplayName("страница коннектора отдаётся как есть; csp выдаёт политика установки")
         void returnsPage() {
             tool(CONNECTION_ID, "mcp", "show", new ToolUi(VIEW, null));
+            ViewCsp declared = new ViewCsp(List.of("https://esm.sh", "https://evil.example"), null);
+            ViewCsp granted = new ViewCsp(List.of("https://esm.sh"), null);
             when(viewProvider.readView(any(), eq(VIEW)))
-                    .thenReturn(new ViewPage("text/html;profile=mcp-app", "<html></html>", null, true));
+                    .thenReturn(new ViewPage("text/html;profile=mcp-app", "<html></html>", null, true, declared));
+            when(viewCspPolicy.grant(declared)).thenReturn(granted);
 
             AgentViewContentResponse page = service.content(AGENT_ID, USER_ID, CONNECTION_ID, VIEW);
 
             assertEquals("<html></html>", page.html());
             assertTrue(page.prefersBorder());
             assertNull(page.permissions());
+            assertEquals(granted, page.csp());
+            verify(viewCspPolicy).grant(declared);
         }
 
         @Test

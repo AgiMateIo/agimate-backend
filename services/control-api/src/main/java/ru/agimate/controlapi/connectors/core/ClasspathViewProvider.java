@@ -38,7 +38,7 @@ public interface ClasspathViewProvider extends ViewProvider {
             if (page == null) {
                 throw new ConnectorException("View not found: " + uri);
             }
-            return new ViewPage(MIME_TYPE, new String(page.readAllBytes(), StandardCharsets.UTF_8), null, null);
+            return new ViewPage(MIME_TYPE, new String(page.readAllBytes(), StandardCharsets.UTF_8), null, null, null);
         } catch (IOException e) {
             throw new ConnectorException("View could not be read: " + uri);
         }

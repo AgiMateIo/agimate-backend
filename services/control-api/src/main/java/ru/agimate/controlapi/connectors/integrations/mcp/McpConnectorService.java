@@ -18,6 +18,7 @@ import ru.agimate.controlapi.connectors.core.dto.CredentialField.Type;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
+import ru.agimate.controlapi.connectors.core.dto.ViewCsp;
 import ru.agimate.controlapi.connectors.core.dto.ViewPage;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpAuthDiscovery;
@@ -30,10 +31,12 @@ import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -197,7 +200,52 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
                 resource.mimeType(),
                 resource.text(),
                 objectOrNull(ui == null ? null : ui.get("permissions")),
-                ui != null && ui.path("prefersBorder").isBoolean() ? ui.get("prefersBorder").asBoolean() : null);
+                ui != null && ui.path("prefersBorder").isBoolean() ? ui.get("prefersBorder").asBoolean() : null,
+                declaredCsp(ui));
+    }
+
+    /**
+     * The domains the server declares in {@code _meta.ui.csp}. Nothing is granted here: the declared
+     * values go into {@code ViewPage} and the serving layer passes them through
+     * {@link ru.agimate.controlapi.connectors.core.ViewCspPolicy}. The meta is weakly typed, so both
+     * the spec keys and the spellings seen in the wild are read.
+     */
+    private static ViewCsp declaredCsp(JsonNode ui) {
+        JsonNode csp = ui == null ? null : ui.get("csp");
+        if (csp == null || !csp.isObject()) {
+            return null;
+        }
+        List<String> resource = declaredDomains(csp,
+                "resourceDomains", "resource-src", "resourceSrc", "resource_src", "resource_domains");
+        List<String> connect = declaredDomains(csp,
+                "connectDomains", "connect-src", "connectSrc", "connect_src", "connect_domains");
+        if (resource.isEmpty() && connect.isEmpty()) {
+            return null;
+        }
+        return new ViewCsp(
+                resource.isEmpty() ? null : resource,
+                connect.isEmpty() ? null : connect);
+    }
+
+    /** A category is a string or an array of strings; other shapes are ignored. */
+    private static List<String> declaredDomains(JsonNode csp, String... keys) {
+        Set<String> domains = new LinkedHashSet<>();
+        for (String key : keys) {
+            JsonNode node = csp.get(key);
+            if (node == null) {
+                continue;
+            }
+            if (node.isTextual()) {
+                domains.add(node.asText());
+            } else if (node.isArray()) {
+                for (JsonNode item : node) {
+                    if (item.isTextual()) {
+                        domains.add(item.asText());
+                    }
+                }
+            }
+        }
+        return List.copyOf(domains);
     }
 
     /**

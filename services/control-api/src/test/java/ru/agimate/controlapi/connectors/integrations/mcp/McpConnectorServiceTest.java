@@ -228,18 +228,58 @@ class McpConnectorServiceTest {
         private static final String VIEW = "ui://server-everything/weather-dashboard";
 
         @Test
-        @DisplayName("страница с prefersBorder из _meta.ui; объявленные сервером домены не отдаются")
+        @DisplayName("страница с prefersBorder и без csp")
         void readsPage() {
             when(mcpClient.readResource(any(), eq(VIEW))).thenReturn(new McpClient.Resource(VIEW,
-                    "text/html;profile=mcp-app", "<html></html>", JsonUtils.toJsonNodeOrNull(
-                    "{\"ui\":{\"csp\":{\"connectDomains\":[\"https://evil.example\"]},\"prefersBorder\":true}}")));
+                    "text/html;profile=mcp-app", "<html></html>",
+                    JsonUtils.toJsonNodeOrNull("{\"ui\":{\"prefersBorder\":true}}")));
 
             ViewPage page = service.readView(ctx(IDENTITY.toString(), Map.of(McpUtils.FIELD_URL, URL)), VIEW);
 
             assertEquals("<html></html>", page.html());
             assertTrue(page.prefersBorder());
             assertNull(page.permissions());
-            assertFalse(JsonUtils.writeValueAsString(page).contains("evil.example"));
+            assertNull(page.csp());
+        }
+
+        @Test
+        @DisplayName("объявленные домены отдаются как есть — их фильтрует политика установки")
+        void parsesDeclaredCsp() {
+            when(mcpClient.readResource(any(), eq(VIEW))).thenReturn(new McpClient.Resource(VIEW,
+                    "text/html;profile=mcp-app", "<html></html>", JsonUtils.toJsonNodeOrNull(
+                    "{\"ui\":{\"csp\":{\"resourceDomains\":[\"https://esm.sh\",\"https://evil.example\"],"
+                            + "\"connectDomains\":[\"https://esm.sh\"]}}}")));
+
+            ViewPage page = service.readView(ctx(IDENTITY.toString(), Map.of(McpUtils.FIELD_URL, URL)), VIEW);
+
+            assertEquals(List.of("https://esm.sh", "https://evil.example"), page.csp().resourceDomains());
+            assertEquals(List.of("https://esm.sh"), page.csp().connectDomains());
+        }
+
+        @Test
+        @DisplayName("варианты ключей csp читаются; строка и массив равнозначны")
+        void parsesCspKeyVariants() {
+            when(mcpClient.readResource(any(), eq(VIEW))).thenReturn(new McpClient.Resource(VIEW,
+                    "text/html;profile=mcp-app", "<html></html>", JsonUtils.toJsonNodeOrNull(
+                    "{\"ui\":{\"csp\":{\"resource-src\":[\"https://esm.sh\",\"http://esm.sh\"],"
+                            + "\"connect_src\":\"https://esm.sh\"}}}")));
+
+            ViewPage page = service.readView(ctx(IDENTITY.toString(), Map.of(McpUtils.FIELD_URL, URL)), VIEW);
+
+            assertEquals(List.of("https://esm.sh", "http://esm.sh"), page.csp().resourceDomains());
+            assertEquals(List.of("https://esm.sh"), page.csp().connectDomains());
+        }
+
+        @Test
+        @DisplayName("csp не объект → доменов нет")
+        void malformedCspIsIgnored() {
+            when(mcpClient.readResource(any(), eq(VIEW))).thenReturn(new McpClient.Resource(VIEW,
+                    "text/html;profile=mcp-app", "<html></html>",
+                    JsonUtils.toJsonNodeOrNull("{\"ui\":{\"csp\":\"https://esm.sh\"}}")));
+
+            ViewPage page = service.readView(ctx(IDENTITY.toString(), Map.of(McpUtils.FIELD_URL, URL)), VIEW);
+
+            assertNull(page.csp());
         }
 
         @Test

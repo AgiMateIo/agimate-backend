@@ -11,6 +11,12 @@ management:
 app:
   content:
     language: "__APP_CONTENT_LANGUAGE__"
+  views:
+    csp:
+      # Dev-only: the Excalidraw MCP App loads React, Excalidraw, CSS and fonts from esm.sh. The
+      # production default is empty (no external domains); an operator opts in explicitly.
+      allowed-resource-domains: ["https://esm.sh"]
+      allowed-connect-domains: ["https://esm.sh"]
   secrets:
     # Dev-only KEK. Never reuse outside the local profile.
     encryption-key: "__APP_SECRETS_ENCRYPTION_KEY__"

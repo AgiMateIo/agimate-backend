@@ -111,6 +111,14 @@ app:
     # определяется языком пользователя. Значения: en | ru (енам ContentLanguage). Первоисточник — en:
     # он живёт в коде и служит фолбэком, бандла seed/texts/en/ нет.
     language: "ru"
+  views:
+    csp:
+      # Внешние домены вью (MCP Apps, _meta.ui.csp): сервер объявляет, установка решает. Только
+      # точный https-origin. Пусто (дефолт) — прежняя строгая политика: внешних доменов нет.
+      # В проде — env APP_VIEWS_CSP_ALLOWED_RESOURCE_DOMAINS / APP_VIEWS_CSP_ALLOWED_CONNECT_DOMAINS,
+      # списки через запятую.
+      allowed-resource-domains: []
+      allowed-connect-domains: []
   frontend:
     # База для deep-link'ов, которые платформенные тулы возвращают агенту (напр. экран подключения
     # интеграции, куда пользователь вводит секрет вне LLM). В проде — env APP_FRONTEND_BASE_URL.

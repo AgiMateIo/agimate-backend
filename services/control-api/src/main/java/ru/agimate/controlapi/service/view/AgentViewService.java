@@ -10,6 +10,7 @@ import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.ViewCspPolicy;
 import ru.agimate.controlapi.connectors.core.ViewProvider;
 import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
 import ru.agimate.controlapi.connectors.core.dto.ToolUi;
@@ -66,6 +67,7 @@ public class AgentViewService {
     private final ConnectorEnvFactory connectorEnvFactory;
     private final AgentToolCallService agentToolCallService;
     private final InboundRateLimiter rateLimiter;
+    private final ViewCspPolicy viewCspPolicy;
 
     /** Grouped by {@code (connection, uri)}: several tools of one server commonly render into one view. */
     public List<AgentViewResponse> list(UUID agentId, UUID userId) {
@@ -114,7 +116,8 @@ public class AgentViewService {
         } catch (ConnectorException e) {
             throw new CustomResponseStatusException(502, e.getMessage(), CustomResponseStatusException.LoggingLevel.WARN);
         }
-        return new AgentViewContentResponse(uri, page.mimeType(), page.html(), page.permissions(), page.prefersBorder());
+        return new AgentViewContentResponse(uri, page.mimeType(), page.html(), page.permissions(),
+                page.prefersBorder(), viewCspPolicy.grant(page.csp()));
     }
 
     /**
