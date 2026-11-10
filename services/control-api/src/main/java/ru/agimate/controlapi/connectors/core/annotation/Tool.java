@@ -55,6 +55,8 @@ public @interface Tool {
      * The view this tool renders into — a full {@code ui://<connector code>/<name>} uri, as an external
      * server writes {@code _meta.ui.resourceUri}; empty — none. The connector must serve it
      * ({@code ClasspathViewProvider}); the tools the page itself calls need {@link ToolVisibility#VIEW}.
+     * A tool carrying a view is named {@code show_*} — the name is the marker that this call opens a
+     * surface (enforced by {@code ViewToolNamingTest}).
      */
     String view() default "";
 }

@@ -343,10 +343,12 @@ origin) и по нашему же разбору в [deferred/page-publishing.md
   `McpToolCatalog.forAgent(agent, ALL)`. Отзыв привязки или политика, скрывшая тул, — и вызов
   остаётся без вью; данные из журнала при этом не отдаются. Видимость `VIEW` не требуется: вызов
   сделала модель, а `VIEW` — про тулы, которые зовёт сама панель.
-- **Вью вешается на тул показа, а не на все читающие.** У памяти это `show_memory`: он один несёт
-  `@Tool(view = MEMORY_VIEW)`, возвращает cold и notes и потому не требует ещё двух чтений.
-  `get_memory`/`get_memory_notes` вью не открывают — иначе ход с обоими вызовами рисовал бы две
-  панели одного ресурса.
+- **Вью вешается на тул показа, а не на все читающие.** Так у всех трёх внутренних панелей:
+  `show_memory`, `show_sheet`, `show_time_settings`. Читающие тулы (`get_memory`, `list_sheets`,
+  `query`, `get_settings`) вью не несут — иначе ход с двумя чтениями рисовал бы две панели одного
+  ресурса. `show_memory` возвращает cold и notes, `show_sheet` — список листов; без этого модель
+  звала бы читающие тулы сверху. Имя — правило, а не вкус: `ViewToolNamingTest` валит сборку, если
+  тул с вью не начинается с `show_` или `show_*` объявлен без вью.
 - **Ответ эндпойнта** — `{toolCallId, name, connectionId, viewUri, input, result}`. `viewUri`
   `null` — у вызова нет вью (дешёвый ответ на вопрос про любой вызов); `result` — `CallToolResult`
   (`content`/`structuredContent`/`isError`), `null`, пока вызов идёт. Ошибка исполнения и отказ
@@ -470,8 +472,10 @@ origin) и по нашему же разбору в [deferred/page-publishing.md
       `GET /manage/sessions/{id}/tool-calls/{toolCallId}`
 - [x] Вход и результат для вью на бэкенде: аргументы и `CallToolResult` в ответе эндпойнта,
       сигнал `session.tool_call` на `TOOL_RESULT`
-- [x] Вью памяти перевешена на выделенный тул показа `show_memory`; inline не требует видимости
-      `VIEW` у тула — только у тулов, которые зовёт панель
+- [x] Вью перевешены на выделенные тулы показа: `show_memory`, `show_sheet`, `show_time_settings`
+      (sheets — с фокусом на листе через `tool-input`); inline не требует видимости `VIEW` у тула —
+      только у тулов, которые зовёт панель
+- [x] Правило имён и `ViewToolNamingTest`: вью ⇒ `show_*`, `show_*` ⇒ вью
 - [ ] Фронт: после `ui/initialize` слать `ui/notifications/tool-input` и `…/tool-result`,
       монтировать вью по `session.tool_call` — дельта
       [../tmpspec/connector-views-inline-frontend.md](../tmpspec/connector-views-inline-frontend.md)

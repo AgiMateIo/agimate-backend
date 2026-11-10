@@ -93,8 +93,20 @@ public class TimeToolService {
 
     @Tool(name = "get_settings", description = "Get the time settings of this agent",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
-            visibility = ToolVisibility.VIEW, view = SETTINGS_VIEW)
+            visibility = ToolVisibility.VIEW)
     public Map<String, Object> getSettings() {
+        return settingsResult(settings(ConnectorEnvHolder.current()));
+    }
+
+    /**
+     * The only tool linking the settings panel: the model shows it deliberately; the panel's own
+     * reads and writes stay quiet.
+     */
+    @Tool(name = "show_time_settings", description = "Show the user the time settings panel and return "
+            + "the current settings — the agent's timezone.",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
+            view = SETTINGS_VIEW)
+    public Map<String, Object> showTimeSettings() {
         return settingsResult(settings(ConnectorEnvHolder.current()));
     }
 

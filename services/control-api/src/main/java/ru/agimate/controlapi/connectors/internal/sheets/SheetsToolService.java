@@ -22,6 +22,7 @@ import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.Metric;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.OperationResult;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.RowList;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.RowView;
+import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.SheetBrief;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.SheetDetail;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.SheetList;
 import ru.agimate.controlapi.database.entities.Sheet;
@@ -63,9 +64,28 @@ public class SheetsToolService {
                     + "Call it when you are unsure what data you already keep — column names from here "
                     + "are the only ones other tools accept.",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
-            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = SHEETS_VIEW)
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW})
     public SheetList listSheets() {
         return new SheetList(sheetsService.listSheets(scopeId()));
+    }
+
+    /**
+     * The only tool linking the sheets panel: the model decides to show the table, while data reads
+     * stay quiet — two view-linking readers would draw two panels of one view.
+     */
+    @Tool(name = "show_sheet", description = "Show the user the sheets panel, focused on one sheet when "
+            + "named. Returns the sheets with their columns and row counts; use query for the rows "
+            + "themselves.",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
+            view = SHEETS_VIEW)
+    public SheetList showSheet(
+            @ToolParam(value = "Sheet name to focus; omit for the first sheet", required = false) String sheet) {
+        List<SheetBrief> sheets = sheetsService.listSheets(scopeId());
+        if (sheet != null && !sheet.isBlank() && sheets.stream().noneMatch(s -> s.name().equals(sheet))) {
+            throw new ConnectorException("Sheet not found: " + sheet
+                    + ". Available: " + sheets.stream().map(SheetBrief::name).toList());
+        }
+        return new SheetList(sheets);
     }
 
     @Tool(name = "create_sheet",
@@ -145,7 +165,7 @@ public class SheetsToolService {
                     + "update_rows/delete_rows. Capped at 500 rows — if 'truncated' is true, narrow the "
                     + "filter or use aggregate instead of pulling everything.",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
-            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = SHEETS_VIEW)
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW})
     public RowList query(
             @ToolParam("Sheet name") String sheet,
             @ToolParam(value = "Conditions: [{\"column\":\"amount\",\"op\":\"gte\",\"value\":\"100\"}]",

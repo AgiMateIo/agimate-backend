@@ -41,12 +41,15 @@ class SheetsConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("панели открыто только чтение: список и query; запись остаётся модели")
+        @DisplayName("панель открывает show_sheet; чтение доступно панели, запись остаётся модели")
         void onlyReadsAreOpenToThePanel() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
+            // Вью — только у тула показа: чтение панель зовёт через мост, но панель не открывает.
+            assertEquals(SheetsToolService.SHEETS_VIEW, tools.get("show_sheet").ui().resourceUri());
+            assertTrue(ToolUi.visibleTo(tools.get("show_sheet").ui(), ToolAudience.MODEL));
             for (String name : List.of("list_sheets", "query")) {
-                assertEquals(SheetsToolService.SHEETS_VIEW, tools.get(name).ui().resourceUri(), name);
+                assertNull(tools.get(name).ui().resourceUri(), name);
                 assertTrue(ToolUi.visibleTo(tools.get(name).ui(), ToolAudience.VIEW), name);
                 assertTrue(ToolUi.visibleTo(tools.get(name).ui(), ToolAudience.MODEL), name);
             }

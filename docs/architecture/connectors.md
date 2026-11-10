@@ -254,7 +254,10 @@ ViewProvider     — readView(ctx, uri), toViewResult(output) — вью MCP App
 отдаёт страницу по `uri` и приводит вывод своего тула к `CallToolResult` для вью. Какие `uri` читать и
 какие тулы звать, решает `AgentViewService` по каталогу агента. Внутренний коннектор реализует
 `ClasspathViewProvider` — страница `ui://<code>/<name>` лежит в `resources/views/<code>/<name>.html` и
-едет с деплоем, — а тул ссылается на неё `@Tool(view = "ui://<code>/<name>")`. Тулам, которые зовёт
+едет с деплоем, — а тул ссылается на неё `@Tool(view = "ui://<code>/<name>")`. Вью вешается только на
+тул показа, и имя его начинается с `show_` (`show_memory`, `show_sheet`, `show_time_settings`);
+читающие тулы вью не несут — иначе каждый вызов чтения открывал бы свою панель. Правило стережёт
+`ViewToolNamingTest`. Тулам, которые зовёт
 сама страница, нужна видимость `ToolVisibility.VIEW`. См.
 [../decisions/connector-views.md](../decisions/connector-views.md).
 

@@ -50,7 +50,7 @@ class TimeConnectorServiceTest {
         assertEquals("Time", handler.connectorName());
 
         Map<String, ConnectorToolSpec> tools = handler.getTools();
-        assertEquals(8, tools.size());
+        assertEquals(9, tools.size());
         assertNotNull(tools.get("current_datetime"));
         assertTrue(tools.get("current_datetime").annotations().readOnlyHint());
         assertNotNull(tools.get("schedule"));
@@ -59,6 +59,11 @@ class TimeConnectorServiceTest {
         assertNotNull(tools.get("set_timezone"));
         assertNotNull(tools.get("get_settings"));
         assertNotNull(tools.get("save_settings"));
+        // Вход в панель — только у show_time_settings; get_settings панель зовёт через мост.
+        assertNotNull(tools.get("show_time_settings"));
+        assertEquals(TimeToolService.SETTINGS_VIEW, tools.get("show_time_settings").ui().resourceUri());
+        assertEquals(List.of("model"), tools.get("show_time_settings").ui().visibility());
+        assertNull(tools.get("get_settings").ui().resourceUri());
         assertEquals(List.of("app"), tools.get("cancel_task").ui().visibility());
         // The panel lists the very tasks the model sees.
         assertEquals(List.of("model", "app"), tools.get("scheduled_tasks").ui().visibility());

@@ -113,7 +113,14 @@
   window.addEventListener("message", (event) => {
     if (event.source !== window.parent) return;
     const message = event.data;
-    if (!message || message.jsonrpc !== "2.0" || message.id == null || !pending.has(message.id)) return;
+    if (!message || message.jsonrpc !== "2.0") return;
+    // Inline view: the host names the sheet the call was about; focus it once the list is loaded.
+    if (message.method === "ui/notifications/tool-input") {
+      const wanted = message.params && message.params.arguments && message.params.arguments.sheet;
+      if (wanted) { wantedSheet = wanted; focusWantedSheet(); }
+      return;
+    }
+    if (message.id == null || !pending.has(message.id)) return;
     const { resolve, reject } = pending.get(message.id);
     pending.delete(message.id);
     message.error ? reject(new Error(message.error.message)) : resolve(message.result);
@@ -131,7 +138,7 @@
   // --- UI ---
   const $ = (id) => document.getElementById(id);
   const select = $("sheet");
-  let sheets = [], current = null, sort = { column: null, dir: "asc" };
+  let sheets = [], current = null, wantedSheet = null, sort = { column: null, dir: "asc" };
 
   function status(text, isError) {
     $("status").textContent = text || "";
@@ -207,11 +214,25 @@
     }
   }
 
+  /** The sheet the host named in tool-input, once the list is there; consumed on use. */
+  function focusWantedSheet() {
+    if (!wantedSheet || !sheets.length) return;
+    const target = sheets.find((s) => s.name === wantedSheet);
+    wantedSheet = null;
+    if (!target) return;
+    current = target;
+    sort = { column: null, dir: "asc" };
+    renderSheetChooser();
+    loadRows();
+  }
+
   async function loadSheets() {
     status(t.loading);
     try {
       sheets = (await callTool("list_sheets")).sheets || [];
-      current = sheets.find((s) => current && s.name === current.name) || sheets[0] || null;
+      current = (wantedSheet && sheets.find((s) => s.name === wantedSheet))
+          || sheets.find((s) => current && s.name === current.name) || sheets[0] || null;
+      wantedSheet = null;
       renderSheetChooser();
       if (!current) {
         $("count").textContent = "";
