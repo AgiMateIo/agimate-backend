@@ -132,12 +132,16 @@ class PersistentMemoryConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("чтение ссылается на панель, чтение и запись доступны и модели, и панели")
+        @DisplayName("панель открывает только show_memory; чтение и запись доступны модели и панели")
         void toolsOpenToThePanel() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
-            assertEquals(PersistentMemoryToolService.MEMORY_VIEW, tools.get("get_memory").ui().resourceUri());
-            assertEquals(PersistentMemoryToolService.MEMORY_VIEW, tools.get("get_memory_notes").ui().resourceUri());
+            assertEquals(PersistentMemoryToolService.MEMORY_VIEW, tools.get("show_memory").ui().resourceUri());
+            // Читающие тулы панель зовёт через мост, но панель не открывают: иначе каждый вызов
+            // рисовал бы свою вью (get_memory + get_memory_notes — две панели).
+            assertNull(tools.get("get_memory").ui().resourceUri());
+            assertNull(tools.get("get_memory_notes").ui().resourceUri());
+            assertTrue(ToolUi.visibleTo(tools.get("show_memory").ui(), ToolAudience.MODEL));
             for (String name : List.of("get_memory", "get_memory_notes", "save_memory_note", "update_memory")) {
                 assertTrue(ToolUi.visibleTo(tools.get(name).ui(), ToolAudience.MODEL), name);
                 assertTrue(ToolUi.visibleTo(tools.get(name).ui(), ToolAudience.VIEW), name);

@@ -107,8 +107,8 @@ public class ManageSessionController {
 
     @Operation(summary = "Resolve a tool call of a message to its inline view",
             description = "toolCallId comes from the message's toolCallIds. The view is looked up in the agent's "
-                    + "current catalog, so a revoked binding or a tool hidden from views answers without viewUri; "
-                    + "result is null while the call runs")
+                    + "current catalog, so a revoked binding answers without viewUri; result is null while the "
+                    + "call runs")
     @GetMapping("/{id}/tool-calls/{toolCallId}")
     public SuccessResponse<SessionToolCallResponse> toolCall(
             @AuthenticationPrincipal AgimateUserPrincipal principal,

@@ -27,7 +27,8 @@ import java.util.UUID;
 /**
  * Tools and background jobs of persistent memory.
  *
- * <p>Tools (visible to the LLM): {@code get_memory}/{@code get_memory_notes} (reading cold/hot),
+ * <p>Tools (visible to the LLM): {@code show_memory} (the single entry into the panel — the only tool
+ * that links a view), {@code get_memory}/{@code get_memory_notes} (reading cold/hot),
  * {@code save_memory_note} (appending a note to hot), {@code update_memory} (a CAS write of cold plus
  * atomic deletion of the consolidated batch's notes).
  *
@@ -60,7 +61,7 @@ public class PersistentMemoryToolService {
     @Tool(name = "get_memory", description = "Get your consolidated (cold) memory with its version. "
             + "Pass the returned version to update_memory when you rewrite it.",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false),
-            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = MEMORY_VIEW)
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW})
     public Map<String, Object> getMemory() {
         UUID scopeId = resolveScopeId(ConnectorEnvHolder.current());
         PersistentMemoryCold cold = memoryService.getCold(scopeId).orElse(null);
@@ -73,13 +74,30 @@ public class PersistentMemoryToolService {
     @Tool(name = "get_memory_notes", description = "Get your pending (hot) memory notes — facts captured "
             + "but not yet consolidated into cold memory.",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false),
-            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW}, view = MEMORY_VIEW)
+            visibility = {ToolVisibility.MODEL, ToolVisibility.VIEW})
     public Map<String, Object> getMemoryNotes() {
         UUID scopeId = resolveScopeId(ConnectorEnvHolder.current());
         List<Map<String, Object>> notes = memoryService.getNotes(scopeId).stream()
                 .map(PersistentMemoryToolService::noteView)
                 .toList();
         return Map.of("notes", notes);
+    }
+
+    /**
+     * The only tool linking the panel: a deliberate "show" opens it, while reading memory does not
+     * mount a view per read (several tools of one view would otherwise draw several panels). The
+     * result carries both layers, so the model answers from it without the two readers on top.
+     */
+    @Tool(name = "show_memory", description = "Show the user the memory panel and return what you "
+            + "remember about them: the consolidated (cold) memory with its version and the pending "
+            + "(hot) notes. Call this instead of get_memory/get_memory_notes when the user asks what "
+            + "you remember.",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false),
+            view = MEMORY_VIEW)
+    public Map<String, Object> showMemory() {
+        Map<String, Object> result = new LinkedHashMap<>(getMemory());
+        result.put("notes", getMemoryNotes().get("notes"));
+        return result;
     }
 
     @Tool(name = "save_memory_note", description = "Append a note to your hot memory (a fact worth "

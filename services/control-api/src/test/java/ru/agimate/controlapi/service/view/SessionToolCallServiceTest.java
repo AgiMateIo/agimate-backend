@@ -147,12 +147,12 @@ class SessionToolCallServiceTest {
     }
 
     @Test
-    @DisplayName("тул скрыт от вью — вью не отдаётся")
-    void toolHiddenFromViews() {
+    @DisplayName("вью на туле модели резолвится: VIEW нужен тулам панели, а не тулу показа")
+    void modelToolWithViewResolves() {
         ToolCallLog call = call();
         stubView(new ToolUi(VIEW_URI, List.of("model")), call);
 
-        assertNull(service.get(USER_ID, SESSION_ID, "call-1").viewUri());
+        assertEquals(VIEW_URI, service.get(USER_ID, SESSION_ID, "call-1").viewUri());
     }
 
     @Test

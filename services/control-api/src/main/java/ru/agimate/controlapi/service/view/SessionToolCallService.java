@@ -5,8 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.core.dto.ToolAudience;
-import ru.agimate.controlapi.connectors.core.dto.ToolUi;
 import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionToolCallResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -62,8 +60,9 @@ public class SessionToolCallService {
     }
 
     /**
-     * The view is resolved through the current catalog, not from a stored link: a revoked binding, a
-     * policy that now denies the tool, or a tool hidden from views leaves the call without a view.
+     * The view is resolved through the current catalog, not from a stored link: a revoked binding or a
+     * policy that now denies the tool leaves the call without a view. Visibility {@code VIEW} is not
+     * required — the call came from the model; {@code VIEW} belongs to the tools the page itself calls.
      */
     private McpToolCatalog.ToolEntry viewEntry(Agent agent, ToolCallLog call) {
         if (call.getConnectionId() == null) {
@@ -71,7 +70,6 @@ public class SessionToolCallService {
         }
         return agentViewService.viewCatalog(agent).stream()
                 .filter(AgentViewService::linksView)
-                .filter(entry -> ToolUi.visibleTo(entry.spec().ui(), ToolAudience.VIEW))
                 .filter(entry -> entry.connectionId().toString().equals(call.getConnectionId()))
                 .filter(entry -> entry.toolName().equals(call.getName()))
                 .findFirst()

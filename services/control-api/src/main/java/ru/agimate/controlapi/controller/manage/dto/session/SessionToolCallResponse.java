@@ -27,7 +27,7 @@ public record SessionToolCallResponse(
         String connectionId,
 
         @Schema(nullable = true, description = "View the call renders into; null when the tool has no view "
-                + "(a tool without a ui:// resource, one not visible to views, or a binding since revoked)")
+                + "(no ui:// resource, or a binding since revoked)")
         String viewUri,
 
         @Schema(nullable = true, description = "Arguments the model sent; null when there is no view")
