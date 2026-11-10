@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.controlapi.controller.manage.dto.session.ToolCallDescriptor;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.TriggerLog;
@@ -35,6 +36,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import ru.agimate.controlapi.realtime.RealtimeEvent.SessionToolCallUpdated;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
+import ru.agimate.controlapi.service.view.SessionToolCallService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 
@@ -50,6 +53,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -59,6 +63,7 @@ import static org.mockito.Mockito.when;
 class MessageLogServiceTest {
 
     private static final UUID AGENT_ID = UUID.randomUUID();
+    private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID TRIGGER_ID = UUID.randomUUID();
     private static final UUID SESSION_ID = UUID.randomUUID();
     private static final UUID PROMPT_CHANNEL = UUID.randomUUID();
@@ -73,6 +78,8 @@ class MessageLogServiceTest {
     @Mock private AgentSessionService agentSessionService;
     @Mock private ChannelMessageLogResolver channelMessageLogResolver;
     @Mock private ChannelMessageLog channelMessageLog;
+    @Mock private SessionToolCallService sessionToolCallService;
+    @Mock private RealtimePublisher realtime;
 
     private MessageLogService service;
 
@@ -81,7 +88,7 @@ class MessageLogServiceTest {
         service = new MessageLogService(
                 new MessageLogPersistence(agentRunRepository, messageRepository, inboundTextResolver, turnService,
                         eventPublisher, agentSessionService, channelMessageLogResolver),
-                outboundService);
+                outboundService, sessionToolCallService, realtime);
         // A channel without its own message log is the default in these tests; the webchat case overrides it.
         lenient().when(agentSessionService.getById(any())).thenReturn(
                 AgentSession.builder().connectorCode("telegram").build());
@@ -89,7 +96,7 @@ class MessageLogServiceTest {
 
     private AgentRun run(UUID sessionId, Channels channels) {
         AgentRun run = AgentRun.builder()
-                .agent(Agent.builder().id(AGENT_ID).build())
+                .agent(Agent.builder().id(AGENT_ID).userId(USER_ID).build())
                 .triggerLog(TriggerLog.builder()
                         .connectorCode("webchat")
                         .connectionId(UUID.randomUUID().toString())
@@ -172,7 +179,7 @@ class MessageLogServiceTest {
 
             assertEquals("done", run.getResult());
             // The session's upkeep is decided here, after the answer.
-            verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, null, SESSION_ID));
+            verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, USER_ID, SESSION_ID));
             // The finish takes «working now» off the chat list.
             verify(agentSessionService).runStateChanged(SESSION_ID);
         }
@@ -195,19 +202,93 @@ class MessageLogServiceTest {
         }
 
         @Test
-        @DisplayName("TOOL_RESULT: в хранилище ничего, но вью получает сигнал, какие вызовы готовы")
+        @DisplayName("TOOL_RESULT: в хранилище ничего, вью получает сигнал с дескрипторами")
         void toolResultSignalsViews() {
             run(SESSION_ID, dialogueChannels());
+            ToolCallDescriptor plain = new ToolCallDescriptor("c1", "get_memory", "conn-1", null);
+            ToolCallDescriptor view = new ToolCallDescriptor("c2", "show_memory", "conn-2",
+                    "ui://persist-memory/memory");
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2")))
+                    .thenReturn(Optional.of(Map.of("c1", plain, "c2", view)));
 
             service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.PROGRESS, "TOOL_RESULT", "",
                     new ToolTurnRecord("", List.of(), List.of(
                             new ToolTurnRecord.Result("c1", "get_memory", "{}", false, null),
-                            new ToolTurnRecord.Result("c2", "get_memory_notes", "{}", false, null))));
+                            new ToolTurnRecord.Result("c2", "show_memory", "{}", false, null))));
 
             verifyNoInteractions(messageRepository);
             verifyNoInteractions(outboundService);
-            verify(eventPublisher).publishEvent(new SessionToolCallUpdated(
-                    null, AGENT_ID, SESSION_ID, List.of("c1", "c2")));
+            verify(realtime).publish(new SessionToolCallUpdated(
+                    USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2"), List.of(plain, view)));
+        }
+
+        @Test
+        @DisplayName("резолв не удался — событие уходит с toolCalls = null: старый путь фронта остаётся")
+        void unresolvedSignalCarriesNull() {
+            run(SESSION_ID, dialogueChannels());
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")))
+                    .thenReturn(Optional.empty());
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.PROGRESS, "TOOL_RESULT", "",
+                    new ToolTurnRecord("", List.of(), List.of(
+                            new ToolTurnRecord.Result("c1", "get_memory", "{}", false, null))));
+
+            verify(realtime).publish(new SessionToolCallUpdated(
+                    USER_ID, AGENT_ID, SESSION_ID, List.of("c1"), null));
+        }
+
+        @Test
+        @DisplayName("TOOL_CALL — не сигнал: дескрипторы приходят только с результатами")
+        void toolCallIsNotASignal() {
+            run(SESSION_ID, dialogueChannels());
+            when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(), anyString(), anyString(),
+                    anyString(), any(), anyString())).thenReturn(1);
+
+            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TOOL_CALL",
+                    "🔧 get_memory",
+                    new ToolTurnRecord("", List.of(new ToolTurnRecord.Call("c1", "get_memory", "{}")), List.of()));
+
+            verifyNoInteractions(sessionToolCallService);
+            verifyNoInteractions(realtime);
+        }
+
+        @Test
+        @DisplayName("TOOL_RESULT без toolTurn — сигнала нет")
+        void toolResultWithoutTurnIsNotASignal() {
+            run(SESSION_ID, dialogueChannels());
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.PROGRESS, "TOOL_RESULT", "");
+
+            verifyNoInteractions(sessionToolCallService);
+            verifyNoInteractions(realtime);
+        }
+
+        @Test
+        @DisplayName("ран без сессии — сигнала нет: разговора, которому он адресован, не существует")
+        void noSessionNoSignal() {
+            run(null, null);
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.PROGRESS, "TOOL_RESULT", "",
+                    new ToolTurnRecord("", List.of(), List.of(
+                            new ToolTurnRecord.Result("c1", "get_memory", "{}", false, null))));
+
+            verifyNoInteractions(sessionToolCallService);
+            verifyNoInteractions(realtime);
+        }
+
+        @Test
+        @DisplayName("повтор TOOL_RESULT публикует сигнал снова — доставка at-least-once")
+        void replayPublishesAgain() {
+            run(SESSION_ID, dialogueChannels());
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")))
+                    .thenReturn(Optional.of(Map.of()));
+            ToolTurnRecord turn = new ToolTurnRecord("", List.of(), List.of(
+                    new ToolTurnRecord.Result("c1", "get_memory", "{}", false, null)));
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.PROGRESS, "TOOL_RESULT", "", turn);
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.PROGRESS, "TOOL_RESULT", "", turn);
+
+            verify(realtime, times(2)).publish(any(SessionToolCallUpdated.class));
         }
 
         @Test
@@ -233,7 +314,7 @@ class MessageLogServiceTest {
 
             assertEquals("done", run.getResult());
             verifyNoInteractions(messageRepository);
-            verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, null, SESSION_ID));
+            verify(eventPublisher).publishEvent(new RunFinished(TRIGGER_ID, AGENT_ID, USER_ID, SESSION_ID));
         }
 
         @Test

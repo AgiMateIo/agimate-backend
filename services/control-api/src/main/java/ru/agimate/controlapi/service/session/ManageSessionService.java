@@ -15,7 +15,10 @@ import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLog;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLogResolver;
+import ru.agimate.controlapi.service.view.SessionToolCallService;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,6 +38,7 @@ public class ManageSessionService {
     private final SessionRows sessionRows;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
     private final ChannelMessageLogResolver channelMessageLogResolver;
+    private final SessionToolCallService sessionToolCallService;
 
     /** The user's conversations, freshest first; each row is built by {@link SessionRows}. */
     public Page<SessionResponse> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
@@ -82,16 +86,45 @@ public class ManageSessionService {
      */
     public Page<SessionMessageResponse> listMessages(UUID userId, UUID sessionId, int page, int size) {
         AgentSession session = requireOwned(userId, sessionId);
+        return withToolCalls(session, readMessages(session, userId, page, size));
+    }
+
+    private Page<SessionMessageResponse> readMessages(AgentSession session, UUID userId, int page, int size) {
         Optional<ChannelMessageLog> ownLog = channelMessageLogResolver.find(session);
         if (ownLog.isPresent()) {
-            return ownLog.get().listMessages(userId, sessionId, page, size);
+            return ownLog.get().listMessages(userId, session.getId(), page, size);
         }
         // created_at comes from CURRENT_TIMESTAMP, which is the same for every row a run writes in one
         // transaction — the id (uuidv7) is what keeps a page from repeating or skipping one of them.
         PageRequest pageRequest = PageRequests.of(page, size,
                 Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
-        return channelSessionMessageRepository.findWithMessageBySessionId(sessionId, pageRequest)
+        return channelSessionMessageRepository.findWithMessageBySessionId(session.getId(), pageRequest)
                 .map(SessionMessageResponse::from);
+    }
+
+    /**
+     * Attaches the calls' descriptors to the page in one resolution: the agent's catalog and the
+     * journal are read once for the whole page. A row whose resolution did not happen keeps
+     * {@code toolCalls = null} — the frontend then uses the old per-call endpoint.
+     */
+    private Page<SessionMessageResponse> withToolCalls(AgentSession session, Page<SessionMessageResponse> page) {
+        List<String> ids = page.getContent().stream()
+                .map(SessionMessageResponse::toolCallIds)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return page;
+        }
+        return sessionToolCallService
+                .describe(session.getUserId(), session.getAgentId(), session.getId(), ids)
+                .map(byId -> page.map(row -> {
+                    List<String> rowIds = row.toolCallIds();
+                    return rowIds == null ? row : row.withToolCalls(
+                            rowIds.stream().map(byId::get).filter(Objects::nonNull).toList());
+                }))
+                .orElse(page);
     }
 
     private AgentSession requireOwned(UUID userId, UUID sessionId) {

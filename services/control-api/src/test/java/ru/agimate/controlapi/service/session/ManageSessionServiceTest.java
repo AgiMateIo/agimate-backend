@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.ToolCallDescriptor;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
@@ -21,10 +22,12 @@ import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.AgentRunQueryService;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLog;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLogResolver;
+import ru.agimate.controlapi.service.view.SessionToolCallService;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -64,6 +68,8 @@ class ManageSessionServiceTest {
     private ChannelMessageLogResolver channelMessageLogResolver;
     @Mock
     private ChannelMessageLog channelMessageLog;
+    @Mock
+    private SessionToolCallService sessionToolCallService;
 
     private ManageSessionService manageSessionService;
 
@@ -73,7 +79,7 @@ class ManageSessionServiceTest {
     void setUp() {
         SessionRows sessionRows = new SessionRows(agentSessionRepository, webchatMessageRepository, agentRunQueryService);
         manageSessionService = new ManageSessionService(agentSessionService, sessionRows,
-                channelSessionMessageRepository, channelMessageLogResolver);
+                channelSessionMessageRepository, channelMessageLogResolver, sessionToolCallService);
         session = AgentSession.builder()
                 .id(SESSION_ID)
                 .userId(USER_ID)
@@ -151,7 +157,7 @@ class ManageSessionServiceTest {
             when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
             when(channelMessageLogResolver.find(session)).thenReturn(Optional.of(channelMessageLog));
             SessionMessageResponse expected = new SessionMessageResponse(
-                    UUID.randomUUID(), "m-1", "AGENT", "answer", "готово", null, null, LocalDateTime.now());
+                    UUID.randomUUID(), "m-1", "AGENT", "answer", "готово", null, null, null, LocalDateTime.now());
             when(channelMessageLog.listMessages(USER_ID, SESSION_ID, 0, 50))
                     .thenReturn(new PageImpl<>(List.of(expected)));
 
@@ -205,6 +211,123 @@ class ManageSessionServiceTest {
 
             assertEquals("USER", row.direction());
             assertNull(row.stream());
+        }
+    }
+
+    @Nested
+    @DisplayName("listMessages — дескрипторы вызовов приходят вместе с сообщениями")
+    class ToolCalls {
+
+        private static final ToolCallDescriptor PLAIN =
+                new ToolCallDescriptor("c1", "get_memory", "conn-1", null);
+        private static final ToolCallDescriptor VIEW =
+                new ToolCallDescriptor("c2", "show_memory", "conn-2", "ui://persist-memory/memory");
+
+        private SessionMessageResponse row(List<String> ids) {
+            return new SessionMessageResponse(UUID.randomUUID(), "m-1", "AGENT", "progress",
+                    "🔧", null, ids, null, LocalDateTime.now());
+        }
+
+        private void webchat(SessionMessageResponse... rows) {
+            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
+            when(channelMessageLogResolver.find(session)).thenReturn(Optional.of(channelMessageLog));
+            when(channelMessageLog.listMessages(USER_ID, SESSION_ID, 0, 50))
+                    .thenReturn(new PageImpl<>(List.of(rows)));
+        }
+
+        @Test
+        @DisplayName("ветвь вебчата: дескрипторы приходят вместе с сообщениями")
+        void webchatDecorated() {
+            webchat(row(List.of("c1")));
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")))
+                    .thenReturn(Optional.of(Map.of("c1", PLAIN)));
+
+            SessionMessageResponse out = manageSessionService
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0);
+
+            assertEquals(List.of(PLAIN), out.toolCalls());
+        }
+
+        @Test
+        @DisplayName("общая проекция: дескрипторы приходят так же")
+        void channelLogDecorated() {
+            session.setConnectorCode("telegram");
+            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
+            when(channelSessionMessageRepository.findWithMessageBySessionId(eq(SESSION_ID), any()))
+                    .thenReturn(new PageImpl<>(List.of(ChannelSessionMessage.builder()
+                            .id(UUID.randomUUID())
+                            .kind(ChannelSessionMessageKind.PROGRESS)
+                            .message("🔧")
+                            .toolCallIds(List.of("c2"))
+                            .build())));
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c2")))
+                    .thenReturn(Optional.of(Map.of("c2", VIEW)));
+
+            SessionMessageResponse out = manageSessionService
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0);
+
+            assertEquals(List.of(VIEW), out.toolCalls());
+        }
+
+        @Test
+        @DisplayName("id без записи в журнале опускается: массив короче toolCallIds, порядок сохранён")
+        void missingIdsOmitted() {
+            webchat(row(List.of("c1", "c2")));
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2")))
+                    .thenReturn(Optional.of(Map.of("c2", VIEW)));
+
+            SessionMessageResponse out = manageSessionService
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0);
+
+            assertEquals(List.of(VIEW), out.toolCalls());
+        }
+
+        @Test
+        @DisplayName("ни одного id в журнале — пустой массив, а не null: запросов не нужно")
+        void noneFoundIsEmptyArray() {
+            webchat(row(List.of("c1")));
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")))
+                    .thenReturn(Optional.of(Map.of()));
+
+            assertEquals(List.of(), manageSessionService
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0).toolCalls());
+        }
+
+        @Test
+        @DisplayName("резолв не удался — toolCalls = null, история отдаётся как есть")
+        void resolutionFailureLeavesNull() {
+            webchat(row(List.of("c1")));
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")))
+                    .thenReturn(Optional.empty());
+
+            assertNull(manageSessionService
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0).toolCalls());
+        }
+
+        @Test
+        @DisplayName("страница без toolCallIds не трогает резолвер")
+        void noIdsAskNothing() {
+            webchat(row(null));
+
+            assertNull(manageSessionService
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent().get(0).toolCalls());
+            verifyNoInteractions(sessionToolCallService);
+        }
+
+        @Test
+        @DisplayName("резолв один на страницу: id разных строк уходят одним запросом")
+        void oneDescribePerPage() {
+            webchat(row(List.of("c1")), row(List.of("c2")));
+            when(sessionToolCallService.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2")))
+                    .thenReturn(Optional.of(Map.of("c1", PLAIN, "c2", VIEW)));
+
+            List<SessionMessageResponse> rows = manageSessionService
+                    .listMessages(USER_ID, SESSION_ID, 0, 50).getContent();
+
+            assertEquals(List.of(PLAIN), rows.get(0).toolCalls());
+            assertEquals(List.of(VIEW), rows.get(1).toolCalls());
+            verify(sessionToolCallService, times(1))
+                    .describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2"));
         }
     }
 

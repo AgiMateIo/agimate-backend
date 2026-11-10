@@ -39,8 +39,12 @@ public record SessionMessageResponse(
         List<WebchatAttachment> parts,
 
         @Schema(description = "Ids of the tool calls a TOOL_CALL progress line names; null on other lines. "
-                + "Resolve a call to its inline view through GET /manage/sessions/{id}/tool-calls/{toolCallId}")
+                + "Resolved to descriptors by toolCalls; the per-call endpoint stays the fallback")
         List<String> toolCallIds,
+
+        @Schema(nullable = true, description = "Tool calls of a TOOL_CALL line with the view each renders into, "
+                + "only for ids the journal knows; null when the row was not resolved")
+        List<ToolCallDescriptor> toolCalls,
 
         @Schema(description = "Creation timestamp")
         LocalDateTime createdAt
@@ -58,6 +62,7 @@ public record SessionMessageResponse(
                 message.getText(),
                 parts,
                 message.getToolCallIds(),
+                null,
                 message.getCreatedAt());
     }
 
@@ -71,6 +76,13 @@ public record SessionMessageResponse(
                 message.getMessage(),
                 null,
                 message.getToolCallIds(),
+                null,
                 message.getCreatedAt());
+    }
+
+    /** The same row with its calls resolved; {@code null} — the resolution did not happen. */
+    public SessionMessageResponse withToolCalls(List<ToolCallDescriptor> toolCalls) {
+        return new SessionMessageResponse(id, messageId, direction, stream, text, parts, toolCallIds,
+                toolCalls, createdAt);
     }
 }

@@ -14,7 +14,6 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
-import ru.agimate.controlapi.realtime.RealtimeEvent.SessionToolCallUpdated;
 import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLog;
 import ru.agimate.controlapi.service.channel.handler.ChannelMessageLogResolver;
@@ -62,8 +61,10 @@ public class MessageLogPersistence {
      * @param steered this run's inbound was absorbed by another run (both steering facts hold and
      *                the main finished DONE/CANCELLED) — the worker leaves quietly, like a queued
      *                cancellation
+     * @param userId the run owner — the address of the tool-call signal published after this record
      */
-    public record Persisted(boolean duplicate, Channels channels, boolean cancelRequested, boolean steered) {}
+    public record Persisted(boolean duplicate, Channels channels, boolean cancelRequested, boolean steered,
+                            UUID userId) {}
 
     @Transactional
     public Persisted persist(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
@@ -123,13 +124,6 @@ public class MessageLogPersistence {
                         triggerInput, toolCallIdsJson(kind, progressType, toolTurn));
                 duplicate = inserted == 0;
             }
-            // An inline view mounted for these calls re-reads its result from tool_call_logs; the ids
-            // are the only thing the delivered line and the log share.
-            if (kind == ChannelSessionMessageKind.PROGRESS && "TOOL_RESULT".equals(progressType)
-                    && toolTurn != null && !toolTurn.resultIds().isEmpty()) {
-                eventPublisher.publishEvent(new SessionToolCallUpdated(
-                        run.getAgent().getUserId(), agentId, sessionId, toolTurn.resultIds()));
-            }
             if (kind == ChannelSessionMessageKind.ANSWER && run.getStatus() == RunStatus.DONE) {
                 eventPublisher.publishEvent(new RunFinished(triggerId, agentId, run.getAgent().getUserId(), sessionId));
             }
@@ -138,7 +132,8 @@ public class MessageLogPersistence {
         if (duplicate) {
             log.debug("saveMessage duplicate run={} seq={} kind={}", triggerId, seq, kind);
         }
-        return new Persisted(duplicate, channels, run.getCancelRequestedAt() != null, steered);
+        return new Persisted(duplicate, channels, run.getCancelRequestedAt() != null, steered,
+                run.getAgent().getUserId());
     }
 
     /**

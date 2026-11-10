@@ -23,6 +23,8 @@ import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.dto.IToolCall;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,6 +39,12 @@ public class ToolCallLogService {
 
     public Optional<ToolCallLog> findByExternalIdAndAgentId(String externalId, UUID agentId) {
         return toolCallLogRepository.findByExternalIdAndAgentId(externalId, agentId);
+    }
+
+    /** The journal rows of a page's calls, in one query — the ids of one agent's calls are unique. */
+    public List<ToolCallLog> findByAgentIdAndExternalIdIn(UUID agentId, Collection<String> externalIds) {
+        return externalIds.isEmpty() ? List.of()
+                : toolCallLogRepository.findByAgentIdAndExternalIdIn(agentId, externalIds);
     }
 
     /** Live detached calls of the agent, younger than {@code cutoff} — the MCP task cap reads this. */

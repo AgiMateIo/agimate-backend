@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.view;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -13,6 +14,7 @@ import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.ToolUi;
 import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionToolCallResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.ToolCallDescriptor;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
@@ -27,9 +29,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,7 +63,7 @@ class SessionToolCallServiceTest {
         service = new SessionToolCallService(agentSessionService, agentViewService, toolCallLogService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).build();
         session = AgentSession.builder().id(SESSION_ID).userId(USER_ID).agentId(AGENT_ID).build();
-        when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
+        lenient().when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
     }
 
     private ToolCallLog call() {
@@ -183,5 +190,117 @@ class SessionToolCallServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThrows(NotFoundStatusException.class, () -> service.get(USER_ID, SESSION_ID, "call-1"));
+    }
+
+    @Nested
+    @DisplayName("дескрипторы вызовов")
+    class Describe {
+
+        private ToolCallLog log(String id, String name) {
+            return ToolCallLog.builder()
+                    .externalId(id)
+                    .name(name)
+                    .connectionId(CONNECTION_ID.toString())
+                    .agentSessionId(SESSION_ID.toString())
+                    .build();
+        }
+
+        private McpToolCatalog.ToolEntry entry(String toolName, ToolUi ui) {
+            return new McpToolCatalog.ToolEntry(CONNECTION_ID, "persist-memory", toolName,
+                    new ConnectorToolSpec(toolName, null, toolName, null, null, null, null, null, null, ui));
+        }
+
+        @Test
+        @DisplayName("запись на каждый найденный вызов: viewUri только у тула с вью, name и connectionId из журнала")
+        void descriptorsForFoundCalls() {
+            when(agentViewService.ownedAgent(AGENT_ID, USER_ID)).thenReturn(agent);
+            when(agentViewService.viewCatalog(agent)).thenReturn(List.of(
+                    entry("show_memory", view()), entry("get_memory", null)));
+            when(toolCallLogService.findByAgentIdAndExternalIdIn(AGENT_ID, List.of("c1", "c2")))
+                    .thenReturn(List.of(log("c1", "show_memory"), log("c2", "get_memory")));
+
+            Map<String, ToolCallDescriptor> byId = service
+                    .describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2")).orElseThrow();
+
+            assertEquals(new ToolCallDescriptor("c1", "show_memory", CONNECTION_ID.toString(), VIEW_URI),
+                    byId.get("c1"));
+            assertEquals(new ToolCallDescriptor("c2", "get_memory", CONNECTION_ID.toString(), null),
+                    byId.get("c2"));
+        }
+
+        @Test
+        @DisplayName("каталог собирается один раз на пачку вызовов")
+        void catalogBuiltOnce() {
+            when(agentViewService.ownedAgent(AGENT_ID, USER_ID)).thenReturn(agent);
+            when(agentViewService.viewCatalog(agent)).thenReturn(List.of(entry("show_memory", view())));
+            when(toolCallLogService.findByAgentIdAndExternalIdIn(AGENT_ID, List.of("c1", "c2", "c3")))
+                    .thenReturn(List.of(log("c1", "show_memory"), log("c2", "show_memory"),
+                            log("c3", "show_memory")));
+
+            service.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2", "c3"));
+
+            verify(agentViewService, times(1)).viewCatalog(agent);
+        }
+
+        @Test
+        @DisplayName("вызов другой сессии того же агента в дескрипторы не попадает")
+        void callOfAnotherSessionOmitted() {
+            ToolCallLog foreign = log("c2", "show_memory");
+            foreign.setAgentSessionId(UUID.randomUUID().toString());
+            when(agentViewService.ownedAgent(AGENT_ID, USER_ID)).thenReturn(agent);
+            when(agentViewService.viewCatalog(agent)).thenReturn(List.of(entry("show_memory", view())));
+            when(toolCallLogService.findByAgentIdAndExternalIdIn(AGENT_ID, List.of("c1", "c2")))
+                    .thenReturn(List.of(log("c1", "show_memory"), foreign));
+
+            Map<String, ToolCallDescriptor> byId = service
+                    .describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2")).orElseThrow();
+
+            assertTrue(byId.containsKey("c1"));
+            assertFalse(byId.containsKey("c2"));
+        }
+
+        @Test
+        @DisplayName("пустой список id — каталог и журнал не читаются")
+        void emptyIdsAskNothing() {
+            assertEquals(Map.of(), service.describe(USER_ID, AGENT_ID, SESSION_ID, List.of()).orElseThrow());
+
+            verifyNoInteractions(agentViewService, toolCallLogService);
+        }
+
+        @Test
+        @DisplayName("сбой каталога — резолв не удался, исключение не выходит")
+        void catalogFailureIsEmpty() {
+            when(agentViewService.ownedAgent(AGENT_ID, USER_ID)).thenReturn(agent);
+            when(agentViewService.viewCatalog(agent)).thenThrow(new IllegalStateException("boom"));
+
+            assertTrue(service.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")).isEmpty());
+        }
+
+        @Test
+        @DisplayName("чужой агент — резолв не удался, а не отказ пользователю")
+        void foreignAgentIsEmpty() {
+            when(agentViewService.ownedAgent(AGENT_ID, USER_ID))
+                    .thenThrow(new NotFoundStatusException("Agent not found"));
+
+            assertTrue(service.describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")).isEmpty());
+
+            verifyNoInteractions(toolCallLogService);
+        }
+
+        @Test
+        @DisplayName("вызов без connectionId — запись без вью, а не падение")
+        void callWithoutConnection() {
+            ToolCallLog call = ToolCallLog.builder()
+                    .externalId("c1").name("show_memory").agentSessionId(SESSION_ID.toString()).build();
+            when(agentViewService.ownedAgent(AGENT_ID, USER_ID)).thenReturn(agent);
+            when(agentViewService.viewCatalog(agent)).thenReturn(List.of(entry("show_memory", view())));
+            when(toolCallLogService.findByAgentIdAndExternalIdIn(AGENT_ID, List.of("c1")))
+                    .thenReturn(List.of(call));
+
+            Map<String, ToolCallDescriptor> byId = service
+                    .describe(USER_ID, AGENT_ID, SESSION_ID, List.of("c1")).orElseThrow();
+
+            assertEquals(new ToolCallDescriptor("c1", "show_memory", null, null), byId.get("c1"));
+        }
     }
 }

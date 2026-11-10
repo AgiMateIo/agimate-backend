@@ -61,7 +61,7 @@ public class RealtimeMessages {
         return switch (event) {
             case SessionChanged e -> session(e);
             case SessionToolCallUpdated e -> List.of(Message.of(RealtimeChannels.user(e.userId()),
-                    SESSION_TOOL_CALL, new SessionToolCallPayload(e.sessionId(), e.toolCallIds()),
+                    SESSION_TOOL_CALL, new SessionToolCallPayload(e.sessionId(), e.toolCallIds(), e.toolCalls()),
                     Map.of("entity", "session.tool_call",
                             "agentId", e.agentId().toString(),
                             "sessionId", e.sessionId().toString())));

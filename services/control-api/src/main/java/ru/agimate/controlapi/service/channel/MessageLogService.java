@@ -3,14 +3,19 @@ package ru.agimate.controlapi.service.channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import ru.agimate.controlapi.controller.manage.dto.session.ToolCallDescriptor;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
+import ru.agimate.controlapi.realtime.RealtimeEvent.SessionToolCallUpdated;
+import ru.agimate.controlapi.realtime.RealtimePublisher;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
+import ru.agimate.controlapi.service.view.SessionToolCallService;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -34,6 +39,8 @@ public class MessageLogService {
 
     private final MessageLogPersistence persistence;
     private final ChannelMessageOutboundService outboundService;
+    private final SessionToolCallService sessionToolCallService;
+    private final RealtimePublisher realtime;
 
     /**
      * @param cancelled the user asked the run to stop; the worker reads it off this answer at its seam
@@ -57,7 +64,31 @@ public class MessageLogService {
         MessageLogPersistence.Persisted persisted = persistence.persist(
                 agentId, triggerId, seq, kind, progressType, text, toolTurn);
         deliverBestEffort(triggerId, agentId, persisted.channels(), kind, progressType, text, seq, toolTurn);
+        signalToolCalls(agentId, persisted, kind, progressType, toolTurn);
         return new SaveResult(persisted.duplicate(), persisted.cancelRequested(), persisted.steered());
+    }
+
+    /**
+     * An inline view mounted for a settled turn re-reads its data: the signal carries the calls'
+     * descriptors, resolved after the history commit. Published at-least-once — a replay of the
+     * worker's step re-sends it, and the client is idempotent by {@code toolCallId}.
+     */
+    private void signalToolCalls(UUID agentId, MessageLogPersistence.Persisted persisted,
+                                 ChannelSessionMessageKind kind, String progressType, ToolTurnRecord toolTurn) {
+        if (kind != ChannelSessionMessageKind.PROGRESS || !"TOOL_RESULT".equals(progressType)
+                || toolTurn == null || toolTurn.resultIds().isEmpty()) {
+            return;
+        }
+        UUID sessionId = Channels.sessionIdOf(persisted.channels());
+        if (sessionId == null) {
+            return;                            // a direct run has no conversation to signal
+        }
+        List<String> ids = toolTurn.resultIds();
+        List<ToolCallDescriptor> toolCalls = sessionToolCallService
+                .describe(persisted.userId(), agentId, sessionId, ids)
+                .map(byId -> ids.stream().map(byId::get).filter(Objects::nonNull).toList())
+                .orElse(null);
+        realtime.publish(new SessionToolCallUpdated(persisted.userId(), agentId, sessionId, ids, toolCalls));
     }
 
     private void deliverBestEffort(UUID runId, UUID agentId, Channels channels,

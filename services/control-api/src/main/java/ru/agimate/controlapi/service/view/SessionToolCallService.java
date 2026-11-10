@@ -3,10 +3,13 @@ package ru.agimate.controlapi.service.view;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionToolCallResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.ToolCallDescriptor;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
@@ -14,6 +17,10 @@ import ru.agimate.controlapi.service.mcp.McpToolCatalog;
 import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -47,7 +54,7 @@ public class SessionToolCallService {
                 .filter(log -> sessionId.toString().equals(log.getAgentSessionId()))
                 .orElseThrow(() -> new NotFoundStatusException("Tool call not found"));
 
-        McpToolCatalog.ToolEntry entry = viewEntry(agent, call);
+        McpToolCatalog.ToolEntry entry = viewEntry(viewEntries(agent), call);
         if (entry == null) {
             return SessionToolCallResponse.withNoView(call);
         }
@@ -60,19 +67,70 @@ public class SessionToolCallService {
     }
 
     /**
-     * The view is resolved through the current catalog, not from a stored link: a revoked binding or a
-     * policy that now denies the tool leaves the call without a view. Visibility {@code VIEW} is not
-     * required — the call came from the model; {@code VIEW} belongs to the tools the page itself calls.
+     * Descriptors of the calls among {@code toolCallIds} this session's journal knows: one entry per
+     * found call, {@code viewUri} set only when the agent's current catalog links a view. Ids without
+     * a journal row are absent — a deferred or unknown tool never executes and never gets a view.
+     *
+     * <p>Runs without a transaction, suspending the caller's: the resolution is best-effort, and an
+     * exception through a joined transactional bean would mark a shared transaction rollback-only
+     * before the catch, failing the caller's commit. Suspended, each read commits or rolls back on its
+     * own and a failure degrades to {@link Optional#empty()}.
+     *
+     * @return descriptors by tool call id; empty — the resolution failed, the caller falls back to the
+     *         old per-call endpoint
      */
-    private McpToolCatalog.ToolEntry viewEntry(Agent agent, ToolCallLog call) {
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Optional<Map<String, ToolCallDescriptor>> describe(UUID userId, UUID agentId, UUID sessionId,
+                                                             Collection<String> toolCallIds) {
+        if (toolCallIds.isEmpty()) {
+            return Optional.of(Map.of());
+        }
+        try {
+            Agent agent = agentViewService.ownedAgent(agentId, userId);
+            Map<ViewKey, McpToolCatalog.ToolEntry> catalog = viewEntries(agent);
+            Map<String, ToolCallDescriptor> descriptors = new LinkedHashMap<>();
+            for (ToolCallLog call : toolCallLogService.findByAgentIdAndExternalIdIn(
+                    agentId, toolCallIds.stream().distinct().toList())) {
+                if (!sessionId.toString().equals(call.getAgentSessionId())) {
+                    continue;
+                }
+                McpToolCatalog.ToolEntry entry = viewEntry(catalog, call);
+                descriptors.put(call.getExternalId(), new ToolCallDescriptor(call.getExternalId(),
+                        call.getName(), call.getConnectionId(),
+                        entry == null ? null : entry.spec().ui().resourceUri()));
+            }
+            return Optional.of(descriptors);
+        } catch (Exception e) {
+            log.warn("view descriptors for session {} not resolved: {}", sessionId, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * The agent's current views by {@code (connection, name)}. The view is resolved through the
+     * catalog, not from a stored link: a revoked binding or a policy that now denies the tool leaves
+     * the call without a view. Visibility {@code VIEW} is not required — the call came from the
+     * model; {@code VIEW} belongs to the tools the page itself calls.
+     */
+    private Map<ViewKey, McpToolCatalog.ToolEntry> viewEntries(Agent agent) {
+        Map<ViewKey, McpToolCatalog.ToolEntry> entries = new LinkedHashMap<>();
+        for (McpToolCatalog.ToolEntry entry : agentViewService.viewCatalog(agent)) {
+            if (AgentViewService.linksView(entry)) {
+                entries.putIfAbsent(new ViewKey(entry.connectionId().toString(), entry.toolName()), entry);
+            }
+        }
+        return entries;
+    }
+
+    /** The entry for the call's {@code (connection, name)}; a call outside any connection renders into nothing. */
+    private static McpToolCatalog.ToolEntry viewEntry(Map<ViewKey, McpToolCatalog.ToolEntry> catalog,
+                                                      ToolCallLog call) {
         if (call.getConnectionId() == null) {
             return null;
         }
-        return agentViewService.viewCatalog(agent).stream()
-                .filter(AgentViewService::linksView)
-                .filter(entry -> entry.connectionId().toString().equals(call.getConnectionId()))
-                .filter(entry -> entry.toolName().equals(call.getName()))
-                .findFirst()
-                .orElse(null);
+        return catalog.get(new ViewKey(call.getConnectionId(), call.getName()));
+    }
+
+    private record ViewKey(String connectionId, String toolName) {
     }
 }

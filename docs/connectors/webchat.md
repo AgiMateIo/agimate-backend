@@ -97,7 +97,10 @@ PostgreSQL совпадает с временным, поэтому сравне
 | `channel_session_messages` | общая проекция доставленного для каналов без своего лога (Telegram, ACP) | control-api из `SaveMessage` |
 
 `tool_call_ids` — единственное, что строка `TOOL_CALL` знает о вызовах: сами аргументы и результаты
-остаются в `tool_call_logs`, а вью по ним резолвит
+остаются в `tool_call_logs`. История (`GET /manage/sessions/{id}/messages/`) отдаёт рядом `toolCalls`
+— дескрипторы `{toolCallId, name, connectionId, viewUri}` для вызовов, найденных в журнале;
+`viewUri = null` — вью нет, `null` вместо массива — не резолвили. Страницу вью и данные вызова
+по-прежнему отдают `GET /manage/agents/{agentId}/views/content` и
 `GET /manage/sessions/{id}/tool-calls/{toolCallId}` ([connector-views.md](../decisions/connector-views.md)).
 
 Вебчат объявляет капабилити `ChannelMessageLog` (`WebchatChannelHandler`), поэтому платформа для него

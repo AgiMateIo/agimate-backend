@@ -8,6 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.ToolCallDescriptor;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
@@ -69,15 +70,20 @@ class RealtimeMessagesTest {
     }
 
     @Test
-    @DisplayName("session.tool_call: результаты вызовов — сигнал в user: с тегами сессии")
+    @DisplayName("session.tool_call: дескрипторы вызовов — сигнал в user: с тегами сессии")
     void sessionToolCall() {
-        List<Message> out = messages.render(
-                new SessionToolCallUpdated(USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2")));
+        ToolCallDescriptor plain = new ToolCallDescriptor("c1", "get_memory", "conn-1", null);
+        ToolCallDescriptor view = new ToolCallDescriptor("c2", "show_memory", "conn-2",
+                "ui://persist-memory/memory");
+
+        List<Message> out = messages.render(new SessionToolCallUpdated(
+                USER_ID, AGENT_ID, SESSION_ID, List.of("c1", "c2"), List.of(plain, view)));
 
         assertEquals(1, out.size());
         assertEquals(USER, out.get(0).channel());
         assertEquals("session.tool_call", type(out.get(0)));
-        assertEquals(new SessionToolCallPayload(SESSION_ID, List.of("c1", "c2")), payload(out.get(0)));
+        assertEquals(new SessionToolCallPayload(SESSION_ID, List.of("c1", "c2"), List.of(plain, view)),
+                payload(out.get(0)));
         assertEquals(Map.of("entity", "session.tool_call", "agentId", AGENT_ID.toString(),
                 "sessionId", SESSION_ID.toString()), out.get(0).tags());
     }

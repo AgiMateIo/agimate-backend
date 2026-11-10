@@ -10,12 +10,17 @@ import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> {
 
     Optional<ToolCallLog> findByExternalIdAndAgentId(String externalId, UUID agentId);
+
+    /** The journal rows behind a page's tool-call ids; {@code external_id} is unique per agent. */
+    List<ToolCallLog> findByAgentIdAndExternalIdIn(UUID agentId, Collection<String> externalIds);
 
     /**
      * The detach stamp — the ownership flip of the call's result. Guarded on both facts: a call that

@@ -51,7 +51,7 @@ Client connection and subscription tokens are ES256 JWTs signed by control-api w
 | `session.updated` | изменилась строка сессии: заголовок, закрытие, прочтение, сообщение веб-чата, начало и конец рана | `entity=session`, `agentId` | строка, как в `GET /manage/sessions/` |
 | `webchat.agent.updated` | то же, если сессия веб-чата | `entity=webchat.agent`, `agentId` | строка, как в `GET /manage/webchat/contacts/` |
 | `webchat.message` | сообщение переписки веб-чата: ответ агента, `progress`, эхо своего | `entity=webchat.message`, `agentId`, `sessionId` | сообщение, как в [connectors/webchat.md](../connectors/webchat.md) |
-| `session.tool_call` | результаты вызовов тулов пришли: inline-вью этих вызовов перечитывает данные | `entity=session.tool_call`, `agentId`, `sessionId` | `{sessionId, toolCallIds}` — идентификаторы, данные за `GET /manage/sessions/{id}/tool-calls/{toolCallId}` |
+| `session.tool_call` | результаты вызовов тулов пришли: inline-вью этих вызовов перечитывает данные | `entity=session.tool_call`, `agentId`, `sessionId` | `{sessionId, toolCallIds, toolCalls}` — дескрипторы `{toolCallId, name, connectionId, viewUri}` для вызовов, найденных в журнале; `viewUri = null` — вью нет, `toolCalls = null` — не резолвили, данные за `GET /manage/sessions/{id}/tool-calls/{toolCallId}` |
 
 События сессий несут строку целиком, собранную после коммита: клиент заменяет строку по `id`
 (контакт — по `agentId`), что бы ни поменялось, а повтор доставки ничего не портит. Когда какое из

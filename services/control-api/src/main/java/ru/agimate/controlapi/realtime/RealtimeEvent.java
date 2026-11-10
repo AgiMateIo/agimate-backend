@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.realtime;
 
+import ru.agimate.controlapi.controller.manage.dto.session.ToolCallDescriptor;
 import ru.agimate.controlapi.realtime.dto.ToolCallPayload;
 import ru.agimate.controlapi.service.dto.AgentMessage;
 
@@ -39,11 +40,12 @@ public sealed interface RealtimeEvent {
     }
 
     /**
-     * The results of tool calls landed: an inline view mounted for those calls re-reads them. A signal,
-     * not the data — the view resolves the {@code CallToolResult} from {@code tool_call_logs} itself.
+     * The results of tool calls landed: an inline view mounted for those calls re-reads them. The
+     * descriptors name the view of every call the journal knows; {@code null} — the descriptors were
+     * not resolved, and the client falls back to the per-call endpoint.
      */
-    record SessionToolCallUpdated(UUID userId, UUID agentId, UUID sessionId, List<String> toolCallIds)
-            implements RealtimeEvent {
+    record SessionToolCallUpdated(UUID userId, UUID agentId, UUID sessionId, List<String> toolCallIds,
+                                  List<ToolCallDescriptor> toolCalls) implements RealtimeEvent {
     }
 
     /** A board task changed; {@code type} is one of {@code BoardEventType}. */
