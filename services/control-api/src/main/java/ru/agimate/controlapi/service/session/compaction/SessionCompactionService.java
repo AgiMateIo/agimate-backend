@@ -61,8 +61,15 @@ public class SessionCompactionService {
     /** Share of the model's context window the first call of a run may take before the next one is compacted. */
     static final double THRESHOLD = 0.85;
 
-    /** Runs kept verbatim after a compaction — but never more than half of what is there. */
-    static final int VERBATIM_TAIL_RUNS = 10;
+    /**
+     * Runs since the last summary before the next one is due — two runs ahead of the default 20-run
+     * window, so the asynchronous job finishes before its anchor falls out of the window.
+     */
+    static final int SUMMARY_TRIGGER_RUNS = 18;
+
+    /** Runs kept verbatim after a compaction — the last two or three, so the dialogue keeps its sequence. */
+    static final int VERBATIM_TAIL_RUNS = 3;
+    static final int MIN_VERBATIM_TAIL_RUNS = 2;
 
     /** How far back a compaction looks for runs not yet retold. */
     static final int SCAN_RUNS = 200;
@@ -129,7 +136,8 @@ public class SessionCompactionService {
         if (session.getTitleSource() == null || session.getTitleSource() == SessionTitleSource.HINT) {
             due.add(Work.TITLE);
         }
-        if (overThreshold(session, runId)) {
+        Optional<AgentRunTurn> previous = turnRepository.findLatestSummary(session.getId());
+        if (overThreshold(session, runId, previous) || runsSinceAnchor(session, previous)) {
             due.add(Work.SUMMARY);
         }
         return due;
@@ -200,12 +208,11 @@ public class SessionCompactionService {
      * window, message; later calls carry this run's tool output, which the window will cap. A summary
      * written after the run started has already dealt with it.
      */
-    private boolean overThreshold(AgentSession session, UUID runId) {
+    private boolean overThreshold(AgentSession session, UUID runId, Optional<AgentRunTurn> summary) {
         AgentRun run = runRepository.findById(runId).orElse(null);
         if (run == null) {
             return false;
         }
-        Optional<AgentRunTurn> summary = turnRepository.findLatestSummary(session.getId());
         if (summary.isPresent() && summary.get().getCreatedAt().isAfter(run.getCreatedAt())) {
             return false;
         }
@@ -218,6 +225,17 @@ public class SessionCompactionService {
         }
         Integer window = contextWindow(first.get());
         return window != null && window > 0 && first.get().getInputTokens() > THRESHOLD * window;
+    }
+
+    /**
+     * The summary is also due before the anchor falls out of the run window: the window is bounded by
+     * runs, not by the model's context, so a long light conversation would otherwise lose its early
+     * runs without ever approaching the token threshold.
+     */
+    private boolean runsSinceAnchor(AgentSession session, Optional<AgentRunTurn> summary) {
+        List<UUID> newestFirst = runRepository.findHistoryRunIds(session.getId(),
+                PageRequest.of(0, SUMMARY_TRIGGER_RUNS + 1));
+        return RunHistoryAssembler.sinceAnchor(newestFirst, summary).size() >= SUMMARY_TRIGGER_RUNS;
     }
 
     /** The window of the model that answered: the provider's registry row, then the shared defaults. */
@@ -240,13 +258,14 @@ public class SessionCompactionService {
     }
 
     /**
-     * The newest runs stay verbatim — {@link #VERBATIM_TAIL_RUNS}, but no more than half, or a few
-     * heavy runs would leave nothing to compact; at least one, or the summary would have nowhere to
-     * sit. The previous anchor is the oldest run here and is retold together with the rest.
+     * The newest runs stay verbatim — between {@link #MIN_VERBATIM_TAIL_RUNS} and
+     * {@link #VERBATIM_TAIL_RUNS}, and never more than half of what is there unless that would leave
+     * fewer than two: the dialogue keeps its sequence, and a summary still has at least one run to
+     * retell. The previous anchor is the oldest run here and is retold together with the rest.
      */
     static Optional<Retelling> retelling(List<UUID> sinceAnchorNewestFirst) {
         int size = sinceAnchorNewestFirst.size();
-        int tail = Math.max(1, Math.min(VERBATIM_TAIL_RUNS, size / 2));
+        int tail = Math.min(VERBATIM_TAIL_RUNS, Math.max(MIN_VERBATIM_TAIL_RUNS, size / 2));
         if (size - tail < 1) {
             return Optional.empty();
         }

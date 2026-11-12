@@ -33,6 +33,7 @@ import ru.agimate.controlapi.service.session.compaction.SessionCompactionService
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -139,16 +140,33 @@ class SessionCompactionServiceTest {
         }
 
         @Test
-        @DisplayName("много ранов — дословных десять, остальные в пересказ от старых к новым")
-        void tenStayWhenMany() {
+        @DisplayName("много ранов — дословных три, остальные в пересказ от старых к новым")
+        void threeStayWhenMany() {
             List<UUID> newestFirst = runs(30);
 
             Retelling retelling = SessionCompactionService.retelling(newestFirst).orElseThrow();
 
-            assertEquals(newestFirst.get(9), retelling.anchorRunId());
-            assertEquals(20, retelling.runs().size());
+            assertEquals(newestFirst.get(2), retelling.anchorRunId());
+            assertEquals(27, retelling.runs().size());
             assertEquals(newestFirst.get(29), retelling.runs().get(0));
-            assertEquals(newestFirst.get(10), retelling.runs().get(19));
+            assertEquals(newestFirst.get(3), retelling.runs().get(26));
+        }
+
+        @Test
+        @DisplayName("три рана — дословных два, третий уходит в пересказ")
+        void twoStayWhenThree() {
+            List<UUID> newestFirst = runs(3);
+
+            Retelling retelling = SessionCompactionService.retelling(newestFirst).orElseThrow();
+
+            assertEquals(newestFirst.get(1), retelling.anchorRunId());
+            assertEquals(List.of(newestFirst.get(2)), retelling.runs());
+        }
+
+        @Test
+        @DisplayName("два рана — дословно оба, пересказывать нечего")
+        void twoStayWhole() {
+            assertTrue(SessionCompactionService.retelling(runs(2)).isEmpty());
         }
     }
 
@@ -196,6 +214,38 @@ class SessionCompactionServiceTest {
         }
 
         @Test
+        @DisplayName("после последней сводки накопилось 18 ранов — пора сводка и без токенного порога")
+        void summaryByRunsSinceAnchor() {
+            UUID runId = UUID.randomUUID();
+            when(runRepository.findHistoryRunIds(eq(SESSION_ID), any())).thenReturn(runs(18));
+
+            assertEquals(Set.of(Work.SUMMARY), service.due(session(SessionTitleSource.GENERATED), runId));
+        }
+
+        @Test
+        @DisplayName("17 ранов после последней сводки — ещё не пора")
+        void noSummaryBeforeRunsSinceAnchor() {
+            UUID runId = UUID.randomUUID();
+            when(runRepository.findHistoryRunIds(eq(SESSION_ID), any())).thenReturn(runs(17));
+
+            assertEquals(Set.of(), service.due(session(SessionTitleSource.GENERATED), runId));
+        }
+
+        @Test
+        @DisplayName("раны до последней сводки в счётчик не входят")
+        void runsBeforeSummaryDoNotCount() {
+            UUID runId = UUID.randomUUID();
+            List<UUID> newestFirst = runs(18);
+            when(runRepository.findHistoryRunIds(eq(SESSION_ID), any())).thenReturn(newestFirst);
+            AgentRunTurn summary = AgentRunTurn.builder()
+                    .runId(newestFirst.get(0)).role(AgentTurnRole.SYSTEM).build();
+            summary.setCreatedAt(T0);
+            when(turnRepository.findLatestSummary(SESSION_ID)).thenReturn(Optional.of(summary));
+
+            assertEquals(Set.of(), service.due(session(SessionTitleSource.GENERATED), runId));
+        }
+
+        @Test
         @DisplayName("сводка написана после старта рана — он уже учтён")
         void summaryAfterRunCountsIt() {
             UUID runId = UUID.randomUUID();
@@ -236,6 +286,30 @@ class SessionCompactionServiceTest {
             verify(usageService).record(usage.capture());
             assertTrue(usage.getValue().callId().startsWith("routine:"));
             assertNull(usage.getValue().runId());
+        }
+
+        @Test
+        @DisplayName("18 ранов без токенного порога: сводка кроет 15, три последних остаются дословными")
+        void summaryByRunsKeepsLastThree() {
+            AgentSession session = session(SessionTitleSource.GENERATED);
+            when(sessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
+            List<UUID> newestFirst = runs(18);
+            when(runRepository.findHistoryRunIds(eq(SESSION_ID), any())).thenReturn(newestFirst);
+            when(runRepository.findById(newestFirst.get(0))).thenReturn(Optional.empty());
+            when(turnRepository.findLatestSummary(SESSION_ID)).thenReturn(Optional.empty());
+            when(turnRepository.findByRunIdInOrderByRunIdAscTurnIndexAsc(anyList())).thenReturn(List.of());
+            routineAnswers("{\"summary\": \"Сжали.\", \"title\": \"Итог\"}");
+
+            Set<Work> done = service.maintain(SESSION_ID);
+
+            assertEquals(Set.of(Work.SUMMARY, Work.TITLE), done);
+            verify(writer).write(SESSION_ID, AGENT_ID, newestFirst.get(2), "Сжали.", "cheap", "Итог");
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<List<UUID>> retold = ArgumentCaptor.forClass(List.class);
+            verify(turnRepository).findByRunIdInOrderByRunIdAscTurnIndexAsc(retold.capture());
+            List<UUID> expected = new ArrayList<>(newestFirst.subList(3, 18));
+            Collections.reverse(expected);
+            assertEquals(expected, retold.getValue());
         }
 
         @Test
