@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -85,6 +87,22 @@ class ConnectorPresetBootstrapTest {
     }
 
     @Test
+    @DisplayName("перед скрытием берётся advisory-лок: холодный старт двух реплик не ломает unique")
+    void locksBeforeHiding() {
+        UUID id = UUID.randomUUID();
+        ConnectorPreset existing = ConnectorPreset.builder().id(id).code("bitrix24").build();
+        when(reader.readAll()).thenReturn(List.of(seed()));
+        when(repository.findByCode("bitrix24")).thenReturn(Optional.of(existing));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bootstrap.bootstrap();
+
+        InOrder order = inOrder(repository);
+        order.verify(repository).lockSeed();
+        order.verify(repository).hideAll(any());
+    }
+
+    @Test
     @DisplayName("переводы заменяются: старые удаляются, русская строка сохраняется")
     void replacesTranslations() {
         UUID id = UUID.randomUUID();
@@ -123,7 +141,9 @@ class ConnectorPresetBootstrapTest {
         assertEquals("bitrix24", saved.getValue().getCode());
         assertTrue(saved.getValue().isSourcePresent());
         assertTrue(saved.getValue().isEnabled());
-        verify(textRepository).save(any());
+        ArgumentCaptor<ConnectorPresetText> text = ArgumentCaptor.forClass(ConnectorPresetText.class);
+        verify(textRepository).save(text.capture());
+        assertEquals(id, text.getValue().getPresetId());
     }
 
     @Test

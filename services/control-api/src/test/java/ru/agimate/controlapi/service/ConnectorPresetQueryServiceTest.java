@@ -95,6 +95,16 @@ class ConnectorPresetQueryServiceTest {
     }
 
     @Test
+    @DisplayName("публичная карточка по неизвестному коду — 404")
+    void missingPublicCodeIsNotFound() {
+        when(languageResolver.requestLanguage()).thenReturn(ContentLanguage.EN);
+        when(presetRepository.findByCodeAndSourcePresentTrueAndEnabledTrue("missing"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(NotFoundStatusException.class, () -> service.getPublic("missing"));
+    }
+
+    @Test
     @DisplayName("публичный список не собирает форму и отдаёт только доступность")
     void publicListSkipsForm() {
         UUID id = UUID.randomUUID();

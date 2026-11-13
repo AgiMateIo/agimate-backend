@@ -131,7 +131,8 @@ These are the conventions an agent most often gets wrong. The full, linked versi
    `ConnectorTextsTest`/`PromptTextsTest` guards.
 9. **Seed content is seed-only-if-missing.** Editing `seed/skills/**/SKILL.md` changes nothing on an
    environment that has already been seeded; a language catalogue is a separate record, not a
-   translation.
+   translation. The connector-preset seed is the deliberate exception: `seed/connectors/**/*.json` is
+   an overwriting projection re-applied on every start (see [connector-presets.md](docs/decisions/connector-presets.md)).
 10. **DBOS durable-step results must be plain serializable types** — never protobuf messages and
     never secrets.
 11. **Two Jackson generations coexist in `control-api`:** Spring Boot 4 injects Jackson 3

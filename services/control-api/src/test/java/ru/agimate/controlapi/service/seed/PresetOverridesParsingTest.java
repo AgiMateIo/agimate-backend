@@ -32,6 +32,14 @@ class PresetOverridesParsingTest {
     }
 
     @Test
+    @DisplayName("неизвестный ключ категории — ошибка, а не мёртвая настройка")
+    void unknownCategoryKey() {
+        assertThrows(IllegalStateException.class,
+                () -> ConnectorPresetSeedReader.parseOverrides(Map.of("categories",
+                        Map.of("devtool", "development"))));
+    }
+
+    @Test
     @DisplayName("required не boolean — ошибка")
     void nonBooleanRequired() {
         assertThrows(IllegalStateException.class,

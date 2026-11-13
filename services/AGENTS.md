@@ -138,7 +138,8 @@ The short version:
 - Skills are catalogued and bound to agents (`Skill` → `AgentSkill` → `AgentSkillConnection`); the
   run delivers a skill only when its declared requirements resolve to satisfied connection instances.
   Seed content is seed-only-if-missing, and a language catalogue is a separate record, not a
-  translation.
+  translation. Connector presets are the exception: their seed is an overwriting projection
+  ([../docs/decisions/connector-presets.md](../docs/decisions/connector-presets.md)).
 - ABAC is one table, `AgentConnectionPolicy`, with `PolicyKind.TOOL|TRIGGER`; inside an active
   binding the model is default-allow, exact tool name > binding-wide rule. A channel is a separate
   layer from a policy: ABAC decides *who*, the channel decides *how*.

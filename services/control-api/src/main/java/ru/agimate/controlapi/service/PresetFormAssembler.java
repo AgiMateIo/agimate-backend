@@ -26,7 +26,9 @@ import java.util.Map;
  * ({@code headers}) or says that the token is not a bearer token ({@code auth_token}).
  *
  * <p>Assembled on read rather than stored: a change to the connector's field declaration must reach
- * every preset without a re-seed, and the preset stores only its overrides.
+ * every preset without a re-seed, and the preset stores only its overrides. The hidden/replaced field
+ * codes ({@code url}, {@code headers}, {@code auth_token}) are MCP's; another connector type would
+ * need its own rule.
  */
 @Slf4j
 @Component
@@ -68,7 +70,7 @@ public class PresetFormAssembler {
         return new ConnectorPresetForm(
                 preset.getParams(),
                 credentialFields,
-                headerFields(preset.getHeaderFields()),
+                headerFields(preset.getHeaderFields(), language),
                 headerGroups(preset.getHeaderGroups()),
                 preset.getAuthMethods() != null ? List.copyOf(preset.getAuthMethods())
                         : List.<ConnectorPresetAuth>of());
@@ -93,14 +95,22 @@ public class PresetFormAssembler {
         return override.label() != null ? override.label() : field.label();
     }
 
-    private static List<HeaderFieldResponse> headerFields(List<PresetHeaderField> fields) {
+    private static List<HeaderFieldResponse> headerFields(List<PresetHeaderField> fields,
+                                                          ContentLanguage language) {
         if (fields == null || fields.isEmpty()) {
             return List.of();
         }
         return fields.stream()
-                .map(field -> new HeaderFieldResponse(field.name(), field.label(), field.labelRu(),
+                .map(field -> new HeaderFieldResponse(field.name(), headerLabel(field, language),
                         field.secret(), field.required(), field.valuePrefix(), field.keyPrefix()))
                 .toList();
+    }
+
+    private static String headerLabel(PresetHeaderField field, ContentLanguage language) {
+        if (language == ContentLanguage.RU && field.labelRu() != null) {
+            return field.labelRu();
+        }
+        return field.label() != null ? field.label() : field.name();
     }
 
     private static List<HeaderGroupResponse> headerGroups(List<PresetHeaderGroup> groups) {

@@ -99,8 +99,9 @@ services/control-api/src/main/resources/seed/connectors/
 - Директория `mcp/` — потому что у другого типа коннектора может быть другой формат; `connectorCode`
   берётся из имени директории.
 - `overrides.yaml` переживает повторное копирование JSON: в нём только то, чего нет в исходнике —
-  спорный `authMethods`, маппинг категорий, редкие исключения. `valuePrefix`/`keyPrefix`/`label`/`labelRu`
-  теперь приходят из `declared.headers`; оверрайд — fallback, а не основной путь.
+  спорный `authMethods`, редкие исключения и, при необходимости, переопределение встроенного
+  маппинга категорий. `valuePrefix`/`keyPrefix`/`label`/`labelRu` теперь приходят из
+  `declared.headers`; оверрайд — fallback, а не основной путь.
 - Генератора нет: пользователь копирует файлы сам и обновляет их тогда, когда хочет. Никакого
   чтения чужого репозитория при старте.
 
@@ -137,7 +138,7 @@ services/control-api/src/main/resources/seed/connectors/
 Ограничения и индексы:
 
 - `uq_connector_presets_code` — `code`;
-- `uq_connector_presets_connector_code_identity` — **частичный** `(connector_code, identity)
+- `uq_connector_presets_connector_code_identity_present` — **частичный** `(connector_code, identity)
   WHERE source_present = TRUE`: он не мешает переименованию файла, когда старая строка уже скрыта
   (`source_present = false`). Партиальный индекс в JPA невыразим — описывается javadoc'ом сущности;
 - `fk_connector_presets_connector_code` — `connector_code` → `connectors(code)`;
@@ -230,8 +231,6 @@ SQL, не в памяти. 126 строк не требуют индексов, 
 ```sql
 SELECT p.*
 FROM connector_presets p
-LEFT JOIN connector_preset_texts t
-       ON t.preset_id = p.id AND t.language = :language
 WHERE p.source_present = TRUE
   AND p.enabled = TRUE
   AND (:connectorCode IS NULL OR p.connector_code = :connectorCode)
@@ -245,7 +244,6 @@ WHERE p.source_present = TRUE
            WHERE x.preset_id = p.id
              AND (LOWER(x.name) LIKE LOWER('%' || COALESCE(CAST(:search AS text), '') || '%') ESCAPE '\'
                   OR LOWER(x.description) LIKE LOWER('%' || COALESCE(CAST(:search AS text), '') || '%') ESCAPE '\')))
-ORDER BY COALESCE(t.name, p.name)
 ```
 
 - Поиск идёт по обоим языкам: русский пользователь найдёт «Notion» по английскому бренду,
@@ -253,7 +251,8 @@ ORDER BY COALESCE(t.name, p.name)
 - `%`, `_` и `\` в запросе экранируются в сервисе перед подстановкой. Пустой поиск — `''`:
   `LIKE '%%'` истинно, поэтому отдельная ветка `:search IS NULL` не нужна, а nullable-параметр не
   ломает вывод типа в native-запросе (`COALESCE(CAST(:search AS text), '')`).
-- Сортировка — по локализованному имени (`COALESCE(t.name, p.name)`).
+- Сортировка — по локализованному имени, в сервисе после выборки: join ради `ORDER BY` не нужен,
+  строк десятки.
 - Пагинации нет: записей десятки.
 - Если каталог вырастет или поиск попадёт в slow log — `CREATE EXTENSION pg_trgm` и GIN-индексы на
   `lower(name)`, `lower(description)` и колонки переводов. Это отдельное решение: расширение
@@ -271,9 +270,11 @@ ORDER BY COALESCE(t.name, p.name)
    загрузчик использует guard-тест.
 2. Разобрать и провалидировать всё **до записи в БД**. Ошибка — падение старта: файлы едут в jar,
    это наш собственный ресурс, а guard-тест ловит ошибку ещё на сборке.
-3. В начале пометить все строки `source_present = false` (bulk-обновление, `updated_at` пишется
-   явно) — частичный уникальный индекс `(connector_code, identity) WHERE source_present = TRUE`
-   тогда не мешает переименованию файла, когда старая строка уже скрыта.
+3. Взять transaction-scoped advisory-лок и пометить все строки `source_present = false`
+   (bulk-обновление, `updated_at` пишется явно) — частичный уникальный индекс
+   `(connector_code, identity) WHERE source_present = TRUE` тогда не мешает переименованию файла,
+   когда старая строка уже скрыта. Лок снимается коммитом: на холодном старте две реплики не
+   соревнуются за unique по `code`.
 4. Upsert по `code`: обновить содержание, **не трогать `enabled`**, выставить `source_present = true`.
    В bulk-записи `updated_at` пишется явно: `@UpdateTimestamp` bulk/`ON CONFLICT` обходит.
 5. Заменить переводы для кода: удалить старые строки, вставить RU-строку, если есть
@@ -309,7 +310,8 @@ ORDER BY COALESCE(t.name, p.name)
   префикса (его заполняет OAuth-поток).
   Заголовок с другим `valuePrefix` (`OAuth `, `ApiKey `) или с `keyPrefix` (`op_`, `krsp_`)
   остаётся отдельным полем. `keyPrefix` — подсказка, backend его не добавляет.
-- `header_groups`: `declared.headerGroups` как есть (`oneOf`, `required`).
+- `header_groups`: `declared.headerGroups` (`oneOf`, `required`); `anyOf` из данных `mcp`
+  нормализуется в `oneOf`.
 - `fields`: для `auth_methods` с `TOKEN` и Bearer (или без объявленного заголовка — дефолт
   коннектора) — `{auth_token: {label, labelRu, required}}`; `required = true`, если `TOKEN` —
   единственный способ, иначе `false` (пользователь может выбрать OAuth). Для `OAUTH`-only/`NONE` —
@@ -318,47 +320,28 @@ ORDER BY COALESCE(t.name, p.name)
   `identity = params.url.trim()`. Ручное подключение на исходный `url` не совпадёт с `identity` —
   это ожидаемо; пресет ведёт на рабочий endpoint. Исходный `url`, заканчивающийся `/sse`, — вход
   `availability`, а не колонка.
-- `category`: по таблице маппинга из `overrides.yaml`; коды в YAML — как в таксономии (нижний
-  регистр), в `ContentCategory` — `valueOf(code.toUpperCase(Locale.ROOT))`. Неизвестная категория —
-  ошибка сида, чтобы новый раздел датасета не потерялся молча.
+- `category`: встроенная таблица `DEFAULT_CATEGORIES` в `ConnectorPresetSeedReader` (8 категорий
+  датасета → коды таксономии); `categories` в `overrides.yaml` переопределяет отдельный ключ, но
+  только известный — опечатка в ключе падает, как и неизвестное значение. В `ContentCategory` код
+  приводится через `valueOf(code.toUpperCase(Locale.ROOT))`. Неизвестная категория датасета —
+  ошибка сида, чтобы новый раздел не потерялся молча.
 
-`overrides.yaml`:
+`overrides.yaml` — только исключения; встроенный маппинг категорий живёт в ридере:
 
 ```yaml
-categories:
-  dev-tools: development
-  productivity: work
-  data: work
-  payments: finance
-  search: work
-  design: content
-  crm: work
-  knowledge: learning
+# Необязательный оверрайд встроенной таблицы категорий (ключ — категория датасета):
+# categories:
+#   dev-tools: development
 
 presets:
   square:
     authMethods: [OAUTH, TOKEN]   # временный обход, пока данные не исправлены
-  yandex-tracker:
-    headerFields:
-      - name: Authorization
-        label: OAuth token
-        labelRu: OAuth-токен
-        secret: true
-        required: true
-        valuePrefix: "OAuth "
-      - name: x-org-id
-        label: Organization ID
-        labelRu: Идентификатор организации
-        secret: false
-        required: false
-        valuePrefix: ""
-  github:
-    fields:
-      auth_token:
-        label: Personal access token
-        labelRu: Личный токен доступа
-        required: true
 ```
+
+Для отдельного пресета доступны ключи `authMethods`, `fields` (`label`, `labelRu`, `required`) и
+`headerFields` (`name`, `label`, `labelRu`, `secret`, `required`, `valuePrefix`, `keyPrefix`).
+Подписи и префиксы заголовков по умолчанию приходят из `declared.headers`, поэтому оверрайд нужен
+только для исключений.
 
 Валидация сида (guard-тест и старт):
 
@@ -366,14 +349,16 @@ presets:
 - `params.url` — https, `identity` уникален в рамках коннектора;
 - `params` — подмножество несекретных полей коннектора, `fields` — подмножество его
   `credentialFields`; `header_fields` без дублей, имена — валидные HTTP-заголовки,
-  `valuePrefix`/`keyPrefix` — строки, `label`/`labelRu` непустые для не-Authorization;
+  `valuePrefix`/`keyPrefix` — строки; пустой `label`/`labelRu` подставляется именем заголовка;
 - `availability` — известное значение; `auth_methods` — подмножество `OAUTH`/`TOKEN`/`NONE` без
-  дублей; для известного `primaryAuth` список непустой и содержит `primaryAuth` (кроме `UNKNOWN`);
-  `AVAILABLE` требует непустой `auth_methods`, `AUTH_UNSUPPORTED` — пустой;
+  дублей (дубли отбрасываются при сиде); список — `declared.authMethods`, иначе `primaryAuth`;
+  после фильтра CIMD он может остаться пустым — это `AUTH_UNSUPPORTED`; `AVAILABLE` требует
+  непустой `auth_methods`;
 - `category` — известный код таксономии; `jurisdiction` — ISO 3166-1 alpha-2 или NULL;
-- `auth_methods` с `OAUTH` — только при CIMD (фильтр уже применён, иначе ошибка сида); с `TOKEN` —
-  либо `fields.auth_token`, либо хотя бы один `header_fields` с `secret = true` (не обязательно
-  `Authorization`: у MaxStat `X-API-Token`, у Telphin `X-Auth-Token`, у New Relic `api-key`);
+- `auth_methods` с `OAUTH` — только при CIMD (фильтр применён при сиде: без CIMD `OAUTH` в список
+  не попадает); с `TOKEN` — либо `fields.auth_token`, либо хотя бы один `header_fields` с
+  `secret = true` (не обязательно `Authorization`: у MaxStat `X-API-Token`, у Telphin
+  `X-Auth-Token`, у New Relic `api-key`);
   `NONE` не должен иметь обязательных секретных полей;
 - `header_groups`: `oneOf` из минимум двух существующих заголовков, без пересечений, элементы не
   помечены `required = true`; `required` — boolean;
@@ -404,7 +389,8 @@ presets:
   DCR даёт `auth = UNKNOWN` и `availability = AUTH_UNSUPPORTED`.
 - `connection.identity` — `params.url.trim()`; `connection.availability` — **подсказка**, не гейт
   создания: `AVAILABLE` включает карточку, остальные значения — disabled с текстом по коду. Точную
-  причину (`DCR` против `PRE_REGISTERED`, `false` против `null`) бэкенд пишет в лог, а не в ответ.
+  причину (`DCR` против `PRE_REGISTERED`, `false` против `null`) бэкенд пишет в debug-лог (файл
+  сида, `probe.authType`, транспорт и handshake), а не в ответ.
 
 Слияние `form.credentialFields`:
 
@@ -413,8 +399,9 @@ presets:
 - `auth_token` показывается, если `form.authMethods` содержит `TOKEN` и токен идёт в Bearer;
   `required = true` только когда `TOKEN` — единственный способ, иначе `false` (можно выбрать OAuth);
   скрывается для OAuth-only/NONE и для кастомного `Authorization`/секретного заголовка;
-- `label`, `labelRu` и `required` берутся из `header_fields`/оверрайда; тип — из декларации
-  коннектора; `valuePrefix` применяется при сборке значения, `keyPrefix` — только подсказка.
+- `label` и `required` берутся из оверрайда `fields`, иначе — из декларации коннектора; тип — из
+  декларации. `label` уже на языке запроса. `valuePrefix`/`keyPrefix` относятся к `headerFields` и
+  применяются фронтом.
 
 `form.headerFields`/`headerGroups` — из `header_fields`/`header_groups`; `form.authMethods` — из
 `auth_methods`.
@@ -475,8 +462,8 @@ presets:
 - `AUTH_UNSUPPORTED` — `auth_methods` пуст: ни `NONE`, ни `TOKEN`, ни `OAUTH + CIMD` не доступны.
 
 Приоритет: `DOWN` → `TRANSPORT_UNSUPPORTED` → `PROTOCOL_UNSUPPORTED` → `AUTH_UNSUPPORTED`. Точную
-причину (`DCR` против `PRE_REGISTERED`, `false` против `null`) бэкенд пишет в лог, а не в ответ:
-фронту она не нужна. Тексты — забота фронта; бэкенд не переводит причины.
+причину (`DCR` против `PRE_REGISTERED`, `false` против `null`) бэкенд пишет в debug-лог, а не в
+ответ: фронту она не нужна. Тексты — забота фронта; бэкенд не переводит причины.
 
 ### Создание подключения
 
@@ -585,11 +572,13 @@ presets:
 - [x] `PresetAvailabilityPolicy`: чистая функция `availability` по `status`, транспорту,
   `transport_source`, `legacy_sse`, `handshake_supported` и `auth_methods`; вызывается при сиде.
 - [x] Валидатор: `params`/`fields`/`header_fields`/`header_groups`, `identity`, категории,
-  `jurisdiction`, enum'ы, `name`; `auth_methods` подмножество, `primaryAuth` входит; `availability`;
-  `valuePrefix`/`keyPrefix`; точный набор ключей `overrides.yaml` (`authMethods`/`fields`/`headerFields`),
-  запрет override для несуществующего `code`.
-- [x] `ConnectorPresetBootstrap` на `ApplicationReadyEvent`: `@Order`, двухфазный `source_present`,
-  upsert без `enabled`, явный `updated_at` в bulk, замена переводов, лог.
+  `jurisdiction`, enum'ы, `name`; `auth_methods` подмножество (дубли и `OAUTH` без CIMD
+  отбрасываются), `availability`; `valuePrefix`/`keyPrefix`; точный набор ключей `overrides.yaml`
+  (`categories`/`presets`, `authMethods`/`fields`/`headerFields`), запрет override для
+  несуществующего `code` и ключа категории.
+- [x] `ConnectorPresetBootstrap` на `ApplicationReadyEvent`: `@Order`, advisory-лок от гонки
+  реплик, двухфазный `source_present`, upsert без `enabled`, явный `updated_at` в bulk, замена
+  переводов, лог.
 - [x] Guard-тест сида на сборке (без Spring и БД), тот же загрузчик.
 
 **Чтение**
@@ -613,10 +602,12 @@ presets:
 - [x] `ConnectorPresetSeedReaderTest` + guard-тест — полнота и валидность сида, `auth_methods`/
   `header_groups`, `valuePrefix`/`keyPrefix`, `availability`.
 - [x] `ConnectorPresetBootstrapTest` — upsert, сохранение `enabled`, `source_present`, переводы,
-  переименование файла при том же `identity`, `auth_methods`/`availability`.
+  переименование файла при том же `identity`, `auth_methods`/`availability`, advisory-лок перед
+  скрытием.
 - [x] `PresetAvailabilityPolicyTest` — CIMD/token, `transport_source`/`legacy_sse`, handshake
   false/null, четыре причины и `AVAILABLE`.
-- [x] `PresetFormAssemblerTest` — слияние, `label`/`labelRu`, `auth_token.required`, `headerGroups`.
+- [x] `PresetFormAssemblerTest` — слияние, локализация подписей по языку запроса,
+  `auth_token.required`, `headerGroups`.
 - [x] `ConnectorPresetQueryServiceTest` — поиск, фильтры `category`/`jurisdiction`, язык, fallback.
 - [x] `ManageConnectorPresetControllerTest`.
 - [x] `PublicCatalogController` — публичный каталог без токена, без `form`, `Cache-Control`/`Vary`.

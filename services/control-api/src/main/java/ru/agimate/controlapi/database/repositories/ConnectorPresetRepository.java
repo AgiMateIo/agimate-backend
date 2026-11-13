@@ -18,6 +18,16 @@ public interface ConnectorPresetRepository extends JpaRepository<ConnectorPreset
 
     Optional<ConnectorPreset> findByCode(String code);
 
+    /**
+     * Serialises the seed across replicas: on a cold start two nodes both read an empty table and
+     * insert, and the loser fails startup on {@code uq_connector_presets_code}. The lock ends with
+     * the bootstrap transaction, so the second node sees the first node's rows. The lock is taken
+     * through a select of its own because the function returns {@code void}, which is not a column
+     * Hibernate can map. The key names this seed and nothing else.
+     */
+    @Query(value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(5130)) locked", nativeQuery = true)
+    int lockSeed();
+
     Optional<ConnectorPreset> findByCodeAndSourcePresentTrueAndEnabledTrue(String code);
 
     /**

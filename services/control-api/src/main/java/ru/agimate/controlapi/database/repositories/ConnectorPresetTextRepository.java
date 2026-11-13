@@ -17,8 +17,6 @@ import java.util.UUID;
 @Repository
 public interface ConnectorPresetTextRepository extends JpaRepository<ConnectorPresetText, UUID> {
 
-    List<ConnectorPresetText> findAllByLanguage(ContentLanguage language);
-
     List<ConnectorPresetText> findAllByPresetIdInAndLanguage(Collection<UUID> presetIds,
                                                              ContentLanguage language);
 

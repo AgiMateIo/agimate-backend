@@ -34,7 +34,7 @@ import java.util.UUID;
  * A connector preset — a projection of one file under {@code seed/connectors/<connectorCode>/}.
  *
  * <p>Unique by {@code code}; the pair {@code (connector_code, identity)} is unique among live rows
- * only — the partial index {@code uq_connector_presets_connector_code_identity ... WHERE
+ * only — the partial index {@code uq_connector_presets_connector_code_identity_present ... WHERE
  * source_present = TRUE}, which JPA cannot express. The partial shape lets a removed file hide its
  * row and a renamed file reuse the identity.
  *

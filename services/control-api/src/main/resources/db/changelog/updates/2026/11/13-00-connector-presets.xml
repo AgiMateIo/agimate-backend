@@ -19,13 +19,19 @@
             <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
-            <column name="code" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
             <column name="connector_code" type="TEXT">
                 <constraints nullable="false"
                              foreignKeyName="fk_connector_presets_connector_code"
                              references="connectors(code)"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_present" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="code" type="TEXT">
+                <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>
@@ -36,28 +42,24 @@
                 <constraints nullable="false"/>
             </column>
             <column name="jurisdiction" type="TEXT"/>
-            <column name="auth_methods" type="JSONB" defaultValueComputed="'[]'::jsonb">
-                <constraints nullable="false"/>
-            </column>
             <column name="availability" type="TEXT">
                 <constraints nullable="false"/>
             </column>
             <column name="docs_url" type="TEXT"/>
+            <column name="auth_methods" type="JSONB" defaultValueComputed="'[]'::jsonb">
+                <constraints nullable="false"/>
+            </column>
             <column name="params" type="JSONB" defaultValueComputed="'{}'::jsonb">
                 <constraints nullable="false"/>
             </column>
+            <!-- Denormalised params->>'url', trimmed: exactly what MCP writes to connections.subCode,
+                 so the frontend can match a preset against an existing connection. -->
             <column name="identity" type="TEXT">
                 <constraints nullable="false"/>
             </column>
             <column name="fields" type="JSONB"/>
             <column name="header_fields" type="JSONB"/>
             <column name="header_groups" type="JSONB"/>
-            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
-                <constraints nullable="false"/>
-            </column>
-            <column name="source_present" type="BOOLEAN" defaultValueBoolean="true">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <addUniqueConstraint tableName="connector_presets" columnNames="code"
@@ -65,7 +67,7 @@
 
         <!-- Partial on purpose: a removed seed file hides its row, and a renamed file may reuse the
              identity while the old row is still hidden. JPA cannot express a partial index. -->
-        <sql>CREATE UNIQUE INDEX uq_connector_presets_connector_code_identity
+        <sql>CREATE UNIQUE INDEX uq_connector_presets_connector_code_identity_present
              ON connector_presets (connector_code, identity) WHERE source_present = TRUE</sql>
 
         <sql>ALTER TABLE connector_presets ADD CONSTRAINT chk_connector_presets_availability

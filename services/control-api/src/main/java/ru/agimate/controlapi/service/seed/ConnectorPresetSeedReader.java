@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.enums.ConnectorPresetAuth;
+import ru.agimate.controlapi.database.enums.ConnectorPresetAvailability;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.model.PresetFieldOverride;
 import ru.agimate.controlapi.database.model.PresetHeaderField;
@@ -137,6 +138,12 @@ public class ConnectorPresetSeedReader {
         String transportSource = transportSource(probe, probeTransport, declaredTransport);
         boolean legacySse = legacySse(url);
         Boolean handshake = handshake(probe);
+        ConnectorPresetAvailability availability = PresetAvailabilityPolicy.evaluate(status, transport,
+                transportSource, legacySse, handshake, !authMethods.isEmpty());
+        if (availability != ConnectorPresetAvailability.AVAILABLE) {
+            log.debug("{}: availability={} (status={}, transport={}/{}, legacySse={}, handshakeSupported={})",
+                    where, availability, status, transport, transportSource, legacySse, handshake);
+        }
 
         return new ConnectorPresetSeed(
                 code,
@@ -150,8 +157,7 @@ public class ConnectorPresetSeedReader {
                 jurisdiction,
                 docsUrl,
                 authMethods,
-                PresetAvailabilityPolicy.evaluate(status, transport, transportSource, legacySse,
-                        handshake, !authMethods.isEmpty()),
+                availability,
                 Map.of("url", endpoint),
                 endpoint.trim(),
                 form.fields(),
@@ -182,10 +188,18 @@ public class ConnectorPresetSeedReader {
             methods = primary == null ? List.of() : List.of(primary);
         }
         boolean cimd = bool(probe.path("authDetails"), "clientIdMetadataDocumentSupported", false);
-        return methods.stream()
+        List<ConnectorPresetAuth> supported = methods.stream()
                 .filter(method -> method != ConnectorPresetAuth.OAUTH || cimd)
                 .distinct()
                 .toList();
+        if (methods.contains(ConnectorPresetAuth.OAUTH) && !cimd) {
+            log.debug("{}: OAUTH dropped — the server does not declare CIMD", where);
+        }
+        if (supported.isEmpty()) {
+            log.debug("{}: no supported auth method (declared={}, probe.authType={})",
+                    where, methods, text(probe, "authType"));
+        }
+        return supported;
     }
 
     private static ConnectorPresetAuth primaryAuth(JsonNode probe, List<RawHeader> headers) {
@@ -410,6 +424,7 @@ public class ConnectorPresetSeedReader {
             if (id == null || id.isBlank()) {
                 throw new IllegalStateException(where + ": headerGroups[].id is required");
             }
+            // The dataset says anyOf; the form asks for exactly one. Both spellings are stored as oneOf.
             List<String> names = strings(item.get("oneOf"));
             if (names == null) {
                 names = strings(item.get("anyOf"));
@@ -536,6 +551,8 @@ public class ConnectorPresetSeedReader {
     static PresetOverrides readOverrides() {
         Resource resource = new ClassPathResource(SEED_ROOT + "/overrides.yaml");
         if (!resource.exists()) {
+            // The file ships in the jar; its absence is a packaging mistake, not a configuration.
+            log.warn("{}/overrides.yaml is missing; only the built-in defaults apply", SEED_ROOT);
             return PresetOverrides.empty();
         }
         try (InputStream in = resource.getInputStream()) {
@@ -583,9 +600,14 @@ public class ConnectorPresetSeedReader {
             throw new IllegalStateException(SEED_ROOT + "/overrides.yaml: categories must be a mapping");
         }
         Map<String, ContentCategory> categories = new LinkedHashMap<>();
-        map.forEach((key, value) -> {
+        map.forEach((rawKey, value) -> {
+            String key = String.valueOf(rawKey);
+            if (!DEFAULT_CATEGORIES.containsKey(key)) {
+                throw new IllegalStateException(SEED_ROOT + "/overrides.yaml: unknown dataset category '"
+                        + key + "' (the dataset has: " + String.join(", ", DEFAULT_CATEGORIES.keySet()) + ")");
+            }
             try {
-                categories.put(String.valueOf(key),
+                categories.put(key,
                         ContentCategory.valueOf(String.valueOf(value).strip().toUpperCase(Locale.ROOT)));
             } catch (IllegalArgumentException e) {
                 throw new IllegalStateException(SEED_ROOT + "/overrides.yaml: unknown category '" + value + "'", e);

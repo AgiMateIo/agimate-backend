@@ -101,7 +101,7 @@ implemented: 2026-10-15
 
 **Публичный каталог**
 - [x] Контроллер `/public/catalog`, публичные DTO, путь в `permitAll`.
-- [x] Шесть эндпойнтов, `Cache-Control: max-age=300, public` и `Vary: Accept-Language`.
+- [x] Восемь эндпойнтов, `Cache-Control: max-age=300, public` и `Vary: Accept-Language`.
 - [x] Пресеты подключений MCP: `connector-presets/` и `/{code}`, публичный DTO `card`/`connection`
   без формы; manage-форма после логина.
 - [x] Проверено на своём инстансе без токена: оба языка, 404 на неизвестный код, `/manage` по-прежнему

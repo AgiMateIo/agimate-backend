@@ -81,6 +81,24 @@ class PresetFormAssemblerTest {
     }
 
     @Test
+    @DisplayName("подпись заголовка выбирается по языку запроса, как у credentialFields")
+    void localizesHeaderLabel() {
+        when(connectorRegistry.findIntegrationHandler("mcp")).thenReturn(Optional.of(handler));
+        when(handler.getCredentialFields()).thenReturn(credentialFields());
+
+        ConnectorPreset preset = basePreset()
+                .authMethods(List.of(ConnectorPresetAuth.TOKEN))
+                .headerFields(List.of(new PresetHeaderField("X-API-Token", "API token", "API-токен",
+                        true, true, "", null)))
+                .build();
+
+        assertEquals("API-токен", assembler.assemble(preset, ContentLanguage.RU)
+                .headerFields().get(0).label());
+        assertEquals("API token", assembler.assemble(preset, ContentLanguage.EN)
+                .headerFields().get(0).label());
+    }
+
+    @Test
     @DisplayName("OAuth-only пресет не показывает auth_token")
     void hidesAuthTokenForOauthOnly() {
         when(connectorRegistry.findIntegrationHandler("mcp")).thenReturn(Optional.of(handler));

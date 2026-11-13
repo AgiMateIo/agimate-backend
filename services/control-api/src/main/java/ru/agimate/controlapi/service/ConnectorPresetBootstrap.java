@@ -35,6 +35,11 @@ import java.util.Map;
  *
  * <p>An empty seed directory is not an instruction to hide the catalogue: a deployment without copied
  * files keeps what it has and logs a warning.
+ *
+ * <p>One transaction, unlike the seed-only-if-missing content bootstraps: a half-applied hide/upsert
+ * would leave the catalogue empty, and the seed is our own jar resource, so a bad edit must fail
+ * startup rather than leave a partial projection behind. A transaction-scoped advisory lock
+ * serialises the seed across replicas, so a cold start does not race the unique code index.
  */
 @Slf4j
 @Component
@@ -59,7 +64,9 @@ public class ConnectorPresetBootstrap {
         }
 
         seeds.forEach(this::validateAgainstConnector);
-        connectorPresetRepository.hideAll(LocalDateTime.now());
+        // Two replicas on a cold start would both insert and one would fail the unique code index.
+        connectorPresetRepository.lockSeed();
+        int hiddenRows = connectorPresetRepository.hideAll(LocalDateTime.now());
         int created = 0;
         int updated = 0;
         int translations = 0;
@@ -87,8 +94,8 @@ public class ConnectorPresetBootstrap {
                 translations++;
             }
         }
-        log.info("Connector presets bootstrapped: created={}, updated={}, translations={}",
-                created, updated, translations);
+        log.info("Connector presets bootstrapped: files={}, created={}, updated={}, translations={}, hidden={}",
+                seeds.size(), created, updated, translations, Math.max(0, hiddenRows - updated));
     }
 
     /**
