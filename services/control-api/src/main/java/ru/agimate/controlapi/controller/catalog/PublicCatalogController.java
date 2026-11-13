@@ -8,12 +8,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.controlapi.controller.catalog.dto.CatalogConnectorPresetResponse;
 import ru.agimate.controlapi.controller.catalog.dto.CatalogConnectorRef;
 import ru.agimate.controlapi.controller.catalog.dto.CatalogPresetResponse;
 import ru.agimate.controlapi.controller.catalog.dto.CatalogSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.TaxonomyResponse;
+import ru.agimate.controlapi.database.enums.ContentCategory;
+import ru.agimate.controlapi.service.ConnectorPresetQueryService;
 import ru.agimate.controlapi.service.ContentTaxonomyService;
 import ru.agimate.controlapi.service.PublicCatalogService;
 
@@ -37,6 +41,7 @@ public class PublicCatalogController {
 
     private final PublicCatalogService publicCatalogService;
     private final ContentTaxonomyService contentTaxonomyService;
+    private final ConnectorPresetQueryService connectorPresetQueryService;
 
     @Operation(summary = "Enabled agent presets")
     @GetMapping("/agent-presets/")
@@ -72,6 +77,22 @@ public class PublicCatalogController {
     @GetMapping("/connectors/")
     public ResponseEntity<SuccessResponse<List<CatalogConnectorRef>>> getConnectors() {
         return cached(publicCatalogService.connectors());
+    }
+
+    @Operation(summary = "MCP connector presets without the connection form")
+    @GetMapping("/connector-presets/")
+    public ResponseEntity<SuccessResponse<List<CatalogConnectorPresetResponse>>> getConnectorPresets(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) ContentCategory category,
+            @RequestParam(required = false) String jurisdiction) {
+        return cached(connectorPresetQueryService.listPublic(search, category, jurisdiction));
+    }
+
+    @Operation(summary = "MCP connector preset by code, without the connection form")
+    @GetMapping("/connector-presets/{code}")
+    public ResponseEntity<SuccessResponse<CatalogConnectorPresetResponse>> getConnectorPreset(
+            @PathVariable String code) {
+        return cached(connectorPresetQueryService.getPublic(code));
     }
 
     private static <T> ResponseEntity<SuccessResponse<T>> cached(T body) {

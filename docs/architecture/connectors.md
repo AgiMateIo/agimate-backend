@@ -428,6 +428,22 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 обновляет их только джоба `oauth_refresh`, а 401 посреди `tools/call` переводит коннекцию в
 `AUTH_EXPIRED` и отдаёт агенту ссылку на переподключение.
 
+### Пресеты подключений MCP
+
+Каталог готовых подключений — [../decisions/connector-presets.md](../decisions/connector-presets.md).
+Файлы `mcp/servers/*.json` копируются в `seed/connectors/mcp/`; `ConnectorPresetBootstrap` читает их
+при старте и пишет проекцию в `connector_presets` + `connector_preset_texts`. В базе только то, что
+читают карточка, форма и фильтр: имя/описание (EN + перевод), иконка, категория, юрисдикция,
+`params` (у MCP — `url`), `identity`, оверрайды полей, заголовки, поддерживаемые `auth_methods` и
+один код `availability`.
+
+Входы probe (`status`, транспорт, handshake, CIMD) колонками не становятся: сид сводит их в
+`auth_methods` и `availability`. Форма собирается на чтении из декларации коннектора и оверрайдов
+пресета (`PresetFormAssembler`), поэтому изменение `credentialFields` коннектора не требует
+пересида. Manage- и публичный каталоги используют один `ConnectorPresetQueryService`; публичный
+ответ не содержит форму и `identity`. Создание подключения не меняется: фронт подставляет значения
+из `form` в обычную форму и отправляет стандартный `POST /manage/connections/`.
+
 ## Тексты коннектора и язык инсталляции
 
 `connectorName()`/`connectorDescription()` — тексты каталога подключений, они на глазах у пользователя,

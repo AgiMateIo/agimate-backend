@@ -104,6 +104,19 @@ Common error envelope for every group:
 ровно то же самое и добавлен только ради канонического глагола. Двух поведений здесь нет — второй
 метод делегирует первому.
 
+## Каталог пресетов подключений
+
+`GET /manage/connector-presets/` и `/{code}` — карточка, предзаполнение формы и `connection.identity`
+для каталога коннекторов. Параметры списка: `search`, `connectorCode`, `category`, `jurisdiction`.
+`GET /public/catalog/connector-presets/` и `/{code}` — тот же каталог без авторизации, но только
+карточка и `availability`: форма и `identity` наружу не отдаются. Публичный ответ кэшируется
+(`Cache-Control: public, max-age=300`, `Vary: Accept-Language`).
+
+Создание подключения не меняется: `POST /manage/connections/` принимает обычные `credentials`, а
+`presetCode` не передаётся. Пресет — источник значений формы; фронт подставляет их в стандартную
+форму, дальше работает живой `validateCredentials`. Подробности —
+[../decisions/connector-presets.md](../decisions/connector-presets.md).
+
 ## Пуш-уведомления
 
 Устройств, токенов и транспорта здесь нет: control-api собирает **содержание** уведомления и отдаёт

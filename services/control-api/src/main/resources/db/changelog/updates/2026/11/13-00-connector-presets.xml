@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Connector presets (docs/decisions/connector-presets.md): a projection of the JSON files under
+         seed/connectors/<connectorCode>/. Only the card, the form and the filter are stored; the probe
+         inputs that compute availability stay in the JSON and are read once at startup. -->
+    <changeSet id="create-connector-presets" author="agimate">
+        <createTable tableName="connector_presets">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_connector_presets_connector_code"
+                             references="connectors(code)"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="icon_url" type="TEXT"/>
+            <column name="category" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="jurisdiction" type="TEXT"/>
+            <column name="auth_methods" type="JSONB" defaultValueComputed="'[]'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <column name="availability" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="docs_url" type="TEXT"/>
+            <column name="params" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <column name="identity" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fields" type="JSONB"/>
+            <column name="header_fields" type="JSONB"/>
+            <column name="header_groups" type="JSONB"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="source_present" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="connector_presets" columnNames="code"
+                             constraintName="uq_connector_presets_code"/>
+
+        <!-- Partial on purpose: a removed seed file hides its row, and a renamed file may reuse the
+             identity while the old row is still hidden. JPA cannot express a partial index. -->
+        <sql>CREATE UNIQUE INDEX uq_connector_presets_connector_code_identity
+             ON connector_presets (connector_code, identity) WHERE source_present = TRUE</sql>
+
+        <sql>ALTER TABLE connector_presets ADD CONSTRAINT chk_connector_presets_availability
+             CHECK (availability IN ('AVAILABLE', 'DOWN', 'TRANSPORT_UNSUPPORTED',
+                                     'PROTOCOL_UNSUPPORTED', 'AUTH_UNSUPPORTED'))</sql>
+        <sql>ALTER TABLE connector_presets ADD CONSTRAINT chk_connector_presets_jurisdiction
+             CHECK (jurisdiction IS NULL OR jurisdiction ~ '^[A-Z]{2}$')</sql>
+        <sql>ALTER TABLE connector_presets ADD CONSTRAINT chk_connector_presets_auth_methods
+             CHECK (jsonb_typeof(auth_methods) = 'array'
+                    AND auth_methods &lt;@ '["OAUTH","TOKEN","NONE"]'::jsonb)</sql>
+        <sql>ALTER TABLE connector_presets ADD CONSTRAINT chk_connector_presets_header_groups
+             CHECK (header_groups IS NULL OR jsonb_typeof(header_groups) = 'array')</sql>
+    </changeSet>
+
+    <!-- Only non-default languages: English lives in connector_presets and is the fallback. -->
+    <changeSet id="create-connector-preset-texts" author="agimate">
+        <createTable tableName="connector_preset_texts">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="preset_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_connector_preset_texts_preset"
+                             references="connector_presets(id)" deleteCascade="true"/>
+            </column>
+            <column name="language" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT"/>
+            <column name="description" type="TEXT"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="connector_preset_texts" columnNames="preset_id, language"
+                             constraintName="uq_connector_preset_texts_preset_id_language"/>
+    </changeSet>
+
+</databaseChangeLog>

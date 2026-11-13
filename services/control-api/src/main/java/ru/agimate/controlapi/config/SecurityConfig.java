@@ -41,6 +41,7 @@ import ru.agimate.controlapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.controlapi.controller.manage.ManageAgentConnectionPolicyController;
 import ru.agimate.controlapi.controller.manage.ManageConnectorController;
 import ru.agimate.controlapi.controller.manage.ManageConnectorJobController;
+import ru.agimate.controlapi.controller.manage.ManageConnectorPresetController;
 import ru.agimate.controlapi.controller.manage.ManageConnectionController;
 import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageLlmUsageController;
@@ -152,6 +153,7 @@ public class SecurityConfig {
             ManageTaxonomyController.PATH + "/**",
             ManageConnectorController.PATH + "/**",
             ManageConnectorJobController.PATH + "/**",
+            ManageConnectorPresetController.PATH + "/**",
             ManageCentrifugoTokenController.PATH + "/**",
             ManageLlmProviderController.PATH + "/**",
             ManageLlmUsageController.PATH + "/**",
