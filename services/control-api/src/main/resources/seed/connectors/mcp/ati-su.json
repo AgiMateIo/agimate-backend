@@ -1,0 +1,106 @@
+{
+  "name": "ATI.SU",
+  "nameRu": "ATI.SU",
+  "description": "Work with the ATI.SU logistics API: find methods and schemas, use reference data, and perform permitted operations such as freight and transport listings, orders, sites, auctions and documents.",
+  "descriptionRu": "Работа с API логистической платформы ATI.SU: поиск методов и схем, справочники и разрешённые операции — объявления о грузах и транспорте, заказы, площадки, торги и документы.",
+  "vendor": "ati.su",
+  "category": "data",
+  "url": "https://api.ati.su/gw/panda-mcp/public/v1/mcp",
+  "docsUrl": "https://ati.su/developers/ai/",
+  "iconUrl": "https://files.ati.su/static/shared/meta/favicons/180x180-ios.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://ati.su/developers/ai/",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-токен ATI.SU — Временный или постоянный токен из раздела «Мои токены» ATI.SU. Токен необходим для выполнения операций через `call_method`: документация (https://ati.su/developers/ai/) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://api.ati.su/gw/panda-mcp/public/v1/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "panda-mcp",
+    "serverVersion": "2.14.7",
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "prompts": true,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 31,
+    "tools": [
+      "ack_agent_messages",
+      "block_firm",
+      "call_method",
+      "check_authentication",
+      "check_firm_agents",
+      "compare_rate_sources",
+      "estimate_rate",
+      "estimate_rate_for_cargo",
+      "get_agent_conversation",
+      "get_agent_inbox",
+      "get_capabilities",
+      "get_market_snapshot",
+      "get_method",
+      "get_schema",
+      "get_spec_info",
+      "list_agent_conversations",
+      "list_blocked_firms",
+      "list_categories",
+      "list_dictionaries",
+      "list_own_cargos",
+      "list_user_boards",
+      "prepare_cargo_draft",
+      "prepare_cargo_rate_update",
+      "prepare_entity_write",
+      "publish_cargo_rate_update",
+      "publish_entity_write",
+      "search_methods",
+      "send_agent_message",
+      "send_messenger_message",
+      "start_agent_conversation",
+      "unblock_firm"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

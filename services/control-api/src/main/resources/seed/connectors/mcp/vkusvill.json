@@ -1,0 +1,81 @@
+{
+  "name": "VkusVill",
+  "nameRu": "ВкусВилл",
+  "description": "Search VkusVill products, promotions, substitutes and recipes; get prices, ratings, ingredients, nutrition facts and photos, find stores and build a cart link. No authorization required.",
+  "descriptionRu": "Поиск товаров, акций, аналогов и рецептов ВкусВилл: цены, рейтинги, состав, КБЖУ, фотографии, магазины и ссылка на корзину. Авторизация не требуется.",
+  "vendor": "vkusvill.ru",
+  "category": "data",
+  "url": "https://mcp.vkusvill.ru/mcp",
+  "docsUrl": "https://habr.com/ru/companies/vkusvill/articles/981866/",
+  "iconUrl": "https://vkusvill.ru/apple-touch-icon.png?v=1",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://habr.com/ru/companies/vkusvill/articles/981866/",
+    "transport": "streamable-http",
+    "headers": []
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.vkusvill.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-03-26",
+      "source": "measured",
+      "accepted": [
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": [
+        {
+          "requested": "2025-11-25",
+          "negotiated": "2025-03-26"
+        },
+        {
+          "requested": "2025-06-18",
+          "negotiated": "2025-03-26"
+        }
+      ]
+    },
+    "handshake": {
+      "supported": false,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-03-26",
+    "serverName": "VV MCP Server",
+    "serverVersion": "0.0.1",
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "prompts": true,
+      "logging": false,
+      "completions": true
+    },
+    "toolCount": 11,
+    "tools": [
+      "vkusvill_cart_link_create",
+      "vkusvill_discounts_personal",
+      "vkusvill_orders_history",
+      "vkusvill_product_analogs",
+      "vkusvill_product_barcode",
+      "vkusvill_product_details",
+      "vkusvill_product_lp",
+      "vkusvill_products_discount",
+      "vkusvill_products_search",
+      "vkusvill_recipes",
+      "vkusvill_shops"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

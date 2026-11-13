@@ -1,0 +1,62 @@
+{
+  "name": "Tochka Bank",
+  "nameRu": "Точка Банк",
+  "description": "Read company and account details, balances and bank statements, and create payments for signing; the user confirms each payment in Tochka internet banking.",
+  "descriptionRu": "Просмотр компаний, счетов, реквизитов и остатков, формирование выписок и платежей на подпись; пользователь подтверждает платёж в интернет-банке Точки.",
+  "vendor": "tochka.com",
+  "category": "payments",
+  "url": "https://api.tochka.com/mcp",
+  "docsUrl": "https://developers.tochka.com/docs/tochka-api/ai-agenti/podklyuchenie-mcp",
+  "iconUrl": "https://icon.horse/icon/tochka.com",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://developers.tochka.com/docs/tochka-api/ai-agenti/podklyuchenie-mcp",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "JWT-токен для LLM — JWT-токен для LLM из раздела «Сервисы → Все сервисы → Интеграции и API → Создание JWT-ключа для LLM» интернет-банка Точка Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://api.tochka.com/mcp",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://api.tochka.com/mcp",
+        "step": "server/discover",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      },
+      {
+        "url": "https://api.tochka.com/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

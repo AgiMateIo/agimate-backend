@@ -1,0 +1,79 @@
+{
+  "name": "LeadHunter",
+  "nameRu": "LeadHunter",
+  "description": "Work with advertising accounts through the TargetHunter LeadHunter service; connect with a TargetHunter integration token.",
+  "descriptionRu": "Работа с рекламными кабинетами через сервис LeadHunter экосистемы TargetHunter; подключение по токену со страницы интеграций.",
+  "vendor": "targethunter.ru",
+  "category": "search",
+  "url": "https://lead-mcp.targethunter.ru/mcp",
+  "docsUrl": "https://targethunter.ru/integrations",
+  "iconUrl": "https://targethunter.ru/template/landing24/images/favicons/apple-icon-57x57.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://targethunter.ru/integrations",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Токен LeadHunter — Токен со страницы интеграций LeadHunter (https://targethunter.ru/integrations) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://lead-mcp.targethunter.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://lead-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp",
+      "authorizationServerMetadataUrl": "https://targethunter.ru/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "leadhunter:read",
+        "leadhunter:write"
+      ],
+      "wwwAuthenticate": "Bearer resource_metadata=\"https://lead-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp\", scope=\"leadhunter:read leadhunter:write\""
+    },
+    "attempts": [
+      {
+        "url": "https://lead-mcp.targethunter.ru/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://lead-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp\", scope=\"leadhunter:read leadhunter:write\""
+      },
+      {
+        "url": "https://lead-mcp.targethunter.ru/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://lead-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp\", scope=\"leadhunter:read leadhunter:write\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

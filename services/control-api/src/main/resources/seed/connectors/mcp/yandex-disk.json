@@ -1,0 +1,69 @@
+{
+  "name": "Yandex Disk",
+  "nameRu": "Яндекс Диск",
+  "description": "Search files and folders, view file details and download links, upload, copy and move files, create folders, move objects to Trash and manage public links. Preview; personal Yandex accounts only.",
+  "descriptionRu": "Поиск файлов и папок, сведения и ссылки на скачивание, загрузка, копирование и перемещение, создание папок, Корзина и публичные ссылки. Предварительная версия; только личные аккаунты Яндекса.",
+  "vendor": "yandex.ru",
+  "category": "productivity",
+  "url": "https://mcp.360.yandex.net/v1/disk/mcp",
+  "docsUrl": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/disk",
+  "iconUrl": "https://yastatic.net/s3/psf/ps-tuning/a128d6c206b66fcf3154.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/disk",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "OAuth ",
+        "label": "OAuth token",
+        "labelRu": "OAuth-токен",
+        "description": "OAuth-токен — Токен того же личного аккаунта Яндекса, Диск которого нужно подключить. Получить OAuth-токен (https://oauth.yandex.ru/authorize?client_id=da1cbaa895264f08a7f883ba39427032&response_type=token). Введите только значение токена без префикса: `OAuth` добавляется автоматически."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.360.yandex.net/v1/disk/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "stateless",
+    "versions": {
+      "negotiated": "2026-07-28",
+      "source": "declared",
+      "supported": [
+        "2026-07-28"
+      ],
+      "downgrades": null
+    },
+    "authType": "api_key_or_bearer",
+    "protocolVersion": "2026-07-28",
+    "serverName": "Yandex MCP Proxy",
+    "serverVersion": "1",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "lastChanged": "2026-11-13"
+  }
+}

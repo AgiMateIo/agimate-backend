@@ -1,0 +1,69 @@
+{
+  "name": "Yandex Calendar",
+  "nameRu": "Яндекс Календарь",
+  "description": "View calendar events, create and reschedule meetings, change participants and respond to invitations, including recurring events, deletion and free/busy checks. Preview; personal accounts only.",
+  "descriptionRu": "Просмотр событий, создание и перенос встреч, изменение участников и ответы на приглашения, повторяющиеся события, удаление и проверка занятости. Предварительная версия; только личные аккаунты.",
+  "vendor": "yandex.ru",
+  "category": "productivity",
+  "url": "https://mcp.360.yandex.net/v1/calendar/mcp",
+  "docsUrl": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/calendar",
+  "iconUrl": "https://yastatic.net/s3/psf/ps-tuning/a128d6c206b66fcf3154.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/calendar",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "OAuth ",
+        "label": "OAuth token",
+        "labelRu": "OAuth-токен",
+        "description": "OAuth-токен — Токен того же личного аккаунта Яндекса, календарь которого нужно подключить. Получить OAuth-токен (https://oauth.yandex.ru/authorize?client_id=d5fff53202474631801939f538932a5c&response_type=token). Введите только значение токена без префикса: `OAuth` добавляется автоматически."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.360.yandex.net/v1/calendar/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "stateless",
+    "versions": {
+      "negotiated": "2026-07-28",
+      "source": "declared",
+      "supported": [
+        "2026-07-28"
+      ],
+      "downgrades": null
+    },
+    "authType": "api_key_or_bearer",
+    "protocolVersion": "2026-07-28",
+    "serverName": "Yandex MCP Proxy",
+    "serverVersion": "1",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "lastChanged": "2026-11-13"
+  }
+}

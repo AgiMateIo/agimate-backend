@@ -1,0 +1,72 @@
+{
+  "name": "PR-CY",
+  "nameRu": "PR-CY",
+  "description": "SEO analytics: projects and keywords, Yandex and Google position checks, search results and Wordstat frequency, page-content analysis, and Yandex Metrica, Yandex Webmaster and Google Search Console data.",
+  "descriptionRu": "SEO-аналитика: проекты и ключевые слова, позиции в Яндексе и Google, поисковая выдача и частотность Wordstat, анализ страниц, данные Метрики, Вебмастера и Google Search Console.",
+  "vendor": "pr-cy.ru",
+  "category": "search",
+  "url": "https://mcp-server.pr-cy.ru/mcp/",
+  "docsUrl": "https://pr-cy.ru/pages/mcp/",
+  "iconUrl": "https://pr-cy.ru/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://pr-cy.ru/pages/mcp/",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-ключ PR-CY — API-ключ из настроек аккаунта PR-CY (https://a.pr-cy.ru/settings/api/) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp-server.pr-cy.ru/mcp/",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://api.pr-cy.io/.well-known/oauth-protected-resource\""
+    },
+    "attempts": [
+      {
+        "url": "https://mcp-server.pr-cy.ru/mcp/",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://api.pr-cy.io/.well-known/oauth-protected-resource\""
+      },
+      {
+        "url": "https://mcp-server.pr-cy.ru/mcp/",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://api.pr-cy.io/.well-known/oauth-protected-resource\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

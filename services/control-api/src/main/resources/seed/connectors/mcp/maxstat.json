@@ -1,0 +1,72 @@
+{
+  "name": "MaxStat",
+  "nameRu": "MaxStat",
+  "description": "Search and analyze MAX channels and posts: channel details, audience dynamics, views, reactions and activity, post search and webhook tracking of new content.",
+  "descriptionRu": "Поиск и аналитика каналов и публикаций в MAX: сведения о каналах, динамика аудитории, просмотры, реакции и активность, поиск публикаций и вебхуки.",
+  "vendor": "maxstat.ru",
+  "category": "data",
+  "url": "https://maxstat.ru/api/mcp",
+  "docsUrl": "https://github.com/fbmdata/maxstat-mcp",
+  "iconUrl": "https://maxstat.ru/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://github.com/fbmdata/maxstat-mcp",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "X-API-Token",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-токен MaxStat — Создайте API-токен в личном кабинете MaxStat (https://maxstat.ru/dashboard/api). Введите значение токена без префикса."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://maxstat.ru/api/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "attempts": [
+      {
+        "url": "https://maxstat.ru/api/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      },
+      {
+        "url": "https://maxstat.ru/api/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

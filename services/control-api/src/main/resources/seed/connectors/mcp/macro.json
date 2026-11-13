@@ -1,0 +1,78 @@
+{
+  "name": "MACRO",
+  "nameRu": "MACRO",
+  "description": "Work with MacroCRM and MacroERP data and processes via API 2.0: customers, requests, real estate, staff, deals, finance and other entities, limited by the API key permissions.",
+  "descriptionRu": "Работа с данными и процессами MacroCRM и MacroERP через API 2.0: клиенты, заявки, недвижимость, сотрудники, сделки, финансы и другие сущности в рамках прав API-ключа.",
+  "vendor": "macroserver.ru",
+  "category": "crm",
+  "url": "https://api.macroserver.ru/mcp",
+  "docsUrl": "https://docs.macrodigital.ru/rukovodstvo-polzovatelya/platforma-macro/api/mcp-api-v2",
+  "iconUrl": "https://docs.macrodigital.ru/logo.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://docs.macrodigital.ru/rukovodstvo-polzovatelya/platforma-macro/api/mcp-api-v2",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-ключ MACRO — API-ключ из раздела «Компания» → «API-ключи» в MACRO: инструкция (https://docs.macrodigital.ru/rukovodstvo-polzovatelya/platforma-macro/api/mcp-api-v2) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://api.macroserver.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://api.macroserver.ru/oauth/ApiProtectedResource",
+      "authorizationServerMetadataUrl": "https://macroserver.ru/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "api:access"
+      ],
+      "wwwAuthenticate": "Bearer resource_metadata=\"https://api.macroserver.ru/oauth/ApiProtectedResource\""
+    },
+    "attempts": [
+      {
+        "url": "https://api.macroserver.ru/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://api.macroserver.ru/oauth/ApiProtectedResource\""
+      },
+      {
+        "url": "https://api.macroserver.ru/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://api.macroserver.ru/oauth/ApiProtectedResource\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

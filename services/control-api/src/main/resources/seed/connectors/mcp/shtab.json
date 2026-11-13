@@ -1,0 +1,79 @@
+{
+  "name": "Shtab",
+  "nameRu": "Shtab",
+  "description": "Work with tasks, projects, goals and the knowledge base: search and retrieve data, build project summaries, create tasks and subtasks, change statuses, deadlines and assignees, add comments and checklists.",
+  "descriptionRu": "Работа с задачами, проектами, целями и базой знаний: поиск и получение данных, сводки по проектам, создание задач и подзадач, статусы, сроки и исполнители, комментарии и чек-листы.",
+  "vendor": "shtab.app",
+  "category": "productivity",
+  "url": "https://my.shtab.app/api/mcp/rpc",
+  "docsUrl": "https://shtab.app/mcp/",
+  "iconUrl": "https://shtab.app/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://shtab.app/mcp/",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Персональный MCP-токен Shtab — Персональный токен из раздела «ИИ-агенты и MCP» в Shtab: инструкция (https://shtab.app/mcp/) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://my.shtab.app/api/mcp/rpc",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://my.shtab.app/api/mcp/oauth/.well-known/oauth-protected-resource",
+      "authorizationServerMetadataUrl": "https://my.shtab.app/.well-known/oauth-authorization-server/api/mcp/oauth",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "read",
+        "write"
+      ],
+      "wwwAuthenticate": "Bearer realm=\"Shtab MCP\", resource_metadata=\"https://my.shtab.app/api/mcp/oauth/.well-known/oauth-protected-resource\""
+    },
+    "attempts": [
+      {
+        "url": "https://my.shtab.app/api/mcp/rpc",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"Shtab MCP\", resource_metadata=\"https://my.shtab.app/api/mcp/oauth/.well-known/oauth-protected-resource\""
+      },
+      {
+        "url": "https://my.shtab.app/api/mcp/rpc",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"Shtab MCP\", resource_metadata=\"https://my.shtab.app/api/mcp/oauth/.well-known/oauth-protected-resource\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

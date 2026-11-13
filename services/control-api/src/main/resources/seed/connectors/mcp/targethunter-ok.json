@@ -1,0 +1,78 @@
+{
+  "name": "TargetHunter OK",
+  "nameRu": "TargetHunter | Поиск ЦА (ОК)",
+  "description": "Find and collect target audiences on Odnoklassniki: run parsing jobs, get results and upload found users to MyTarget and VK Ads audiences; also manage projects, tasks and audiences.",
+  "descriptionRu": "Поиск и сбор целевой аудитории в Одноклассниках: запуск парсинга, результаты и загрузка пользователей в аудитории MyTarget и VK Ads; проекты, задачи и аудитории.",
+  "vendor": "targethunter.ru",
+  "category": "search",
+  "url": "https://ok-mcp.targethunter.ru/mcp",
+  "docsUrl": "https://targethunter.ru/integrations",
+  "iconUrl": "https://targethunter.ru/template/landing24/images/favicons/apple-icon-57x57.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://targethunter.ru/integrations",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Личный токен TargetHunter — Личный токен из раздела «Доступы и токены» (https://targethunter.ru/settings/access) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://ok-mcp.targethunter.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://ok-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp",
+      "authorizationServerMetadataUrl": "https://targethunter.ru/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "ok-parser"
+      ],
+      "wwwAuthenticate": "Bearer resource_metadata=\"https://ok-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp\", scope=\"ok-parser\""
+    },
+    "attempts": [
+      {
+        "url": "https://ok-mcp.targethunter.ru/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://ok-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp\", scope=\"ok-parser\""
+      },
+      {
+        "url": "https://ok-mcp.targethunter.ru/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://ok-mcp.targethunter.ru/.well-known/oauth-protected-resource/mcp\", scope=\"ok-parser\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "name": "Aspro.Cloud",
+  "nameRu": "Аспро.Cloud",
+  "description": "Read and manage CRM entities in the Aspro.Cloud portal, with API-key access limited to the modules selected when the key was created.",
+  "descriptionRu": "Доступ к данным и сущностям CRM портала Аспро.Cloud; права API-ключа ограничиваются модулями, выбранными при его создании.",
+  "vendor": "aspro.cloud",
+  "category": "crm",
+  "url": "https://mcp.aspro.cloud/mcp",
+  "docsUrl": "https://aspro.cloud/help/articles/10556-10557--ai-mcp/",
+  "iconUrl": "https://aspro.cloud/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://aspro.cloud/help/articles/10556-10557--ai-mcp/",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-ключ Аспро.Cloud — API-ключ из раздела «Настройки» → «Для разработчиков» в Аспро.Cloud: инструкция (https://aspro.cloud/help/articles/10556-10557--ai-mcp/) Prefix: `Bearer`."
+      },
+      {
+        "name": "x-account-code",
+        "isRequired": true,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Account code",
+        "labelRu": "Код аккаунта",
+        "description": "Код аккаунта Аспро.Cloud — Поддомен рабочего портала Аспро.Cloud"
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.aspro.cloud/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.aspro.cloud/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      },
+      {
+        "url": "https://mcp.aspro.cloud/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

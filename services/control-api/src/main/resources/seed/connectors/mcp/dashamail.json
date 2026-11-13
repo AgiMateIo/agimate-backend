@@ -1,0 +1,103 @@
+{
+  "name": "DashaMail",
+  "nameRu": "DashaMail",
+  "description": "Manage email marketing: address books and subscribers, create and launch campaigns, get reports and statistics, send transactional emails, and work with templates, automations, webhooks and incoming messages.",
+  "descriptionRu": "Управление email-маркетингом: базы и подписчики, создание и запуск рассылок, отчёты и статистика, транзакционные письма, шаблоны, автоматизации, вебхуки и входящие сообщения.",
+  "vendor": "dashamail.ru",
+  "category": "productivity",
+  "url": "https://mcp.dashamail.ru/",
+  "docsUrl": "https://dashamail.ru/help/articles/1789383540-mcp-server-dashamail-chto-eto-i-kak-podklyuchit/",
+  "iconUrl": "https://dashamail.ru/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://dashamail.ru/help/articles/1789383540-mcp-server-dashamail-chto-eto-i-kak-podklyuchit/",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-ключ DashaMail — API-ключ из раздела «Аккаунт» → «API-ключи» в личном кабинете DashaMail: инструкция (https://dashamail.ru/help/articles/1789383540-mcp-server-dashamail-chto-eto-i-kak-podklyuchit/) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.dashamail.ru/",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://mcp.dashamail.ru/.well-known/oauth-protected-resource",
+      "authorizationServerMetadataUrl": "https://lk.dashamail.ru/.well-known/oauth-authorization-server/oauth",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "account.read",
+        "account.write",
+        "lists.read",
+        "lists.write",
+        "segments.read",
+        "segments.write",
+        "campaigns.read",
+        "campaigns.write",
+        "campaigns.send",
+        "templates.read",
+        "templates.write",
+        "automations.read",
+        "automations.write",
+        "automations.send",
+        "reports.read",
+        "transactional.send",
+        "transactional.read",
+        "webhooks.read",
+        "webhooks.write",
+        "dialogs.read",
+        "dialogs.write",
+        "router.read",
+        "sites.read",
+        "leads.read",
+        "sites.write",
+        "leads.write"
+      ],
+      "wwwAuthenticate": "Bearer realm=\"DashaMail MCP\", resource_metadata=\"https://mcp.dashamail.ru/.well-known/oauth-protected-resource\""
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.dashamail.ru/",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"DashaMail MCP\", resource_metadata=\"https://mcp.dashamail.ru/.well-known/oauth-protected-resource\""
+      },
+      {
+        "url": "https://mcp.dashamail.ru/",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"DashaMail MCP\", resource_metadata=\"https://mcp.dashamail.ru/.well-known/oauth-protected-resource\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

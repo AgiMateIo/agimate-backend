@@ -1,0 +1,69 @@
+{
+  "name": "Yandex Mail",
+  "nameRu": "Яндекс Почта",
+  "description": "Search and read Yandex Mail messages, get attachment links, create and edit drafts, move messages between folders, change labels and move messages to Trash. Sending is not supported.",
+  "descriptionRu": "Поиск и чтение писем Яндекс Почты, ссылки на вложения, черновики, перемещение между папками, метки и Корзина. Отправка писем не поддерживается.",
+  "vendor": "yandex.ru",
+  "category": "productivity",
+  "url": "https://mcp.360.yandex.net/v1/mail/mcp",
+  "docsUrl": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/mail",
+  "iconUrl": "https://yastatic.net/s3/psf/ps-tuning/a128d6c206b66fcf3154.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/mail",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "OAuth ",
+        "label": "OAuth token",
+        "labelRu": "OAuth-токен",
+        "description": "OAuth-токен — Токен того же личного аккаунта Яндекса, почту которого нужно подключить. Получить OAuth-токен (https://oauth.yandex.ru/authorize?client_id=355734217047470d8064b5dbbf579fee&response_type=token). Введите только значение токена без префикса: `OAuth` добавляется автоматически."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.360.yandex.net/v1/mail/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "stateless",
+    "versions": {
+      "negotiated": "2026-07-28",
+      "source": "declared",
+      "supported": [
+        "2026-07-28"
+      ],
+      "downgrades": null
+    },
+    "authType": "api_key_or_bearer",
+    "protocolVersion": "2026-07-28",
+    "serverName": "Yandex MCP Proxy",
+    "serverVersion": "1",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "lastChanged": "2026-11-13"
+  }
+}

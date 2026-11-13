@@ -1,0 +1,78 @@
+{
+  "name": "Timetta",
+  "nameRu": "Timetta",
+  "description": "Work with projects, tasks, employees and time tracking, and search the official Timetta help center.",
+  "descriptionRu": "Работа с проектами, задачами, сотрудниками и учётом времени, а также поиск по официальной справке Timetta.",
+  "vendor": "timetta.com",
+  "category": "productivity",
+  "url": "https://api.timetta.com/mcp",
+  "docsUrl": "https://timetta.com/ru/docs/settings/system/api-token",
+  "iconUrl": "https://timetta.com/images/favicon.svg",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://timetta.com/ru/docs/settings/system/api-token",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-токен Timetta — API-токен Timetta: инструкция (https://timetta.com/ru/docs/settings/system/api-token) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://api.timetta.com/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://api.timetta.com/.well-known/oauth-protected-resource/mcp",
+      "authorizationServerMetadataUrl": "https://auth.timetta.com/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "mcp:write"
+      ],
+      "wwwAuthenticate": "Bearer resource_metadata=\"https://api.timetta.com/.well-known/oauth-protected-resource/mcp\""
+    },
+    "attempts": [
+      {
+        "url": "https://api.timetta.com/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://api.timetta.com/.well-known/oauth-protected-resource/mcp\""
+      },
+      {
+        "url": "https://api.timetta.com/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://api.timetta.com/.well-known/oauth-protected-resource/mcp\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

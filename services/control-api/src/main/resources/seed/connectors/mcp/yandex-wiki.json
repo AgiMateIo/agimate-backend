@@ -1,0 +1,139 @@
+{
+  "name": "Yandex Wiki",
+  "nameRu": "Яндекс Вики",
+  "description": "Search and read knowledge-base pages, create and edit pages, and generate short summaries across multiple pages.",
+  "descriptionRu": "Поиск и чтение страниц базы знаний, создание и редактирование страниц, краткие сводки по нескольким страницам.",
+  "vendor": "yandex.ru",
+  "category": "knowledge",
+  "url": "https://mcp.wiki.yandex.net",
+  "docsUrl": "https://yandex.ru/support/wiki/ru/mcp",
+  "iconUrl": "https://yastatic.net/s3/psf/ps-tuning/a128d6c206b66fcf3154.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://yandex.ru/support/wiki/ru/mcp",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "",
+        "label": "OAuth or IAM token (with prefix)",
+        "labelRu": "OAuth- или IAM-токен (с префиксом)",
+        "description": "Токен — OAuth- или IAM-токен с указанием префикса. Пример: `OAuth ABC-def12GH_***` или `Bearer ABC-def12GH_***`. Как получить токен: документация (https://yandex.ru/support/wiki/ru/api-ref/access)"
+      },
+      {
+        "name": "X-Org-Id",
+        "isRequired": false,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Organization ID",
+        "labelRu": "Идентификатор организации",
+        "description": "Идентификатор организации Яндекс 360 для бизнеса — Идентификатор доступен на странице Администрирование → Организации в интерфейсе Вики. Должен быть указан только один из заголовков `X-Org-Id` или `X-Cloud-Org-Id`. Provide exactly one of `X-Org-Id` or `X-Cloud-Org-Id`."
+      },
+      {
+        "name": "X-Cloud-Org-Id",
+        "isRequired": false,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Cloud organization ID",
+        "labelRu": "Идентификатор облачной организации",
+        "description": "Идентификатор организации Yandex Cloud — Идентификатор доступен на странице Администрирование → Организации в интерфейсе Вики. Должен быть указан только один из заголовков `X-Org-Id` или `X-Cloud-Org-Id`. Provide exactly one of `X-Org-Id` or `X-Cloud-Org-Id`."
+      }
+    ],
+    "headerGroups": [
+      {
+        "id": "org",
+        "anyOf": [
+          "X-Org-Id",
+          "X-Cloud-Org-Id"
+        ],
+        "required": true
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.wiki.yandex.net",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "wiki-mcp-server",
+    "serverVersion": "1.29.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 36,
+    "tools": [
+      "AddGridColumns",
+      "AddGridRows",
+      "AppendPageContent",
+      "CreateComment",
+      "CreateGrid",
+      "CreatePage",
+      "DeleteAttachment",
+      "DeleteGrid",
+      "DeletePage",
+      "DownloadAttachment",
+      "DownloadAttachmentContent",
+      "EditPageContent",
+      "GetAttachmentPreview",
+      "GetGrid",
+      "GetMovePageStatus",
+      "GetPageById",
+      "GetPageDescendants",
+      "GetPageDetails",
+      "ListComments",
+      "ListPageAttachments",
+      "ListPageGrids",
+      "ListPageResources",
+      "MoveGridColumns",
+      "MoveGridRows",
+      "MovePage",
+      "RemoveGridColumns",
+      "RemoveGridRows",
+      "ResolveSlugFromUrl",
+      "Search",
+      "SuggestGridColumn",
+      "UpdateGrid",
+      "UpdateGridCells",
+      "UpdateGridColumn",
+      "UpdateGridRow",
+      "UpdatePageDetails",
+      "UploadAttachment"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

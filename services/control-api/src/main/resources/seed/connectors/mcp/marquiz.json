@@ -1,0 +1,78 @@
+{
+  "name": "Marquiz",
+  "nameRu": "Марквиз",
+  "description": "Create and edit quizzes in a Marquiz account, manage questions, branches, calculators and landing-page styling, and analyze quiz and project performance.",
+  "descriptionRu": "Создание и редактирование квизов в аккаунте Марквиз: вопросы, ветвления, калькуляторы, оформление страниц и аналитика по квизам и проектам.",
+  "vendor": "marquiz.ru",
+  "category": "design",
+  "url": "https://mcp.marquiz.ru/mcp",
+  "docsUrl": "https://marquiz.ru/blog/mcp/",
+  "iconUrl": "https://icon.horse/icon/marquiz.ru",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://marquiz.ru/blog/mcp/",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-ключ Марквиз — Получить или перевыпустить API-ключ можно в настройках аккаунта Марквиз (https://panel.marquiz.ru/account) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.marquiz.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://mcp.marquiz.ru/.well-known/oauth-protected-resource",
+      "authorizationServerMetadataUrl": "https://api.marquiz.ru/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "offline_access"
+      ],
+      "wwwAuthenticate": "Bearer realm=\"marquiz-mcp\", resource_metadata=\"https://mcp.marquiz.ru/.well-known/oauth-protected-resource\""
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.marquiz.ru/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"marquiz-mcp\", resource_metadata=\"https://mcp.marquiz.ru/.well-known/oauth-protected-resource\""
+      },
+      {
+        "url": "https://mcp.marquiz.ru/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"marquiz-mcp\", resource_metadata=\"https://mcp.marquiz.ru/.well-known/oauth-protected-resource\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

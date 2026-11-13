@@ -17,8 +17,9 @@ MCP-серверов с URL, категорией, юрисдикцией, сп�
 вручную, база — их проекция, каталог ничего не обещает сверх того, что платформа умеет подключить.
 
 > **Реализация 2026-11-13.** Схема, сид, чтение, manage- и публичный API и юнит-тесты готовы.
-> Осталось: скопировать `mcp/servers/*.json` в `seed/connectors/mcp/`, проверить миграцию на
-> локальной базе, передать фронтенд-дельту и выкатить.
+> Перенесена первая партия сида — 58 серверов с юрисдикцией RU; guard-тест зелёный. Осталось:
+> скопировать остальные `mcp/servers/*.json`, проверить миграцию на локальной базе, передать
+> фронтенд-дельту и выкатить.
 
 ## Что есть и чего нет
 
@@ -338,6 +339,9 @@ presets:
     authMethods: [OAUTH, TOKEN]   # временный обход, пока данные не исправлены
 ```
 
+Пока файл `square` не перенесён в seed, строки закомментированы: override для кода без
+скопированного JSON — ошибка сида.
+
 Для отдельного пресета доступны ключи `authMethods`, `fields` (`label`, `labelRu`, `required`) и
 `headerFields` (`name`, `label`, `labelRu`, `secret`, `required`, `valuePrefix`, `keyPrefix`).
 Подписи и префиксы заголовков по умолчанию приходят из `declared.headers`, поэтому оверрайд нужен
@@ -564,7 +568,8 @@ presets:
   `preset_id` и языку.
 
 **Сид**
-- [ ] Раскладка `seed/connectors/mcp/<slug>.json` + `overrides.yaml`.
+- [ ] Раскладка `seed/connectors/mcp/<slug>.json` + `overrides.yaml` — RU-партия (58 файлов)
+  перенесена, остальные серверы следующими партиями.
 - [x] Загрузчик `ConnectorPresetSeed`: `PathMatchingResourcePatternResolver` с
   `classpath*:seed/connectors/*/*.json` (jar-safe), JSON + overrides, маппинг полей:
   `authMethods` → отфильтрованный `auth_methods`, `headerGroups` → `header_groups`,
@@ -624,7 +629,8 @@ presets:
 
 **Выкатка**
 - [ ] control-api первым; worker, drain и схема очередей не меняются.
-- [ ] Скопировать `mcp/servers/*.json` в `seed/connectors/mcp/`, проверить сид на локальной базе.
+- [ ] Скопировать остальные `mcp/servers/*.json` в `seed/connectors/mcp/` (RU-партия уже в seed
+  и проходит guard-тест), проверить сид на локальной базе.
 - [ ] Данные MCP перед копированием: добавить `authMethods` у `square`, заголовок у
   `stack-overflow`, `declared.transport` для 12 `auth_required` с исходным `/sse`; пять `up` с
   `handshake.supported = null` остаются «не проверено».

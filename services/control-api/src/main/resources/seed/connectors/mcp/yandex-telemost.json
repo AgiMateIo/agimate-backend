@@ -1,0 +1,69 @@
+{
+  "name": "Yandex Telemost",
+  "nameRu": "Яндекс Телемост",
+  "description": "Create and configure video meetings, get join links and manage co-organizers; search users, chats and channels, and read messages and threads. Messaging is read-only.",
+  "descriptionRu": "Создание и настройка видеовстреч, ссылки подключения и соорганизаторы; поиск пользователей, чатов и каналов, чтение сообщений и тредов. Переписка доступна только для чтения.",
+  "vendor": "yandex.ru",
+  "category": "productivity",
+  "url": "https://mcp.360.yandex.net/v1/telemost/mcp",
+  "docsUrl": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/telemost",
+  "iconUrl": "https://yastatic.net/s3/chat-static/favicons/tm/apple-touch-icon-180.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://dev-yandex360-mcp.viewer.diplodoc.yandex.ru/ru/telemost",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "OAuth ",
+        "label": "OAuth token",
+        "labelRu": "OAuth-токен",
+        "description": "OAuth-токен — OAuth-токен Яндекса для доступа к Телемосту и связанным данным Мессенджера. Получить OAuth-токен (https://oauth.yandex.ru/authorize?client_id=80d9d53eb9c34b11baa4d76778fe5282&response_type=token). Введите только значение токена без префикса: OAuth добавляется автоматически."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.360.yandex.net/v1/telemost/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "stateless",
+    "versions": {
+      "negotiated": "2026-07-28",
+      "source": "declared",
+      "supported": [
+        "2026-07-28"
+      ],
+      "downgrades": null
+    },
+    "authType": "api_key_or_bearer",
+    "protocolVersion": "2026-07-28",
+    "serverName": "Yandex MCP Proxy",
+    "serverVersion": "1",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "lastChanged": "2026-11-13"
+  }
+}

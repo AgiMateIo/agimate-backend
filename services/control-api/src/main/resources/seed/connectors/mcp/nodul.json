@@ -1,0 +1,74 @@
+{
+  "name": "Nodul",
+  "nameRu": "Nodul",
+  "description": "Create, modify, retrieve and activate automation scenarios, find node types and connections, create connections, run scenarios or individual nodes, and get execution results and history.",
+  "descriptionRu": "Создание, изменение, получение и активация сценариев, поиск типов узлов и подключений, создание подключений, запуск сценариев и узлов, результаты и история выполнений.",
+  "vendor": "nodul.ru",
+  "category": "productivity",
+  "url": "https://api.nodul.ru/latenode-mcp/v1/mcp",
+  "docsUrl": "https://documentation.nodul.ru/mcp-server/overview",
+  "iconUrl": "https://www.nodul.ru/favicon.ico?favicon.1g1tmq841x676.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://documentation.nodul.ru/mcp-server/overview",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-токен Nodul — API-токен создаётся в Nodul (https://app.nodul.ru/mcp). Инструкция (https://documentation.nodul.ru/mcp-server/overview) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://api.nodul.ru/latenode-mcp/v1/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [
+        "mcp"
+      ],
+      "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Missing Authorization header\", scope=\"mcp\""
+    },
+    "attempts": [
+      {
+        "url": "https://api.nodul.ru/latenode-mcp/v1/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Missing Authorization header\", scope=\"mcp\""
+      },
+      {
+        "url": "https://api.nodul.ru/latenode-mcp/v1/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Missing Authorization header\", scope=\"mcp\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

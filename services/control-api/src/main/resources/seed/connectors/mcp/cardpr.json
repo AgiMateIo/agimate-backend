@@ -1,0 +1,72 @@
+{
+  "name": "CARDPR",
+  "nameRu": "CARDPR",
+  "description": "Create and update customer records and electronic loyalty cards, retrieve card data, change discounts, bonuses and balances, and send push campaigns.",
+  "descriptionRu": "Создание и обновление записей клиентов и электронных карт, данные по картам, изменение скидок, бонусов и баланса, push-рассылки.",
+  "vendor": "cardpr.com",
+  "category": "crm",
+  "url": "https://mcp.cardpr.com/mcp",
+  "docsUrl": "https://ru.cardpr.com/help/api",
+  "iconUrl": "https://cardpr.com/images/tild3663-3631-4462-b037-666364383166__cardpr_icon_opt.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://ru.cardpr.com/help/api",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Приватный ключ CARDPR — Приватный ключ из раздела «Настройки → API»: инструкция (https://ru.cardpr.com/help/api) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.cardpr.com/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.cardpr.com/mcp",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 400,
+        "rpcError": "Bad Request: No valid session ID provided"
+      },
+      {
+        "url": "https://mcp.cardpr.com/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

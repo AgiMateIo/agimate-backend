@@ -1,0 +1,62 @@
+{
+  "name": "Alfa-Bank",
+  "nameRu": "Альфа-Банк",
+  "description": "Read-only access to Alfa-Bank business accounts: account balances, transaction history for up to 90 days, and exchange rates at Alfa-Bank branches.",
+  "descriptionRu": "Доступ только для чтения к счетам и операциям компании в Альфа-Банке: остатки, история за период до 90 дней и курсы валют в отделениях.",
+  "vendor": "alfabank.ru",
+  "category": "payments",
+  "url": "https://api-hub.alfabank.ru/mcp",
+  "iconUrl": "https://icon.horse/icon/alfabank.ru",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://aistudio.yandex.ru/",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "ApiKey ",
+        "label": "API key",
+        "labelRu": "API-ключ",
+        "description": "API-ключ организации — Промышленный API-ключ организации, подключённой к Alfa API. Введите только значение ключа: префикс `ApiKey` будет добавлен автоматически."
+      }
+    ],
+    "note": "Imported from the Yandex AI Studio MCP catalog."
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://api-hub.alfabank.ru/mcp",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://api-hub.alfabank.ru/mcp",
+        "step": "server/discover",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      },
+      {
+        "url": "https://api-hub.alfabank.ru/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "name": "DaData",
+  "nameRu": "DaData",
+  "description": "Access Russian company and sole-trader data plus address information: counterparty checks, contracts and invoices by INN, CRM card filling, geocoding and postal codes.",
+  "descriptionRu": "Данные о российских организациях и ИП, а также адресная информация: проверка контрагентов, договоры и счета по ИНН, заполнение карточек CRM, геокодирование и почтовые индексы.",
+  "vendor": "dadata.ru",
+  "category": "data",
+  "url": "https://mcp.dadata.ru/mcp",
+  "docsUrl": "https://dadata.ru/mcp/",
+  "iconUrl": "https://dadata.ru/img/apple-touch-icon.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-07-31",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://dadata.ru/mcp/",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API key and secret",
+        "labelRu": "API- и секретный ключ",
+        "description": "API- и секретный ключ DaData — Укажите API- и секретный ключи в формате `API_KEY:SECRET_KEY`. Получить ключи: документация (https://dadata.ru/mcp/) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.dadata.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "Dadata.ru",
+    "serverVersion": "3.4.8",
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "prompts": true,
+      "logging": true,
+      "completions": false
+    },
+    "toolCount": 4,
+    "tools": [
+      "clean_address",
+      "find_company_by_domain",
+      "find_company_by_email",
+      "find_party"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

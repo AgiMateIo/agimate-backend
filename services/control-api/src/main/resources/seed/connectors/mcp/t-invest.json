@@ -1,0 +1,60 @@
+{
+  "name": "T-Invest",
+  "vendor": "tbank.ru",
+  "category": "payments",
+  "url": "https://invest-public-api.tbank.ru/mcp",
+  "docsUrl": "https://developer.tbank.ru/invest/mcp/",
+  "iconUrl": "https://icon.horse/icon/tbank.ru",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-07-31",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://developer.tbank.ru/invest/mcp/",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "T-Invest API token",
+        "labelRu": "Токен T-Invest API",
+        "description": "Bearer <T-Invest API token>"
+      }
+    ],
+    "note": "TLS chain is issued by the Russian Trusted Root CA, which is absent from default trust stores — clients must install it to connect"
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://invest-public-api.tbank.ru/mcp",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://invest-public-api.tbank.ru/mcp",
+        "step": "server/discover",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      },
+      {
+        "url": "https://invest-public-api.tbank.ru/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      }
+    ],
+    "lastChanged": "2026-07-31"
+  }
+}

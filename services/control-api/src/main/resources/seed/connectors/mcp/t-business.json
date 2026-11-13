@@ -1,0 +1,62 @@
+{
+  "name": "T-Business",
+  "nameRu": "Т‑Бизнес",
+  "description": "Access T-Business company accounts and operations: balances, statements, invoices and acts, payment-status checks, and draft payment orders, limited by the T-API token permissions.",
+  "descriptionRu": "Работа со счетами и операциями компании в Т‑Бизнесе: остатки, выписки, счета и акты, статусы платежей и черновики платёжных поручений в рамках прав токена T‑API.",
+  "vendor": "tbank.ru",
+  "category": "payments",
+  "url": "https://developer.tinkoff.ru/mcp/b2b",
+  "docsUrl": "https://developer.tbank.ru/docs/api/t-api",
+  "iconUrl": "https://icon.horse/icon/tbank.ru",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://developer.tbank.ru/docs/api/t-api",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "T-API access token",
+        "labelRu": "Access Token T-API",
+        "description": "Access Token T‑API — Access Token T‑API из раздела «Интеграции → T‑API → Выпуск токена» личного кабинета Т‑Бизнеса: инструкция (https://developer.tbank.ru/t_api/intro/manuals/self-service-auth) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://developer.tinkoff.ru/mcp/b2b",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://developer.tinkoff.ru/mcp/b2b",
+        "step": "server/discover",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      },
+      {
+        "url": "https://developer.tinkoff.ru/mcp/b2b",
+        "step": "initialize@2025-11-25",
+        "outcome": "network-error",
+        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

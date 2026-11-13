@@ -1,0 +1,79 @@
+{
+  "name": "Bitrix24",
+  "nameRu": "Битрикс24",
+  "description": "Interact with Bitrix24 modules, starting with Tasks, through a standardized MCP interface under the permissions of the connected Bitrix24 user.",
+  "descriptionRu": "Работа с модулями Битрикс24 через MCP, начиная с задач, в рамках прав подключённого пользователя.",
+  "vendor": "bitrix24.ru",
+  "category": "crm",
+  "url": "https://mcp.bitrix24.tech/mcp/",
+  "docsUrl": "https://helpdesk.bitrix24.ru/open/26952788",
+  "iconUrl": "https://www.bitrix24.ru/apple-touch-icon.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://helpdesk.bitrix24.ru/open/26952788",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Токен из Битрикс24 — Для получения токена необходимо сгенерировать его в Битрикс24 (https://helpdesk.bitrix24.ru/open/26952788) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.bitrix24.tech/mcp/",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://mcp.bitrix24.tech/.well-known/oauth-protected-resource",
+      "authorizationServerMetadataUrl": "https://mcp.bitrix24.tech/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "auth",
+        "profile"
+      ],
+      "wwwAuthenticate": "Bearer error=\"invalid_token\", resource_metadata=\"https://mcp.bitrix24.tech/.well-known/oauth-protected-resource\""
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.bitrix24.tech/mcp/",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", resource_metadata=\"https://mcp.bitrix24.tech/.well-known/oauth-protected-resource\""
+      },
+      {
+        "url": "https://mcp.bitrix24.tech/mcp/",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", resource_metadata=\"https://mcp.bitrix24.tech/.well-known/oauth-protected-resource\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

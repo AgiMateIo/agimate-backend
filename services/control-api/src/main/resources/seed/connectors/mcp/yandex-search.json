@@ -1,0 +1,85 @@
+{
+  "name": "Yandex Search",
+  "description": "Search the web through the Yandex Search API and return ranked results with snippets.",
+  "vendor": "yandex.cloud",
+  "category": "data",
+  "url": "https://search.mcp.cloud.yandex.net/mcp",
+  "docsUrl": "https://github.com/yandex-cloud/mcp",
+  "iconUrl": "https://yandex.ru/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-07-31",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://github.com/yandex-cloud/mcp/tree/master/servers/search-mcp-server",
+    "transport": "streamable-http",
+    "toolCount": 2,
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "IAM token",
+        "labelRu": "IAM-токен",
+        "description": "Bearer <YC IAM token>; valid for at most 12 hours"
+      },
+      {
+        "name": "Folder-Id",
+        "isRequired": false,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Folder ID",
+        "labelRu": "Идентификатор каталога",
+        "description": "Yandex Cloud folder ID"
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://search.mcp.cloud.yandex.net/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "yandex-cloud-search",
+    "serverVersion": "1.0.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 2,
+    "tools": [
+      "search",
+      "search_generative"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

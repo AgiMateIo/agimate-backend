@@ -1,0 +1,62 @@
+{
+  "name": "Roistat",
+  "nameRu": "Roistat",
+  "description": "Marketing analytics: project metrics, period comparisons, leads, orders and calls, funnels, traffic sources and detection of declining indicators.",
+  "descriptionRu": "Маркетинговая аналитика: метрики проектов, сравнение периодов, лиды, заказы и звонки, воронки, источники трафика и выявление снижения показателей.",
+  "vendor": "roistat.com",
+  "category": "data",
+  "url": "https://mcp.roistat.com/mcp",
+  "docsUrl": "https://help-ru.roistat.com/features/Roistat_MCP_dlya_AI_assistentov/?rs=yaaistudio",
+  "iconUrl": "https://roistat.com/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://help-ru.roistat.com/features/Roistat_MCP_dlya_AI_assistentov/?rs=yaaistudio",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-ключ Roistat — API-ключ из профиля пользователя Roistat: инструкция (https://help-ru.roistat.com/features/Roistat_MCP_dlya_AI_assistentov/?rs=yaaistudio) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://mcp.roistat.com/mcp",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://mcp.roistat.com/mcp",
+        "step": "server/discover",
+        "outcome": "network-error",
+        "error": "ECONNREFUSED"
+      },
+      {
+        "url": "https://mcp.roistat.com/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "network-error",
+        "error": "ECONNREFUSED"
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

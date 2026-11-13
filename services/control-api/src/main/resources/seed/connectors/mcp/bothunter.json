@@ -1,0 +1,78 @@
+{
+  "name": "BotHunter",
+  "nameRu": "BotHunter",
+  "description": "Manage bots and subscribers across VK, Telegram, Odnoklassniki, MAX, Avito and web chat: view, start and stop bots, manage steps, broadcasts, statistics, contact lists, subscriber variables, communities and funnels.",
+  "descriptionRu": "Управление ботами и подписчиками во ВКонтакте, Telegram, Одноклассниках, MAX, Авито и веб-чате: запуск и остановка ботов, шаги, рассылки, статистика, контакты, переменные, сообщества и воронки.",
+  "vendor": "targethunter.ru",
+  "category": "search",
+  "url": "https://mcp.bothunter.ai/mcp",
+  "docsUrl": "https://targethunter.ru/integrations",
+  "iconUrl": "https://targethunter.ru/template/landing24/images/favicons/apple-icon-57x57.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://targethunter.ru/integrations",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Личный токен BotHunter — Личный токен из раздела «Доступы и токены» (https://targethunter.ru/settings/access) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.bothunter.ai/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://mcp.bothunter.ai/.well-known/oauth-protected-resource/mcp",
+      "authorizationServerMetadataUrl": "https://targethunter.ru/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "bothunter"
+      ],
+      "wwwAuthenticate": "Bearer resource_metadata=\"https://mcp.bothunter.ai/.well-known/oauth-protected-resource/mcp\", scope=\"bothunter\""
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.bothunter.ai/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://mcp.bothunter.ai/.well-known/oauth-protected-resource/mcp\", scope=\"bothunter\""
+      },
+      {
+        "url": "https://mcp.bothunter.ai/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://mcp.bothunter.ai/.well-known/oauth-protected-resource/mcp\", scope=\"bothunter\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "name": "Kinescope",
+  "nameRu": "Kinescope",
+  "description": "Search videos, view and edit metadata, create and configure projects, folders, playlists and live streams, and get view and engagement analytics.",
+  "descriptionRu": "Поиск видео, просмотр и редактирование метаданных, создание и настройка проектов, папок, плейлистов и трансляций, аналитика просмотров и вовлечённости.",
+  "vendor": "kinescope.io",
+  "category": "design",
+  "url": "https://api.kinescope.io/mcp",
+  "docsUrl": "https://docs.kinescope.ru/kinescope-mcp/kinescope-mcp-server/",
+  "iconUrl": "https://kinescope.com/apple-touch-icon.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://docs.kinescope.ru/kinescope-mcp/kinescope-mcp-server/",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-токен Kinescope — API-токен Kinescope: инструкция (https://docs.kinescope.ru/kinescope-mcp/kinescope-mcp-server/) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://api.kinescope.io/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-06-18",
+      "source": "measured",
+      "accepted": [
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": [
+        {
+          "requested": "2025-11-25",
+          "negotiated": "2025-06-18"
+        }
+      ]
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-06-18",
+    "serverName": "kinescope-mcp",
+    "serverVersion": "v0.0.13",
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "prompts": false,
+      "logging": true,
+      "completions": false
+    },
+    "toolCount": 4,
+    "tools": [
+      "kinescope_find_examples",
+      "kinescope_get_api_endpoint_schema",
+      "kinescope_invoke_api_endpoint",
+      "kinescope_list_api_endpoints"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

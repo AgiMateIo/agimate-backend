@@ -1,0 +1,83 @@
+{
+  "name": "Phygital+",
+  "nameRu": "Phygital+",
+  "description": "Work with Phygital+ generative models: list models and parameter schemas, start and track generations, cancel jobs and upload local input files. Supports image, video, audio, text and 3D models.",
+  "descriptionRu": "Работа с генеративными моделями Phygital+: список моделей и схем параметров, запуск и отслеживание генераций, отмена заданий и загрузка входных файлов. Изображения, видео, аудио, текст и 3D.",
+  "vendor": "phygital.plus",
+  "category": "design",
+  "url": "https://dev.phygital.plus/api/mcp",
+  "docsUrl": "https://app.phygital.plus/api-keys",
+  "iconUrl": "https://phygital.plus/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://app.phygital.plus/api-keys",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "API-ключ — Персональный API-ключ Phygital+. Получить ключ: Phygital+ API Keys (https://app.phygital.plus/api-keys) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://dev.phygital.plus/api/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://dev.phygital.plus/.well-known/oauth-protected-resource/api/mcp",
+      "authorizationServerMetadataUrl": "https://auth.phygital.plus/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "tasks:read",
+        "tasks:write",
+        "files:write",
+        "projects:read",
+        "frames:run",
+        "offline_access"
+      ],
+      "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://dev.phygital.plus/.well-known/oauth-protected-resource/api/mcp\""
+    },
+    "attempts": [
+      {
+        "url": "https://dev.phygital.plus/api/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://dev.phygital.plus/.well-known/oauth-protected-resource/api/mcp\""
+      },
+      {
+        "url": "https://dev.phygital.plus/api/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer error=\"invalid_token\", error_description=\"Authentication required\", resource_metadata=\"https://dev.phygital.plus/.well-known/oauth-protected-resource/api/mcp\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

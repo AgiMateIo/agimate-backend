@@ -1,0 +1,82 @@
+{
+  "name": "Tutu",
+  "nameRu": "Туту",
+  "description": "Plan trips in Russia and abroad: search hotels and transport tickets (trains, flights, buses and suburban trains), compare routes by price and time, inspect trip details and get a payment link.",
+  "descriptionRu": "Планирование поездок по России и за рубежом: поиск отелей и билетов на поезда, самолёты, автобусы и электрички, сравнение маршрутов по цене и времени, детали рейса и ссылка на оплату.",
+  "vendor": "tutu.ru",
+  "category": "search",
+  "url": "https://mcp.tutu.ru/mcp",
+  "docsUrl": "https://hackathon2026.tutu.ru/",
+  "iconUrl": "https://cdn1.tu-tu.ru/lib-assets/@tutu-react/favicon@1.3.2/apple_touch_icon.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-07-31",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://hackathon2026.tutu.ru/",
+    "transport": "streamable-http",
+    "headers": []
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.tutu.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "tutu-mcp-server",
+    "serverVersion": "0.57.3",
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "prompts": true,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 17,
+    "tools": [
+      "create_checkout_link",
+      "fetch_resource",
+      "get_avia_instructions",
+      "get_bus_instructions",
+      "get_etrain_instructions",
+      "get_hotels_instructions",
+      "get_multitransport_instructions",
+      "get_offer_details",
+      "get_rail_instructions",
+      "get_rail_seatmap",
+      "register_checkout_passengers",
+      "search_avia",
+      "search_bus",
+      "search_etrain",
+      "search_hotels",
+      "search_multitransport",
+      "search_rail"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

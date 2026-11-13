@@ -1,0 +1,72 @@
+{
+  "name": "YuKassa",
+  "nameRu": "ЮKassa",
+  "description": "Create payment invoices, retrieve payment and refund information, and search payment data; each invoice returns a payment-page link that can be sent to the buyer.",
+  "descriptionRu": "Создание счетов на оплату, получение информации о платежах и возвратах, поиск данных; счёт возвращает ссылку на платёжную страницу для покупателя.",
+  "vendor": "yookassa.ru",
+  "category": "payments",
+  "url": "https://mcp.yookassa.ru",
+  "docsUrl": "https://yookassa.ru/developers/payment-acceptance/integration-scenarios/mcp-server/basics",
+  "iconUrl": "https://static.yoomoney.ru/files-front/resources/head/checkout/apple-touch-icon.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://yookassa.ru/developers/payment-acceptance/integration-scenarios/mcp-server/basics",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "MCP server token",
+        "labelRu": "Токен MCP-сервера",
+        "description": "Токен MCP-сервера ЮKassa — Токен из раздела «Интеграция → Доступы к магазину → Токены для MCP-сервера» личного кабинета ЮKassa: инструкция (https://yookassa.ru/developers/payment-acceptance/integration-scenarios/mcp-server/configuration) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.yookassa.ru",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": "Basic"
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.yookassa.ru",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Basic"
+      },
+      {
+        "url": "https://mcp.yookassa.ru",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Basic"
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

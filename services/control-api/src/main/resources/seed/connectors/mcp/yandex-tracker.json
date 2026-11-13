@@ -1,0 +1,174 @@
+{
+  "name": "Yandex Tracker",
+  "nameRu": "Яндекс Трекер",
+  "description": "Work with Tracker tasks and entities: retrieve tasks, projects, portfolios and goals; create tasks, goals and comments; change statuses, parameters, links and queues, including bulk operations.",
+  "descriptionRu": "Работа с задачами и сущностями Трекера: задачи, проекты, портфели и цели, создание задач, целей и комментариев, изменение статусов, параметров, связей и очередей, включая массовые операции.",
+  "vendor": "yandex.ru",
+  "category": "productivity",
+  "url": "https://mcp.tracker.yandex.net/mcp",
+  "docsUrl": "https://yandex.ru/support/tracker/ru/concepts/access",
+  "iconUrl": "https://yastatic.net/s3/psf/ps-tuning/a128d6c206b66fcf3154.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://yandex.ru/support/tracker/ru/concepts/access",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "OAuth ",
+        "label": "OAuth token",
+        "labelRu": "OAuth-токен",
+        "description": "OAuth-токен — Введите только значение OAuth-токена без префикса OAuth. Как получить токен: документация (https://yandex.ru/support/tracker/ru/concepts/access)"
+      },
+      {
+        "name": "x-org-id",
+        "isRequired": false,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Organization ID",
+        "labelRu": "Идентификатор организации",
+        "description": "Идентификатор организации — Идентификатор доступен на вкладке Администрирование → Организации в интерфейсе Трекера. Должен быть указан только один из заголовков x-org-id или x-cloud-org-id. Provide exactly one of `x-org-id` or `x-cloud-org-id`."
+      },
+      {
+        "name": "x-cloud-org-id",
+        "isRequired": false,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Cloud organization ID",
+        "labelRu": "Идентификатор облачной организации",
+        "description": "Идентификатор облачной организации — Идентификатор доступен на вкладке Администрирование → Организации в интерфейсе Трекера. Должен быть указан только один из заголовков x-org-id или x-cloud-org-id. Provide exactly one of `x-org-id` or `x-cloud-org-id`."
+      }
+    ],
+    "headerGroups": [
+      {
+        "id": "org",
+        "anyOf": [
+          "x-org-id",
+          "x-cloud-org-id"
+        ],
+        "required": true
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.tracker.yandex.net/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "tracker-mcp",
+    "serverVersion": "1.0.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 71,
+    "tools": [
+      "add_attachments",
+      "add_comment",
+      "add_entity_checklist_item",
+      "add_entity_comment",
+      "add_goal_key_result",
+      "bulk_move",
+      "bulk_transition",
+      "bulk_update",
+      "bulk_update_meta_entities",
+      "create_entity",
+      "create_entity_link",
+      "create_issue",
+      "create_issue_link",
+      "create_queue_trigger",
+      "create_remote_link",
+      "create_sprint",
+      "create_worklog",
+      "delete_all_goal_key_results",
+      "delete_attachment",
+      "delete_comment",
+      "delete_entity",
+      "delete_entity_checklist",
+      "delete_entity_checklist_item",
+      "delete_entity_comment",
+      "delete_entity_link",
+      "delete_goal_key_result",
+      "delete_issue_link",
+      "delete_queue_trigger",
+      "delete_remote_link",
+      "delete_sprint",
+      "delete_worklog",
+      "find_fields",
+      "find_user",
+      "get_attachment",
+      "get_bulk_change_status",
+      "get_comment",
+      "get_current_user",
+      "get_entity",
+      "get_entity_comment",
+      "get_issue",
+      "get_issue_changelog",
+      "get_queue_trigger",
+      "get_sprint",
+      "list_board_sprints",
+      "list_boards",
+      "list_comments",
+      "list_entity_attachments",
+      "list_entity_comments",
+      "list_entity_links",
+      "list_field_values",
+      "list_issue_links",
+      "list_issue_worklogs",
+      "list_queue_forms",
+      "list_queue_triggers",
+      "list_queues",
+      "list_sprint_issues",
+      "list_transitions",
+      "move_entity_checklist_item",
+      "move_goal_key_result",
+      "search_entities",
+      "search_issues",
+      "transition_issue",
+      "update_comment",
+      "update_entity",
+      "update_entity_checklist_item",
+      "update_entity_comment",
+      "update_goal_key_result",
+      "update_issue",
+      "update_queue_trigger",
+      "update_sprint",
+      "update_worklog"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

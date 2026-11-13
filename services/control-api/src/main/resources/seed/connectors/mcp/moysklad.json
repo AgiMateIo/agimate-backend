@@ -1,0 +1,79 @@
+{
+  "name": "MoySklad",
+  "nameRu": "МойСклад",
+  "description": "Work with MoySklad account data — products, warehouses, documents and counterparties — analyze sales and stock, run reports, segment customers and find growth opportunities.",
+  "descriptionRu": "Работа с данными МоегоСклада: товары, склады, документы и контрагенты, анализ продаж и остатков, отчёты, сегментация клиентов и поиск точек роста.",
+  "vendor": "moysklad.ru",
+  "category": "productivity",
+  "url": "https://mcp.moysklad.ru/tools/main",
+  "docsUrl": "https://support.moysklad.ru/hc/ru/%D0%B7%D0%BD%D0%B0%D0%BA%D0%BE%D0%BC%D1%81%D1%82%D0%B2%D0%BE%20%D1%81%20%D1%81%D0%B5%D1%80%D0%B2%D0%B8%D1%81%D0%BE%D0%BC/%D0%B8%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BC%D0%B5%D0%BD%D1%82%D1%8B/mcp_%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_%D0%B4%D0%BB%D1%8F_%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B_%D1%81_%D0%BC%D0%BE%D0%B8%D0%BC%D1%81%D0%BA%D0%BB%D0%B0%D0%B4%D0%BE%D0%BC",
+  "iconUrl": "https://www.moysklad.ru/apple-touch-icon.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://support.moysklad.ru/hc/ru/%D0%B7%D0%BD%D0%B0%D0%BA%D0%BE%D0%BC%D1%81%D1%82%D0%B2%D0%BE%20%D1%81%20%D1%81%D0%B5%D1%80%D0%B2%D0%B8%D1%81%D0%BE%D0%BC/%D0%B8%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BC%D0%B5%D0%BD%D1%82%D1%8B/mcp_%D1%81%D0%B5%D1%80%D0%B2%D0%B5%D1%80_%D0%B4%D0%BB%D1%8F_%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B_%D1%81_%D0%BC%D0%BE%D0%B8%D0%BC%D1%81%D0%BA%D0%BB%D0%B0%D0%B4%D0%BE%D0%BC",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "Access token",
+        "labelRu": "Токен доступа",
+        "description": "Токен доступа МоегоСклада — Токен доступа из раздела Настройки → Токены личного кабинета МоегоСклада: документация (https://support.moysklad.ru/hc/ru/стартовая_страница) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://mcp.moysklad.ru/tools/main",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "moysklad-mcp",
+    "serverVersion": "1.30.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 4,
+    "tools": [
+      "get_catalog",
+      "get_child_resources",
+      "get_resources",
+      "get_schema"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

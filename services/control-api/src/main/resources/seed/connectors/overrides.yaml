@@ -1,6 +1,9 @@
 # Exceptions to the copied MCP server files (docs/decisions/connector-presets.md).
 # The category mapping is built into ConnectorPresetSeedReader; a key here overrides it.
-# `square` already accepts a static token, but the dataset does not declare authMethods yet.
-presets:
-  square:
-    authMethods: [OAUTH, TOKEN]
+# An override for a code with no copied JSON fails the seed, so keep this list in sync with
+# the copied batches. `square` (US batch) already accepts a static token, but the dataset does
+# not declare authMethods yet — uncomment together with its file:
+# presets:
+#   square:
+#     authMethods: [OAUTH, TOKEN]
+presets: {}

@@ -1,0 +1,98 @@
+{
+  "name": "Krasoft",
+  "nameRu": "Красофт",
+  "description": "Search and analyze Russian public procurement under 44-FZ and 223-FZ: notices, contracts, customers, product items and market metrics. Anonymous access is limited; an API key unlocks full data.",
+  "descriptionRu": "Поиск и анализ госзакупок по 44-ФЗ и 223-ФЗ: извещения, контракты, заказчики, товарные позиции и показатели рынка. Анонимный доступ ограничен, API-ключ открывает полные данные.",
+  "vendor": "krasoft.ru",
+  "category": "search",
+  "url": "https://zakupki.krasoft.ru/api/mcp",
+  "docsUrl": "https://zakupki.krasoft.ru/mcp/podkluchenie",
+  "iconUrl": "https://krasoft.ru/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://zakupki.krasoft.ru/mcp/podkluchenie",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "",
+        "keyPrefix": "krsp_",
+        "label": "API key",
+        "labelRu": "API-ключ",
+        "description": "API-ключ КРАСОФТ — API-ключ с префиксом `krsp_` из личного кабинета КРАСОФТ: инструкция (https://zakupki.krasoft.ru/mcp/podkluchenie)"
+      }
+    ]
+  },
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://zakupki.krasoft.ru/api/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-06-18",
+      "source": "measured",
+      "accepted": [
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": [
+        {
+          "requested": "2025-11-25",
+          "negotiated": "2025-06-18"
+        }
+      ]
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-06-18",
+    "serverName": "krasoft-mcp",
+    "serverVersion": "0.1.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 19,
+    "tools": [
+      "customer_profile",
+      "executions_summary",
+      "get_contract",
+      "get_tender",
+      "get_tender_documents",
+      "market_snapshot",
+      "search_contract_deliveries",
+      "search_contract_executions",
+      "search_contract_products",
+      "search_contract_specs",
+      "search_contract_tech_specs",
+      "search_contracts",
+      "search_plan_objects",
+      "search_plan_schedule",
+      "search_plan_tech_specs",
+      "search_purchase_objects",
+      "search_tender_specifications",
+      "search_tender_tech_specs",
+      "search_tenders"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

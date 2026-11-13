@@ -1,0 +1,88 @@
+{
+  "name": "Mottor",
+  "nameRu": "Mottor",
+  "description": "Create and edit websites: pages, content, images and global sections, SEO settings, indexing, analytics, favicon, social-link appearance, traffic and lead statistics, database structure and customer-account settings.",
+  "descriptionRu": "Создание и редактирование сайтов: страницы, контент, изображения и сквозные секции, SEO, индексация, аналитика, фавикон, оформление ссылок, статистика, структура базы и настройки личного кабинета.",
+  "vendor": "lpmotor.ru",
+  "category": "design",
+  "url": "https://api.lpmotor.ru/v3/mcp",
+  "docsUrl": "https://lpmotor.ru/admin/profile/view/general",
+  "iconUrl": "https://lpmotor.ru/favicon.ico?3589",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://lpmotor.ru/admin/profile/view/general",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "Bearer token",
+        "labelRu": "Bearer-токен",
+        "description": "Bearer-токен Mottor — Токен из раздела MCP в профиле пользователя Mottor (https://lpmotor.ru/admin/profile/view/general) Prefix: `Bearer`."
+      },
+      {
+        "name": "X-Api-User-Id",
+        "isRequired": true,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "User ID",
+        "labelRu": "ID пользователя",
+        "description": "ID пользователя Mottor — ID пользователя из раздела MCP в профиле пользователя Mottor (https://lpmotor.ru/admin/profile/view/general)"
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://api.lpmotor.ru/v3/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "attempts": [
+      {
+        "url": "https://api.lpmotor.ru/v3/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      },
+      {
+        "url": "https://api.lpmotor.ru/v3/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "bad-handshake",
+        "httpStatus": 200,
+        "rpcError": "no JSON-RPC result"
+      },
+      {
+        "url": "https://api.lpmotor.ru/v3/mcp",
+        "step": "initialize@2025-06-18",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

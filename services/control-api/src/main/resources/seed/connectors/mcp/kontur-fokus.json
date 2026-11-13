@@ -1,0 +1,132 @@
+{
+  "name": "Kontur.Fokus",
+  "nameRu": "Контур.Фокус",
+  "description": "Read-only checks of Russian companies and sole traders: company profiles, counterparty due diligence, procurement checks, financial scoring and legal, bankruptcy, registration and corporate risks.",
+  "descriptionRu": "Проверка российских организаций и ИП в режиме чтения: профиль компании, контрагенты и закупки, финансовая оценка, судебные, банкротные, регистрационные и корпоративные риски.",
+  "vendor": "kontur.ru",
+  "category": "data",
+  "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
+  "docsUrl": "https://developer.kontur.ru/doc/focus-v2/",
+  "iconUrl": "https://kontur.ru/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://developer.kontur.ru/doc/focus-v2/",
+    "transport": "sse",
+    "headers": [
+      {
+        "name": "key",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "",
+        "label": "API key",
+        "labelRu": "Ключ API",
+        "description": "Ключ API Контур.Фокуса — Ключ доступа к API Контур.Фокуса. Введите только значение ключа — префикс не требуется. Получение доступа: https://focus.kontur.ru/site/api/order-api."
+      }
+    ],
+    "note": "Endpoint is hosted on Yandex API Gateway."
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 405,
+        "rpcError": null
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
+        "step": "initialize@2025-11-25",
+        "outcome": "http-error",
+        "httpStatus": 405
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 400,
+        "rpcError": null
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2025-06-18",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2025-03-26",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2024-11-05",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
+        "step": "GET (HTTP+SSE)",
+        "outcome": "sse-endpoint",
+        "postUrl": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph"
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 400,
+        "rpcError": "Invalid session ID"
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
+        "step": "initialize@2025-11-25",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
+        "step": "initialize@2025-06-18",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
+        "step": "initialize@2025-03-26",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
+        "step": "initialize@2024-11-05",
+        "outcome": "http-error",
+        "httpStatus": 400
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

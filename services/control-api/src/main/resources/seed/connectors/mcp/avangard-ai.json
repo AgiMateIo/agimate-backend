@@ -1,0 +1,78 @@
+{
+  "name": "Avangard.AI",
+  "nameRu": "AI-Тренажёр | Avangard.AI",
+  "description": "A voice training simulator for sales, support, negotiation and hiring dialogues: practise with an AI counterpart, get scored feedback and analyze completed sessions and statistics.",
+  "descriptionRu": "Голосовой тренажёр диалогов для продаж, поддержки, переговоров и найма: тренировки с ИИ-собеседником, оценка по критериям, отчёты и статистика по сессиям.",
+  "vendor": "avangardai.ru",
+  "category": "productivity",
+  "url": "https://api-trainer.avangardai.ru/mcp/",
+  "docsUrl": "https://trainer.avangardai.ru/company?tab=access",
+  "iconUrl": "https://avangardai.ru/assets/logo-mark-blue.svg",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://trainer.avangardai.ru/company?tab=access",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "X-Client-Key",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "",
+        "label": "Company key",
+        "labelRu": "Ключ компании",
+        "description": "Ключ компании — Администратор компании может получить ключ в личном кабинете (https://trainer.avangardai.ru/company?tab=access): «Компания» → «Подключение». Ключ показывается один раз. Введите его без префикса."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://api-trainer.avangardai.ru/mcp/",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://api-trainer.avangardai.ru/.well-known/oauth-protected-resource",
+      "authorizationServerMetadataUrl": "https://api-trainer.avangardai.ru/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "trainer.use"
+      ],
+      "wwwAuthenticate": "Bearer realm=\"most-trainer\", resource_metadata=\"https://api-trainer.avangardai.ru/.well-known/oauth-protected-resource\""
+    },
+    "attempts": [
+      {
+        "url": "https://api-trainer.avangardai.ru/mcp/",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"most-trainer\", resource_metadata=\"https://api-trainer.avangardai.ru/.well-known/oauth-protected-resource\""
+      },
+      {
+        "url": "https://api-trainer.avangardai.ru/mcp/",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer realm=\"most-trainer\", resource_metadata=\"https://api-trainer.avangardai.ru/.well-known/oauth-protected-resource\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

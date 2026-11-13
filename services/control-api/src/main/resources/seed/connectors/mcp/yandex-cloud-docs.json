@@ -1,0 +1,59 @@
+{
+  "name": "Yandex Cloud Docs",
+  "description": "Search and read Yandex Cloud documentation and service guides.",
+  "vendor": "yandex.cloud",
+  "category": "dev-tools",
+  "url": "https://docs.mcp.cloud.yandex.net/mcp",
+  "docsUrl": "https://github.com/yandex-cloud/mcp",
+  "iconUrl": "https://icon.horse/icon/yandex.cloud",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-07-31",
+  "lastChecked": "2026-11-13",
+  "probe": {
+    "status": "up",
+    "endpointUrl": "https://docs.mcp.cloud.yandex.net/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "yandex-cloud-documentation",
+    "serverVersion": "1.0.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 1,
+    "tools": [
+      "documentation_generative_search"
+    ],
+    "authDetails": null,
+    "lastChanged": "2026-11-13"
+  }
+}

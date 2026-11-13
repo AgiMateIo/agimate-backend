@@ -1,0 +1,78 @@
+{
+  "name": "Postmypost",
+  "nameRu": "Postmypost",
+  "description": "Manage social media publications: create, edit, approve, schedule and publish posts, upload media, work with projects and connected accounts, and get publication and account analytics.",
+  "descriptionRu": "Управление публикациями в соцсетях: создание, редактирование, согласование, планирование и публикация постов, загрузка медиа, проекты и подключённые аккаунты, аналитика публикаций и аккаунтов.",
+  "vendor": "postmypost.io",
+  "category": "design",
+  "url": "https://mcp.postmypost.io/mcp",
+  "docsUrl": "https://help.postmypost.io/ru/docs/mcp/",
+  "iconUrl": "https://help.postmypost.io/img/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://help.postmypost.io/ru/docs/mcp/",
+    "transport": "streamable-http",
+    "authMethods": [
+      "oauth2.1",
+      "token"
+    ],
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Персональный API-токен Postmypost — Персональный API-токен для аккаунта Postmypost: документация (https://help.postmypost.io/ru/docs/mcp/) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.postmypost.io/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "oauth2.1_dcr",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": "https://mcp.postmypost.io/.well-known/oauth-protected-resource",
+      "authorizationServerMetadataUrl": "https://app.postmypost.io/.well-known/oauth-authorization-server",
+      "dcrSupported": true,
+      "clientIdMetadataDocumentSupported": false,
+      "resourceIndicatorRequired": false,
+      "scopes": [
+        "mcp:read,mcp:write"
+      ],
+      "wwwAuthenticate": "Bearer resource_metadata=\"https://mcp.postmypost.io/.well-known/oauth-protected-resource\", scope=\"mcp:read,mcp:write\""
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.postmypost.io/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://mcp.postmypost.io/.well-known/oauth-protected-resource\", scope=\"mcp:read,mcp:write\""
+      },
+      {
+        "url": "https://mcp.postmypost.io/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer resource_metadata=\"https://mcp.postmypost.io/.well-known/oauth-protected-resource\", scope=\"mcp:read,mcp:write\""
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

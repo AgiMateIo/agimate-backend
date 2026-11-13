@@ -1,0 +1,72 @@
+{
+  "name": "SourceCraft",
+  "nameRu": "SourceCraft",
+  "description": "Work with the SourceCraft development platform: create and delete tasks, comments and labels, retrieve their details, and work with repositories, change proposals and reviewers.",
+  "descriptionRu": "Работа с платформой разработки SourceCraft: создание и удаление задач, комментариев и меток, получение информации, репозитории, предложения изменений и ревьюеры.",
+  "vendor": "sourcecraft.dev",
+  "category": "dev-tools",
+  "url": "https://api.sourcecraft.tech/mcp",
+  "docsUrl": "https://sourcecraft.dev/portal/docs/ru/sourcecraft/security/pat",
+  "iconUrl": "https://sourcecraft.dev/icons/favicon.svg",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://sourcecraft.dev/portal/docs/ru/sourcecraft/security/pat",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "Personal access token",
+        "labelRu": "Персональный токен",
+        "description": "Персональный токен (PAT) — Как получить персональны токен: инструкция (https://sourcecraft.dev/portal/docs/ru/sourcecraft/security/pat) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://api.sourcecraft.tech/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "attempts": [
+      {
+        "url": "https://api.sourcecraft.tech/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      },
+      {
+        "url": "https://api.sourcecraft.tech/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

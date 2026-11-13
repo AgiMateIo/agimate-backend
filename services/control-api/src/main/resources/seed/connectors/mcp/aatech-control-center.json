@@ -1,0 +1,81 @@
+{
+  "name": "AATech Control Center",
+  "nameRu": "ЦУП ААТех",
+  "description": "Work with company data and business processes: cards and kanban boards, orders, counterparties, staff, production, finance, documents, calendar, messenger, calls, files, notifications and analytics.",
+  "descriptionRu": "Работа с данными и бизнес-процессами компании: карточки и канбан-доски, заказы, контрагенты, сотрудники, производство, финансы, документы, календарь, мессенджер, звонки, файлы, уведомления и аналитика.",
+  "vendor": "aatex.ru",
+  "category": "productivity",
+  "url": "https://app.aatex.ru/mcp",
+  "docsUrl": "https://aatex.ru/docs/mcp",
+  "iconUrl": "https://www.aatex.ru/favicon/apple-icon-180x180.png",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://aatex.ru/docs/mcp",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "API token",
+        "labelRu": "API-токен",
+        "description": "Персональный MCP-ключ — MCP-ключ из раздела «Профиль → MCP» в ЦУП ААТех: документация (https://aatex.ru/docs/mcp) Prefix: `Bearer`."
+      },
+      {
+        "name": "x-organization-id",
+        "isRequired": true,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Organization ID",
+        "labelRu": "Идентификатор организации",
+        "description": "Идентификатор организации — Идентификатор организации в ЦУП ААТех"
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://app.aatex.ru/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
+    "attempts": [
+      {
+        "url": "https://app.aatex.ru/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      },
+      {
+        "url": "https://app.aatex.ru/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": null
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

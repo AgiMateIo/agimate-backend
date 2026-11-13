@@ -1,0 +1,90 @@
+{
+  "name": "uCoz",
+  "nameRu": "uCoz",
+  "description": "Manage a uCoz website through chat: pages, templates and content, products, orders, users, subscriptions, modules, SEO and site files; templates can be backed up before changes.",
+  "descriptionRu": "Управление сайтом uCoz через чат: страницы, шаблоны и контент, товары, заказы, пользователи, подписки, модули, SEO и файлы; перед изменением шаблонов создаются резервные копии.",
+  "vendor": "ucoz.ru",
+  "category": "design",
+  "url": "https://ucoz.net/mcp",
+  "docsUrl": "https://api.ucoz.net/mcp.html",
+  "iconUrl": "https://api.ucoz.net/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://api.ucoz.net/mcp.html",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "X-UCOZ-API-TOKEN",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "",
+        "label": "uAPI token",
+        "labelRu": "Токен uAPI",
+        "description": "Токен uAPI — Токен из раздела «Сайт» → «uAPI» в панели управления сайтом uCoz. Введите значение токена без префикса."
+      },
+      {
+        "name": "X-UCOZ-SITE-URL",
+        "isRequired": true,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Site URL",
+        "labelRu": "URL сайта",
+        "description": "URL сайта uCoz — URL сайта uCoz, например `https://ваш-сайт.ucoz.net/`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://ucoz.net/mcp",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://ucoz.net/mcp",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 400,
+        "rpcError": null
+      },
+      {
+        "url": "https://ucoz.net/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://ucoz.net/mcp",
+        "step": "initialize@2025-06-18",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://ucoz.net/mcp",
+        "step": "initialize@2025-03-26",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://ucoz.net/mcp",
+        "step": "initialize@2024-11-05",
+        "outcome": "http-error",
+        "httpStatus": 400
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

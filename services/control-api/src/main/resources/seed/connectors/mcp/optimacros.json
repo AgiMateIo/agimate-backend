@@ -1,0 +1,72 @@
+{
+  "name": "Optimacros",
+  "nameRu": "Optimacros",
+  "description": "Explore Optimacros model structure, metadata and business context with the user's permissions: find models, cubes, dimensions, reference books, scripts and dashboards; inspect data and formulas; find dependencies and errors.",
+  "descriptionRu": "Работа со структурой, метаданными и бизнес-контекстом моделей Optimacros с правами пользователя: модели, кубы, измерения, справочники, скрипты и дашборды, данные и формулы, зависимости и ошибки.",
+  "vendor": "optimacros.com",
+  "category": "data",
+  "url": "https://mcp.optimacros.com/mcp",
+  "docsUrl": "https://mcp.optimacros.com/docs",
+  "iconUrl": "https://i0.wp.com/optimacros.com/wp-content/uploads/2025/05/cropped-favicon.png?fit=180%2C180&#038;ssl=1",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://mcp.optimacros.com/docs",
+    "transport": "streamable-http",
+    "headers": [
+      {
+        "name": "Authorization",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "Bearer ",
+        "label": "Named token",
+        "labelRu": "Именованный токен",
+        "description": "Named token Optimacros — Персональный named token из Login Center: инструкция (https://university.optisoft.net/docs/lcadmin/v1.300/tasks/task-create-named-tokens.html) Prefix: `Bearer`."
+      }
+    ]
+  },
+  "probe": {
+    "status": "auth_required",
+    "endpointUrl": "https://mcp.optimacros.com/mcp",
+    "transport": "streamable-http",
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": "api_key_or_bearer",
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": "Bearer"
+    },
+    "attempts": [
+      {
+        "url": "https://mcp.optimacros.com/mcp",
+        "step": "server/discover",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer"
+      },
+      {
+        "url": "https://mcp.optimacros.com/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "auth_required",
+        "httpStatus": 401,
+        "wwwAuthenticate": "Bearer"
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}

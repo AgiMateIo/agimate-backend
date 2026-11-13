@@ -1,0 +1,141 @@
+{
+  "name": "amoCRM",
+  "nameRu": "amoCRM",
+  "description": "Work with amoCRM companies, leads and contacts: read, create and edit records, add notes, and view pipelines and tasks. Requires an access token and the account subdomain.",
+  "descriptionRu": "Работа с компаниями, лидами и контактами amoCRM: чтение, создание и редактирование записей, заметки, воронки и задачи. Нужны access-токен и субдомен аккаунта.",
+  "vendor": "amocrm.ru",
+  "category": "crm",
+  "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
+  "docsUrl": "https://www.amocrm.ru/developers/content/oauth/step-by-step",
+  "iconUrl": "https://www.amocrm.ru/favicon.ico",
+  "jurisdiction": {
+    "country": "RU"
+  },
+  "addedAt": "2026-11-13",
+  "lastChecked": "2026-11-13",
+  "declared": {
+    "source": "https://www.amocrm.ru/developers/content/oauth/step-by-step",
+    "transport": "sse",
+    "headers": [
+      {
+        "name": "X-Auth-Token",
+        "isRequired": true,
+        "isSecret": true,
+        "valuePrefix": "",
+        "label": "Access token",
+        "labelRu": "Токен доступа",
+        "description": "Access токен — Access токен amoCRM: инструкция (https://www.amocrm.ru/developers/content/oauth/step-by-step#Долгосрочные-токены)"
+      },
+      {
+        "name": "X-Account-Name",
+        "isRequired": true,
+        "isSecret": false,
+        "valuePrefix": "",
+        "label": "Account subdomain",
+        "labelRu": "Субдомен аккаунта",
+        "description": "Субдомен в amoCRM — Например, `client` в `https://client.amocrm.ru`"
+      }
+    ],
+    "note": "Endpoint is hosted on Yandex API Gateway."
+  },
+  "probe": {
+    "status": "down",
+    "endpointUrl": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
+    "transport": null,
+    "transportConfirmed": false,
+    "era": null,
+    "versions": null,
+    "authType": null,
+    "protocolVersion": null,
+    "serverName": null,
+    "serverVersion": null,
+    "capabilities": null,
+    "toolCount": null,
+    "tools": null,
+    "authDetails": null,
+    "attempts": [
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 405,
+        "rpcError": null
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
+        "step": "initialize@2025-11-25",
+        "outcome": "http-error",
+        "httpStatus": 405
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 400,
+        "rpcError": null
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2025-11-25",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2025-06-18",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2025-03-26",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
+        "step": "initialize@2024-11-05",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
+        "step": "GET (HTTP+SSE)",
+        "outcome": "sse-endpoint",
+        "postUrl": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu"
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
+        "step": "server/discover",
+        "outcome": "legacy",
+        "httpStatus": 400,
+        "rpcError": "Invalid session ID"
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
+        "step": "initialize@2025-11-25",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
+        "step": "initialize@2025-06-18",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
+        "step": "initialize@2025-03-26",
+        "outcome": "http-error",
+        "httpStatus": 400
+      },
+      {
+        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
+        "step": "initialize@2024-11-05",
+        "outcome": "http-error",
+        "httpStatus": 400
+      }
+    ],
+    "lastChanged": "2026-11-13"
+  }
+}
