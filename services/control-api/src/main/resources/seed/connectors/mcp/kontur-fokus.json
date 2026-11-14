@@ -30,103 +30,52 @@
     "note": "Endpoint is hosted on Yandex API Gateway."
   },
   "probe": {
-    "status": "down",
+    "status": "up",
     "endpointUrl": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
-    "transport": null,
-    "transportConfirmed": false,
-    "era": null,
-    "versions": null,
-    "authType": null,
-    "protocolVersion": null,
-    "serverName": null,
-    "serverVersion": null,
-    "capabilities": null,
-    "toolCount": null,
-    "tools": null,
-    "authDetails": null,
-    "attempts": [
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
-        "step": "server/discover",
-        "outcome": "legacy",
-        "httpStatus": 405,
-        "rpcError": null
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
-        "step": "initialize@2025-11-25",
-        "outcome": "http-error",
-        "httpStatus": 405
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
-        "step": "server/discover",
-        "outcome": "legacy",
-        "httpStatus": 400,
-        "rpcError": null
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2025-11-25",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2025-06-18",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2025-03-26",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2024-11-05",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/sse",
-        "step": "GET (HTTP+SSE)",
-        "outcome": "sse-endpoint",
-        "postUrl": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph"
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
-        "step": "server/discover",
-        "outcome": "legacy",
-        "httpStatus": 400,
-        "rpcError": "Invalid session ID"
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
-        "step": "initialize@2025-11-25",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
-        "step": "initialize@2025-06-18",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
-        "step": "initialize@2025-03-26",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d4dq4g0f85a2drlnek.svoluuab.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra94kv22lc6u81ivrph",
-        "step": "initialize@2024-11-05",
-        "outcome": "http-error",
-        "httpStatus": 400
-      }
+    "transport": "sse",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "MCP Server d5d4dq4g0f85a2drlnek",
+    "serverVersion": "1.0.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 5,
+    "tools": [
+      "briefReport_post",
+      "req_post",
+      "scoring_post",
+      "search_post",
+      "stat_post"
     ],
-    "lastChanged": "2026-11-13"
+    "authDetails": null,
+    "lastChanged": "2026-11-14"
   }
 }

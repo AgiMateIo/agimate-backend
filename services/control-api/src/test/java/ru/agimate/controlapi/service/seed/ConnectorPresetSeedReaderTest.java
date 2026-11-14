@@ -255,6 +255,71 @@ class ConnectorPresetSeedReaderTest {
             assertEquals(List.of(ConnectorPresetAuth.NONE), seed.authMethods());
             assertEquals(ConnectorPresetAvailability.PROTOCOL_UNSUPPORTED, seed.availability());
         }
+
+        @Test
+        @DisplayName("stateless-сервер, понизивший ревизию, — карточка доступна")
+        void statelessDowngradeIsAvailable() {
+            ConnectorPresetSeed seed = read("downgrade", """
+                    {
+                      "name": "Downgrade",
+                      "category": "dev-tools",
+                      "url": "https://example.com/mcp",
+                      "declared": { "authMethods": ["none"] },
+                      "probe": { "status": "up", "transport": "streamable-http",
+                                 "transportConfirmed": true, "authType": "none",
+                                 "era": "stateless",
+                                 "handshake": { "supported": false, "version": "2025-06-18",
+                                                "versions": ["2025-03-26"] } }
+                    }
+                    """);
+
+            assertEquals(ConnectorPresetAvailability.AVAILABLE, seed.availability());
+        }
+
+        @Test
+        @DisplayName("handshake-сервер, понизивший ревизию, — карточка доступна")
+        void handshakeEraDowngradeIsAvailable() {
+            ConnectorPresetSeed seed = read("downgrade", """
+                    {
+                      "name": "Downgrade",
+                      "category": "dev-tools",
+                      "url": "https://example.com/mcp",
+                      "declared": { "authMethods": ["none"] },
+                      "probe": { "status": "up", "transport": "streamable-http",
+                                 "transportConfirmed": true, "authType": "none",
+                                 "era": "handshake",
+                                 "versions": { "source": "measured", "accepted": ["2025-03-26"],
+                                               "downgrades": [{ "requested": "2025-06-18",
+                                                                "negotiated": "2025-03-26" }] },
+                                 "handshake": { "supported": false, "version": "2025-06-18",
+                                                "versions": ["2025-03-26"] } }
+                    }
+                    """);
+
+            assertEquals(ConnectorPresetAvailability.AVAILABLE, seed.availability());
+        }
+
+        @Test
+        @DisplayName("handshake-эра: чужая принятая ревизия без понижения нашей — PROTOCOL_UNSUPPORTED")
+        void handshakeEraRejectedRevisionBlocks() {
+            ConnectorPresetSeed seed = read("rejected", """
+                    {
+                      "name": "Rejected",
+                      "category": "dev-tools",
+                      "url": "https://example.com/mcp",
+                      "declared": { "authMethods": ["none"] },
+                      "probe": { "status": "up", "transport": "streamable-http",
+                                 "transportConfirmed": true, "authType": "none",
+                                 "era": "handshake",
+                                 "versions": { "source": "measured", "accepted": ["2025-03-26"],
+                                               "downgrades": [] },
+                                 "handshake": { "supported": false, "version": "2025-06-18",
+                                                "versions": ["2025-03-26"] } }
+                    }
+                    """);
+
+            assertEquals(ConnectorPresetAvailability.PROTOCOL_UNSUPPORTED, seed.availability());
+        }
     }
 
     @Nested

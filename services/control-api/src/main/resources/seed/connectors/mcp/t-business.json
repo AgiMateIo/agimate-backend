@@ -26,37 +26,62 @@
         "labelRu": "Access Token T-API",
         "description": "Access Token T‑API — Access Token T‑API из раздела «Интеграции → T‑API → Выпуск токена» личного кабинета Т‑Бизнеса: инструкция (https://developer.tbank.ru/t_api/intro/manuals/self-service-auth) Prefix: `Bearer`."
       }
-    ]
+    ],
+    "note": "TLS chain is issued by the Russian Trusted Root CA, which is absent from default trust stores; the probe pins the official root, but clients must install it to connect."
   },
   "probe": {
-    "status": "down",
+    "status": "up",
     "endpointUrl": "https://developer.tinkoff.ru/mcp/b2b",
-    "transport": null,
-    "transportConfirmed": false,
-    "era": null,
-    "versions": null,
-    "authType": null,
-    "protocolVersion": null,
-    "serverName": null,
-    "serverVersion": null,
-    "capabilities": null,
-    "toolCount": null,
-    "tools": null,
-    "authDetails": null,
-    "attempts": [
-      {
-        "url": "https://developer.tinkoff.ru/mcp/b2b",
-        "step": "server/discover",
-        "outcome": "network-error",
-        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
-      },
-      {
-        "url": "https://developer.tinkoff.ru/mcp/b2b",
-        "step": "initialize@2025-11-25",
-        "outcome": "network-error",
-        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
-      }
+    "transport": "streamable-http",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26"
+      ],
+      "downgrades": [
+        {
+          "requested": "2024-11-05",
+          "negotiated": "2025-11-25"
+        }
+      ]
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "T-Business",
+    "serverVersion": "1.0.0",
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "prompts": true,
+      "logging": false,
+      "completions": true
+    },
+    "toolCount": 8,
+    "tools": [
+      "getApiV1Company",
+      "getApiV1InvoiceInvoiceIdInfo",
+      "getApiV1Statement",
+      "getApiV4Bank-accounts",
+      "paymentStatus",
+      "postApiV1InvoiceSend",
+      "postApiV1PaymentCreate",
+      "postApiV1ProvidedServicesActSubmit"
     ],
-    "lastChanged": "2026-11-13"
+    "authDetails": null,
+    "lastChanged": "2026-11-14"
   }
 }

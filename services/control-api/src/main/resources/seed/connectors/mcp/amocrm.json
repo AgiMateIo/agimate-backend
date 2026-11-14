@@ -39,103 +39,79 @@
     "note": "Endpoint is hosted on Yandex API Gateway."
   },
   "probe": {
-    "status": "down",
+    "status": "up",
     "endpointUrl": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
-    "transport": null,
-    "transportConfirmed": false,
-    "era": null,
-    "versions": null,
-    "authType": null,
-    "protocolVersion": null,
-    "serverName": null,
-    "serverVersion": null,
-    "capabilities": null,
-    "toolCount": null,
-    "tools": null,
-    "authDetails": null,
-    "attempts": [
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
-        "step": "server/discover",
-        "outcome": "legacy",
-        "httpStatus": 405,
-        "rpcError": null
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
-        "step": "initialize@2025-11-25",
-        "outcome": "http-error",
-        "httpStatus": 405
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
-        "step": "server/discover",
-        "outcome": "legacy",
-        "httpStatus": 400,
-        "rpcError": null
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2025-11-25",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2025-06-18",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2025-03-26",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/mcp",
-        "step": "initialize@2024-11-05",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/sse",
-        "step": "GET (HTTP+SSE)",
-        "outcome": "sse-endpoint",
-        "postUrl": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu"
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
-        "step": "server/discover",
-        "outcome": "legacy",
-        "httpStatus": 400,
-        "rpcError": "Invalid session ID"
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
-        "step": "initialize@2025-11-25",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
-        "step": "initialize@2025-06-18",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
-        "step": "initialize@2025-03-26",
-        "outcome": "http-error",
-        "httpStatus": 400
-      },
-      {
-        "url": "https://d5d22s9044ea2fe2hasv.sk0vql13.mcp.apigw.yandexcloud.net/message?sessionId=c05ein9asvhpo4ra5il4fcfrurk6e68mu",
-        "step": "initialize@2024-11-05",
-        "outcome": "http-error",
-        "httpStatus": 400
-      }
+    "transport": "sse",
+    "transportConfirmed": true,
+    "era": "handshake",
+    "versions": {
+      "negotiated": "2025-11-25",
+      "source": "measured",
+      "accepted": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ],
+      "downgrades": []
+    },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-11-25",
+        "2025-06-18",
+        "2025-03-26",
+        "2024-11-05"
+      ]
+    },
+    "authType": "none",
+    "protocolVersion": "2025-11-25",
+    "serverName": "MCP Server d5d22s9044ea2fe2hasv",
+    "serverVersion": "1.0.0",
+    "capabilities": {
+      "tools": true,
+      "resources": false,
+      "prompts": false,
+      "logging": false,
+      "completions": false
+    },
+    "toolCount": 32,
+    "tools": [
+      "companies_patch",
+      "companies_post",
+      "contacts_patch",
+      "contacts_post",
+      "entity_custom_fields_get",
+      "entity_custom_fields_id_get",
+      "entity_custom_fields_patch",
+      "entity_custom_fields_post",
+      "entity_get",
+      "entity_id_get",
+      "entity_links_get",
+      "entity_links_post",
+      "entity_notes_get",
+      "entity_notes_patch",
+      "entity_notes_post",
+      "entity_unlink_post",
+      "leads_complex_post",
+      "leads_patch",
+      "leads_pipelines_get",
+      "leads_pipelines_id_get",
+      "leads_pipelines_id_patch",
+      "leads_pipelines_id_statuses_get",
+      "leads_pipelines_id_statuses_patch",
+      "leads_pipelines_id_statuses_post",
+      "leads_pipelines_id_statuses_status_id_get",
+      "leads_pipelines_post",
+      "leads_post",
+      "tasks_patch",
+      "tasks_post",
+      "tasks_types_get",
+      "timestamp_shift_get",
+      "users_get"
     ],
-    "lastChanged": "2026-11-13"
+    "authDetails": null,
+    "lastChanged": "2026-11-14"
   }
 }

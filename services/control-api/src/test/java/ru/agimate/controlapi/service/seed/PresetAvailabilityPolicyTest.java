@@ -120,8 +120,8 @@ class PresetAvailabilityPolicyTest {
 
     private static ConnectorPresetAvailability evaluate(String status, String transport,
                                                         String transportSource, boolean legacySse,
-                                                        Boolean handshake, boolean hasAuth) {
+                                                        Boolean protocolCompatible, boolean hasAuth) {
         return PresetAvailabilityPolicy.evaluate(status, transport, transportSource, legacySse,
-                handshake, hasAuth);
+                protocolCompatible, hasAuth);
     }
 }

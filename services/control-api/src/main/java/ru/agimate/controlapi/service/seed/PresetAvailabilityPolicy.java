@@ -8,8 +8,10 @@ import ru.agimate.controlapi.database.enums.ConnectorPresetAvailability;
  * that are deliberately not stored as columns; the result is the one code the catalogue reads.
  *
  * <p>Best-effort by nature: a 401 hides the transport and protocol of an {@code auth_required} server,
- * so that state is accepted when the original URL was not an SSE endpoint. The live
- * {@code validateCredentials} probe remains the final decision.
+ * so that state is accepted when the original URL was not an SSE endpoint. {@code protocolCompatible}
+ * is {@code null} when the handshake was never measured, and a server that answers our
+ * {@code initialize} with an older revision counts as compatible — the client does not verify the
+ * negotiated revision. The live {@code validateCredentials} probe remains the final decision.
  */
 @UtilityClass
 public class PresetAvailabilityPolicy {
@@ -21,7 +23,7 @@ public class PresetAvailabilityPolicy {
 
     public static ConnectorPresetAvailability evaluate(String status, String transport,
                                                        String transportSource, boolean legacySse,
-                                                       Boolean handshakeSupported, boolean hasSupportedAuth) {
+                                                       Boolean protocolCompatible, boolean hasSupportedAuth) {
         if (!UP.equalsIgnoreCase(status) && !AUTH_REQUIRED.equalsIgnoreCase(status)) {
             return ConnectorPresetAvailability.DOWN;
         }
@@ -36,7 +38,7 @@ public class PresetAvailabilityPolicy {
         if (!transportTrusted) {
             return ConnectorPresetAvailability.TRANSPORT_UNSUPPORTED;
         }
-        if (!AUTH_REQUIRED.equalsIgnoreCase(status) && !Boolean.TRUE.equals(handshakeSupported)) {
+        if (!AUTH_REQUIRED.equalsIgnoreCase(status) && !Boolean.TRUE.equals(protocolCompatible)) {
             return ConnectorPresetAvailability.PROTOCOL_UNSUPPORTED;
         }
         if (!hasSupportedAuth) {

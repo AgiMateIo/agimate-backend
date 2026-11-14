@@ -138,11 +138,14 @@ public class ConnectorPresetSeedReader {
         String transportSource = transportSource(probe, probeTransport, declaredTransport);
         boolean legacySse = legacySse(url);
         Boolean handshake = handshake(probe);
+        Boolean protocolCompatible = protocolCompatible(probe, handshake);
         ConnectorPresetAvailability availability = PresetAvailabilityPolicy.evaluate(status, transport,
-                transportSource, legacySse, handshake, !authMethods.isEmpty());
+                transportSource, legacySse, protocolCompatible, !authMethods.isEmpty());
         if (availability != ConnectorPresetAvailability.AVAILABLE) {
-            log.debug("{}: availability={} (status={}, transport={}/{}, legacySse={}, handshakeSupported={})",
-                    where, availability, status, transport, transportSource, legacySse, handshake);
+            log.debug("{}: availability={} (status={}, transport={}/{}, legacySse={}, "
+                            + "handshakeSupported={}, protocolCompatible={})",
+                    where, availability, status, transport, transportSource, legacySse, handshake,
+                    protocolCompatible);
         }
 
         return new ConnectorPresetSeed(
@@ -471,6 +474,41 @@ public class ConnectorPresetSeedReader {
             return null;
         }
         return handshake.get("supported").asBoolean();
+    }
+
+    /**
+     * The client asks for its own revision and never reads the one that comes back, so a server that
+     * answers {@code initialize} with an older revision is still usable; the live probe at connection
+     * time has the final word. Only an explicit refusal or an unmeasured handshake blocks the card.
+     */
+    private static Boolean protocolCompatible(JsonNode probe, Boolean handshakeSupported) {
+        if (handshakeSupported == null) {
+            return null;
+        }
+        return handshakeSupported || acceptsOlderRevision(probe, probe.path("handshake"));
+    }
+
+    /**
+     * The dataset records a downgrade differently per era: a stateless server negotiates once, so a
+     * non-empty {@code handshake.versions} means our request was answered with another revision; a
+     * handshake-era server also echoes revisions it was asked for separately, and only
+     * {@code versions.downgrades} proves that our own revision was downgraded rather than refused.
+     */
+    private static boolean acceptsOlderRevision(JsonNode probe, JsonNode handshake) {
+        if (!"handshake".equals(probe.path("era").asText())) {
+            JsonNode versions = handshake.path("versions");
+            return versions.isArray() && !versions.isEmpty();
+        }
+        String tested = handshake.path("version").asText(null);
+        if (tested == null) {
+            return false;
+        }
+        for (JsonNode downgrade : probe.path("versions").path("downgrades")) {
+            if (tested.equals(downgrade.path("requested").asText())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static ContentCategory category(String key, PresetOverrides overrides, String where) {

@@ -26,37 +26,47 @@
         "description": "API-ключ организации — Промышленный API-ключ организации, подключённой к Alfa API. Введите только значение ключа: префикс `ApiKey` будет добавлен автоматически."
       }
     ],
-    "note": "Imported from the Yandex AI Studio MCP catalog."
+    "note": "Imported from the Yandex AI Studio MCP catalog. TLS chain is issued by the Russian Trusted Root CA, which is absent from default trust stores; the probe pins the official root, but clients must install it to connect."
   },
   "probe": {
-    "status": "down",
+    "status": "auth_required",
     "endpointUrl": "https://api-hub.alfabank.ru/mcp",
-    "transport": null,
+    "transport": "streamable-http",
     "transportConfirmed": false,
     "era": null,
     "versions": null,
-    "authType": null,
+    "authType": "api_key_or_bearer",
     "protocolVersion": null,
     "serverName": null,
     "serverVersion": null,
     "capabilities": null,
     "toolCount": null,
     "tools": null,
-    "authDetails": null,
+    "authDetails": {
+      "protectedResourceMetadataUrl": null,
+      "authorizationServerMetadataUrl": null,
+      "dcrSupported": null,
+      "clientIdMetadataDocumentSupported": null,
+      "resourceIndicatorRequired": null,
+      "scopes": [],
+      "wwwAuthenticate": null
+    },
     "attempts": [
       {
         "url": "https://api-hub.alfabank.ru/mcp",
         "step": "server/discover",
-        "outcome": "network-error",
-        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+        "outcome": "auth_required",
+        "httpStatus": 403,
+        "wwwAuthenticate": null
       },
       {
         "url": "https://api-hub.alfabank.ru/mcp",
         "step": "initialize@2025-11-25",
-        "outcome": "network-error",
-        "error": "SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain"
+        "outcome": "auth_required",
+        "httpStatus": 403,
+        "wwwAuthenticate": null
       }
     ],
-    "lastChanged": "2026-11-13"
+    "lastChanged": "2026-11-14"
   }
 }

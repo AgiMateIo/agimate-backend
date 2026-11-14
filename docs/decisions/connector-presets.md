@@ -199,7 +199,7 @@ services/control-api/src/main/resources/seed/connectors/
   обнаруживает сам;
 - `vendor`, `toolCount`, `lastChecked`, `note`, `addedAt` — витрине и форме не нужны; остаются в
   JSON и добавляются точечно, если появится продуктовая потребность;
-- `status`, `transport`, `transport_source`, `legacy_sse`, `handshake_supported` — не колонки: сид
+- `status`, `transport`, `transport_source`, `legacy_sse`, `protocol_compatible` — не колонки: сид
   сводит их в `availability`.
 
 ### Мультиязычность
@@ -300,9 +300,9 @@ WHERE p.source_present = TRUE
   `TOKEN` по наличию заголовка: `square` — известный пропуск в данных, пока там нет `authMethods`;
   временный обход — `authMethods: [OAUTH, TOKEN]` в `overrides.yaml`.
 - `availability`: вычисляется из `probe.status`, транспорта (`probe.transport`,
-  `declared.transport`, `transportConfirmed`), `legacy_sse` и `probe.handshake.supported` по формуле
+  `declared.transport`, `transportConfirmed`), `legacy_sse` и `probe.handshake` по формуле
   §«Доступность карточки». Это единственное, что попадает в базу из этих полей: `status`,
-  `transport`, `transport_source`, `legacy_sse`, `handshake_supported` колонками не становятся.
+  `transport`, `transport_source`, `legacy_sse`, `protocol_compatible` колонками не становятся.
 - `header_fields`: обязательные и опциональные заголовки из `declared.headers` с `name`, `label`,
   `labelRu`, `secret`, `required`, `valuePrefix`, `keyPrefix`. `Authorization` с
   `valuePrefix = "Bearer "` и `auth_methods` с `TOKEN` не превращается в заголовок — вместо него
@@ -416,8 +416,11 @@ presets:
 код. Входы: `status`; `transport = probe.transport`, иначе `declared.transport`;
 `transport_source` — `probe.transportConfirmed` → `MEASURED`, иначе
 `declared.transport = streamable-http` → `DECLARED`, иначе `probe.transport` не NULL → `INFERRED`,
-иначе `UNKNOWN`; `legacy_sse` — исходный `url` заканчивается `/sse`; `handshake_supported` —
-`probe.handshake.supported`; `auth_methods` — уже отфильтрованный список.
+иначе `UNKNOWN`; `legacy_sse` — исходный `url` заканчивается `/sse`; `protocol_compatible` —
+`true`, если `probe.handshake.supported = true` или сервер ответил на `initialize` нашей ревизии
+понижением (handshake-эра: `probe.versions.downgrades[].requested` содержит
+`probe.handshake.version`; stateless: непустой `probe.handshake.versions`), `false` — отказ,
+`null` — не измерено; `auth_methods` — уже отфильтрованный список.
 
 ```
 если status = DOWN                                    -> DOWN
@@ -426,7 +429,7 @@ presets:
               или transport_source = DECLARED
               или (status = AUTH_REQUIRED и transport_source = INFERRED и legacy_sse = FALSE))
                                                       -> TRANSPORT_UNSUPPORTED
-иначе если status != AUTH_REQUIRED и handshake_supported != TRUE
+иначе если status != AUTH_REQUIRED и protocol_compatible != TRUE
                                                       -> PROTOCOL_UNSUPPORTED
 иначе если auth_methods пуст                         -> AUTH_UNSUPPORTED
 иначе                                                 -> AVAILABLE
@@ -441,11 +444,14 @@ presets:
   `cloudflare-workers-bindings` объявил transport (`DECLARED`), но остаётся DCR-only. По auth прошли
   бы `monday-com`, `dodo-payments`, `invideo`, `semgrep`, `sentry` (CIMD) и `square` (токен после
   исправления `authMethods`); остальные — DCR-only.
-- `handshake_supported` проверяется для `up`: 17 серверов принимают `2025-06-18` (13 handshake-
-  серверов и 4 stateless), `aws-knowledge` и `vkusvill` — `false`, пять (`apify`, `yandex-calendar`,
-  `yandex-disk`, `yandex-mail`, `yandex-telemost`) — `null`, потому что `initialize` закрыт 401.
-  `up` с `false`/`null` не обещаем; у `auth_required` handshake неизвестен по природе, поэтому он
-  не блокирует.
+- `protocol_compatible` проверяется для `up`: 17 серверов повторяют нашу ревизию `2025-06-18`
+  (13 handshake-серверов и 4 stateless). `aws-knowledge` и `vkusvill` отвечают на `initialize`
+  понижением до `2025-03-26` — это не отказ: клиент возвращённую `protocolVersion` не проверяет,
+  и живая проверка ВкусВилла 2026-11-14 прошла целиком (`initialize`, `notifications/initialized`,
+  `tools/list` с заголовком `MCP-Protocol-Version: 2025-06-18`). Понижение считается совместимым.
+  Пять серверов (`apify`, `yandex-calendar`, `yandex-disk`, `yandex-mail`, `yandex-telemost`) с
+  `handshake.supported = null` — `initialize` закрыт 401 — остаются «не проверено» и блокируются.
+  У `auth_required` handshake неизвестен по природе, поэтому он не блокирует.
 - `auth_methods` с `TOKEN` открывает 20 DCR-серверов со статическим токеном; `square` — известный
   пропуск в данных, пока `declared.authMethods` не добавлен. `OAUTH` без CIMD и без `TOKEN`
   остаётся заблокированным.
@@ -462,7 +468,7 @@ presets:
 - `DOWN` — `status = DOWN`;
 - `TRANSPORT_UNSUPPORTED` — `transport != STREAMABLE_HTTP` или `transport_source`/`legacy_sse` не
   проходят условие выше;
-- `PROTOCOL_UNSUPPORTED` — `up` с `handshake_supported != TRUE` (`false` или `null`);
+- `PROTOCOL_UNSUPPORTED` — `up` с `protocol_compatible != TRUE` (отказ или не измерено);
 - `AUTH_UNSUPPORTED` — `auth_methods` пуст: ни `NONE`, ни `TOKEN`, ни `OAUTH + CIMD` не доступны.
 
 Приоритет: `DOWN` → `TRANSPORT_UNSUPPORTED` → `PROTOCOL_UNSUPPORTED` → `AUTH_UNSUPPORTED`. Точную
@@ -575,7 +581,7 @@ presets:
   `authMethods` → отфильтрованный `auth_methods`, `headerGroups` → `header_groups`,
   `headers[].valuePrefix`/`keyPrefix`/`label`/`labelRu`; `status`/транспорт/handshake → `availability`.
 - [x] `PresetAvailabilityPolicy`: чистая функция `availability` по `status`, транспорту,
-  `transport_source`, `legacy_sse`, `handshake_supported` и `auth_methods`; вызывается при сиде.
+  `transport_source`, `legacy_sse`, `protocol_compatible` и `auth_methods`; вызывается при сиде.
 - [x] Валидатор: `params`/`fields`/`header_fields`/`header_groups`, `identity`, категории,
   `jurisdiction`, enum'ы, `name`; `auth_methods` подмножество (дубли и `OAUTH` без CIMD
   отбрасываются), `availability`; `valuePrefix`/`keyPrefix`; точный набор ключей `overrides.yaml`
@@ -609,8 +615,9 @@ presets:
 - [x] `ConnectorPresetBootstrapTest` — upsert, сохранение `enabled`, `source_present`, переводы,
   переименование файла при том же `identity`, `auth_methods`/`availability`, advisory-лок перед
   скрытием.
-- [x] `PresetAvailabilityPolicyTest` — CIMD/token, `transport_source`/`legacy_sse`, handshake
-  false/null, четыре причины и `AVAILABLE`.
+- [x] `PresetAvailabilityPolicyTest` — CIMD/token, `transport_source`/`legacy_sse`,
+  `protocol_compatible` false/null, четыре причины и `AVAILABLE`; `ConnectorPresetSeedReaderTest` —
+  понижение версии у обеих эр и отказ в понижении.
 - [x] `PresetFormAssemblerTest` — слияние, локализация подписей по языку запроса,
   `auth_token.required`, `headerGroups`.
 - [x] `ConnectorPresetQueryServiceTest` — поиск, фильтры `category`/`jurisdiction`, язык, fallback.

@@ -42,6 +42,13 @@
       ],
       "downgrades": null
     },
+    "handshake": {
+      "supported": true,
+      "version": "2025-06-18",
+      "versions": [
+        "2025-06-18"
+      ]
+    },
     "authType": "api_key_or_bearer",
     "protocolVersion": "2026-07-28",
     "serverName": "Yandex MCP Proxy",
@@ -64,6 +71,6 @@
       "scopes": [],
       "wwwAuthenticate": null
     },
-    "lastChanged": "2026-11-13"
+    "lastChanged": "2026-11-14"
   }
 }
