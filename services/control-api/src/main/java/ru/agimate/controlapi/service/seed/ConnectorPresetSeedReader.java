@@ -493,15 +493,25 @@ public class ConnectorPresetSeedReader {
      * non-empty {@code handshake.versions} means our request was answered with another revision; a
      * handshake-era server also echoes revisions it was asked for separately, and only
      * {@code versions.downgrades} proves that our own revision was downgraded rather than refused.
+     * A version list that repeats the tested revision contradicts {@code supported = false} and
+     * fails closed.
      */
     private static boolean acceptsOlderRevision(JsonNode probe, JsonNode handshake) {
-        if (!"handshake".equals(probe.path("era").asText())) {
-            JsonNode versions = handshake.path("versions");
-            return versions.isArray() && !versions.isEmpty();
-        }
         String tested = handshake.path("version").asText(null);
         if (tested == null) {
             return false;
+        }
+        if (!"handshake".equals(probe.path("era").asText())) {
+            JsonNode versions = handshake.path("versions");
+            if (!versions.isArray() || versions.isEmpty()) {
+                return false;
+            }
+            for (JsonNode version : versions) {
+                if (tested.equals(version.asText())) {
+                    return false;
+                }
+            }
+            return true;
         }
         for (JsonNode downgrade : probe.path("versions").path("downgrades")) {
             if (tested.equals(downgrade.path("requested").asText())) {

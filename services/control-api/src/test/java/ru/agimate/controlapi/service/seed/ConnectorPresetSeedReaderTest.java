@@ -277,6 +277,26 @@ class ConnectorPresetSeedReaderTest {
         }
 
         @Test
+        @DisplayName("stateless-сервер повторил нашу ревизию при supported=false — противоречие, блокируем")
+        void statelessEchoedRevisionBlocks() {
+            ConnectorPresetSeed seed = read("echoed", """
+                    {
+                      "name": "Echoed",
+                      "category": "dev-tools",
+                      "url": "https://example.com/mcp",
+                      "declared": { "authMethods": ["none"] },
+                      "probe": { "status": "up", "transport": "streamable-http",
+                                 "transportConfirmed": true, "authType": "none",
+                                 "era": "stateless",
+                                 "handshake": { "supported": false, "version": "2025-06-18",
+                                                "versions": ["2025-06-18"] } }
+                    }
+                    """);
+
+            assertEquals(ConnectorPresetAvailability.PROTOCOL_UNSUPPORTED, seed.availability());
+        }
+
+        @Test
         @DisplayName("handshake-сервер, понизивший ревизию, — карточка доступна")
         void handshakeEraDowngradeIsAvailable() {
             ConnectorPresetSeed seed = read("downgrade", """
