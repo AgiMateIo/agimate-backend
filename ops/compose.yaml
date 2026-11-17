@@ -37,7 +37,9 @@ services:
     restart: unless-stopped
 
   centrifugo:
-    image: centrifugo/centrifugo:v6
+    # Exact version, same as prod (agimate-infra/base/centrifugo/deployment.yaml). A floating v6
+    # silently differs from prod and from the previous local run.
+    image: centrifugo/centrifugo:v6.10.3
     container_name: agimate-centrifugo
     profiles: [infra, full]
     command: centrifugo -c /centrifugo/config.yaml
