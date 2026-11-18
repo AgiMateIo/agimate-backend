@@ -10,11 +10,16 @@ import java.util.Map;
  * knows a field's nature, so it carries it: before this record the type was implicit and every client
  * masked every field, and optionality lived inside the label text as the word «(optional)».
  *
- * @param label    human-readable name; the caption of the input
- * @param type     what kind of value it is — drives the control, the masking and where the value is kept
- * @param required whether an empty value is rejected; the connector still validates on its own
+ * @param label     human-readable name; the caption of the input
+ * @param type      what kind of value it is — drives the control, the masking and where the value is kept
+ * @param required  whether an empty value is rejected; the connector still validates on its own
+ * @param multiline layout metadata only: the input is multi-line; storage, masking and normalization ignore it
  */
-public record CredentialField(String label, Type type, boolean required) {
+public record CredentialField(String label, Type type, boolean required, boolean multiline) {
+
+    public CredentialField(String label, Type type, boolean required) {
+        this(label, type, required, false);
+    }
 
     /**
      * SECRET is kept in the connection's encrypted secret, masked on input and never returned. Every
@@ -32,6 +37,11 @@ public record CredentialField(String label, Type type, boolean required) {
 
     public static CredentialField optional(String label, Type type) {
         return new CredentialField(label, type, false);
+    }
+
+    /** A copy marked for a multi-line input, such as a PEM private key; nothing else changes. */
+    public CredentialField withMultiline() {
+        return new CredentialField(label, type, required, true);
     }
 
     public boolean secret() {

@@ -13,9 +13,12 @@ public record CredentialFieldResponse(
         CredentialField.Type type,
 
         @Schema(description = "Whether an empty value is rejected")
-        boolean required
+        boolean required,
+
+        @Schema(description = "Whether the input is multi-line; layout only, the value is still masked when SECRET")
+        boolean multiline
 ) {
     public static CredentialFieldResponse from(CredentialField field) {
-        return new CredentialFieldResponse(field.label(), field.type(), field.required());
+        return new CredentialFieldResponse(field.label(), field.type(), field.required(), field.multiline());
     }
 }

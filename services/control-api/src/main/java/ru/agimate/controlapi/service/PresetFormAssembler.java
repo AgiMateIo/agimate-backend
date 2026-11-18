@@ -63,7 +63,8 @@ public class PresetFormAssembler {
                 credentialFields.put(code, new CredentialFieldResponse(
                         label(override, field, language),
                         field.type(),
-                        override != null && override.required() != null ? override.required() : field.required()));
+                        override != null && override.required() != null ? override.required() : field.required(),
+                        field.multiline()));
             });
         }
 

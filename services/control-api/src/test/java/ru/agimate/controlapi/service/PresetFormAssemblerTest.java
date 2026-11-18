@@ -154,6 +154,26 @@ class PresetFormAssemblerTest {
         assertEquals(Map.of("url", "https://example.com/mcp"), form.params());
     }
 
+    @Test
+    @DisplayName("признак multiline доезжает в форму пресета вместе с остальными компонентами")
+    void propagatesMultiline() {
+        when(connectorRegistry.findIntegrationHandler("mcp")).thenReturn(Optional.of(handler));
+        Map<String, CredentialField> fields = new LinkedHashMap<>();
+        fields.put("private_key", CredentialField.optional("Private key", CredentialField.Type.SECRET).withMultiline());
+        fields.put("host", CredentialField.required("Host", CredentialField.Type.TEXT));
+        when(handler.getCredentialFields()).thenReturn(fields);
+
+        ConnectorPreset preset = basePreset()
+                .authMethods(List.of(ConnectorPresetAuth.TOKEN))
+                .build();
+
+        ConnectorPresetForm form = assembler.assemble(preset, ContentLanguage.EN);
+
+        assertTrue(form.credentialFields().get("private_key").multiline());
+        assertEquals(CredentialField.Type.SECRET, form.credentialFields().get("private_key").type());
+        assertFalse(form.credentialFields().get("host").multiline());
+    }
+
     private static Map<String, CredentialField> credentialFields() {
         Map<String, CredentialField> fields = new LinkedHashMap<>();
         fields.put("url", CredentialField.required("Server URL", CredentialField.Type.URL));
