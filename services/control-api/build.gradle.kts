@@ -127,7 +127,7 @@ tasks.withType<Test> {
             outputs.upToDateWhen { false }
         }
     }
-    // Manual live checks (e.g. the SSH spike) opt in through the flag; changing only the flag
+    // Manual live checks (e.g. the SSH live test) opt in through the flag; changing only the flag
     // must still re-run the task instead of being reported UP-TO-DATE.
     System.getProperty("agimate.ssh.live")?.let {
         systemProperty("agimate.ssh.live", it)
