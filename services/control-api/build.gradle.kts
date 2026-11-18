@@ -93,6 +93,14 @@ dependencies {
     implementation("io.grpc:grpc-netty-shaded")
     implementation("io.grpc:grpc-services")
 
+    // SSH connector (docs/decisions/ssh-connector.md): MINA SSHD is the client. Bouncy Castle parses
+    // encrypted OpenSSH and PEM keys (bcpkix handles encrypted PKCS#8) and supplies Ed25519 key types;
+    // the BOM pins the whole family.
+    implementation(platform("org.bouncycastle:bc-jdk18on-bom:1.87"))
+    implementation("org.apache.sshd:sshd-core:2.20.1")
+    implementation("org.bouncycastle:bcprov-jdk18on")
+    implementation("org.bouncycastle:bcpkix-jdk18on")
+
     // Lombok for code generation
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
@@ -118,6 +126,12 @@ tasks.withType<Test> {
             testLogging.showStandardStreams = true
             outputs.upToDateWhen { false }
         }
+    }
+    // Manual live checks (e.g. the SSH spike) opt in through the flag; changing only the flag
+    // must still re-run the task instead of being reported UP-TO-DATE.
+    System.getProperty("agimate.ssh.live")?.let {
+        systemProperty("agimate.ssh.live", it)
+        outputs.upToDateWhen { false }
     }
 }
 
