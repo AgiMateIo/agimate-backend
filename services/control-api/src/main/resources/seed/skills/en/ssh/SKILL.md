@@ -41,7 +41,8 @@ back with its exit code.
 
 - `timeoutSeconds` is 1 to 1800, 60 by default. When it expires you get partial output with
   `timedOut: true`, and the exit code may be `null`. Size long operations to fit the timeout, or tell
-  the user.
+  the user. A timeout ends the wait, not the remote command: it may still be running, so check the
+  server's actual state before deciding anything.
 - `stdout` and `stderr` are capped at 32 KiB each; beyond that `truncated: true`. Do not dump
   everything: use `tail`, `head`, `grep`, `wc -l`, `--quiet`, `-q`.
 - The command itself is at most 64 KiB; a long scenario belongs in a file that you then run.

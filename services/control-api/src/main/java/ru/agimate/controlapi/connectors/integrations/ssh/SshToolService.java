@@ -25,7 +25,9 @@ public class SshToolService {
             description = "Run an arbitrary shell command on the SSH host and return its stdout, stderr and "
                     + "exit code. The command runs in a fresh non-interactive SSH session: there is no "
                     + "persistent shell, no stdin and no terminal, so an interactive program will not work. "
-                    + "The command is stopped when its timeout expires.",
+                    + "When the timeout expires the call stops waiting and returns the output collected "
+                    + "so far; the remote command may still be running, because closing the channel does "
+                    + "not stop its processes.",
             timeoutSeconds = 1800,
             annotations = @ToolAnnotations(readOnlyHint = false, destructiveHint = true,
                     idempotentHint = false, openWorldHint = true))
