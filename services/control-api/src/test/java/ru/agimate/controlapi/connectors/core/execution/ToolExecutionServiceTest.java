@@ -154,6 +154,36 @@ class ToolExecutionServiceTest {
                     argThat(result -> result.getError() != null && result.getError().startsWith("Cancelled")));
             verify(toolCallLogService, never()).claimDispatch(any(), any());
         }
+
+        @Test
+        @DisplayName("сбой провайдера пишется напрямую, без чтения dispatch-состояния")
+        void replayableFailureRecordsWithoutDispatchRead() {
+            connector = failingConnector(new ConnectorException("command rejected"));
+            stubConnection();
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            verify(toolCallLogService).recordOutput(eq(LOG_ID), errorWith("command rejected"));
+            verify(toolCallLogService, never()).isDispatched(any());
+            verify(toolCallLogService, never()).finishNonReplayable(any(), any());
+            verify(agentDeliveryService).deliverToolResult(eq(log), errorWith("command rejected"));
+        }
+
+        @Test
+        @DisplayName("сбой провайдера доставляется, даже если чтение dispatch-состояния упало бы")
+        void replayableFailureIgnoresDispatchReadFailure() {
+            connector = failingConnector(new ConnectorException("command rejected"));
+            stubConnection();
+            lenient().when(toolCallLogService.isDispatched(LOG_ID))
+                    .thenThrow(new IllegalStateException("db is down"));
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            verify(toolCallLogService).recordOutput(eq(LOG_ID), errorWith("command rejected"));
+            verify(agentDeliveryService).deliverToolResult(eq(log), errorWith("command rejected"));
+        }
     }
 
     @Nested
@@ -486,6 +516,12 @@ class ToolExecutionServiceTest {
         return fakeConnector;
     }
 
+    private FakeConnector failingConnector(RuntimeException failure) {
+        FakeConnector fakeConnector = new FakeConnector(ToolExecutionPolicy::replayable, failure);
+        when(connectorRegistry.getHandler(CONNECTOR)).thenReturn(fakeConnector);
+        return fakeConnector;
+    }
+
     private static IToolResult resultWithOutput() {
         return argThat(result -> "{\"stdout\":\"ok\"}".equals(result.getOutput()));
     }
@@ -539,10 +575,16 @@ class ToolExecutionServiceTest {
     private static final class FakeConnector implements IntegrationConnectorHandler, ToolProvider {
 
         private final Supplier<ToolExecutionPolicy> policy;
+        private final RuntimeException failure;
         private final AtomicInteger executions = new AtomicInteger();
 
         private FakeConnector(Supplier<ToolExecutionPolicy> policy) {
+            this(policy, null);
+        }
+
+        private FakeConnector(Supplier<ToolExecutionPolicy> policy, RuntimeException failure) {
             this.policy = policy;
+            this.failure = failure;
         }
 
         @Override
@@ -573,6 +615,9 @@ class ToolExecutionServiceTest {
         @Override
         public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {
             executions.incrementAndGet();
+            if (failure != null) {
+                throw failure;
+            }
             return Map.of("stdout", "ok");
         }
     }

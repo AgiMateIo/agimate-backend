@@ -127,16 +127,13 @@ public class ToolExecutionService {
      * record or deliver.
      */
     private Optional<ToolResult> executeAndRecord(ToolCallLog toolCallLog) {
+        ConnectorHandler handler;
+        ToolProvider toolProvider;
+        ToolExecutionPolicy policy;
         try {
-            ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
-            ToolProvider toolProvider = ConnectorRegistry.capability(handler, ToolProvider.class);
-            ToolExecutionPolicy policy = toolProvider.executionPolicy(
-                    toolCallLog.getName(), toolCallLog.getInput());
-
-            if (policy.kind() == ToolExecutionPolicy.Kind.NON_REPLAYABLE) {
-                return executeNonReplayable(handler, toolProvider, toolCallLog, policy.executionTimeout());
-            }
-            return Optional.of(executeReplayable(handler, toolProvider, toolCallLog));
+            handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
+            toolProvider = ConnectorRegistry.capability(handler, ToolProvider.class);
+            policy = toolProvider.executionPolicy(toolCallLog.getName(), toolCallLog.getInput());
         } catch (ConnectorException e) {
             // An expected failure with a safe message (validation, a CAS conflict, no connection, …) — passed to the agent as-is
             log.warn("Tool '{}.{}' failed: {}",
@@ -148,6 +145,11 @@ public class ToolExecutionService {
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
             return recordUnlessDispatched(toolCallLog, "Tool execution failed");
         }
+
+        if (policy.kind() == ToolExecutionPolicy.Kind.NON_REPLAYABLE) {
+            return executeNonReplayable(handler, toolProvider, toolCallLog, policy.executionTimeout());
+        }
+        return executeReplayable(handler, toolProvider, toolCallLog);
     }
 
     /**
@@ -174,18 +176,29 @@ public class ToolExecutionService {
     }
 
     /** A reversible call: the pre-claim path — cancellation, env, provider, last-used, output. */
-    private ToolResult executeReplayable(ConnectorHandler handler, ToolProvider toolProvider,
-                                         ToolCallLog toolCallLog) {
-        // A call still queued on the pool has done nothing yet, unlike one already inside the connector.
-        // Refused as an ordinary failed result, so the worker reads it like any other.
-        if (cancelled(toolCallLog)) {
-            log.info("Tool '{}.{}' skipped: run {} was cancelled",
-                    toolCallLog.getConnectorCode(), toolCallLog.getName(), toolCallLog.getRunId());
-            return record(toolCallLog, null, CANCELLED_ERROR);
+    private Optional<ToolResult> executeReplayable(ConnectorHandler handler, ToolProvider toolProvider,
+                                                   ToolCallLog toolCallLog) {
+        // The policy is known, so the row is not dispatch-owned: a failure is recorded directly.
+        try {
+            // A call still queued on the pool has done nothing yet, unlike one already inside the connector.
+            // Refused as an ordinary failed result, so the worker reads it like any other.
+            if (cancelled(toolCallLog)) {
+                log.info("Tool '{}.{}' skipped: run {} was cancelled",
+                        toolCallLog.getConnectorCode(), toolCallLog.getName(), toolCallLog.getRunId());
+                return Optional.of(record(toolCallLog, null, CANCELLED_ERROR));
+            }
+            String output = JsonUtils.writeValueAsString(invoke(handler, toolProvider, toolCallLog));
+            log.debug("Executed tool '{}.{}'", toolCallLog.getConnectorCode(), toolCallLog.getName());
+            return Optional.of(record(toolCallLog, output, null));
+        } catch (ConnectorException e) {
+            log.warn("Tool '{}.{}' failed: {}",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getMessage());
+            return Optional.of(record(toolCallLog, null, e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to execute '{}.{}'",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
+            return Optional.of(record(toolCallLog, null, "Tool execution failed"));
         }
-        String output = JsonUtils.writeValueAsString(invoke(handler, toolProvider, toolCallLog));
-        log.debug("Executed tool '{}.{}'", toolCallLog.getConnectorCode(), toolCallLog.getName());
-        return record(toolCallLog, output, null);
     }
 
     /**
