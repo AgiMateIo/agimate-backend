@@ -231,11 +231,13 @@ public class ConnectionService {
                             + " (expected: " + connection.getSubCode() + ")");
         }
 
-        credentialStore.write(connection, credentials);
+        Map<String, String> stored = new LinkedHashMap<>(credentials);
+        stored.putAll(validationResult.derivedCredentials());
+        credentialStore.write(connection, stored);
 
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/" + connection.getId();
-            handler.setupWebhook(envFactory.withCredentials(connection, credentials, null), webhookUrl);
+            handler.setupWebhook(envFactory.withCredentials(connection, stored, null), webhookUrl);
         }
 
         eventPublisher.publishEvent(new ConnectorModifiedEvent(

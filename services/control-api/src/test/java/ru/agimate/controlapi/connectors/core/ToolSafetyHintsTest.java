@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
+import ru.agimate.controlapi.connectors.integrations.ssh.SshToolService;
 import ru.agimate.controlapi.connectors.integrations.telegram.TelegramToolService;
 import ru.agimate.controlapi.connectors.internal.acp.AcpToolService;
 import ru.agimate.controlapi.connectors.internal.astro.AstroToolService;
@@ -46,7 +47,7 @@ class ToolSafetyHintsTest {
             BoardToolService.class, DivinationToolService.class, MediaToolService.class,
             PersistentMemoryToolService.class, PlatformAgentToolService.class, PlatformConnectionToolService.class,
             PlatformLlmToolService.class, PlatformWorkspaceToolService.class, PlatformObservabilityToolService.class,
-            SheetsToolService.class, TimeToolService.class);
+            SheetsToolService.class, TimeToolService.class, SshToolService.class);
 
     /**
      * Точка невозврата: эффект выходит за пределы платформы, и отменой рана его не вернуть — письмо
@@ -63,6 +64,7 @@ class ToolSafetyHintsTest {
             "TelegramToolService.answer_callback_query",
             "AcpToolService.write_file",
             "AcpToolService.run_command",
+            "SshToolService.run_command",
             "MediaToolService.gen_image",
             "MediaToolService.edit_image",
             "MediaToolService.combine_images");
@@ -73,6 +75,7 @@ class ToolSafetyHintsTest {
             "TelegramToolService.delete_message",
             "AcpToolService.write_file",
             "AcpToolService.run_command",
+            "SshToolService.run_command",
             "BoardToolService.edit_task",
             "PersistentMemoryToolService.update_memory",
             "PlatformAgentToolService.delete_agent",

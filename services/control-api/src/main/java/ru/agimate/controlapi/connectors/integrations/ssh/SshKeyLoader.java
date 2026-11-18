@@ -19,7 +19,7 @@ import java.util.Collection;
  */
 public final class SshKeyLoader {
 
-    private static final String GENERIC_MESSAGE = "Unable to read the SSH private key";
+    static final String GENERIC_MESSAGE = "Unable to read the SSH private key";
 
     private SshKeyLoader() {
     }

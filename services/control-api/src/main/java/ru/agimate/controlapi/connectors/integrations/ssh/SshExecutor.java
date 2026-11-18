@@ -70,8 +70,8 @@ public class SshExecutor {
     private static final String UNRESOLVED_HOST = "Unable to resolve the SSH host";
     private static final String REFUSED_TARGET = "Connection to this SSH host is not allowed";
     private static final String CONNECT_FAILED = "Unable to establish an SSH connection";
-    private static final String HOST_KEY_MISMATCH = "SSH host key does not match the pinned fingerprint";
-    private static final String AUTHENTICATION_FAILED = "SSH authentication failed";
+    static final String HOST_KEY_MISMATCH = "SSH host key does not match the pinned fingerprint";
+    static final String AUTHENTICATION_FAILED = "SSH authentication failed";
     private static final String COMMAND_NOT_STARTED = "Unable to start the SSH command";
     private static final String UNKNOWN_OUTCOME = "The SSH command outcome is unknown after a connection failure";
 
