@@ -70,7 +70,8 @@ public class SystemSkillBootstrap {
             "subagents",
             "agents",
             "sessions",
-            "web");
+            "web",
+            "ssh");
 
     private final SkillRepository skillRepository;
     private final SkillService skillService;

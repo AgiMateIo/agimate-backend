@@ -64,8 +64,9 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
   `(connector_code, user_id)`, `full_code = code_userId`, `sub_code = null`, без секретов).
   «Внешний по сети» ≠ «внешний по модели»: media/wikipedia ходят во внешние API, но экземпляра,
   который приносит пользователь, у них нет.
-- **Экземпляр** (telegram/mcp/app) — конкретный внешний объект: `sub_code` = его идентичность
-  (username бота, URL сервера), секреты обязательны, строк сколько экземпляров.
+- **Экземпляр** (telegram/mcp/app/ssh) — конкретный внешний объект: `sub_code` = его идентичность
+  (username бота, URL сервера, `username@host:port` у SSH), секреты обязательны, строк сколько
+  экземпляров.
 
 **Владелец данных (identity scope)** — ось-знание, в данных не хранится (колонок
 `identity_scope`/`scope_id` нет): правило воплощено в коде каждого коннектора и задокументировано
@@ -73,7 +74,7 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 применяемое когда вызов не несёт явного адреса*. AGENT — вывести из агента (память: пространство =
 `env.agentId`; time: задачи фильтруются по `env.agentId`), TEAM — из команды агента (board:
 `env.agentId → team → board`; agents: `env.agentId → team`), «правила нет» — ресурс либо явно
-адресован в вызове (сессия у webchat/acp, экземпляр у telegram/mcp), либо отсутствует (media).
+адресован в вызове (сессия у webchat/acp, экземпляр у telegram/mcp/ssh), либо отсутствует (media).
 
 Командные коннекторы независимы: у команды может быть подключён только `board`, только `agents`,
 оба или ни один, и участие в каждом — его собственная привязка. Общее у них одно — круг, и он
@@ -91,7 +92,7 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 | | владелец: агент | владелец: команда | правила нет |
 |---|---|---|---|
 | **Режим** (1/пользователя, скиллы) | persist-memory, time, sheets, skill-loader, tool-loader, subagents | board, agents | media, files, webchat, acp |
-| **Экземпляры** (N, явный bind) | — | — | telegram, mcp, app |
+| **Экземпляры** (N, явный bind) | — | — | telegram, mcp, app, ssh |
 
 Чувствительность к агенту бывает трёх видов, ось — только первый: вывод владельца из caller'а
 (память); явный адрес в вызове — это канальный слой (webchat/acp: session → channel → agent);
@@ -369,7 +370,10 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 `internal/sheets/` (таблицы агента с объявленной схемой: фильтры и сводки по любой колонке,
 PNG-графики, импорт/выгрузка xlsx/csv, см. `docs/connectors/sheets.md`), `internal/web/`
 (`web_search` через Yandex Search API с платформенным ключом и `web_fetch` — страница в markdown,
-поставщик выдачи, извлечение текста и конвертер — заменяемые бины, см. `docs/connectors/web.md`).
+поставщик выдачи, извлечение текста и конвертер — заменяемые бины, см. `docs/connectors/web.md`),
+`integrations/ssh/` (`SshConnectorService` + `SshToolService` — одна тула `run_command` на сервере,
+подключённом по SSH, с закреплённым host-key fingerprint и запретом повторного исполнения, см.
+[../connectors/ssh.md](../connectors/ssh.md)).
 
 ### MCP-коннектор
 
