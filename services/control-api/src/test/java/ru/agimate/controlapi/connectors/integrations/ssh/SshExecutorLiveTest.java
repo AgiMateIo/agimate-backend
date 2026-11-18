@@ -54,6 +54,12 @@ class SshExecutorLiveTest {
     }
 
     @Test
+    @DisplayName("validate без закреплённого отпечатка возвращает отпечаток ключа сервера")
+    void validateLearnsFingerprint() {
+        assertEquals(FINGERPRINT, executor.validate(config(null)));
+    }
+
+    @Test
     @DisplayName("stdout и stderr разделены, ненулевой exit code сохранён")
     void commandSeparatesStreamsAndKeepsExitCode() {
         SshCommandResult result = executor.execute("live", config(FINGERPRINT),

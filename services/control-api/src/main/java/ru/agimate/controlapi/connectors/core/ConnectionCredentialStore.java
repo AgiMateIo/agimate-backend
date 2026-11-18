@@ -10,6 +10,7 @@ import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The only reader and writer of a connection's credentials. A connector sees one flat map; it is kept
@@ -42,14 +43,17 @@ public class ConnectionCredentialStore {
      * always has one, if only an empty one.
      */
     public void write(Connection connection, Map<String, String> credentials) {
-        Map<String, CredentialField> fields = connectorRegistry.findIntegrationHandler(connection.getConnectorCode())
-                .map(IntegrationConnectorHandler::getCredentialFields)
-                .orElse(Map.of());
+        IntegrationConnectorHandler handler = connectorRegistry
+                .findIntegrationHandler(connection.getConnectorCode()).orElse(null);
+        Map<String, CredentialField> fields = handler == null ? Map.of() : handler.getCredentialFields();
+        Set<String> openDerived = handler == null ? Set.of() : handler.openDerivedKeys();
         Map<String, String> open = new LinkedHashMap<>();
         Map<String, String> secret = new LinkedHashMap<>();
         CredentialField.normalize(fields, credentials).forEach((code, value) -> {
             CredentialField field = fields.get(code);
             if (field != null && field.opens(value)) {
+                open.put(code, value);
+            } else if (field == null && value != null && openDerived.contains(code)) {
                 open.put(code, value);
             } else if (field == null || field.secret() || value != null) {
                 secret.put(code, value);

@@ -92,6 +92,10 @@ class SshExecutorTest {
         return new SshConnectionConfig("example.com", 2222, "deploy", ED25519_FINGERPRINT, null, null, "s3cret");
     }
 
+    private static SshConnectionConfig learningConfig() {
+        return new SshConnectionConfig("example.com", 2222, "deploy", null, null, null, "s3cret");
+    }
+
     private static SshConnectionConfig keyConfig() throws IOException {
         return new SshConnectionConfig("example.com", 2222, "deploy", ED25519_FINGERPRINT,
                 fixture("/ssh/id_ed25519_encrypted"), TEST_PASSPHRASE, null);
@@ -434,6 +438,28 @@ class SshExecutorTest {
         }
 
         @Test
+        @DisplayName("validate без закреплённого отпечатка возвращает отпечаток представленного ключа")
+        void validationLearnsPresentedFingerprint() throws Exception {
+            ClientStub stub = new ClientStub();
+            AtomicReference<ServerKeyVerifier> verifier = new AtomicReference<>();
+            doAnswer(invocation -> {
+                verifier.set(invocation.getArgument(0));
+                return null;
+            }).when(stub.client).setServerKeyVerifier(any());
+            when(stub.client.connect(anyString(), any(SocketAddress.class), any(), any())).thenAnswer(invocation -> {
+                // MINA verifies the server key during the handshake; the learned value is what is returned.
+                assertTrue(verifier.get().verifyServerKey(null, null,
+                        publicKey("/ssh/id_ed25519_encrypted.pub")));
+                return stub.connectFuture;
+            });
+
+            String learned = executor(() -> stub.client, publicTargets(publicAddress()))
+                    .validate(learningConfig());
+
+            assertEquals(ED25519_FINGERPRINT, learned);
+        }
+
+        @Test
         @DisplayName("клиент игнорирует локальные ~/.ssh, agent и keyboard-interactive")
         void clientIgnoresLocalSshConfiguration() throws Exception {
             ClientStub stub = new ClientStub();
@@ -495,6 +521,26 @@ class SshExecutorTest {
             assertFalse(exchangeNames.contains("diffie-hellman-group14-sha1"), exchangeNames.toString());
             assertFalse(exchangeNames.contains("diffie-hellman-group-exchange-sha1"), exchangeNames.toString());
             assertTrue(exchangeNames.contains("curve25519-sha256"), exchangeNames.toString());
+        }
+    }
+
+    @Nested
+    @DisplayName("незакреплённый ключ сервера")
+    class UnpinnedHostKey {
+
+        @Test
+        @DisplayName("execute без отпечатка падает до создания клиента и не занимает permit")
+        void executeRefusesWithoutPinnedFingerprint() throws Exception {
+            SshExecutor executor = executor(() -> {
+                throw new AssertionError("no client without a pinned host key");
+            }, publicTargets(publicAddress()));
+
+            for (int i = 0; i < 17; i++) {
+                ConnectorException failure = assertThrows(ConnectorException.class,
+                        () -> executor.execute("conn", learningConfig(), command()));
+                assertTrue(failure.getMessage().contains("no pinned host key"), failure.getMessage());
+                assertNoPermitLeak(failure.getMessage());
+            }
         }
     }
 

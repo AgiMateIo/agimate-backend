@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Facade of the SSH connector: the credential form and the one tool of {@link SshToolService}. The
@@ -28,6 +29,8 @@ public class SshConnectorService extends BaseConnectorHandler implements Integra
     /** The SSH setup, authentication and teardown around the command's own timeout. */
     private static final long POLICY_GRACE_SECONDS = 60L;
 
+    static final String FIELD_HOST_KEY_FINGERPRINT = "hostKeyFingerprint";
+
     private static final Map<String, CredentialField> CREDENTIAL_FIELDS = credentialFields();
 
     private final SshExecutor executor;
@@ -42,7 +45,6 @@ public class SshConnectorService extends BaseConnectorHandler implements Integra
         fields.put("host", CredentialField.required("Host name or IP address", Type.TEXT));
         fields.put("port", CredentialField.optional("Port (default 22)", Type.TEXT));
         fields.put("username", CredentialField.required("User name", Type.TEXT));
-        fields.put("hostKeyFingerprint", CredentialField.required("Host key fingerprint (SHA256:…)", Type.TEXT));
         fields.put("privateKey",
                 CredentialField.optional("Private key in OpenSSH format", Type.SECRET).withMultiline());
         fields.put("privateKeyPassphrase", CredentialField.optional("Private key passphrase", Type.SECRET));
@@ -62,8 +64,8 @@ public class SshConnectorService extends BaseConnectorHandler implements Integra
 
     @Override
     public String connectorDescription() {
-        return "A server reached over SSH: the agent runs commands there with a key or a password, "
-                + "and only when the host key matches the pinned fingerprint.";
+        return "A server reached over SSH: the agent runs commands there with a key or a password. "
+                + "The host key is pinned on the first connection, and a later change is refused.";
     }
 
     /** Two connections to one host are two accounts on it. */
@@ -77,7 +79,17 @@ public class SshConnectorService extends BaseConnectorHandler implements Integra
         return CREDENTIAL_FIELDS;
     }
 
-    /** Handshake and authentication only — a validation never runs a command. */
+    /** The fingerprint the first validation learned is open: the owner reads it back from the connection. */
+    @Override
+    public Set<String> openDerivedKeys() {
+        return Set.of(FIELD_HOST_KEY_FINGERPRINT);
+    }
+
+    /**
+     * Handshake and authentication only — a validation never runs a command. Without a fingerprint
+     * the check learns the presented key and returns it for the connection to pin; with one it
+     * verifies exactly as every later check and execution does.
+     */
     @Override
     public IntegrationValidationResult validateCredentials(Map<String, String> credentials) {
         SshConnectionConfig config;
@@ -86,13 +98,20 @@ public class SshConnectorService extends BaseConnectorHandler implements Integra
         } catch (SshConnectionConfig.ValidationException e) {
             return IntegrationValidationResult.failure(e.field(), e.getMessage());
         }
+        String hostKeyFingerprint;
         try {
-            executor.validate(config);
+            hostKeyFingerprint = executor.validate(config);
         } catch (ConnectorException e) {
             return IntegrationValidationResult.failure(failureField(e, config), e.getMessage());
         }
+        if (hostKeyFingerprint == null) {
+            // Without a pin the connection would be created but every command would refuse to run.
+            return IntegrationValidationResult.failure("host", SshExecutor.HOST_KEY_NOT_REPORTED);
+        }
+        Map<String, String> derived = new LinkedHashMap<>(config.derivedCredentials());
+        derived.put(FIELD_HOST_KEY_FINGERPRINT, hostKeyFingerprint);
         return new IntegrationValidationResult(IntegrationValidationResult.Outcome.VALID,
-                config.identifier(), config.displayName(), null, null, config.derivedCredentials());
+                config.identifier(), config.displayName(), null, null, derived);
     }
 
     /**
@@ -102,7 +121,8 @@ public class SshConnectorService extends BaseConnectorHandler implements Integra
     private static String failureField(ConnectorException failure, SshConnectionConfig config) {
         String message = failure.getMessage() == null ? "" : failure.getMessage();
         if (message.startsWith(SshExecutor.HOST_KEY_MISMATCH)) {
-            return "hostKeyFingerprint";
+            // There is no fingerprint input to highlight any more; the owner must look at the server.
+            return "host";
         }
         if (message.startsWith(SshExecutor.AUTHENTICATION_FAILED)) {
             return config.privateKey() != null ? "privateKey" : "password";

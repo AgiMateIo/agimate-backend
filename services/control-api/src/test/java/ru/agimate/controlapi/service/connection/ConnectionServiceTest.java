@@ -14,12 +14,15 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectionCredentialStore;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
+import ru.agimate.controlapi.connectors.integrations.ssh.SshConnectionConfig;
 import ru.agimate.controlapi.connectors.integrations.ssh.SshConnectorService;
 import ru.agimate.controlapi.connectors.integrations.ssh.SshExecutor;
 import ru.agimate.controlapi.connectors.integrations.ssh.SshToolService;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.AppService;
@@ -32,9 +35,11 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -105,13 +110,13 @@ class ConnectionServiceTest {
 
         private static final String FINGERPRINT = "SHA256:XPK5yL0IgFh+Si4dkHZDeL7QuwuHYFRqH/+9dPXcS0M";
         private static final String OTHER_FINGERPRINT = "SHA256:HWWZq7WaZg2J/vjQggH4YuEAUVFyEwmNzQYNmZXyzv8";
+        private static final String HOST_KEY_MISMATCH = "SSH host key does not match the pinned fingerprint";
         private static final String PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nS3CRET-KEY-BODY\n-----END OPENSSH PRIVATE KEY-----\n";
 
         private static Map<String, String> fullCredentials() {
             Map<String, String> values = new HashMap<>();
             values.put("host", "Example.COM");
             values.put("username", "Root");
-            values.put("hostKeyFingerprint", FINGERPRINT);
             values.put("privateKey", PRIVATE_KEY);
             return values;
         }
@@ -123,27 +128,64 @@ class ConnectionServiceTest {
 
         private Connection existingConnection(String subCode) {
             Connection connection = Connection.builder()
-                    .id(CONNECTION_ID).userId(USER_ID).connectorCode("ssh").subCode(subCode).build();
+                    .id(CONNECTION_ID).userId(USER_ID).connectorCode("ssh").subCode(subCode)
+                    .params(new HashMap<>(Map.of("host", "example.com", "port", "22",
+                            "username", "root", "hostKeyFingerprint", FINGERPRINT)))
+                    .build();
             when(connectionRepository.findByIdNotDeleted(CONNECTION_ID)).thenReturn(Optional.of(connection));
             when(credentialStore.read(connection)).thenReturn(Map.of());
             return connection;
         }
 
         @Test
-        @DisplayName("полный набор с прежним subCode — validate, затем запись с каноническими host/port")
+        @DisplayName("полный набор с прежним subCode — validate, затем запись с каноническими host/port и отпечатком")
         void writesAfterValidation() {
             sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(FINGERPRINT);
             Connection connection = existingConnection("Root@example.com:22");
 
             service.updateSecret(CONNECTION_ID, USER_ID, fullCredentials());
 
             InOrder order = inOrder(sshExecutor, credentialStore);
-            order.verify(sshExecutor).validate(any());
+            order.verify(sshExecutor).validate(argThat((SshConnectionConfig config) ->
+                    FINGERPRINT.equals(config.hostKeyFingerprint())));
             order.verify(credentialStore).write(eq(connection), argThat((Map<String, String> written) ->
                     "example.com".equals(written.get("host"))
                             && "22".equals(written.get("port"))
                             && "Root".equals(written.get("username"))
+                            && FINGERPRINT.equals(written.get("hostKeyFingerprint"))
                             && PRIVATE_KEY.equals(written.get("privateKey"))));
+        }
+
+        @Test
+        @DisplayName("закреплённый отпечаток подставляется из params, присланный клиентом игнорируется")
+        void storedFingerprintIsSeededIntoValidation() {
+            sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(FINGERPRINT);
+            existingConnection("Root@example.com:22");
+            Map<String, String> credentials = fullCredentials();
+            credentials.put("hostKeyFingerprint", OTHER_FINGERPRINT);
+
+            service.updateSecret(CONNECTION_ID, USER_ID, credentials);
+
+            verify(sshExecutor).validate(argThat((SshConnectionConfig config) ->
+                    FINGERPRINT.equals(config.hostKeyFingerprint())));
+        }
+
+        @Test
+        @DisplayName("смена ключа сервера — проверка отклоняет обновление до записи")
+        void changedServerKeyRejectsUpdate() {
+            sshHandler();
+            doThrow(new ConnectorException(HOST_KEY_MISMATCH + " (expected a / actual b)"))
+                    .when(sshExecutor).validate(any());
+            existingConnection("Root@example.com:22");
+
+            ValidationErrorStatusException failure = assertThrows(ValidationErrorStatusException.class,
+                    () -> service.updateSecret(CONNECTION_ID, USER_ID, fullCredentials()));
+
+            assertEquals(Map.of("host", HOST_KEY_MISMATCH + " (expected a / actual b)"),
+                    failure.getFields());
+            verify(credentialStore, never()).write(any(), any());
         }
 
         @Test
@@ -151,6 +193,7 @@ class ConnectionServiceTest {
         @SuppressWarnings("unchecked")
         void writesCanonicalHostAndPortToStore() {
             sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(FINGERPRINT);
             Connection connection = existingConnection("Root@example.com:22");
 
             service.updateSecret(CONNECTION_ID, USER_ID, fullCredentials());
@@ -160,12 +203,14 @@ class ConnectionServiceTest {
             assertEquals("Root", written.getValue().get("username"));
             assertEquals("example.com", written.getValue().get("host"));
             assertEquals("22", written.getValue().get("port"));
+            assertEquals(FINGERPRINT, written.getValue().get("hostKeyFingerprint"));
         }
 
         @Test
         @DisplayName("изменённый host — BadRequest, запись не выполняется")
         void differentHostIsRefused() {
             sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(FINGERPRINT);
             existingConnection("root@example.com:22");
             Map<String, String> credentials = fullCredentials();
             credentials.put("username", "root");
@@ -182,6 +227,7 @@ class ConnectionServiceTest {
         @DisplayName("изменённый username — BadRequest, запись не выполняется")
         void differentUsernameIsRefused() {
             sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(FINGERPRINT);
             existingConnection("root@example.com:22");
             Map<String, String> credentials = fullCredentials();
             credentials.put("username", "Admin");
@@ -211,18 +257,84 @@ class ConnectionServiceTest {
         }
 
         @Test
-        @DisplayName("новый fingerprint с полным секретом — повторная validate и запись")
-        void newFingerprintRevalidatesAndWrites() {
+        @DisplayName("тот же выученный отпечаток — обновление проходит")
+        void sameFingerprintIsAllowed() {
             sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(FINGERPRINT);
             Connection connection = existingConnection("Root@example.com:22");
-            Map<String, String> credentials = fullCredentials();
-            credentials.put("hostKeyFingerprint", OTHER_FINGERPRINT);
 
-            service.updateSecret(CONNECTION_ID, USER_ID, credentials);
+            service.updateSecret(CONNECTION_ID, USER_ID, fullCredentials());
 
-            verify(sshExecutor).validate(any());
-            verify(credentialStore).write(eq(connection), argThat((Map<String, String> written) ->
-                    OTHER_FINGERPRINT.equals(written.get("hostKeyFingerprint"))));
+            verify(credentialStore).write(eq(connection), any());
+        }
+
+        @Test
+        @DisplayName("страховка: обработчик вернул другой отпечаток — BadRequest с ожидаемым и полученным")
+        void changedFingerprintIsRefused() {
+            sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(OTHER_FINGERPRINT);
+            existingConnection("Root@example.com:22");
+
+            BadRequestStatusException failure = assertThrows(BadRequestStatusException.class,
+                    () -> service.updateSecret(CONNECTION_ID, USER_ID, fullCredentials()));
+
+            assertTrue(failure.getMessage().contains("hostKeyFingerprint"), failure.getMessage());
+            assertTrue(failure.getMessage().contains(FINGERPRINT), failure.getMessage());
+            assertTrue(failure.getMessage().contains(OTHER_FINGERPRINT), failure.getMessage());
+            verify(credentialStore, never()).write(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("create — производные credentials")
+    class Create {
+
+        private static final String FINGERPRINT = "SHA256:XPK5yL0IgFh+Si4dkHZDeL7QuwuHYFRqH/+9dPXcS0M";
+
+        private void sshHandler() {
+            when(connectorRepository.findById("ssh")).thenReturn(Optional.of(
+                    Connector.builder().code("ssh").credentialFields(Map.of("host", "Host")).build()));
+            when(connectorRegistry.findIntegrationHandler("ssh")).thenReturn(Optional.of(
+                    new SshConnectorService(new SshToolService(sshExecutor), sshExecutor)));
+        }
+
+        private static Map<String, String> credentials() {
+            Map<String, String> credentials = new HashMap<>();
+            credentials.put("host", "Example.COM");
+            credentials.put("username", "Root");
+            credentials.put("privateKey", "-----BEGIN OPENSSH PRIVATE KEY-----\nKEY-BODY\n-----END OPENSSH PRIVATE KEY-----\n");
+            return credentials;
+        }
+
+        @Test
+        @DisplayName("выученный при проверке отпечаток и канонические host/port уходят в запись")
+        @SuppressWarnings("unchecked")
+        void writesDerivedCredentials() {
+            sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(FINGERPRINT);
+            when(connectionRepository.save(any(Connection.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
+
+            service.create(USER_ID, "ssh", credentials(), null);
+
+            ArgumentCaptor<Map<String, String>> written = ArgumentCaptor.forClass(Map.class);
+            verify(credentialStore).write(any(Connection.class), written.capture());
+            assertEquals("example.com", written.getValue().get("host"));
+            assertEquals("22", written.getValue().get("port"));
+            assertEquals(FINGERPRINT, written.getValue().get("hostKeyFingerprint"));
+        }
+
+        @Test
+        @DisplayName("executor не вернул отпечаток — validation failure, подключение не сохраняется")
+        void missingLearnedFingerprintIsNotPersisted() {
+            sshHandler();
+            when(sshExecutor.validate(any())).thenReturn(null);
+
+            assertThrows(ValidationErrorStatusException.class,
+                    () -> service.create(USER_ID, "ssh", credentials(), null));
+
+            verify(credentialStore, never()).write(any(), any());
+            verify(connectionRepository, never()).save(any());
         }
     }
 }

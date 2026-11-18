@@ -6,6 +6,7 @@ import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A connector to an external platform: it acts on the user's behalf using their credentials (the
@@ -17,6 +18,15 @@ public interface IntegrationConnectorHandler extends ConnectorHandler {
     Map<String, CredentialField> getCredentialFields();
 
     IntegrationValidationResult validateCredentials(Map<String, String> credentials);
+
+    /**
+     * Keys of {@link #validateCredentials} results that are open values, not secrets: they are kept
+     * in {@code connections.params} where the owner can read them back. Empty by default — what a
+     * check discovers otherwise belongs to the connection's secret.
+     */
+    default Set<String> openDerivedKeys() {
+        return Set.of();
+    }
 
     /**
      * Whether one user may hold several connections to the same platform instance. False by default,

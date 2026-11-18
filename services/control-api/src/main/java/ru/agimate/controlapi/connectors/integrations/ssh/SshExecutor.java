@@ -71,6 +71,8 @@ public class SshExecutor {
     private static final String REFUSED_TARGET = "Connection to this SSH host is not allowed";
     private static final String CONNECT_FAILED = "Unable to establish an SSH connection";
     static final String HOST_KEY_MISMATCH = "SSH host key does not match the pinned fingerprint";
+    static final String HOST_KEY_NOT_REPORTED = "SSH host key was not reported";
+    static final String NO_PINNED_HOST_KEY = "SSH connection has no pinned host key; create the connection again";
     static final String AUTHENTICATION_FAILED = "SSH authentication failed";
     private static final String COMMAND_NOT_STARTED = "Unable to start the SSH command";
     private static final String UNKNOWN_OUTCOME = "The SSH command outcome is unknown after a connection failure";
@@ -104,11 +106,20 @@ public class SshExecutor {
         this.targets = targets;
     }
 
-    /** Handshake and authentication only: proves the credentials and the pinned key reach a shell. */
-    public void validate(SshConnectionConfig config) {
+    /**
+     * Handshake and authentication only: proves the credentials reach a shell and returns the host
+     * key fingerprint the server presented — the pinned one, or the one just learned when the config
+     * carries none.
+     */
+    public String validate(SshConnectionConfig config) {
         acquireNodePermit();
         try {
-            openSession(config).close();
+            OpenedSession opened = openSession(config);
+            try {
+                return opened.hostKeyFingerprint();
+            } finally {
+                opened.close();
+            }
         } finally {
             nodePermits.release();
         }
@@ -118,6 +129,7 @@ public class SshExecutor {
         if (connectionId == null || connectionId.isBlank()) {
             throw new ConnectorException("SSH connection is not available");
         }
+        requirePinnedHostKey(config);
         acquireNodePermit();
         try {
             Semaphore permits = connectionPermits.computeIfAbsent(connectionId,
@@ -135,6 +147,17 @@ public class SshExecutor {
         }
     }
 
+    /**
+     * A config without a pinned fingerprint comes from a first validation. Learning the key is that
+     * validation's job; doing it again here would silently re-pin a changed server and run a command
+     * against a machine nobody trusted.
+     */
+    private static void requirePinnedHostKey(SshConnectionConfig config) {
+        if (config.hostKeyFingerprint() == null) {
+            throw new ConnectorException(NO_PINNED_HOST_KEY);
+        }
+    }
+
     private void acquireNodePermit() {
         if (!nodePermits.tryAcquire()) {
             throw new ConnectorException(BUSY_NODE);
@@ -142,6 +165,7 @@ public class SshExecutor {
     }
 
     private SshCommandResult runCommand(SshConnectionConfig config, SshCommand command) {
+        requirePinnedHostKey(config);
         OpenedSession opened = openSession(config);
         try {
             return runCommand(opened, command);
@@ -198,7 +222,7 @@ public class SshExecutor {
         for (InetSocketAddress endpoint : endpoints) {
             Attempt attempt = attemptConnect(config, keyPair, endpoint, verifier);
             if (attempt != null) {
-                return new OpenedSession(attempt.client(), attempt.session());
+                return new OpenedSession(attempt.client(), attempt.session(), verifier.learnedFingerprint());
             }
         }
         throw new ConnectorException(CONNECT_FAILED);
@@ -386,7 +410,7 @@ public class SshExecutor {
     private record Attempt(SshClient client, ClientSession session) {
     }
 
-    private record OpenedSession(SshClient client, ClientSession session) {
+    private record OpenedSession(SshClient client, ClientSession session, String hostKeyFingerprint) {
 
         void close() {
             closeSession(session);

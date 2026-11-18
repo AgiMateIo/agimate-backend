@@ -6,10 +6,11 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * One SSH account on one server, built from the connector's credential form. The host, port,
- * username and fingerprint are open values; the private key, its passphrase and the password are
- * authentication secrets. Exactly one of the key and the password is present. The record's
- * generated {@code toString()} is overridden because it would otherwise spell every secret out.
+ * One SSH account on one server, built from the connector's credentials. The host, port and username
+ * are open values; {@code hostKeyFingerprint} is open too, but stays absent until the first
+ * validation learns it. The private key, its passphrase and the password are authentication secrets.
+ * Exactly one of the key and the password is present. The record's generated {@code toString()} is
+ * overridden because it would otherwise spell every secret out.
  */
 public record SshConnectionConfig(
         String host,
@@ -26,7 +27,7 @@ public record SshConnectionConfig(
         host = normalizeHost(host);
         port = requirePort(port);
         username = normalizeUsername(username);
-        hostKeyFingerprint = requireFingerprint(hostKeyFingerprint);
+        hostKeyFingerprint = optionalFingerprint(hostKeyFingerprint);
         privateKey = presentOrNull(privateKey);
         privateKeyPassphrase = presentOrNull(privateKeyPassphrase);
         password = presentOrNull(password);
@@ -92,7 +93,11 @@ public record SshConnectionConfig(
         return value;
     }
 
-    private static String requireFingerprint(String fingerprint) {
+    /** Absent before the first validation learns the key; a present value must be an OpenSSH fingerprint. */
+    private static String optionalFingerprint(String fingerprint) {
+        if (fingerprint == null || fingerprint.isBlank()) {
+            return null;
+        }
         String normalized = SshHostKeyVerifier.normalizeFingerprint(fingerprint);
         if (normalized == null) {
             throw new ValidationException("hostKeyFingerprint", "SSH host key fingerprint must be an OpenSSH SHA256: value");

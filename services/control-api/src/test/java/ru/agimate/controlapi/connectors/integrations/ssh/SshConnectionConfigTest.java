@@ -38,6 +38,13 @@ class SshConnectionConfigTest {
         return values;
     }
 
+    /** A first connection: the platform has not learned the server key yet. */
+    private static Map<String, String> learningCredentials() {
+        Map<String, String> values = credentials();
+        values.remove("hostKeyFingerprint");
+        return values;
+    }
+
     private static SshConnectionConfig.ValidationException rejected(Map<String, String> values) {
         return assertThrows(SshConnectionConfig.ValidationException.class,
                 () -> SshConnectionConfig.fromCredentials(values));
@@ -135,6 +142,21 @@ class SshConnectionConfigTest {
 
             assertEquals(FINGERPRINT, SshConnectionConfig.fromCredentials(values).hostKeyFingerprint());
         }
+
+        @Test
+        @DisplayName("отсутствующий fingerprint допустим: режим изучения при первой проверке")
+        void absentFingerprint() {
+            assertNull(SshConnectionConfig.fromCredentials(learningCredentials()).hostKeyFingerprint());
+        }
+
+        @Test
+        @DisplayName("fingerprint из одних пробелов считается отсутствующим")
+        void blankFingerprintIsAbsent() {
+            Map<String, String> values = learningCredentials();
+            values.put("hostKeyFingerprint", "   ");
+
+            assertNull(SshConnectionConfig.fromCredentials(values).hostKeyFingerprint());
+        }
     }
 
     @Nested
@@ -173,15 +195,6 @@ class SshConnectionConfigTest {
             values.put("username", "\t");
 
             assertEquals("username", rejected(values).field());
-        }
-
-        @Test
-        @DisplayName("отклоняет пустой fingerprint ключа сервера")
-        void blankFingerprint() {
-            Map<String, String> values = credentials();
-            values.put("hostKeyFingerprint", " ");
-
-            assertEquals("hostKeyFingerprint", rejected(values).field());
         }
 
         @Test

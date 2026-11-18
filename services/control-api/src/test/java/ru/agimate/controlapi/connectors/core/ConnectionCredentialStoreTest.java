@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,6 +58,10 @@ class ConnectionCredentialStoreTest {
 
     private static Connection connection(UUID secretId) {
         return Connection.builder().id(CONNECTION_ID).connectorCode("mcp").secretId(secretId).build();
+    }
+
+    private ConnectionCredentialStore storeWith(IntegrationConnectorHandler handler) {
+        return new ConnectionCredentialStore(new ConnectorRegistry(List.of(handler)), secretRepository, secretService);
     }
 
     @Nested
@@ -102,6 +107,62 @@ class ConnectionCredentialStoreTest {
 
             assertEquals(SECRET_ID, connection.getSecretId());
             assertEquals(Map.of("url", "https://x/mcp"), connection.getParams());
+        }
+
+        @Test
+        @DisplayName("необъявленный ключ из openDerivedKeys уходит в params")
+        void openDerivedUndeclaredGoesOpen() {
+            IntegrationConnectorHandler handler = mock(IntegrationConnectorHandler.class);
+            when(handler.connectorCode()).thenReturn("ssh");
+            when(handler.getCredentialFields()).thenReturn(Map.of(
+                    "host", CredentialField.required("Host", Type.TEXT)));
+            when(handler.openDerivedKeys()).thenReturn(Set.of("hostKeyFingerprint"));
+            Connection connection = Connection.builder()
+                    .id(CONNECTION_ID).connectorCode("ssh").secretId(SECRET_ID).build();
+            when(secretRepository.findById(SECRET_ID)).thenReturn(Optional.of(secret));
+
+            storeWith(handler).write(connection, Map.of(
+                    "host", "example.com", "hostKeyFingerprint", "SHA256:x"));
+
+            assertEquals(Map.of("host", "example.com", "hostKeyFingerprint", "SHA256:x"),
+                    connection.getParams());
+            verify(secretService).update(secret, CONNECTION_ID, Map.of());
+        }
+
+        @Test
+        @DisplayName("объявленный SECRET не открывается, даже если назван в openDerivedKeys")
+        void declaredSecretNeverGoesOpen() {
+            IntegrationConnectorHandler handler = mock(IntegrationConnectorHandler.class);
+            when(handler.connectorCode()).thenReturn("ssh");
+            when(handler.getCredentialFields()).thenReturn(Map.of(
+                    "token", CredentialField.optional("Token", Type.SECRET)));
+            when(handler.openDerivedKeys()).thenReturn(Set.of("token"));
+            Connection connection = Connection.builder()
+                    .id(CONNECTION_ID).connectorCode("ssh").secretId(SECRET_ID).build();
+            when(secretRepository.findById(SECRET_ID)).thenReturn(Optional.of(secret));
+
+            storeWith(handler).write(connection, Map.of("token", "s3cret"));
+
+            assertTrue(connection.getParams().isEmpty());
+            verify(secretService).update(secret, CONNECTION_ID, Map.of("token", "s3cret"));
+        }
+
+        @Test
+        @DisplayName("пустой openDerivedKeys оставляет необъявленный ключ в секрете")
+        void defaultOpenDerivedKeepsSecret() {
+            IntegrationConnectorHandler handler = mock(IntegrationConnectorHandler.class);
+            when(handler.connectorCode()).thenReturn("ssh");
+            when(handler.getCredentialFields()).thenReturn(Map.of(
+                    "host", CredentialField.required("Host", Type.TEXT)));
+            when(handler.openDerivedKeys()).thenReturn(Set.of());
+            Connection connection = Connection.builder()
+                    .id(CONNECTION_ID).connectorCode("ssh").secretId(SECRET_ID).build();
+            when(secretRepository.findById(SECRET_ID)).thenReturn(Optional.of(secret));
+
+            storeWith(handler).write(connection, Map.of("host", "example.com", "extra", "x"));
+
+            assertEquals(Map.of("host", "example.com"), connection.getParams());
+            verify(secretService).update(secret, CONNECTION_ID, Map.of("extra", "x"));
         }
     }
 

@@ -141,9 +141,6 @@ class SshHostKeyVerifierTest {
         @DisplayName("отклоняет некорректный fingerprint до сетевого вызова")
         void malformedRejected() {
             String[] malformed = {
-                    null,
-                    "",
-                    "   ",
                     "SHA256:",
                     "SHA256:short",
                     "MD5:aa:bb:cc",
@@ -164,6 +161,48 @@ class SshHostKeyVerifierTest {
             SshHostKeyVerifier verifier = new SshHostKeyVerifier(" " + ED25519_FINGERPRINT + "\n");
 
             assertTrue(verifier.verifyServerKey(null, null, ed25519Key()));
+        }
+    }
+
+    @Nested
+    @DisplayName("режим изучения")
+    class LearnMode {
+
+        @Test
+        @DisplayName("без закреплённого отпечатка принимает представленный ключ и запоминает его")
+        void learnsPresentedKey() throws Exception {
+            SshHostKeyVerifier verifier = new SshHostKeyVerifier(null);
+
+            assertTrue(verifier.verifyServerKey(null, null, ed25519Key()));
+            assertEquals(ED25519_FINGERPRINT, verifier.learnedFingerprint());
+            assertNull(verifier.lastMismatch());
+        }
+
+        @Test
+        @DisplayName("пустой отпечаток тоже включает режим изучения")
+        void blankStartsLearnMode() throws Exception {
+            for (String blank : new String[]{null, "", "   "}) {
+                SshHostKeyVerifier verifier = new SshHostKeyVerifier(blank);
+
+                assertTrue(verifier.verifyServerKey(null, null, rsaKey()), String.valueOf(blank));
+                assertEquals(RSA_FINGERPRINT, verifier.learnedFingerprint(), String.valueOf(blank));
+            }
+        }
+
+        @Test
+        @DisplayName("до первой проверки выученного отпечатка нет")
+        void nothingLearnedBeforeCheck() {
+            assertNull(new SshHostKeyVerifier(null).learnedFingerprint());
+        }
+
+        @Test
+        @DisplayName("закреплённый отпечаток после успешной проверки остаётся закреплённым")
+        void pinnedFingerprintIsReported() throws Exception {
+            SshHostKeyVerifier verifier = new SshHostKeyVerifier(ED25519_FINGERPRINT);
+
+            assertTrue(verifier.verifyServerKey(null, null, ed25519Key()));
+
+            assertEquals(ED25519_FINGERPRINT, verifier.learnedFingerprint());
         }
     }
 }

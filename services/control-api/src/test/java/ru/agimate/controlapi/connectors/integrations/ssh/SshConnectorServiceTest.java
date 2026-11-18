@@ -24,17 +24,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SshConnectorService")
 class SshConnectorServiceTest {
 
     private static final String FINGERPRINT = "SHA256:XPK5yL0IgFh+Si4dkHZDeL7QuwuHYFRqH/+9dPXcS0M";
-    private static final String OTHER_FINGERPRINT = "SHA256:HWWZq7WaZg2J/vjQggH4YuEAUVFyEwmNzQYNmZXyzv8";
     private static final String PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nS3CRET-KEY-BODY\n-----END OPENSSH PRIVATE KEY-----\n";
     private static final String PASSWORD = "PaSSword-VALUE";
 
@@ -52,7 +53,6 @@ class SshConnectorServiceTest {
         Map<String, String> values = new HashMap<>();
         values.put("host", "example.com");
         values.put("username", "root");
-        values.put("hostKeyFingerprint", FINGERPRINT);
         values.put("privateKey", PRIVATE_KEY);
         return values;
     }
@@ -79,9 +79,9 @@ class SshConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("поля идут в порядке формы")
+        @DisplayName("поля идут в порядке формы; отпечатка ключа сервера в форме нет")
         void credentialFieldOrder() {
-            assertEquals(List.of("host", "port", "username", "hostKeyFingerprint",
+            assertEquals(List.of("host", "port", "username",
                             "privateKey", "privateKeyPassphrase", "password"),
                     new ArrayList<>(connector.getCredentialFields().keySet()));
         }
@@ -94,10 +94,15 @@ class SshConnectorServiceTest {
             assertField(fields.get("host"), CredentialField.Type.TEXT, true, false);
             assertField(fields.get("port"), CredentialField.Type.TEXT, false, false);
             assertField(fields.get("username"), CredentialField.Type.TEXT, true, false);
-            assertField(fields.get("hostKeyFingerprint"), CredentialField.Type.TEXT, true, false);
             assertField(fields.get("privateKey"), CredentialField.Type.SECRET, false, true);
             assertField(fields.get("privateKeyPassphrase"), CredentialField.Type.SECRET, false, false);
             assertField(fields.get("password"), CredentialField.Type.SECRET, false, false);
+        }
+
+        @Test
+        @DisplayName("выученный отпечаток хранится открыто в params")
+        void learnedFingerprintIsOpen() {
+            assertTrue(connector.openDerivedKeys().contains(SshConnectorService.FIELD_HOST_KEY_FINGERPRINT));
         }
 
         private static void assertField(CredentialField field, CredentialField.Type type,
@@ -174,8 +179,9 @@ class SshConnectorServiceTest {
     class ValidateCredentials {
 
         @Test
-        @DisplayName("успех: только validate, без команды, с каноническими host/port")
+        @DisplayName("успех: только validate, без команды, с каноническими host/port и выученным отпечатком")
         void success() {
+            when(executor.validate(any(SshConnectionConfig.class))).thenReturn(FINGERPRINT);
             Map<String, String> credentials = keyCredentials();
             credentials.put("host", "Example.COM");
             credentials.put("username", "Root");
@@ -185,7 +191,9 @@ class SshConnectorServiceTest {
             assertEquals(IntegrationValidationResult.Outcome.VALID, result.outcome());
             assertEquals("Root@example.com:22", result.identifier());
             assertEquals("SSH: Root@example.com:22", result.displayName());
-            assertEquals(Map.of("host", "example.com", "port", "22"), result.derivedCredentials());
+            assertEquals(Map.of("host", "example.com", "port", "22",
+                            "hostKeyFingerprint", FINGERPRINT),
+                    result.derivedCredentials());
             verify(executor).validate(any(SshConnectionConfig.class));
             verify(executor, never()).execute(any(), any(), any());
         }
@@ -193,13 +201,15 @@ class SshConnectorServiceTest {
         @Test
         @DisplayName("успех с явным портом")
         void explicitPort() {
+            when(executor.validate(any(SshConnectionConfig.class))).thenReturn(FINGERPRINT);
             Map<String, String> credentials = passwordCredentials();
             credentials.put("port", "2222");
 
             IntegrationValidationResult result = connector.validateCredentials(credentials);
 
             assertEquals("root@example.com:2222", result.identifier());
-            assertEquals(Map.of("host", "example.com", "port", "2222"), result.derivedCredentials());
+            assertEquals(Map.of("host", "example.com", "port", "2222",
+                    "hostKeyFingerprint", FINGERPRINT), result.derivedCredentials());
         }
 
         @Test
@@ -228,7 +238,7 @@ class SshConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("несовпадение отпечатка ключа хоста — поле hostKeyFingerprint")
+        @DisplayName("несовпадение отпечатка ключа хоста — поле host, в сообщении expected/actual")
         void hostKeyMismatch() {
             doThrow(new ConnectorException(SshExecutor.HOST_KEY_MISMATCH + " (expected a / actual b)"))
                     .when(executor).validate(any(SshConnectionConfig.class));
@@ -236,8 +246,9 @@ class SshConnectorServiceTest {
             IntegrationValidationResult result = connector.validateCredentials(keyCredentials());
 
             assertFalse(result.valid());
-            assertEquals("hostKeyFingerprint", result.errorField());
+            assertEquals("host", result.errorField());
             assertTrue(result.errorMessage().startsWith(SshExecutor.HOST_KEY_MISMATCH));
+            assertTrue(result.errorMessage().contains("expected a / actual b"));
         }
 
         @Test
@@ -300,15 +311,29 @@ class SshConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("вызов валидации с новым отпечатком — тот же путь, без команды")
-        void newFingerprintStillValidationOnly() {
+        @DisplayName("executor не сообщил отпечаток — INVALID на поле host")
+        void missingLearnedFingerprintIsInvalid() {
+            when(executor.validate(any(SshConnectionConfig.class))).thenReturn(null);
+
+            IntegrationValidationResult result = connector.validateCredentials(keyCredentials());
+
+            assertFalse(result.valid());
+            assertEquals("host", result.errorField());
+            assertEquals(SshExecutor.HOST_KEY_NOT_REPORTED, result.errorMessage());
+        }
+
+        @Test
+        @DisplayName("сохранённый отпечаток из params проверяется как закреплённый")
+        void storedFingerprintIsPinned() {
+            when(executor.validate(any(SshConnectionConfig.class))).thenReturn(FINGERPRINT);
             Map<String, String> credentials = keyCredentials();
-            credentials.put("hostKeyFingerprint", OTHER_FINGERPRINT);
+            credentials.put("hostKeyFingerprint", FINGERPRINT);
 
             IntegrationValidationResult result = connector.validateCredentials(credentials);
 
             assertTrue(result.valid());
-            verify(executor).validate(any(SshConnectionConfig.class));
+            verify(executor).validate(argThat((SshConnectionConfig config) ->
+                    FINGERPRINT.equals(config.hostKeyFingerprint())));
             verify(executor, never()).execute(any(), any(), any());
         }
     }

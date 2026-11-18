@@ -217,7 +217,17 @@ public class ConnectionService {
                             + "editing credentials");
         }
         var handler = integrationHandler(connection.getConnectorCode());
-        credentials = CredentialField.normalize(handler.getCredentialFields(), credentials);
+        Map<String, String> storedOpen = connection.getParams() == null ? Map.of() : connection.getParams();
+        // A derived open value is the platform's own discovery — the SSH pin above all. It must not
+        // be client-controlled, and the handler has to verify it before it sends any credential.
+        Map<String, String> request = new LinkedHashMap<>(credentials);
+        for (String key : handler.openDerivedKeys()) {
+            String derived = storedOpen.get(key);
+            if (derived != null) {
+                request.put(key, derived);
+            }
+        }
+        credentials = CredentialField.normalize(handler.getCredentialFields(), request);
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -233,6 +243,17 @@ public class ConnectionService {
 
         Map<String, String> stored = new LinkedHashMap<>(credentials);
         stored.putAll(validationResult.derivedCredentials());
+
+        // Defence in depth: the seeded pin makes a changed server fail the handshake above, and this
+        // still catches any handler that reports a different discovery instead of rejecting it.
+        validationResult.derivedCredentials().forEach((key, discovered) -> {
+            String previous = storedOpen.get(key);
+            if (previous != null && !previous.equals(discovered)) {
+                throw new BadRequestStatusException("Discovered " + key + " differs from the stored one: stored "
+                        + previous + ", discovered " + discovered);
+            }
+        });
+
         credentialStore.write(connection, stored);
 
         if (handler.supportsWebhooks()) {
