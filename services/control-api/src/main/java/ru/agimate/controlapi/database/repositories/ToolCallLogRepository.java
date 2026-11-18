@@ -94,6 +94,63 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
     /** Best-effort check after the claim: the row was finalized in the window before the tool ran. */
     boolean existsByIdAndFinishAtIsNull(UUID id);
 
+    /** Whether some attempt already claimed the row — a pre-claim failure must not write over it. */
+    boolean existsByIdAndDispatchAtIsNotNull(UUID id);
+
+    /**
+     * The single finalizer of a non-replayable call, whatever the outcome: success, a safe error, a
+     * cancellation after the claim, or the {@code unknown} recovery writes for a lost execution.
+     * Guarded on {@code finish_at}: exactly one caller changes the row, and only that caller may
+     * deliver the result — a late actual result must not overwrite an {@code unknown}, and a second
+     * recovery tick must not finalize the row again. No {@code clearAutomatically}: the returned row
+     * count is the truth, nothing is re-read after it.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ToolCallLog t
+            SET t.finishAt = :now, t.output = :output, t.error = :error, t.updatedAt = :now
+            WHERE t.id = :id
+              AND t.finishAt IS NULL
+            """)
+    int finishNonReplayable(@Param("id") UUID id,
+                            @Param("now") LocalDateTime now,
+                            @Param("output") String output,
+                            @Param("error") String error);
+
+    /**
+     * The two windows recovery closes: a claimed attempt that outlived its deadline (its executor is
+     * gone, so the outcome is unknown), and a finished detached result whose process died before the
+     * {@code tool_completed} trigger was delivered. The second branch is filtered on a live,
+     * push-capable agent and a live originating run: MCP tasks have no {@code run_id}, and a
+     * cancelled parent suppresses delivery on purpose, so neither ever gets {@code delivered_at} —
+     * without the filter they would be selected every tick forever.
+     *
+     * <p>{@code MCP} is the only transport whose {@code supportsPush()} is false; a future non-push
+     * type must be added here, because the funnel intentionally never stamps {@code delivered_at}
+     * for a withheld result. The explicit {@code deletedAt IS NULL} repeats the entity's
+     * {@code @SQLRestriction} so the intent survives a removal of that annotation.
+     */
+    @Query("""
+            SELECT t FROM ToolCallLog t
+            WHERE t.dispatchAt IS NOT NULL
+              AND (
+                (t.finishAt IS NULL AND t.dispatchDeadlineAt <= :now)
+                OR
+                (t.finishAt IS NOT NULL
+                 AND t.detachedAt IS NOT NULL
+                 AND t.deliveredAt IS NULL
+                 AND t.runId IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM AgentRun r
+                             WHERE r.id = t.runId AND r.cancelRequestedAt IS NULL)
+                 AND EXISTS (SELECT 1 FROM Agent a
+                             WHERE a.id = t.agentId
+                               AND a.deletedAt IS NULL
+                               AND a.type <> ru.agimate.controlapi.database.enums.AgentType.MCP))
+              )
+            ORDER BY t.dispatchDeadlineAt
+            """)
+    List<ToolCallLog> findRecoverableDispatches(@Param("now") LocalDateTime now, Pageable pageable);
+
     /**
      * Live MCP tasks of the agent: detached, unfinished, younger than {@code cutoff} — an expired
      * orphan (a restart killed the execution mid-flight) must not eat the cap forever.

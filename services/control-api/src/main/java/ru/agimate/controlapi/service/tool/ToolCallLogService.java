@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.PageRequests;
@@ -77,6 +78,30 @@ public class ToolCallLogService {
     /** Best-effort re-check after the claim: the row may have been finalized before the tool started. */
     public boolean isUnfinished(UUID id) {
         return toolCallLogRepository.existsByIdAndFinishAtIsNull(id);
+    }
+
+    /** Whether the row was claimed by some attempt — the owner of a future outcome, not this caller. */
+    public boolean isDispatched(UUID id) {
+        return toolCallLogRepository.existsByIdAndDispatchAtIsNotNull(id);
+    }
+
+    /**
+     * The single finalizer of a non-replayable call. {@code true} — this caller owns the outcome and
+     * may deliver it; {@code false} — the row was already finalized, so the result is late and must
+     * neither overwrite the stored one nor be delivered again.
+     */
+    @Transactional
+    public boolean finishNonReplayable(UUID id, IToolResult result) {
+        return toolCallLogRepository.finishNonReplayable(
+                id, LocalDateTime.now(), result.getOutput(), result.getError()) > 0;
+    }
+
+    /**
+     * Rows recovery must look at: expired unfinished dispatches and finished detached results whose
+     * delivery never happened. The filters live in the query; {@code now} is the deadline boundary.
+     */
+    public List<ToolCallLog> findRecoverableDispatches(LocalDateTime now, int limit) {
+        return toolCallLogRepository.findRecoverableDispatches(now, PageRequest.of(0, limit));
     }
 
     @Transactional

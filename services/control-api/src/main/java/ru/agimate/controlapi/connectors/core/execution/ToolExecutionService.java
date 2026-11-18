@@ -45,8 +45,10 @@ import java.util.concurrent.TimeoutException;
  * Delivery is the only difference; the log is written the same way in both.
  *
  * <p>A {@link ToolExecutionPolicy.Kind#NON_REPLAYABLE} tool is dispatched at most once: the executor
- * claims the log row before touching the connector, and a lost claim ends the attempt silently.
- * Its result is empty then — there is nothing new to record or deliver.
+ * claims the log row before touching the connector, and a lost claim ends the attempt silently. Every
+ * outcome after a won claim — success, cancellation, an execution error, a lost finalization — is
+ * written by the same guarded UPDATE, and only the caller whose write changed the row delivers the
+ * result. A late actual result therefore never overwrites the {@code unknown} recovery wrote.
  *
  * <p>Failures never surface as exceptions: missing credentials and any execution failure turn into an
  * error tool result. {@link ConnectorException} messages are safe and are handed over as-is;
@@ -56,6 +58,9 @@ import java.util.concurrent.TimeoutException;
 @Component
 @RequiredArgsConstructor
 public class ToolExecutionService {
+
+    private static final String CANCELLED_ERROR =
+            "Cancelled: the user stopped the run before this call started";
 
     private final ConnectorRegistry connectorRegistry;
     private final ConnectionRepository connectionRepository;
@@ -136,13 +141,36 @@ public class ToolExecutionService {
             // An expected failure with a safe message (validation, a CAS conflict, no connection, …) — passed to the agent as-is
             log.warn("Tool '{}.{}' failed: {}",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getMessage());
-            return Optional.of(record(toolCallLog, null, e.getMessage()));
+            return recordUnlessDispatched(toolCallLog, e.getMessage());
         } catch (Exception e) {
             // An unexpected failure — the stack trace is kept in the log and the details are hidden from the agent
             log.error("Failed to execute '{}.{}'",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
-            return Optional.of(record(toolCallLog, null, "Tool execution failed"));
+            return recordUnlessDispatched(toolCallLog, "Tool execution failed");
         }
+    }
+
+    /**
+     * A failure before the policy is known: the row may belong to a non-replayable call another
+     * attempt has already claimed. That attempt owns the row — this one must neither write the
+     * failure over a live result nor race it through CAS. If the owner is actually dead, recovery
+     * finalizes the row as {@code unknown} at its deadline. Only an undispatched row takes the
+     * record path; a failing dispatch-state read writes nothing at all.
+     */
+    private Optional<ToolResult> recordUnlessDispatched(ToolCallLog toolCallLog, String error) {
+        boolean dispatched;
+        try {
+            dispatched = toolCallLogService.isDispatched(toolCallLog.getId());
+        } catch (Exception e) {
+            log.warn("Failed to read dispatch state of tool call {}", toolCallLog.getId());
+            return Optional.empty();
+        }
+        if (dispatched) {
+            // A duplicate replay must not finalize a row whose original attempt may still be running
+            log.info("Tool call {} is dispatched — this attempt writes nothing", toolCallLog.getId());
+            return Optional.empty();
+        }
+        return Optional.of(record(toolCallLog, null, error));
     }
 
     /** A reversible call: the pre-claim path — cancellation, env, provider, last-used, output. */
@@ -153,7 +181,7 @@ public class ToolExecutionService {
         if (cancelled(toolCallLog)) {
             log.info("Tool '{}.{}' skipped: run {} was cancelled",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), toolCallLog.getRunId());
-            return record(toolCallLog, null, "Cancelled: the user stopped the run before this call started");
+            return record(toolCallLog, null, CANCELLED_ERROR);
         }
         String output = JsonUtils.writeValueAsString(invoke(handler, toolProvider, toolCallLog));
         log.debug("Executed tool '{}.{}'", toolCallLog.getConnectorCode(), toolCallLog.getName());
@@ -163,46 +191,113 @@ public class ToolExecutionService {
     /**
      * An irreversible call: the claim comes first, and a lost claim ends the attempt before any
      * cancellation check, env build or provider call. A replay must not write over a row another
-     * attempt is running, let alone open a second connection.
+     * attempt is running, let alone open a second connection. Every outcome after a won claim is
+     * CAS-finalized; only the CAS winner's result is returned for delivery.
      */
     private Optional<ToolResult> executeNonReplayable(ConnectorHandler handler, ToolProvider toolProvider,
                                                       ToolCallLog toolCallLog, Duration executionTimeout) {
-        if (!toolCallLogService.claimDispatch(toolCallLog.getId(), executionTimeout)) {
-            log.info("Tool '{}.{}' already dispatched — replay skipped",
-                    toolCallLog.getConnectorCode(), toolCallLog.getName());
+        try {
+            if (!toolCallLogService.claimDispatch(toolCallLog.getId(), executionTimeout)) {
+                log.info("Tool '{}.{}' already dispatched — replay skipped",
+                        toolCallLog.getConnectorCode(), toolCallLog.getName());
+                return Optional.empty();
+            }
+        } catch (Exception e) {
+            // The claim is the gate: if it did not land, no row of ours exists to finalize or write.
+            // Ids only: a JDBC message can carry SQL and its parameters.
+            log.warn("Tool call {} (connector {}) dispatch claim failed",
+                    toolCallLog.getId(), toolCallLog.getConnectorCode());
             return Optional.empty();
         }
-        // Read only after the claim: a reply that lost it has no right to record "Cancelled" over the
-        // attempt already running the command.
-        if (cancelled(toolCallLog)) {
-            log.info("Tool '{}.{}' cancelled after the claim",
+        try {
+            // Read only after the claim: a reply that lost it has no right to record "Cancelled" over
+            // the attempt already running the command.
+            if (cancelled(toolCallLog)) {
+                log.info("Tool '{}.{}' cancelled after the claim",
+                        toolCallLog.getConnectorCode(), toolCallLog.getName());
+                return finish(toolCallLog, null, CANCELLED_ERROR);
+            }
+            if (!toolCallLogService.isUnfinished(toolCallLog.getId())) {
+                // Finalized in the window between the claim and here — the row is not ours to write.
+                log.info("Tool '{}.{}' was finalized after the claim — not started",
+                        toolCallLog.getConnectorCode(), toolCallLog.getName());
+                return Optional.empty();
+            }
+            Map<String, Object> result = executeProvider(handler, toolProvider, toolCallLog);
+            updateLastUsedBestEffort(handler, toolCallLog);
+            String output = JsonUtils.writeValueAsString(result);
+            log.debug("Executed non-replayable tool '{}.{}'",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
-            return Optional.of(record(toolCallLog, null,
-                    "Cancelled: the user stopped the run before this call started"));
+            return finish(toolCallLog, output, null);
+        } catch (ConnectorException e) {
+            // The safe message still goes to the agent; the log keeps ids and the outcome class only
+            log.warn("Tool call {} failed with {}",
+                    toolCallLog.getId(), e.getClass().getSimpleName());
+            return finish(toolCallLog, null, e.getMessage());
+        } catch (Exception e) {
+            // A provider exception can carry the command or its output — never log its message or trace
+            log.error("Tool call {} failed with {}",
+                    toolCallLog.getId(), e.getClass().getSimpleName());
+            return finish(toolCallLog, null, "Tool execution failed");
         }
-        if (!toolCallLogService.isUnfinished(toolCallLog.getId())) {
-            // Finalized in the window between the claim and here — the row is not ours to write.
-            log.info("Tool '{}.{}' was finalized after the claim — not started",
-                    toolCallLog.getConnectorCode(), toolCallLog.getName());
-            return Optional.empty();
-        }
-        String output = JsonUtils.writeValueAsString(invoke(handler, toolProvider, toolCallLog));
-        log.debug("Executed non-replayable tool '{}.{}'",
-                toolCallLog.getConnectorCode(), toolCallLog.getName());
-        return Optional.of(record(toolCallLog, output, null));
     }
 
-    /** Builds the env and runs the tool; the integration's last-used stamp is best-effort by design. */
+    /**
+     * The one exit for a non-replayable outcome: the guarded UPDATE decides who owns it. A lost or
+     * failed write yields no result, so nothing is delivered — the stored outcome stands.
+     */
+    private Optional<ToolResult> finish(ToolCallLog toolCallLog, String output, String error) {
+        var toolResult = new ToolResult(
+                toolCallLog.getExternalId(), toolCallLog.getConnectorCode(), output, error);
+        try {
+            if (!toolCallLogService.finishNonReplayable(toolCallLog.getId(), toolResult)) {
+                log.info("Tool '{}.{}' was finalized elsewhere — outcome not delivered",
+                        toolCallLog.getConnectorCode(), toolCallLog.getName());
+                return Optional.empty();
+            }
+        } catch (Exception e) {
+            // Without a landed write this attempt cannot prove it owns the outcome, so it must not deliver
+            log.warn("Failed to finalize tool call {}", toolCallLog.getId());
+            return Optional.empty();
+        }
+        return Optional.of(toolResult);
+    }
+
+    /**
+     * Replayable execution: env, tool and the integration's last-used stamp inside one try — a
+     * bookkeeping failure here is an execution failure. The non-replayable path stamps last-used
+     * best-effort instead, because its command has already run.
+     */
     private Map<String, Object> invoke(ConnectorHandler handler, ToolProvider toolProvider,
                                        ToolCallLog toolCallLog) {
+        Map<String, Object> result = executeProvider(handler, toolProvider, toolCallLog);
+        updateLastUsed(handler, toolCallLog);
+        return result;
+    }
+
+    private Map<String, Object> executeProvider(ConnectorHandler handler, ToolProvider toolProvider,
+                                                ToolCallLog toolCallLog) {
         ConnectorEnv env = buildEnv(handler, toolCallLog);
-        Map<String, Object> result = toolProvider.executeTool(
-                env, toolCallLog.getName(), toolCallLog.getInput());
+        return toolProvider.executeTool(env, toolCallLog.getName(), toolCallLog.getInput());
+    }
+
+    /**
+     * On the non-replayable path the command has already run: a bookkeeping failure must not turn a
+     * successful command into an error, so it is logged by id and swallowed.
+     */
+    private void updateLastUsedBestEffort(ConnectorHandler handler, ToolCallLog toolCallLog) {
+        try {
+            updateLastUsed(handler, toolCallLog);
+        } catch (Exception e) {
+            log.warn("Failed to update last-used for connection {}", toolCallLog.getConnectionId());
+        }
+    }
+
+    private void updateLastUsed(ConnectorHandler handler, ToolCallLog toolCallLog) {
         if (handler instanceof IntegrationConnectorHandler) {
             connectionRepository.updateLastUsedAt(
                     UUID.fromString(toolCallLog.getConnectionId()), LocalDateTime.now());
         }
-        return result;
     }
 
     /** Outside a run ({@code run_id} null — an MCP call, a channel reply) there is nothing to cancel. */

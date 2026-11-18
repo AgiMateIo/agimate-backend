@@ -8,11 +8,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
+import ru.agimate.controlapi.service.dto.ToolResult;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -89,6 +94,67 @@ class ToolCallLogServiceTest {
             when(toolCallLogRepository.existsByIdAndFinishAtIsNull(LOG_ID)).thenReturn(false);
 
             assertFalse(service.isUnfinished(LOG_ID));
+        }
+    }
+
+    @Nested
+    @DisplayName("finishNonReplayable")
+    class FinishNonReplayable {
+
+        @Test
+        @DisplayName("один now для finishAt/updatedAt, output и error — из результата")
+        void finishUsesSingleTimestampAndResult() {
+            var result = new ToolResult("ext-1", "ssh", "stdout", "boom");
+            when(toolCallLogRepository.finishNonReplayable(eq(LOG_ID), any(), eq("stdout"), eq("boom")))
+                    .thenReturn(1);
+
+            assertTrue(service.finishNonReplayable(LOG_ID, result));
+
+            var now = ArgumentCaptor.forClass(LocalDateTime.class);
+            verify(toolCallLogRepository)
+                    .finishNonReplayable(eq(LOG_ID), now.capture(), eq("stdout"), eq("boom"));
+            LocalDateTime captured = now.getValue();
+            assertTrue(captured.isAfter(LocalDateTime.now().minusMinutes(1)));
+        }
+
+        @Test
+        @DisplayName("ошибка finalize-ится с null output")
+        void errorResultWritesNullOutput() {
+            var result = new ToolResult("ext-1", "ssh", null, "boom");
+            when(toolCallLogRepository.finishNonReplayable(eq(LOG_ID), any(), isNull(), eq("boom")))
+                    .thenReturn(1);
+
+            assertTrue(service.finishNonReplayable(LOG_ID, result));
+
+            verify(toolCallLogRepository).finishNonReplayable(eq(LOG_ID), any(), isNull(), eq("boom"));
+        }
+
+        @Test
+        @DisplayName("строка уже завершена — CAS проигран, false")
+        void lostCasReturnsFalse() {
+            when(toolCallLogRepository.finishNonReplayable(eq(LOG_ID), any(), any(), any())).thenReturn(0);
+
+            assertFalse(service.finishNonReplayable(
+                    LOG_ID, new ToolResult("ext-1", "ssh", "stdout", null)));
+        }
+    }
+
+    @Nested
+    @DisplayName("findRecoverableDispatches")
+    class FindRecoverableDispatches {
+
+        @Test
+        @DisplayName("берёт первую страницу размером с пачку")
+        void firstBatchPage() {
+            var page = PageRequest.of(0, 100);
+            when(toolCallLogRepository.findRecoverableDispatches(any(), eq(page))).thenReturn(List.of());
+
+            assertTrue(service.findRecoverableDispatches(LocalDateTime.of(2026, 11, 18, 12, 0), 100).isEmpty());
+
+            var captured = ArgumentCaptor.forClass(Pageable.class);
+            verify(toolCallLogRepository).findRecoverableDispatches(any(), captured.capture());
+            assertEquals(page, captured.getValue());
+            assertTrue(captured.getValue().getSort().isUnsorted());
         }
     }
 }

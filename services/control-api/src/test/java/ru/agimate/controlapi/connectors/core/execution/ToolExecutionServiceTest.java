@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.task.AsyncTaskExecutor;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ToolExecutionPolicy;
@@ -31,6 +32,7 @@ import ru.agimate.controlapi.service.dto.ToolResult;
 import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -50,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -99,7 +102,7 @@ class ToolExecutionServiceTest {
 
         @Test
         @DisplayName("идёт прежним путём: отмена до env, затем исполнение и запись результата")
-        void replayableKeepsCurrentPath() {
+        void replayableStillUsesRecordOutput() {
             connector = connector(ToolExecutionPolicy.replayable());
             stubConnection();
             when(agentRunRepository.isCancelRequested(RUN_ID)).thenReturn(false);
@@ -115,7 +118,24 @@ class ToolExecutionServiceTest {
             order.verify(connectionRepository).findByIdAndUserIdNotDeleted(CONNECTION_ID, USER_ID);
             order.verify(toolCallLogService).recordOutput(eq(LOG_ID), resultWithOutput());
             verify(connectionRepository).updateLastUsedAt(eq(CONNECTION_ID), any());
+            verify(toolCallLogService, never()).finishNonReplayable(any(), any());
             verify(agentDeliveryService).deliverToolResult(eq(log), any());
+        }
+
+        @Test
+        @DisplayName("сбой журналирования не отменяет доставку replayable-результата")
+        void replayablePersistenceFailureStillDelivers() {
+            connector = connector(ToolExecutionPolicy.replayable());
+            stubConnection();
+            when(agentRunRepository.isCancelRequested(RUN_ID)).thenReturn(false);
+            doThrow(new IllegalStateException("journal is down"))
+                    .when(toolCallLogService).recordOutput(eq(LOG_ID), any());
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            assertEquals(1, connector.executions.get());
+            verify(agentDeliveryService).deliverToolResult(eq(log), resultWithOutput());
         }
 
         @Test
@@ -141,12 +161,13 @@ class ToolExecutionServiceTest {
     class NonReplayablePath {
 
         @Test
-        @DisplayName("выигранный claim: isUnfinished, env, провайдер, запись — ровно один раз")
+        @DisplayName("выигранный claim: isUnfinished, env, провайдер, CAS — ровно один раз")
         void winningClaimExecutesOnce() {
             connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
             stubConnection();
             when(toolCallLogService.claimDispatch(LOG_ID, TIMEOUT)).thenReturn(true);
             when(toolCallLogService.isUnfinished(LOG_ID)).thenReturn(true);
+            when(toolCallLogService.finishNonReplayable(eq(LOG_ID), any())).thenReturn(true);
             ToolCallLog log = log();
 
             toolExecutionService.executeTool(log);
@@ -157,8 +178,10 @@ class ToolExecutionServiceTest {
             order.verify(agentRunRepository).isCancelRequested(RUN_ID);
             order.verify(toolCallLogService).isUnfinished(LOG_ID);
             order.verify(connectionRepository).findByIdAndUserIdNotDeleted(CONNECTION_ID, USER_ID);
-            order.verify(toolCallLogService).recordOutput(eq(LOG_ID), resultWithOutput());
-            verify(agentDeliveryService).deliverToolResult(eq(log), any());
+            order.verify(connectionRepository).updateLastUsedAt(eq(CONNECTION_ID), any());
+            order.verify(toolCallLogService).finishNonReplayable(eq(LOG_ID), resultWithOutput());
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(agentDeliveryService).deliverToolResult(eq(log), resultWithOutput());
         }
 
         @Test
@@ -213,11 +236,12 @@ class ToolExecutionServiceTest {
         }
 
         @Test
-        @DisplayName("отмена проверяется после claim и не открывает соединение")
-        void cancelledClaimedCallDoesNotOpenConnection() {
+        @DisplayName("отмена после claim финализируется через CAS и не открывает соединение")
+        void cancelledClaimedCallUsesCas() {
             connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
             when(toolCallLogService.claimDispatch(LOG_ID, TIMEOUT)).thenReturn(true);
             when(agentRunRepository.isCancelRequested(RUN_ID)).thenReturn(true);
+            when(toolCallLogService.finishNonReplayable(eq(LOG_ID), any())).thenReturn(true);
             ToolCallLog log = log();
 
             toolExecutionService.executeTool(log);
@@ -229,13 +253,14 @@ class ToolExecutionServiceTest {
             verify(toolCallLogService, never()).isUnfinished(any());
             verifyNoInteractions(envFactory);
             verify(connectionRepository, never()).findByIdAndUserIdNotDeleted(any(), any());
-            verify(toolCallLogService).recordOutput(eq(LOG_ID),
-                    argThat(result -> result.getError() != null && result.getError().startsWith("Cancelled")));
+            verify(toolCallLogService).finishNonReplayable(eq(LOG_ID), cancelledResult());
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(agentDeliveryService).deliverToolResult(eq(log), cancelledResult());
         }
 
         @Test
         @DisplayName("отмена при уже захваченной строке не пишет и не доставляет")
-        void replayCancelledAfterFirstClaimWritesNothing() {
+        void cancelledReplayAfterClaimWritesNothing() {
             connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
             // The run is cancelled in the world, but the lost claim ends the attempt before any check.
             lenient().when(agentRunRepository.isCancelRequested(RUN_ID)).thenReturn(true);
@@ -247,6 +272,7 @@ class ToolExecutionServiceTest {
             assertEquals(0, connector.executions.get());
             verify(agentRunRepository, never()).isCancelRequested(any());
             verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(toolCallLogService, never()).finishNonReplayable(any(), any());
             verify(toolCallLogService, never()).isUnfinished(any());
             verifyNoInteractions(envFactory);
             verify(agentDeliveryService, never()).deliverToolResult(any(), any());
@@ -261,6 +287,7 @@ class ToolExecutionServiceTest {
             when(toolCallLogService.claimDispatch(eq(LOG_ID), eq(TIMEOUT)))
                     .thenAnswer(invocation -> claimed.compareAndSet(false, true));
             when(toolCallLogService.isUnfinished(LOG_ID)).thenReturn(true);
+            when(toolCallLogService.finishNonReplayable(eq(LOG_ID), any())).thenReturn(true);
             ToolCallLog log = log();
 
             ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -281,8 +308,145 @@ class ToolExecutionServiceTest {
             }
 
             assertEquals(1, connector.executions.get());
-            verify(toolCallLogService, times(1)).recordOutput(eq(LOG_ID), any());
+            verify(toolCallLogService, times(1)).finishNonReplayable(eq(LOG_ID), any());
             verify(agentDeliveryService, times(1)).deliverToolResult(eq(log), any());
+        }
+
+        @Test
+        @DisplayName("поздний фактический результат не перезаписывает unknown и не доставляется")
+        void lateActualResultDoesNotOverwriteUnknown() {
+            connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
+            stubConnection();
+            when(toolCallLogService.claimDispatch(LOG_ID, TIMEOUT)).thenReturn(true);
+            when(toolCallLogService.isUnfinished(LOG_ID)).thenReturn(true);
+            // Recovery finalized the row as unknown while the command was still running.
+            when(toolCallLogService.finishNonReplayable(eq(LOG_ID), any())).thenReturn(false);
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            assertEquals(1, connector.executions.get());
+            verify(toolCallLogService).finishNonReplayable(eq(LOG_ID), resultWithOutput());
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(agentDeliveryService, never()).deliverToolResult(any(), any());
+        }
+
+        @Test
+        @DisplayName("сбой CAS-записи не доставляет исход")
+        void nonReplayablePersistenceFailureSuppressesDelivery() {
+            connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
+            stubConnection();
+            when(toolCallLogService.claimDispatch(LOG_ID, TIMEOUT)).thenReturn(true);
+            when(toolCallLogService.isUnfinished(LOG_ID)).thenReturn(true);
+            when(toolCallLogService.finishNonReplayable(eq(LOG_ID), any()))
+                    .thenThrow(new IllegalStateException("journal is down"));
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            assertEquals(1, connector.executions.get());
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(agentDeliveryService, never()).deliverToolResult(any(), any());
+        }
+
+        @Test
+        @DisplayName("сбой last-used не превращает успешную команду в ошибку")
+        void lastUsedFailureKeepsSuccessfulSshResult() {
+            connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
+            stubConnection();
+            when(toolCallLogService.claimDispatch(LOG_ID, TIMEOUT)).thenReturn(true);
+            when(toolCallLogService.isUnfinished(LOG_ID)).thenReturn(true);
+            when(toolCallLogService.finishNonReplayable(eq(LOG_ID), any())).thenReturn(true);
+            doThrow(new IllegalStateException("connection row is gone"))
+                    .when(connectionRepository).updateLastUsedAt(eq(CONNECTION_ID), any());
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            verify(toolCallLogService).finishNonReplayable(eq(LOG_ID), resultWithOutput());
+            verify(agentDeliveryService).deliverToolResult(eq(log), resultWithOutput());
+        }
+
+        @Test
+        @DisplayName("поздний результат не доставляется повторно после unknown от recovery")
+        void lateResultCannotBeRedeliveredAfterUnknown() {
+            connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
+            // dispatch_at is already stamped: recovery declared the call unknown and delivered it.
+            when(toolCallLogService.claimDispatch(LOG_ID, TIMEOUT)).thenReturn(false);
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            assertEquals(0, connector.executions.get());
+            verify(toolCallLogService, never()).finishNonReplayable(any(), any());
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(agentDeliveryService, never()).deliverToolResult(any(), any());
+        }
+
+        @Test
+        @DisplayName("фактический результат финализируется первым: recovery проигрывает CAS и не доставляет")
+        void actualResultWinsAgainstRecovery() {
+            connector = connector(ToolExecutionPolicy.nonReplayable(TIMEOUT));
+            stubConnection();
+            AtomicBoolean finished = new AtomicBoolean();
+            when(toolCallLogService.claimDispatch(LOG_ID, TIMEOUT)).thenReturn(true);
+            when(toolCallLogService.isUnfinished(LOG_ID)).thenReturn(true);
+            when(toolCallLogService.finishNonReplayable(eq(LOG_ID), any()))
+                    .thenAnswer(invocation -> finished.compareAndSet(false, true));
+            ToolCallLog log = log();
+            when(toolCallLogService.findRecoverableDispatches(any(), eq(100))).thenReturn(List.of(log));
+            NonReplayableToolRecovery recovery = new NonReplayableToolRecovery(
+                    toolCallLogService, agentDeliveryService, Runnable::run);
+
+            toolExecutionService.executeTool(log);
+            recovery.recover();
+
+            assertEquals(1, connector.executions.get());
+            verify(toolCallLogService, times(2)).finishNonReplayable(eq(LOG_ID), any());
+            verify(agentDeliveryService, times(1)).deliverToolResult(eq(log), resultWithOutput());
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+        }
+
+        @Test
+        @DisplayName("сбой до claim на захваченной строке ничего не пишет: живой владелец сохраняет исход")
+        void preClaimFailureCannotOverwriteUnknown() {
+            when(connectorRegistry.getHandler(CONNECTOR)).thenThrow(new ConnectorException("Unknown connector"));
+            when(toolCallLogService.isDispatched(LOG_ID)).thenReturn(true);
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            verify(toolCallLogService, never()).finishNonReplayable(any(), any());
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(agentDeliveryService, never()).deliverToolResult(any(), any());
+        }
+
+        @Test
+        @DisplayName("сбой до claim на незахваченной строке пишется в журнал как раньше")
+        void preClaimFailureOnUndispatchedRowIsRecorded() {
+            when(connectorRegistry.getHandler(CONNECTOR)).thenThrow(new ConnectorException("Unknown connector"));
+            when(toolCallLogService.isDispatched(LOG_ID)).thenReturn(false);
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            verify(toolCallLogService).recordOutput(eq(LOG_ID), errorWith("Unknown connector"));
+            verify(toolCallLogService, never()).finishNonReplayable(any(), any());
+            verify(agentDeliveryService).deliverToolResult(eq(log), errorWith("Unknown connector"));
+        }
+
+        @Test
+        @DisplayName("сбой проверки dispatch не пишет ни CAS, ни журнал")
+        void dispatchCheckFailureWritesNothing() {
+            when(connectorRegistry.getHandler(CONNECTOR)).thenThrow(new ConnectorException("Unknown connector"));
+            when(toolCallLogService.isDispatched(LOG_ID)).thenThrow(new IllegalStateException("db is down"));
+            ToolCallLog log = log();
+
+            toolExecutionService.executeTool(log);
+
+            verify(toolCallLogService, never()).recordOutput(any(), any());
+            verify(toolCallLogService, never()).finishNonReplayable(any(), any());
+            verify(agentDeliveryService, never()).deliverToolResult(any(), any());
         }
 
         @Test
@@ -324,6 +488,14 @@ class ToolExecutionServiceTest {
 
     private static IToolResult resultWithOutput() {
         return argThat(result -> "{\"stdout\":\"ok\"}".equals(result.getOutput()));
+    }
+
+    private static IToolResult cancelledResult() {
+        return argThat(result -> result.getError() != null && result.getError().startsWith("Cancelled"));
+    }
+
+    private static IToolResult errorWith(String error) {
+        return argThat(result -> error.equals(result.getError()));
     }
 
     private void stubConnection() {
