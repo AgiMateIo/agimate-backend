@@ -8,7 +8,7 @@ public record CredentialFieldResponse(
         @Schema(description = "Caption of the input", example = "Server URL (Streamable HTTP)")
         String label,
 
-        @Schema(description = "SECRET is the one to mask; JSON asks for a multi-line input",
+        @Schema(description = "SECRET is the one to mask; JSON holds an arbitrarily shaped value",
                 allowableValues = {"TEXT", "SECRET", "URL", "JSON"}, example = "URL")
         CredentialField.Type type,
 
