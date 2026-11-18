@@ -12,6 +12,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ToolExecutionPolicy;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -26,6 +27,7 @@ import ru.agimate.controlapi.service.tool.ToolCallLogService;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -37,10 +39,14 @@ import java.util.concurrent.TimeoutException;
  * according to the handler's type (integration — with fresh credentials for the
  * {@code connectionId}), and the outcome is written to the log.
  *
- * <p>Two callers, one core. An agent that is pushed to gets {@link #executeTool} — the result travels
- * back over its transport, so the call itself returns nothing. A caller holding an open request (the
- * MCP tools/call) takes {@link #executeAndRecord} and answers with the result it gets. Delivery is
- * the only difference; the log is written the same way in both.
+ * <p>Two entry points, one core. An agent that is pushed to gets {@link #executeTool} — the result
+ * travels back over its transport, so the call itself returns nothing. A caller holding an open
+ * request (the MCP tools/call) takes {@link #executeWithTimeout} and answers with the result it gets.
+ * Delivery is the only difference; the log is written the same way in both.
+ *
+ * <p>A {@link ToolExecutionPolicy.Kind#NON_REPLAYABLE} tool is dispatched at most once: the executor
+ * claims the log row before touching the connector, and a lost claim ends the attempt silently.
+ * Its result is empty then — there is nothing new to record or deliver.
  *
  * <p>Failures never surface as exceptions: missing credentials and any execution failure turn into an
  * error tool result. {@link ConnectorException} messages are safe and are handed over as-is;
@@ -63,10 +69,11 @@ public class ToolExecutionService {
 
     @Async("toolExecutor")
     public void executeTool(ToolCallLog toolCallLog) {
-        ToolResult result = executeAndRecord(toolCallLog);
-        if (toolCallLog.getAgentId() != null) {
-            agentDeliveryService.deliverToolResult(toolCallLog, result);
-        }
+        executeAndRecord(toolCallLog).ifPresent(result -> {
+            if (toolCallLog.getAgentId() != null) {
+                agentDeliveryService.deliverToolResult(toolCallLog, result);
+            }
+        });
     }
 
     /**
@@ -76,7 +83,10 @@ public class ToolExecutionService {
      */
     public sealed interface WaitOutcome {
         record Completed(ToolResult result) implements WaitOutcome {}
-        /** The execution continues and will record its outcome in the log; the caller stopped waiting. */
+        /**
+         * The execution continues and the log will carry its outcome (or it was already dispatched by
+         * another attempt); the caller stopped waiting.
+         */
         record StillRunning() implements WaitOutcome {}
     }
 
@@ -86,9 +96,11 @@ public class ToolExecutionService {
      * in the log, the caller simply stops waiting.
      */
     public WaitOutcome executeWithTimeout(ToolCallLog toolCallLog, Duration timeout) {
-        Future<ToolResult> execution = toolExecutor.submit(() -> executeAndRecord(toolCallLog));
+        Future<Optional<ToolResult>> execution = toolExecutor.submit(() -> executeAndRecord(toolCallLog));
         try {
-            return new WaitOutcome.Completed(execution.get(timeout.toMillis(), TimeUnit.MILLISECONDS));
+            return execution.get(timeout.toMillis(), TimeUnit.MILLISECONDS)
+                    .<WaitOutcome>map(WaitOutcome.Completed::new)
+                    .orElseGet(WaitOutcome.StillRunning::new);
         } catch (TimeoutException e) {
             log.info("Tool '{}.{}' did not finish in {}s — the caller stops waiting",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), timeout.toSeconds());
@@ -105,11 +117,37 @@ public class ToolExecutionService {
     }
 
     /**
-     * Runs the tool and writes the outcome to the log, then hands the result back instead of
-     * delivering it. Blocks for as long as the connector takes — a caller that cannot wait forever
-     * (an open HTTP request) has to bound it itself.
+     * Runs the tool and writes the outcome to the log. Empty means the call was dispatched (or
+     * finalized) elsewhere: a non-replayable tool must not run a second time, so there is nothing to
+     * record or deliver.
      */
-    public ToolResult executeAndRecord(ToolCallLog toolCallLog) {
+    private Optional<ToolResult> executeAndRecord(ToolCallLog toolCallLog) {
+        try {
+            ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
+            ToolProvider toolProvider = ConnectorRegistry.capability(handler, ToolProvider.class);
+            ToolExecutionPolicy policy = toolProvider.executionPolicy(
+                    toolCallLog.getName(), toolCallLog.getInput());
+
+            if (policy.kind() == ToolExecutionPolicy.Kind.NON_REPLAYABLE) {
+                return executeNonReplayable(handler, toolProvider, toolCallLog, policy.executionTimeout());
+            }
+            return Optional.of(executeReplayable(handler, toolProvider, toolCallLog));
+        } catch (ConnectorException e) {
+            // An expected failure with a safe message (validation, a CAS conflict, no connection, …) — passed to the agent as-is
+            log.warn("Tool '{}.{}' failed: {}",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getMessage());
+            return Optional.of(record(toolCallLog, null, e.getMessage()));
+        } catch (Exception e) {
+            // An unexpected failure — the stack trace is kept in the log and the details are hidden from the agent
+            log.error("Failed to execute '{}.{}'",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
+            return Optional.of(record(toolCallLog, null, "Tool execution failed"));
+        }
+    }
+
+    /** A reversible call: the pre-claim path — cancellation, env, provider, last-used, output. */
+    private ToolResult executeReplayable(ConnectorHandler handler, ToolProvider toolProvider,
+                                         ToolCallLog toolCallLog) {
         // A call still queued on the pool has done nothing yet, unlike one already inside the connector.
         // Refused as an ordinary failed result, so the worker reads it like any other.
         if (cancelled(toolCallLog)) {
@@ -117,33 +155,54 @@ public class ToolExecutionService {
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), toolCallLog.getRunId());
             return record(toolCallLog, null, "Cancelled: the user stopped the run before this call started");
         }
-        try {
-            ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
-            ToolProvider toolProvider = ConnectorRegistry.capability(handler, ToolProvider.class);
-            ConnectorEnv env = buildEnv(handler, toolCallLog);
+        String output = JsonUtils.writeValueAsString(invoke(handler, toolProvider, toolCallLog));
+        log.debug("Executed tool '{}.{}'", toolCallLog.getConnectorCode(), toolCallLog.getName());
+        return record(toolCallLog, output, null);
+    }
 
-            Map<String, Object> result = toolProvider.executeTool(
-                    env, toolCallLog.getName(), toolCallLog.getInput());
-
-            if (handler instanceof IntegrationConnectorHandler) {
-                connectionRepository.updateLastUsedAt(
-                        UUID.fromString(toolCallLog.getConnectionId()), LocalDateTime.now());
-            }
-
-            log.debug("Executed tool '{}.{}'",
+    /**
+     * An irreversible call: the claim comes first, and a lost claim ends the attempt before any
+     * cancellation check, env build or provider call. A replay must not write over a row another
+     * attempt is running, let alone open a second connection.
+     */
+    private Optional<ToolResult> executeNonReplayable(ConnectorHandler handler, ToolProvider toolProvider,
+                                                      ToolCallLog toolCallLog, Duration executionTimeout) {
+        if (!toolCallLogService.claimDispatch(toolCallLog.getId(), executionTimeout)) {
+            log.info("Tool '{}.{}' already dispatched — replay skipped",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
-            return record(toolCallLog, JsonUtils.writeValueAsString(result), null);
-        } catch (ConnectorException e) {
-            // An expected failure with a safe message (validation, a CAS conflict, no connection, …) — passed to the agent as-is
-            log.warn("Tool '{}.{}' failed: {}",
-                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getMessage());
-            return record(toolCallLog, null, e.getMessage());
-        } catch (Exception e) {
-            // An unexpected failure — the stack trace is kept in the log and the details are hidden from the agent
-            log.error("Failed to execute '{}.{}'",
-                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
-            return record(toolCallLog, null, "Tool execution failed");
+            return Optional.empty();
         }
+        // Read only after the claim: a reply that lost it has no right to record "Cancelled" over the
+        // attempt already running the command.
+        if (cancelled(toolCallLog)) {
+            log.info("Tool '{}.{}' cancelled after the claim",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName());
+            return Optional.of(record(toolCallLog, null,
+                    "Cancelled: the user stopped the run before this call started"));
+        }
+        if (!toolCallLogService.isUnfinished(toolCallLog.getId())) {
+            // Finalized in the window between the claim and here — the row is not ours to write.
+            log.info("Tool '{}.{}' was finalized after the claim — not started",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName());
+            return Optional.empty();
+        }
+        String output = JsonUtils.writeValueAsString(invoke(handler, toolProvider, toolCallLog));
+        log.debug("Executed non-replayable tool '{}.{}'",
+                toolCallLog.getConnectorCode(), toolCallLog.getName());
+        return Optional.of(record(toolCallLog, output, null));
+    }
+
+    /** Builds the env and runs the tool; the integration's last-used stamp is best-effort by design. */
+    private Map<String, Object> invoke(ConnectorHandler handler, ToolProvider toolProvider,
+                                       ToolCallLog toolCallLog) {
+        ConnectorEnv env = buildEnv(handler, toolCallLog);
+        Map<String, Object> result = toolProvider.executeTool(
+                env, toolCallLog.getName(), toolCallLog.getInput());
+        if (handler instanceof IntegrationConnectorHandler) {
+            connectionRepository.updateLastUsedAt(
+                    UUID.fromString(toolCallLog.getConnectionId()), LocalDateTime.now());
+        }
+        return result;
     }
 
     /** Outside a run ({@code run_id} null — an MCP call, a channel reply) there is nothing to cancel. */

@@ -74,6 +74,17 @@ public class ToolCallLog extends BaseEntity {
     private LocalDateTime finishAt;
 
     /**
+     * The single dispatch of a non-replayable call: {@code NULL} until an executor claims the row,
+     * then never cleared. A second executor sees the stamp and must not run the tool again.
+     */
+    @Column(name = "dispatch_at")
+    private LocalDateTime dispatchAt;
+
+    /** The moment after which an unfinished claimed attempt is declared unknown by recovery. */
+    @Column(name = "dispatch_deadline_at")
+    private LocalDateTime dispatchDeadlineAt;
+
+    /**
      * The worker stopped waiting: from this moment the result belongs to the trigger delivery, and
      * {@code GetToolResult} answers DETACHED forever — even after the call finishes.
      */

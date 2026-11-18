@@ -22,6 +22,7 @@ import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.dto.IToolCall;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -60,6 +61,22 @@ public class ToolCallLogService {
     @Transactional
     public boolean requestCancel(UUID id) {
         return toolCallLogRepository.markCancelRequested(id, LocalDateTime.now()) > 0;
+    }
+
+    /**
+     * The single dispatch of a non-replayable call. {@code true} — this attempt owns the row and may
+     * run the tool; {@code false} — it was already dispatched (or finalized), and this attempt must
+     * neither execute nor write. The guarded UPDATE decides the winner in the database.
+     */
+    @Transactional
+    public boolean claimDispatch(UUID id, Duration executionTimeout) {
+        LocalDateTime now = LocalDateTime.now();
+        return toolCallLogRepository.claimDispatch(id, now, now.plus(executionTimeout)) > 0;
+    }
+
+    /** Best-effort re-check after the claim: the row may have been finalized before the tool started. */
+    public boolean isUnfinished(UUID id) {
+        return toolCallLogRepository.existsByIdAndFinishAtIsNull(id);
     }
 
     @Transactional

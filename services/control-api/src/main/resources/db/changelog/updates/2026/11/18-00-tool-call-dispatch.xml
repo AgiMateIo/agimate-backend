@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      At-most-once dispatch for NON_REPLAYABLE tools (docs/decisions/ssh-connector.md): a call is
+      claimed by exactly one executor before the connector runs. `dispatch_at` is that claim — NULL
+      means never dispatched, and once stamped it is never cleared, so a duplicate delivery of the
+      call cannot run the tool a second time. `dispatch_deadline_at` bounds an unfinished attempt:
+      past it, recovery declares the outcome unknown instead of re-executing the command.
+      Partial index on purpose — `_unfinished` = claimed and not finished, a handful of rows at any
+      moment against a log that only grows.
+    -->
+    <changeSet id="add-tool-call-dispatch" author="agimate">
+        <sql>
+            ALTER TABLE tool_call_logs
+                ADD COLUMN dispatch_at TIMESTAMP,
+                ADD COLUMN dispatch_deadline_at TIMESTAMP;
+
+            CREATE INDEX idx_tool_call_logs_dispatch_deadline_at_unfinished
+                ON tool_call_logs (dispatch_deadline_at)
+                WHERE dispatch_deadline_at IS NOT NULL AND finish_at IS NULL;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

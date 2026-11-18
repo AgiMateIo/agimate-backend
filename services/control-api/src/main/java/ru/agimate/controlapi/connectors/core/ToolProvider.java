@@ -37,4 +37,16 @@ public interface ToolProvider {
     }
 
     Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args);
+
+    /**
+     * Whether the call may be replayed after a crash. The default is reversible: a tool is repeated
+     * only when it is safe to repeat. A connector whose tool has an irreversible side effect declares
+     * it {@link ToolExecutionPolicy#nonReplayable} with the budget for the whole attempt.
+     *
+     * <p>Pure by contract: it runs before the dispatch claim and must not touch the connection,
+     * credentials or the network — choosing the policy must never be a side effect of the call.
+     */
+    default ToolExecutionPolicy executionPolicy(String toolName, Map<String, Object> input) {
+        return ToolExecutionPolicy.replayable();
+    }
 }

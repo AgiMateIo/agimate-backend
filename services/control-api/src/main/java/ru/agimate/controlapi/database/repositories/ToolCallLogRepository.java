@@ -74,6 +74,27 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
     int markCancelRequested(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
     /**
+     * The single dispatch of a non-replayable call: the first executor stamps the row, every later
+     * one gets 0 rows and must not run the tool. Guarded on {@code finish_at} too, so a call that is
+     * already finalized is never claimed. No {@code clearAutomatically}: the caller may still hold
+     * loaded entities from the surrounding transaction, and the returned row count is the truth.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ToolCallLog t
+            SET t.dispatchAt = :now, t.dispatchDeadlineAt = :deadline, t.updatedAt = :now
+            WHERE t.id = :id
+              AND t.dispatchAt IS NULL
+              AND t.finishAt IS NULL
+            """)
+    int claimDispatch(@Param("id") UUID id,
+                      @Param("now") LocalDateTime now,
+                      @Param("deadline") LocalDateTime deadline);
+
+    /** Best-effort check after the claim: the row was finalized in the window before the tool ran. */
+    boolean existsByIdAndFinishAtIsNull(UUID id);
+
+    /**
      * Live MCP tasks of the agent: detached, unfinished, younger than {@code cutoff} — an expired
      * orphan (a restart killed the execution mid-flight) must not eat the cap forever.
      */
