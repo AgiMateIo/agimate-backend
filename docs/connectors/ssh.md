@@ -77,7 +77,7 @@ passphrase. PuTTY PPK, SSH-сертификаты, `keyboard-interactive`, ап�
 
 ### Изменение подключения
 
-`host`, `port` и `username` **неизменяемы**: `PUT /manage/connections/{id}/secret` требует, чтобы
+`host`, `port` и `username` **неизменяемы**: `PUT /manage/connections/{connectionId}/secret` требует, чтобы
 проверка вернула прежний `sub_code` (`username@host:port`). Смена сервера или учётной записи — это
 удалить подключение, создать новое и заново привязать его к агентам; старый `connectionId` и выданный
 доступ нельзя незаметно перенести на другую машину.
@@ -90,13 +90,13 @@ passphrase. PuTTY PPK, SSH-сертификаты, `keyboard-interactive`, ап�
   предзаполнения формы;
 - `hostKeyFingerprint` меняется только вместе с полной повторной проверкой на прежнем
   `username@host:port`; независимая сверка нового отпечатка остаётся ответственностью владельца;
-- имя и `enabled` редактируются отдельным `PATCH /manage/connections/{id}` и credentials не затрагивают.
+- имя и `enabled` редактируются отдельным `PATCH /manage/connections/{connectionId}` и credentials не затрагивают.
 
 Частичного PATCH credentials и обновления только `params` нет.
 
 ### Тест подключения
 
-`POST /manage/connections/{id}/test`, создание и смена секрета проходят одинаковый порядок:
+`POST /manage/connections/{connectionId}/test`, создание и смена секрета проходят одинаковый порядок:
 
 1. проверяется форма: адрес, fingerprint, способ аутентификации; ключ разбирается до сетевого вызова;
 2. сетевой адрес разрешается по правилам раздела «Сеть»;
