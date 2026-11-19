@@ -34,9 +34,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     // JWT dependencies
-    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.springframework.boot:spring-boot-starter-liquibase")
@@ -78,7 +78,7 @@ dependencies {
     implementation("org.dhatim:fastexcel-reader")
 
     // S3-совместимое хранилище файлового слоя коннекторов (docs/connectors/files.md)
-    implementation(platform("software.amazon.awssdk:bom:2.55.10"))
+    implementation(platform("software.amazon.awssdk:bom:2.59.4"))
     implementation("software.amazon.awssdk:s3")
 
     implementation("dev.dbos:transact:1.3.0")

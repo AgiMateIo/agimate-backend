@@ -23,9 +23,9 @@ allprojects {
 
         dependencies {
             constraints {
-                implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-                implementation("io.jsonwebtoken:jjwt-impl:0.12.6")
-                implementation("io.jsonwebtoken:jjwt-jackson:0.12.6")
+                implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+                implementation("io.jsonwebtoken:jjwt-impl:0.13.0")
+                implementation("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
                 // gRPC/protobuf — one version for agentworker-proto, control-api and agent-worker
                 // (gRPC artifacts must move in lockstep). Codegen tool artifacts (protoc,
@@ -39,7 +39,7 @@ allprojects {
                 implementation("com.google.protobuf:protobuf-java:4.36.2")
                 implementation("com.google.protobuf:protobuf-java-util:4.36.2")
 
-                implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
+                implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
                 implementation("org.springframework.boot:spring-boot-dependencies")
                 implementation("org.springframework.boot:spring-boot-starter-data-jpa")
                 implementation("org.springframework.boot:spring-boot-starter-web")
