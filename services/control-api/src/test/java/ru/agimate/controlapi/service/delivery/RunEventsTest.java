@@ -45,14 +45,29 @@ class RunEventsTest {
     }
 
     @Test
-    @DisplayName("результат тула уходит в воркфлоу рана с ключом идемпотентности по вызову")
+    @DisplayName("результат тула уходит в воркфлоу рана с ключом идемпотентности, называющим адресата")
     void toolFinishedSendsToTheRun() {
         when(clientProvider.getIfAvailable()).thenReturn(client);
 
         events.toolFinished(runId, "call-1");
 
         verify(client).send(eq(runId.toString()), eq(RunEvent.toolFinished("call-1")),
-                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("call-1"));
+                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("tool:" + runId + ":call-1"));
+    }
+
+    @Test
+    @DisplayName("ключ разный у разных адресатов: одинаковый id вызова в двух ранах не гасит второе сообщение")
+    void keysAreScopedToTheirDestination() {
+        UUID secondRun = UUID.randomUUID();
+        when(clientProvider.getIfAvailable()).thenReturn(client);
+
+        events.toolFinished(runId, "call-1");
+        events.toolFinished(secondRun, "call-1");
+
+        verify(client).send(eq(runId.toString()), any(),
+                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("tool:" + runId + ":call-1"));
+        verify(client).send(eq(secondRun.toString()), any(),
+                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("tool:" + secondRun + ":call-1"));
     }
 
     @Test
@@ -67,9 +82,9 @@ class RunEventsTest {
         events.inputArrived(sessionId, newRunId);
 
         verify(client).send(eq(runId.toString()), eq(RunEvent.steerable(newRunId.toString())),
-                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("input:" + newRunId));
+                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("input:" + runId + ":" + newRunId));
         verify(client).send(eq(anotherRunning.toString()), eq(RunEvent.steerable(newRunId.toString())),
-                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("input:" + newRunId));
+                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("input:" + anotherRunning + ":" + newRunId));
     }
 
     @Test
@@ -117,6 +132,6 @@ class RunEventsTest {
         TransactionSynchronizationManager.getSynchronizations()
                 .forEach(TransactionSynchronization::afterCommit);
         verify(client).send(eq(runId.toString()), eq(RunEvent.toolFinished("call-1")),
-                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("call-1"));
+                eq(WorkerProtocol.RUN_EVENTS_TOPIC), eq("tool:" + runId + ":call-1"));
     }
 }

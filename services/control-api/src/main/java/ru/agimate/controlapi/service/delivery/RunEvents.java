@@ -35,7 +35,7 @@ public class RunEvents {
 
     /** A tool call of the run finished (or was detached): the wait may read its result now. */
     public void toolFinished(UUID runId, String toolCallId) {
-        send(runId, RunEvent.toolFinished(toolCallId), toolCallId);
+        send(runId, RunEvent.toolFinished(toolCallId), "tool:" + runId + ":" + toolCallId);
     }
 
     /** A new run appeared in the session: every running run of it has something to absorb. */
@@ -46,7 +46,7 @@ public class RunEvents {
         }
         agentRunRepository.findRunningIdsBySession(sessionId)
                 .forEach(runningId -> send(runningId, RunEvent.steerable(newRunId.toString()),
-                        "input:" + newRunId));
+                        "input:" + runningId + ":" + newRunId));
     }
 
     /** The user asked to stop these runs: a waiting tool step ends now instead of at its next tick. */
@@ -54,6 +54,11 @@ public class RunEvents {
         runIds.forEach(runId -> send(runId, RunEvent.cancelRequested(), "cancel:" + runId));
     }
 
+    /**
+     * The idempotency key always names its own destination: DBOS keys a message by the key alone on
+     * one of its paths, so a key that only carried a tool call id would let a run's message be
+     * swallowed by another run's — the same call id is unique per run, not globally.
+     */
     private void send(UUID runId, RunEvent event, String idempotencyKey) {
         DBOSClient client = clientProvider.getIfAvailable();
         if (client == null) {
@@ -64,7 +69,9 @@ public class RunEvents {
             try {
                 client.send(runId.toString(), event, WorkerProtocol.RUN_EVENTS_TOPIC, idempotencyKey);
             } catch (Exception e) {
-                log.warn("run event {} for run {} was not sent: {}", event.kind(), runId, e.getMessage());
+                // Ids only: a JDBC message can carry SQL and its parameters.
+                log.warn("run event {} for run {} was not sent ({})",
+                        event.kind(), runId, e.getClass().getSimpleName());
             }
         });
     }
