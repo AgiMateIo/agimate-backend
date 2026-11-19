@@ -153,9 +153,8 @@ public class AgentProperties {
     @Setter
     public static class Tool {
         /**
-         * Default poll budget for one backend tool call ({@code GetToolResult}); a tool that has
-         * not finished within it is reported to the model as failed (the backend job may still
-         * complete — the timeout does not cancel it). A tool spec may declare its own
+         * Default wait budget for one backend tool call; it bounds how long the run may stay
+         * silent, not how long the backend job may run. A tool spec may declare its own
          * {@code timeout_seconds} (clamped to 30 min), which overrides this default.
          */
         private Duration pollTimeout = Duration.ofSeconds(60);
@@ -165,12 +164,21 @@ public class AgentProperties {
          */
         private int maxOutputChars = 64_000;
         /**
-         * How long a tool call is waited on before it is detached ({@code DetachTool}): the model
-         * gets a task handle instead of the result, and the result comes back later as a
-         * {@code tool_completed} trigger. Zero or negative disables detaching — the whole poll
-         * budget applies, as before the feature.
+         * After this much waiting a call is detached ({@code DetachTool}) if a new input has
+         * arrived in the session meanwhile: the next turn absorbs that input anyway, so the model
+         * gets a task handle instead of the result and the result comes back later as a
+         * {@code tool_completed} trigger. Without an incoming message the wait goes on to
+         * {@link #maxWait}. Zero or negative disables detaching altogether — the whole budget
+         * applies, as before the feature (a debugging and rollback switch).
          */
         private Duration detachAfter = Duration.ofSeconds(10);
+        /**
+         * Ceiling on silent waiting: a call still running here is detached even without an
+         * incoming message, because a run holds its session's queue partition. Must stay well
+         * below control-api's stale-run threshold (15 min) — the wait reports for itself every
+         * {@code ToolCallDispatcher.RECV_TIMEOUT} anyway.
+         */
+        private Duration maxWait = Duration.ofSeconds(120);
     }
 
     /**

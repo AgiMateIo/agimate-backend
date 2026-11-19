@@ -11,43 +11,31 @@ import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 /**
- * The body of the run workflow's {@code tool_calls} step: issue {@code ExecuteToolAsync} for every
- * call of the turn, then poll them round-robin until each is settled. The backend executes the
- * tools concurrently from the moment they are issued; the worker only waits, so one loop is as
- * parallel as one workflow per call used to be.
+ * The bodies of the run workflow's three tool steps: issue every call of the turn, observe the
+ * waiting ones when the workflow wakes, and detach those whose wait is over. Nothing here waits —
+ * the {@code recv} that decides when to look again lives in {@link ToolCallDispatcher}, in the
+ * workflow body, because DBOS forbids it inside a step.
  *
- * <p>The checkpoint ({@link Outcomes}) is ids and statuses. Outputs and backend error texts stay in
- * run memory ({@code held}); a crash replay re-reads them from the backend by id
- * ({@code GetToolResult}), and the other outcomes are regenerated from the id alone. Only a
- * worker-side failure ({@link Status#FAILED}: the RPC itself was rejected) carries its text — it is
- * on no backend row to read back.
+ * <p>A call ends in one of two ways: it settles (SUCCESS, ERROR, or the user's stop), or it is
+ * detached ({@code DetachTool}) and the model gets an interim task handle while the backend
+ * delivers the result later as a {@code tool_completed} trigger. Detaching happens when a new
+ * input has arrived in the session after {@code agent.tool.detach-after} — the next turn will
+ * absorb that input anyway, so there is nothing to gain by making the model wait — or at the
+ * ceiling {@code agent.tool.max-wait}, because a run holds its session's queue partition. A failed
+ * detach falls back to blocking until the budget, which then ends as {@link Status#TIMEOUT}.
  *
- * <p>A call still pending at {@code agent.tool.detach-after} is detached ({@code DetachTool}): the
- * model gets an interim task handle and the backend delivers the result later as a
- * {@code tool_completed} trigger. Detaching flips the result's ownership visibly — once detached,
- * {@code GetToolResult} answers DETACHED forever, so a replay records the same interim. A failed
- * detach falls back to blocking, bounded by the call's poll budget: the spec's
- * {@code timeout_seconds} (clamped to {@value #MAX_TIMEOUT_SECONDS}s) when declared, otherwise
- * {@code agent.tool.poll-timeout}. The budget bounds waiting only — it does not cancel the backend
- * job, so a timed-out tool may still complete and apply its effects.
+ * <p>Every decision about time is taken inside a step and returned as data, so a replay branches
+ * only on recorded results. The checkpoint ({@link Outcomes}) is ids and statuses: outputs and
+ * backend error texts stay in run memory ({@code held}), and a crash replay re-reads them by id.
  */
 @Slf4j
 public class ToolCallStep {
 
-    /**
-     * The first polls come fast: a tool that answers in 10 ms (time.now, a memory note, a context
-     * disclosure) used to cost the run the whole first interval. The ramp settles at the steady
-     * interval within a second, so a slow tool pays only three extra requests.
-     */
-    private static final long[] POLL_RAMP_MS = {50, 100, 200};
-    private static final long POLL_INTERVAL_MS = 500;
-    /** After the first minute of waiting we poll less often: long tools do not deserve 2 rps of gRPC. */
-    private static final long SLOW_POLL_INTERVAL_MS = 2_000;
-    private static final long SLOW_POLL_AFTER_MS = 60_000;
     /** Ceiling on the budget declared by a spec — 30 minutes. */
     static final int MAX_TIMEOUT_SECONDS = 1800;
 
@@ -62,7 +50,7 @@ public class ToolCallStep {
         ERROR,
         /** Handed to the backend; the interim is regenerated from the id. */
         DETACHED,
-        /** The poll budget ran out; the notice is regenerated from the name and budget. */
+        /** The budget ran out and detaching was impossible; the notice is regenerated from the name and budget. */
         TIMEOUT,
         /** The user stopped the run; the notice is regenerated from the name. */
         ABANDONED,
@@ -81,15 +69,33 @@ public class ToolCallStep {
         }
     }
 
+    /**
+     * A call the backend accepted, with the instants of its wait fixed at issue time — a replay
+     * reads the same schedule even if the config changed under it. {@code Long.MAX_VALUE} means
+     * "never": the threshold and the ceiling are gone when detaching is disabled.
+     */
+    public record Issued(String toolCallId, long detachAtMs, long waitEndAtMs, long deadlineAtMs) {}
+
+    /** The {@code tool_issue} checkpoint: what the backend took, and what it refused outright. */
+    public record IssuedBatch(List<Outcome> rejected, List<Issued> accepted) {}
+
+    /** The {@code tool_observe} checkpoint: what settled, what is still running, what must be detached. */
+    public record Observation(List<Outcome> settled, List<Issued> pending, List<Issued> toDetach) {}
+
+    /** The {@code tool_detach} checkpoint: what the race settled, and which calls stayed undetachable. */
+    public record DetachResult(List<Outcome> settled, List<String> undetachable) {}
+
     private final AgentWorkerClient client;
     private final long pollTimeoutMs;
     private final long detachAfterMs;
+    private final long maxWaitMs;
     private final int maxOutputChars;
 
     public ToolCallStep(AgentWorkerClient client, AgentProperties.Tool tool) {
         this.client = client;
         this.pollTimeoutMs = tool.getPollTimeout().toMillis();
         this.detachAfterMs = tool.getDetachAfter().toMillis();
+        this.maxWaitMs = tool.getMaxWait().toMillis();
         this.maxOutputChars = tool.getMaxOutputChars();
     }
 
@@ -98,68 +104,120 @@ public class ToolCallStep {
     }
 
     /**
-     * Issue and await every call; never throws. {@code held} receives each SUCCESS output and ERROR
-     * text by id — the run-memory copy the dispatcher reads instead of the backend.
+     * Hand every call of the turn to the backend. The backend executes them concurrently from this
+     * moment; the worker only waits. A call the backend refused is settled here, alone.
      */
-    public Outcomes run(List<Call> calls, String agentId, String runId, Map<String, String> held) {
-        long start = System.currentTimeMillis();
-        List<Pending> pending = new ArrayList<>(calls.size());
-        List<Outcome> settled = new ArrayList<>(calls.size());
+    public IssuedBatch issue(List<Call> calls, String agentId, String runId) {
+        long now = System.currentTimeMillis();
+        List<Issued> accepted = new ArrayList<>(calls.size());
+        List<Outcome> rejected = new ArrayList<>();
         for (Call call : calls) {
             try {
                 client.executeToolAsync(call.toolCallId(), call.connectorCode(), call.connectionId(),
                         call.toolName(), call.argsJson().getBytes(StandardCharsets.UTF_8), agentId, runId);
             } catch (Exception e) {
                 log.warn("tool {} (connector={}) could not be issued: {}", call.toolName(), call.connectorCode(), e.getMessage());
-                settled.add(new Outcome(call.toolCallId(), Status.FAILED, Failures.message(e)));
+                rejected.add(new Outcome(call.toolCallId(), Status.FAILED, Failures.message(e)));
                 continue;
             }
-            long budgetMs = effectiveTimeoutMs(call.timeoutSeconds(), pollTimeoutMs);
-            // The detach attempt never waits past the budget: a spec that declared a tighter timeout
-            // gets its call detached at that timeout, not at the worker's default.
-            long detachAt = detachAfterMs > 0 ? start + Math.min(detachAfterMs, budgetMs) : Long.MAX_VALUE;
-            pending.add(new Pending(call, start + budgetMs, detachAt));
+            accepted.add(schedule(call, now));
         }
-
-        for (int round = 0; !pending.isEmpty(); round++) {
-            for (var it = pending.iterator(); it.hasNext(); ) {
-                Pending p = it.next();
-                Outcome outcome;
-                try {
-                    outcome = pollOnce(p, agentId, runId, held);
-                } catch (Exception e) {
-                    log.warn("tool {} (id={}) could not be followed: {}", p.call.toolName(), p.call.toolCallId(), e.getMessage());
-                    outcome = new Outcome(p.call.toolCallId(), Status.FAILED, Failures.message(e));
-                }
-                if (outcome != null) {
-                    settled.add(outcome);
-                    it.remove();
-                }
-            }
-            if (pending.isEmpty()) {
-                break;
-            }
-            try {
-                Thread.sleep(pollDelayMs(round, System.currentTimeMillis() - start));
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                for (Pending p : pending) {
-                    settled.add(new Outcome(p.call.toolCallId(), Status.FAILED, "interrupted while polling tool " + p.call.toolName()));
-                }
-                break;
-            }
-        }
-        // Checkpoint order = call order: the dispatcher looks outcomes up by id, but a stable shape is easier to read.
-        List<Outcome> ordered = new ArrayList<>(calls.size());
-        for (Call call : calls) {
-            settled.stream().filter(o -> o.toolCallId().equals(call.toolCallId())).findFirst().ifPresent(ordered::add);
-        }
-        return new Outcomes(ordered);
+        return new IssuedBatch(rejected, accepted);
     }
 
-    /** One poll of a pending call; {@code null} while it is still running. */
-    private Outcome pollOnce(Pending p, String agentId, String runId, Map<String, String> held) {
-        String id = p.call.toolCallId();
+    /** When this call's wait reaches each of its three instants; computed once, at issue. */
+    private Issued schedule(Call call, long now) {
+        long budgetMs = effectiveTimeoutMs(call.timeoutSeconds(), pollTimeoutMs);
+        long deadline = now + budgetMs;
+        if (detachAfterMs <= 0) {
+            // Detaching is switched off: the budget alone bounds the wait, as before the feature.
+            return new Issued(call.toolCallId(), Long.MAX_VALUE, Long.MAX_VALUE, deadline);
+        }
+        long waitEnd = maxWaitMs > 0 ? now + Math.min(budgetMs, maxWaitMs) : deadline;
+        return new Issued(call.toolCallId(), now + Math.min(detachAfterMs, budgetMs), waitEnd, deadline);
+    }
+
+    /**
+     * One look at the pending calls; never throws. {@code held} receives each SUCCESS output and
+     * ERROR text by id — the run-memory copy the dispatcher reads instead of the backend.
+     *
+     * @param incoming whether a new input arrived in the session during this wait
+     * @param undetachable calls whose detach already failed once; they block until the budget
+     */
+    public Observation observe(List<Issued> pending, String agentId, String runId,
+                               Map<String, String> held, boolean incoming, Collection<String> undetachable) {
+        long now = System.currentTimeMillis();
+        List<Outcome> settled = new ArrayList<>();
+        List<Issued> stillPending = new ArrayList<>(pending.size());
+        List<Issued> toDetach = new ArrayList<>();
+        for (Issued p : pending) {
+            String id = p.toolCallId();
+            Outcome outcome;
+            try {
+                outcome = pollOnce(id, agentId, runId, held);
+            } catch (Exception e) {
+                log.warn("tool call {} could not be followed: {}", id, e.getMessage());
+                settled.add(new Outcome(id, Status.FAILED, Failures.message(e)));
+                continue;
+            }
+            if (outcome != null) {
+                settled.add(outcome);
+                continue;
+            }
+            boolean detachable = detachAfterMs > 0 && !undetachable.contains(id);
+            if (detachable && (now >= p.waitEndAtMs() || (incoming && now >= p.detachAtMs()))) {
+                toDetach.add(p);
+                continue;
+            }
+            // Only reachable with detaching off or after a failed detach: the wait ends without
+            // the result, and the backend job is not cancelled.
+            if (now >= p.deadlineAtMs()) {
+                settled.add(new Outcome(id, Status.TIMEOUT, null));
+                continue;
+            }
+            stillPending.add(p);
+        }
+        return new Observation(settled, stillPending, toDetach);
+    }
+
+    /**
+     * Detach the calls whose wait is over. {@code DetachTool} settles the race: a call that
+     * finished meanwhile comes back as its plain result, and one whose detach failed — an old
+     * backend, a network hiccup — is reported as undetachable and blocks until its budget.
+     */
+    public DetachResult detach(List<Issued> calls, String agentId, String runId, Map<String, String> held) {
+        List<Outcome> settled = new ArrayList<>(calls.size());
+        List<String> undetachable = new ArrayList<>();
+        for (Issued p : calls) {
+            String id = p.toolCallId();
+            DetachToolResponse detach = null;
+            try {
+                detach = client.detachTool(agentId, id, runId);
+            } catch (Exception e) {
+                log.warn("detach of tool call {} failed, falling back to blocking: {}", id, e.getMessage());
+            }
+            if (detach == null) {
+                undetachable.add(id);
+                continue;
+            }
+            switch (detach.getStatus()) {
+                case TOOL_RESULT_STATUS_DETACHED -> settled.add(new Outcome(id, Status.DETACHED, null));
+                case TOOL_RESULT_STATUS_SUCCESS -> {
+                    held.put(id, detach.getOutputJson().toStringUtf8());
+                    settled.add(new Outcome(id, Status.SUCCESS, null));
+                }
+                case TOOL_RESULT_STATUS_ERROR -> {
+                    held.put(id, detach.getError());
+                    settled.add(new Outcome(id, Status.ERROR, null));
+                }
+                default -> undetachable.add(id);
+            }
+        }
+        return new DetachResult(settled, undetachable);
+    }
+
+    /** One poll of a call; {@code null} while it is still running. */
+    private Outcome pollOnce(String id, String agentId, String runId, Map<String, String> held) {
         GetToolResultResponse result = client.getToolResult(agentId, id, runId);
         switch (result.getStatus()) {
             case TOOL_RESULT_STATUS_SUCCESS -> {
@@ -180,55 +238,7 @@ public class ToolCallStep {
             }
             default -> { }
         }
-        long now = System.currentTimeMillis();
-        if (now >= p.detachAt && !p.detachFailed) {
-            DetachToolResponse detach = null;
-            try {
-                detach = client.detachTool(agentId, id, runId);
-            } catch (Exception e) {
-                // Best-effort by design (an old backend, a network hiccup): fall back to blocking
-                // until the budget — slow, never lost.
-                log.warn("detach of tool {} (id={}) failed, falling back to blocking: {}",
-                        p.call.toolName(), id, e.getMessage());
-            }
-            if (detach == null || detach.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_UNSPECIFIED) {
-                p.detachFailed = true;
-            } else if (detach.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_DETACHED) {
-                return new Outcome(id, Status.DETACHED, null);
-            } else if (detach.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_ERROR) {
-                held.put(id, detach.getError());
-                return new Outcome(id, Status.ERROR, null);
-            } else {
-                // SUCCESS: the call finished while we were detaching — the plain result won the race.
-                held.put(id, detach.getOutputJson().toStringUtf8());
-                return new Outcome(id, Status.SUCCESS, null);
-            }
-        }
-        if (now > p.deadline) {
-            return new Outcome(id, Status.TIMEOUT, null);
-        }
         return null;
-    }
-
-    private static final class Pending {
-        final Call call;
-        final long deadline;
-        final long detachAt;
-        boolean detachFailed;
-
-        Pending(Call call, long deadline, long detachAt) {
-            this.call = call;
-            this.deadline = deadline;
-            this.detachAt = detachAt;
-        }
-    }
-
-    /** The pause before the next poll round: the ramp first, the steady interval, the slow one after a minute. */
-    static long pollDelayMs(int round, long elapsedMs) {
-        if (elapsedMs >= SLOW_POLL_AFTER_MS) {
-            return SLOW_POLL_INTERVAL_MS;
-        }
-        return round < POLL_RAMP_MS.length ? POLL_RAMP_MS[round] : POLL_INTERVAL_MS;
     }
 
     /** Wait budget: the one declared by the spec (clamped to 30 min), or the worker's default. */
