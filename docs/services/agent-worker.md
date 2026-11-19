@@ -66,10 +66,12 @@ absorbs it anyway) or at the ceiling `max-wait` (a run holds its session's queue
 event is not a lost result: the minute-long `recv` is the reconciliation pass, so the worst case is
 one interval of delay.
 
-Two rules keep the topic from deciding things it should not (`RunEventInbox`): the steering seam
-empties it after absorbing — the events of messages the run already took are stale, and a message
-that arrives later sends a new one — and a wait that wakes on a message drains the rest of the
-burst before observing once, so a storm costs one look, not one per message.
+Two rules keep the topic from deciding things it should not: a wait that wakes on a message drains
+the rest of the burst and observes once, so a storm costs one look, not one per message — and a
+`steerable` it saw (itself or behind the other messages) is confirmed with the backend before the
+verdict. The event lives longer than its reason: the seam may have absorbed that message already.
+The claim is the cheap confirmation — idempotent for this run, and a claim alone silences nothing
+(a claimed-but-unconfirmed run executes itself), so the seam still does the absorbing.
 
 The reply of a step lives in run memory; a crash replay re-reads it by id (`GetTurn`,
 `GetToolResult`) and regenerates the worker's own notices. The backend executes tools
@@ -171,8 +173,9 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 `concurrency` (`llm` — the per-worker semaphore around provider requests),
 `app` (`url`/`title`/`category`/`user-agent` — что воркер сообщает о себе платформе),
 `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
-спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
-не отменяет джобу на бэке, модель получает явное «could still complete»; detach-after — grace
+спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; по умолчанию
+бюджет совпадает с потолком ожидания, поэтому модель получает не «не дождался», а task handle,
+а нотис «could still complete» остаётся фолбэком, когда отцепить не удалось; detach-after — grace
 ожидания до детача (дефолт 10 с, ≤0 выключает): вызов, не уложившийся в него **и** получивший
 входящее в сессии, отцепляется, модель получает task handle, результат приедет триггером
 `tool_completed`; max-wait — потолок тихого ожидания (дефолт 120 с): дальше вызов отцепляется, даже

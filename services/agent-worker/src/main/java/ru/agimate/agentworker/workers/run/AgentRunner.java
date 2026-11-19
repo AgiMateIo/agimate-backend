@@ -148,7 +148,7 @@ public class AgentRunner implements AgentRunWorkflow {
         ToolRegistry toolRegistry = prepared.toolRegistry();
         // One ledger counter for its three writers: the recorder, the steering absorber and the llm_call step.
         TurnLog turnLog = new TurnLog(client, agentId, runId);
-        BackendRunRecorder recorder = new BackendRunRecorder(dbos, client, channelLog, turnLog, toolRegistry, templates, agentId, runId);
+        BackendRunRecorder recorder = new BackendRunRecorder(client, channelLog, turnLog, toolRegistry, templates, agentId, runId);
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(prepared.ephemeralUserPrefix(), initialRequest);

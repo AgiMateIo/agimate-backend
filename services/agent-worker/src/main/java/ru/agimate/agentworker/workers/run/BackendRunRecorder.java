@@ -1,7 +1,6 @@
 package ru.agimate.agentworker.workers.run;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.dbos.transact.DBOS;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.agent.ResponseTemplates;
@@ -30,7 +29,6 @@ class BackendRunRecorder implements RunRecorder {
 
     private static final ObjectMapper PROMPT_MAPPER = new ObjectMapper();
 
-    private final DBOS dbos;
     private final AgentWorkerClient client;
     private final ChannelMessageLog channelLog;
     private final TurnLog turnLog;
@@ -39,9 +37,8 @@ class BackendRunRecorder implements RunRecorder {
     private final String agentId;
     private final String runId;
 
-    BackendRunRecorder(DBOS dbos, AgentWorkerClient client, ChannelMessageLog channelLog, TurnLog turnLog,
+    BackendRunRecorder(AgentWorkerClient client, ChannelMessageLog channelLog, TurnLog turnLog,
                        ToolRegistry registry, ResponseTemplates templates, String agentId, String runId) {
-        this.dbos = dbos;
         this.client = client;
         this.channelLog = channelLog;
         this.turnLog = turnLog;
@@ -111,20 +108,8 @@ class BackendRunRecorder implements RunRecorder {
         return channelLog.isCancelRequested();
     }
 
-    /**
-     * The seam: absorb what the session queued, then empty the run's event topic. Whatever this
-     * seam absorbed, the events those messages sent to this run are stale now — left in the topic,
-     * the next tool wait would read one as «an input is waiting» and detach a call that has
-     * nothing to absorb. A message created after this point sends a new event, so a genuine wait
-     * signal is never lost here.
-     */
     @Override
     public List<AgentChatMessage> pollSteering() {
-        List<AgentChatMessage> absorbed = steering.poll();
-        int dropped = RunEventInbox.drain(dbos);
-        if (dropped > 0) {
-            log.info("seam: absorbed {} message(s), dropped {} stale run event(s)", absorbed.size(), dropped);
-        }
-        return absorbed;
+        return steering.poll();
     }
 }

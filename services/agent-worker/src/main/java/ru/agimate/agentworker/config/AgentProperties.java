@@ -153,8 +153,9 @@ public class AgentProperties {
     @Setter
     public static class Tool {
         /**
-         * Default wait budget for one backend tool call; it bounds how long the run may stay
-         * silent, not how long the backend job may run. A tool spec may declare its own
+         * Default wait budget for one backend tool call: how long the run blocks on it before
+         * detaching — not how long the backend job may run, and not how long the run may stay
+         * silent (that is the reconcile tick). A tool spec may declare its own
          * {@code timeout_seconds} (clamped to 30 min), which overrides this default.
          */
         private Duration pollTimeout = Duration.ofSeconds(60);
@@ -176,7 +177,7 @@ public class AgentProperties {
          * Ceiling on how long one turn may hold its session's queue partition on a single tool
          * call: a call still running here is detached even without an incoming message. Liveness
          * does not constrain the value — the wait re-reads the backend at least once a minute
-         * ({@code ToolCallDispatcher.RECV_TIMEOUT}), and that read is what stamps the run alive.
+         * ({@code ToolCallSteps.RECV_TIMEOUT_MS}), and that read is what stamps the run alive.
          */
         private Duration maxWait = Duration.ofSeconds(120);
     }

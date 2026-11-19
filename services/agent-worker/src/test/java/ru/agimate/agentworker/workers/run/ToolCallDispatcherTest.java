@@ -10,9 +10,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import ru.agimate.agentworker.ClaimSteeringResponse;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.GetToolResultResponse;
 import ru.agimate.agentworker.RunEvent;
+import ru.agimate.agentworker.SteeringMessage;
 import ru.agimate.agentworker.ToolAnnotations;
 import ru.agimate.agentworker.ToolResultStatus;
 import ru.agimate.agentworker.WorkerProtocol;
@@ -355,6 +357,16 @@ class ToolCallDispatcherTest {
                     .thenReturn(new ToolCallSteps.IssuedBatch(List.of(), List.of(issued)));
         }
 
+        /** The backend's answer to the steering probe: what is still there to absorb. */
+        private void probeAnswers(SteeringMessage... messages) {
+            when(client.claimSteering("agent-1", "run-1")).thenReturn(
+                    ClaimSteeringResponse.newBuilder().addAllMessages(List.of(messages)).build());
+        }
+
+        private static SteeringMessage steerableInbound(String runId) {
+            return SteeringMessage.newBuilder().setRunId(runId).setText("и ещё вопрос").build();
+        }
+
         @Test
         @DisplayName("пустой recv не отменяет взгляд: наблюдение выполняется и без события")
         void emptyRecvStillObserves() {
@@ -371,13 +383,13 @@ class ToolCallDispatcherTest {
         }
 
         @Test
-        @DisplayName("стиринг-событие доходит до наблюдения — по нему вызов и отцепляется")
+        @DisplayName("стиринг-событие подтверждается у бэкенда и доходит до наблюдения — вызов отцепляется")
         void steerableEventReachesObservation() {
             ToolCallSteps.Issued issued = new ToolCallSteps.Issued("a", 0, 0, 0);
             accepts(issued);
+            probeAnswers(steerableInbound("run-2"));
             when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
-                    .thenReturn(Optional.of((Object) Map.of("kind", RunEvent.STEERABLE, "runId", "run-2")),
-                            Optional.empty());
+                    .thenReturn(Optional.of((Object) RunEvent.steerable("run-2")), Optional.empty());
             when(step.observe(any(), any(), any(), any(), any())).thenReturn(
                     new ToolCallSteps.Observation(List.of(), List.of(), List.of(issued)));
             when(step.detach(any(), any(), any(), any())).thenReturn(new ToolCallSteps.DetachResult(
@@ -385,8 +397,42 @@ class ToolCallDispatcherTest {
 
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(calls);
 
+            verify(client).claimSteering("agent-1", "run-1");
             verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(true, Set.of())));
             assertTrue(results.get(0).contentJson().contains("\"detached\""));
+        }
+
+        @Test
+        @DisplayName("устаревшее событие: бэкенд говорит «поглощать нечего» — ожидание продолжается")
+        void staleSteerableEventIsNotTrusted() {
+            accepts(new ToolCallSteps.Issued("a", 0, 0, 0));
+            probeAnswers();
+            when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
+                    .thenReturn(Optional.of((Object) RunEvent.steerable("run-2")), Optional.empty());
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of(), List.of()));
+
+            dispatcher.dispatchAll(calls);
+
+            verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(false, Set.of())));
+            verify(step, never()).detach(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("проба не удалась — верим событию: недоступный бэкенд не отменяет отцепку")
+        void probeFailureTrustsTheEvent() {
+            accepts(new ToolCallSteps.Issued("a", 0, 0, 0));
+            when(client.claimSteering("agent-1", "run-1")).thenThrow(new RuntimeException("grpc down"));
+            when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
+                    .thenReturn(Optional.of((Object) RunEvent.steerable("run-2")), Optional.empty());
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of(), List.of()));
+
+            dispatcher.dispatchAll(calls);
+
+            verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(true, Set.of())));
         }
 
         @Test
@@ -414,9 +460,9 @@ class ToolCallDispatcherTest {
         void burstIsCoalescedIntoOneObservation() {
             accepts(new ToolCallSteps.Issued("a", 0, 0, 0));
             when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
-                    .thenReturn(Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
-                            Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
-                            Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
+                    .thenReturn(Optional.of((Object) RunEvent.toolFinished("a")),
+                            Optional.of((Object) RunEvent.toolFinished("a")),
+                            Optional.of((Object) RunEvent.toolFinished("a")),
                             Optional.empty());
             when(step.observe(any(), any(), any(), any(), any())).thenReturn(
                     new ToolCallSteps.Observation(

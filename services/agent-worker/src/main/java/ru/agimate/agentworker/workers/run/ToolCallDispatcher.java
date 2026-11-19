@@ -135,13 +135,15 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
             if (message.isPresent()) {
                 // A burst (a webhook storm creating run after run) must cost one observation, not one
                 // per message: everything a dropped message says — a result exists, the run was
-                // stopped — is re-read by the observation itself, and the one thing that changes the
-                // verdict, «an input is waiting», is sticky anyway.
-                int coalesced = RunEventInbox.drain(dbos);
+                // stopped — is re-read by the observation itself.
+                RunEventInbox.Drained burst = RunEventInbox.drain(dbos);
                 log.debug("run event {} while waiting for tools, {} more coalesced into this pass",
-                        RunEventInbox.kind(message.get()), coalesced);
+                        RunEventInbox.kind(message.get()), burst.count());
+                // A `steerable` behind another message must not be lost with the rest of the burst.
+                if (!incoming && (RunEventInbox.isSteerable(message.get()) || burst.steerable())) {
+                    incoming = stillSteerable();
+                }
             }
-            incoming |= message.map(RunEventInbox::isSteerable).orElse(false);
 
             final ToolCallSteps.WaitState verdict = new ToolCallSteps.WaitState(incoming, Set.copyOf(undetachable));
             ToolCallSteps.Observation observation = dbos.runStep(
@@ -160,6 +162,25 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
             waiting = next;
         }
         return settled;
+    }
+
+    /**
+     * Is there still something for this run to absorb? Only the backend knows: an event outlives
+     * its message — the seam may have absorbed it already, or the run it announced never arrived.
+     * The claim is the cheap way to ask, because it is idempotent for this main and a claim alone
+     * silences nothing: a claimed-but-unconfirmed run executes itself, so the probe costs the seam
+     * nothing — it re-fetches the same messages and absorbs them for real.
+     *
+     * <p>Fails towards detaching: an unreachable backend leaves today's behaviour, a wait that ends
+     * on the input it was told about.
+     */
+    private boolean stillSteerable() {
+        try {
+            return !client.claimSteering(agentId, runId).getMessagesList().isEmpty();
+        } catch (Exception e) {
+            log.warn("steering probe failed, trusting the event: {}", e.getMessage());
+            return true;
+        }
     }
 
     /**

@@ -71,8 +71,9 @@ public class McpService {
 
     /**
      * How long a task-capable {@code tools/call} waits before the call detaches into a task: enough
-     * for the fast majority to answer in-turn, cheap for the rest. Same reasoning as the worker's
-     * {@code agent.tool.detach-after}.
+     * for the fast majority to answer in-turn, cheap for the rest. Deliberately a plain timer, and
+     * unrelated to the worker's {@code agent.tool.detach-after}: that one now detaches only when an
+     * input arrived in the run's session, which an MCP caller has no notion of.
      */
     private static final Duration TASK_GRACE = Duration.ofSeconds(10);
 
