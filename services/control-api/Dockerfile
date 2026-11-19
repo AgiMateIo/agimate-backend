@@ -23,8 +23,13 @@ COPY user-api/build.gradle.kts user-api/
 COPY control-api/build.gradle.kts control-api/
 COPY agent-worker/build.gradle.kts agent-worker/
 
-# Download dependencies (cached layer)
-RUN ./gradlew dependencies --no-daemon || true
+# Download dependencies into a BuildKit cache mount, not an image layer. A layer here was
+# invalidated by any change to a copied build file, and the rebuild paid in the worst
+# place: the wrapper re-fetches the Gradle distribution from services.gradle.org, which
+# redirects to GitHub Releases and trickles there (~250-380 KB/s on the deploy runner —
+# ~10 minutes for ~140 MB, while Maven Central serves 2.5-6 MB/s). The mount outlives
+# layer invalidation, so Gradle itself and every resolved artifact survive a rebuild.
+RUN --mount=type=cache,target=/root/.gradle ./gradlew dependencies --no-daemon || true
 
 # Copy source code. agentworker-proto carries the .proto files the gRPC stubs are generated from.
 COPY libs/common/src libs/common/src
@@ -32,7 +37,7 @@ COPY libs/agentworker-proto/src libs/agentworker-proto/src
 COPY control-api/src control-api/src
 
 # Build the application
-RUN ./gradlew :control-api:bootJar --no-daemon
+RUN --mount=type=cache,target=/root/.gradle ./gradlew :control-api:bootJar --no-daemon
 
 # Runtime stage.
 # glibc, not -alpine: the worker gRPC server terminates TLS via netty-tcnative, whose native
