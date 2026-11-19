@@ -110,7 +110,7 @@ CancelRequested(runId)     — при запросе остановки
 ### Ожидание (agent-worker)
 
 `DBOS.recv` нельзя вызывать из шага (`IllegalStateException`), поэтому цикл переезжает в тело
-воркфлоу — `ToolCallDispatcher.dispatchAll` уже вызывается оттуда. `ToolCallStep` вместо одного
+воркфлоу — `ToolCallDispatcher.dispatchAll` уже вызывается оттуда. `ToolCallSteps` вместо одного
 `run()` получает три тела:
 
 ```
@@ -182,7 +182,7 @@ Interim `{"status":"detached", …}`, гонка `DetachTool` с финишем 
 - [x] Отправки из воронок: `AgentDeliveryService.deliverToolResult`, три создателя рана
       (`TriggerRouterService.dispatch`, `DetachedToolResultDelivery`, `SubagentReportDelivery`;
       адресат — RUNNING-ран сессии), остановка рана (2026-11-19)
-- [x] `ToolCallStep`: `issue` / `observe` / `detach`; `ToolCallDispatcher` ведёт цикл `recv` в теле
+- [x] `ToolCallSteps`: `issue` / `observe` / `detach`; `ToolCallDispatcher` ведёт цикл `recv` в теле
       воркфлоу; `finalize` не понадобился — сборка исходов чистая (2026-11-19)
 - [x] `agent.tool.max-wait`; безусловный детач на 10 с убран, потолок отцепляет вместо `TIMEOUT`
       (2026-11-19)

@@ -73,7 +73,7 @@ class ToolCallDispatcherTest {
 
         private final DBOS dbos = mock(DBOS.class);
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-        private final ToolCallStep step = mock(ToolCallStep.class);
+        private final ToolCallSteps step = mock(ToolCallSteps.class);
         private final ToolRegistry registry = ToolRegistry.build(List.of(
                 ConnectorToolSpec.newBuilder().setConnectorCode("wx").setNamespace("wx").setName("get_weather")
                         .setConnectionId("conn-1").build(),
@@ -89,23 +89,23 @@ class ToolCallDispatcherTest {
                 new AgentChatMessage.ToolCall("c", "wx__get_weather", "{}"),
                 new AgentChatMessage.ToolCall("d", "wx__get_weather", "{}"));
 
-        private static final ToolCallStep.Outcomes OUTCOMES = new ToolCallStep.Outcomes(List.of(
-                new ToolCallStep.Outcome("a", ToolCallStep.Status.SUCCESS, null),
-                new ToolCallStep.Outcome("b", ToolCallStep.Status.ERROR, null),
-                new ToolCallStep.Outcome("c", ToolCallStep.Status.DETACHED, null),
-                new ToolCallStep.Outcome("d", ToolCallStep.Status.TIMEOUT, null)));
+        private static final ToolCallSteps.Outcomes OUTCOMES = new ToolCallSteps.Outcomes(List.of(
+                new ToolCallSteps.Outcome("a", ToolCallSteps.Status.SUCCESS, null),
+                new ToolCallSteps.Outcome("b", ToolCallSteps.Status.ERROR, null),
+                new ToolCallSteps.Outcome("c", ToolCallSteps.Status.DETACHED, null),
+                new ToolCallSteps.Outcome("d", ToolCallSteps.Status.TIMEOUT, null)));
 
-        private static ToolCallStep.IssuedBatch issuedBatch() {
-            return new ToolCallStep.IssuedBatch(List.of(), List.of(
-                    new ToolCallStep.Issued("a", 0, 0, 0),
-                    new ToolCallStep.Issued("b", 0, 0, 0),
-                    new ToolCallStep.Issued("c", 0, 0, 0),
-                    new ToolCallStep.Issued("d", 0, 0, 0)));
+        private static ToolCallSteps.IssuedBatch issuedBatch() {
+            return new ToolCallSteps.IssuedBatch(List.of(), List.of(
+                    new ToolCallSteps.Issued("a", 0, 0, 0),
+                    new ToolCallSteps.Issued("b", 0, 0, 0),
+                    new ToolCallSteps.Issued("c", 0, 0, 0),
+                    new ToolCallSteps.Issued("d", 0, 0, 0)));
         }
 
         /** One observe pass settles everything: no detach step, no second recv. */
-        private static ToolCallStep.Observation settledAll() {
-            return new ToolCallStep.Observation(OUTCOMES.items(), List.of(), List.of());
+        private static ToolCallSteps.Observation settledAll() {
+            return new ToolCallSteps.Observation(OUTCOMES.items(), List.of(), List.of());
         }
 
         @SuppressWarnings("unchecked")
@@ -113,7 +113,7 @@ class ToolCallDispatcherTest {
             when(step.maxOutputChars()).thenReturn(1000);
             when(step.budgetSeconds(0)).thenReturn(60L);
             when(step.issue(any(), eq("agent-1"), eq("run-1"))).thenReturn(issuedBatch());
-            when(step.observe(any(), eq("agent-1"), eq("run-1"), any(), anyBoolean(), any())).thenAnswer(inv -> {
+            when(step.observe(any(), eq("agent-1"), eq("run-1"), any(), any())).thenAnswer(inv -> {
                 fill.accept(inv.getArgument(3));
                 return settledAll();
             });
@@ -174,12 +174,12 @@ class ToolCallDispatcherTest {
         @DisplayName("open-world тул: вывод в обёртке недоверенных данных после обрезки")
         void openWorldOutputIsWrapped() throws Exception {
             when(step.maxOutputChars()).thenReturn(1000);
-            when(step.issue(any(), any(), any())).thenReturn(new ToolCallStep.IssuedBatch(
-                    List.of(), List.of(new ToolCallStep.Issued("b", 0, 0, 0))));
-            when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
+            when(step.issue(any(), any(), any())).thenReturn(new ToolCallSteps.IssuedBatch(
+                    List.of(), List.of(new ToolCallSteps.Issued("b", 0, 0, 0))));
+            when(step.observe(any(), any(), any(), any(), any())).thenAnswer(inv -> {
                 inv.getArgument(3, Map.class).put("b", "{\"subject\":\"hi\"}");
-                return new ToolCallStep.Observation(
-                        List.of(new ToolCallStep.Outcome("b", ToolCallStep.Status.SUCCESS, null)), List.of(), List.of());
+                return new ToolCallSteps.Observation(
+                        List.of(new ToolCallSteps.Outcome("b", ToolCallSteps.Status.SUCCESS, null)), List.of(), List.of());
             });
             when(dbos.runStep(any(ThrowingSupplier.class), anyString()))
                     .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
@@ -193,7 +193,7 @@ class ToolCallDispatcherTest {
         @DisplayName("неизвестный тул отвечается сразу, но шаг всё равно выполняется — номер в воркфлоу не должен пропасть")
         @SuppressWarnings("unchecked")
         void unknownToolStillConsumesItsStep() {
-            when(step.issue(any(), any(), any())).thenReturn(new ToolCallStep.IssuedBatch(List.of(), List.of()));
+            when(step.issue(any(), any(), any())).thenReturn(new ToolCallSteps.IssuedBatch(List.of(), List.of()));
             when(dbos.runStep(any(ThrowingSupplier.class), anyString()))
                     .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
 
@@ -214,7 +214,7 @@ class ToolCallDispatcherTest {
 
         private final DBOS dbos = mock(DBOS.class);
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-        private final ToolCallStep step = mock(ToolCallStep.class);
+        private final ToolCallSteps step = mock(ToolCallSteps.class);
         private final ToolRegistry registry = ToolRegistry.build(List.of(
                 ConnectorToolSpec.newBuilder().setConnectorCode("tool-loader").setNamespace("tool-loader")
                         .setName("load_tools").setConnectionId("conn-0")
@@ -235,12 +235,12 @@ class ToolCallDispatcherTest {
 
         @SuppressWarnings("unchecked")
         private void stepReturns(String output) throws Exception {
-            when(step.issue(any(), any(), any())).thenReturn(new ToolCallStep.IssuedBatch(
-                    List.of(), List.of(new ToolCallStep.Issued("d", 0, 0, 0))));
-            when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenAnswer(inv -> {
+            when(step.issue(any(), any(), any())).thenReturn(new ToolCallSteps.IssuedBatch(
+                    List.of(), List.of(new ToolCallSteps.Issued("d", 0, 0, 0))));
+            when(step.observe(any(), any(), any(), any(), any())).thenAnswer(inv -> {
                 inv.getArgument(3, Map.class).put("d", output);
-                return new ToolCallStep.Observation(
-                        List.of(new ToolCallStep.Outcome("d", ToolCallStep.Status.SUCCESS, null)), List.of(), List.of());
+                return new ToolCallSteps.Observation(
+                        List.of(new ToolCallSteps.Outcome("d", ToolCallSteps.Status.SUCCESS, null)), List.of(), List.of());
             });
             when(dbos.runStep(any(ThrowingSupplier.class), anyString()))
                     .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
@@ -265,11 +265,11 @@ class ToolCallDispatcherTest {
         @DisplayName("реплей: дельта перечитывается по id и применяется так же")
         @SuppressWarnings("unchecked")
         void replayReappliesDelta() throws Exception {
-            when(dbos.runStep(any(ThrowingSupplier.class), eq("tool_issue"))).thenReturn(new ToolCallStep.IssuedBatch(
-                    List.of(), List.of(new ToolCallStep.Issued("d", 0, 0, 0))));
+            when(dbos.runStep(any(ThrowingSupplier.class), eq("tool_issue"))).thenReturn(new ToolCallSteps.IssuedBatch(
+                    List.of(), List.of(new ToolCallSteps.Issued("d", 0, 0, 0))));
             when(dbos.runStep(any(ThrowingSupplier.class), eq("tool_observe"))).thenReturn(
-                    new ToolCallStep.Observation(
-                            List.of(new ToolCallStep.Outcome("d", ToolCallStep.Status.SUCCESS, null)), List.of(), List.of()));
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("d", ToolCallSteps.Status.SUCCESS, null)), List.of(), List.of()));
             when(client.getToolResult("agent-1", "d", "run-1")).thenReturn(GetToolResultResponse.newBuilder()
                     .setStatus(ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS)
                     .setOutputJson(ByteString.copyFromUtf8(delta())).build());
@@ -284,7 +284,7 @@ class ToolCallDispatcherTest {
         @DisplayName("вызов ещё не раскрытого тула отвечается подсказкой про load_tools, не «unknown»")
         @SuppressWarnings("unchecked")
         void deferredToolPointsAtDescribe() {
-            when(step.issue(any(), any(), any())).thenReturn(new ToolCallStep.IssuedBatch(List.of(), List.of()));
+            when(step.issue(any(), any(), any())).thenReturn(new ToolCallSteps.IssuedBatch(List.of(), List.of()));
             when(dbos.runStep(any(ThrowingSupplier.class), anyString()))
                     .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
 
@@ -334,7 +334,7 @@ class ToolCallDispatcherTest {
 
         private final DBOS dbos = mock(DBOS.class);
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-        private final ToolCallStep step = mock(ToolCallStep.class);
+        private final ToolCallSteps step = mock(ToolCallSteps.class);
         private final ToolRegistry registry = ToolRegistry.build(List.of(
                 ConnectorToolSpec.newBuilder().setConnectorCode("wx").setNamespace("wx").setName("get_weather")
                         .setConnectionId("conn-1").build()));
@@ -350,61 +350,61 @@ class ToolCallDispatcherTest {
                     .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
         }
 
-        private void accepts(ToolCallStep.Issued issued) {
+        private void accepts(ToolCallSteps.Issued issued) {
             when(step.issue(any(), eq("agent-1"), eq("run-1")))
-                    .thenReturn(new ToolCallStep.IssuedBatch(List.of(), List.of(issued)));
+                    .thenReturn(new ToolCallSteps.IssuedBatch(List.of(), List.of(issued)));
         }
 
         @Test
         @DisplayName("пустой recv не отменяет взгляд: наблюдение выполняется и без события")
         void emptyRecvStillObserves() {
-            accepts(new ToolCallStep.Issued("a", 0, 0, 0));
-            when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenReturn(
-                    new ToolCallStep.Observation(
-                            List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.DETACHED, null)), List.of(), List.of()));
+            accepts(new ToolCallSteps.Issued("a", 0, 0, 0));
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of(), List.of()));
 
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(calls);
 
             verify(dbos).recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any());
-            verify(step).observe(any(), eq("agent-1"), eq("run-1"), any(), eq(false), eq(Set.of()));
+            verify(step).observe(any(), eq("agent-1"), eq("run-1"), any(), eq(new ToolCallSteps.WaitState(false, Set.of())));
             assertFalse(results.get(0).failed());
         }
 
         @Test
         @DisplayName("стиринг-событие доходит до наблюдения — по нему вызов и отцепляется")
         void steerableEventReachesObservation() {
-            ToolCallStep.Issued issued = new ToolCallStep.Issued("a", 0, 0, 0);
+            ToolCallSteps.Issued issued = new ToolCallSteps.Issued("a", 0, 0, 0);
             accepts(issued);
             when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
                     .thenReturn(Optional.of((Object) Map.of("kind", RunEvent.STEERABLE, "runId", "run-2")),
                             Optional.empty());
-            when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenReturn(
-                    new ToolCallStep.Observation(List.of(), List.of(), List.of(issued)));
-            when(step.detach(any(), any(), any(), any())).thenReturn(new ToolCallStep.DetachResult(
-                    List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.DETACHED, null)), List.of()));
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(List.of(), List.of(), List.of(issued)));
+            when(step.detach(any(), any(), any(), any())).thenReturn(new ToolCallSteps.DetachResult(
+                    List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of()));
 
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(calls);
 
-            verify(step).observe(any(), any(), any(), any(), eq(true), any());
+            verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(true, Set.of())));
             assertTrue(results.get(0).contentJson().contains("\"detached\""));
         }
 
         @Test
         @DisplayName("недетачимый вызов возвращается в ожидание, а не в исходы")
         void undetachableGoesBackToWaiting() {
-            ToolCallStep.Issued issued = new ToolCallStep.Issued("a", 0, 0, 0);
+            ToolCallSteps.Issued issued = new ToolCallSteps.Issued("a", 0, 0, 0);
             accepts(issued);
-            when(step.observe(any(), any(), any(), any(), anyBoolean(), any()))
-                    .thenReturn(new ToolCallStep.Observation(List.of(), List.of(), List.of(issued)))
-                    .thenReturn(new ToolCallStep.Observation(
-                            List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.TIMEOUT, null)), List.of(), List.of()));
+            when(step.observe(any(), any(), any(), any(), any()))
+                    .thenReturn(new ToolCallSteps.Observation(List.of(), List.of(), List.of(issued)))
+                    .thenReturn(new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.TIMEOUT, null)), List.of(), List.of()));
             when(step.detach(any(), any(), any(), any()))
-                    .thenReturn(new ToolCallStep.DetachResult(List.of(), List.of("a")));
+                    .thenReturn(new ToolCallSteps.DetachResult(List.of(), List.of("a")));
 
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(calls);
 
-            verify(step, times(2)).observe(any(), any(), any(), any(), anyBoolean(), any());
-            verify(step).observe(any(), any(), any(), any(), anyBoolean(), eq(Set.of("a")));
+            verify(step, times(2)).observe(any(), any(), any(), any(), any());
+            verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(false, Set.of("a"))));
             verify(step, times(1)).detach(any(), any(), any(), any());
             assertTrue(results.get(0).contentJson().contains("did not finish within"));
         }
@@ -412,37 +412,37 @@ class ToolCallDispatcherTest {
         @Test
         @DisplayName("всплеск событий сливается в одно наблюдение, а не по одному на сообщение")
         void burstIsCoalescedIntoOneObservation() {
-            accepts(new ToolCallStep.Issued("a", 0, 0, 0));
+            accepts(new ToolCallSteps.Issued("a", 0, 0, 0));
             when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
                     .thenReturn(Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
                             Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
                             Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
                             Optional.empty());
-            when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenReturn(
-                    new ToolCallStep.Observation(
-                            List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.DETACHED, null)), List.of(), List.of()));
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of(), List.of()));
 
             dispatcher.dispatchAll(calls);
 
             // Three queued messages became one look: the last recv is the peek that found nothing.
             verify(dbos, times(4)).recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any());
-            verify(step, times(1)).observe(any(), any(), any(), any(), anyBoolean(), any());
+            verify(step, times(1)).observe(any(), any(), any(), any(), any());
         }
 
         @Test
         @DisplayName("recv ждёт до ближайшего решения, но не дольше минуты")
         void recvWaitsAtMostTheReconcileTick() {
             long now = System.currentTimeMillis();
-            accepts(new ToolCallStep.Issued("a", now + 10_000, now + 120_000, now + 180_000));
-            when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenReturn(
-                    new ToolCallStep.Observation(
-                            List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.DETACHED, null)), List.of(), List.of()));
+            accepts(new ToolCallSteps.Issued("a", now + 10_000, now + 120_000, now + 180_000));
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of(), List.of()));
 
             dispatcher.dispatchAll(calls);
 
             ArgumentCaptor<Duration> timeout = ArgumentCaptor.forClass(Duration.class);
             verify(dbos).recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), timeout.capture());
-            assertEquals(ToolCallDispatcher.RECV_TIMEOUT_MS, timeout.getValue().toMillis());
+            assertEquals(ToolCallSteps.RECV_TIMEOUT_MS, timeout.getValue().toMillis());
         }
     }
 }

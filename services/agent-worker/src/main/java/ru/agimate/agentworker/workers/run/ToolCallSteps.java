@@ -11,9 +11,9 @@ import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The bodies of the run workflow's three tool steps: issue every call of the turn, observe the
@@ -29,15 +29,26 @@ import java.util.Map;
  * ceiling {@code agent.tool.max-wait}, because a run holds its session's queue partition. A failed
  * detach falls back to blocking until the budget, which then ends as {@link Status#TIMEOUT}.
  *
- * <p>Every decision about time is taken inside a step and returned as data, so a replay branches
- * only on recorded results. The checkpoint ({@link Outcomes}) is ids and statuses: outputs and
- * backend error texts stay in run memory ({@code held}), and a crash replay re-reads them by id.
+ * <p>Every decision about time is taken here and returned as data, so a replay branches only on
+ * recorded results: the step bodies decide a call's fate, {@link #nextWakeMs} decides when the
+ * workflow looks again, and the dispatcher only orchestrates the three. The checkpoint
+ * ({@link Outcomes}) is ids and statuses: outputs and backend error texts stay in run memory
+ * ({@code held}), and a crash replay re-reads them by id.
  */
 @Slf4j
-public class ToolCallStep {
+public class ToolCallSteps {
 
     /** Ceiling on the budget declared by a spec — 30 minutes. */
     static final int MAX_TIMEOUT_SECONDS = 1800;
+
+    /**
+     * Longest silence between two looks at the pending calls: the safety net for a lost message, and
+     * the run's periodic sign of life. Must stay below control-api's stale-run threshold (15 min).
+     */
+    static final long RECV_TIMEOUT_MS = 60_000;
+
+    /** Floor on a single {@code recv}: waking for a decision already due must not become a spin. */
+    private static final long RECV_MIN_MS = 10;
 
     /** One call to issue; {@code timeoutSeconds} ≤ 0 means the worker's default budget. */
     public record Call(String toolCallId, String connectorCode, String connectionId, String toolName,
@@ -82,6 +93,12 @@ public class ToolCallStep {
     /** The {@code tool_observe} checkpoint: what settled, what is still running, what must be detached. */
     public record Observation(List<Outcome> settled, List<Issued> pending, List<Issued> toDetach) {}
 
+    /**
+     * What the run knows about the wait itself, as opposed to the calls in it: whether a new input
+     * arrived in the session, and which calls already failed to detach.
+     */
+    public record WaitState(boolean incoming, Set<String> undetachable) {}
+
     /** The {@code tool_detach} checkpoint: what the race settled, and which calls stayed undetachable. */
     public record DetachResult(List<Outcome> settled, List<String> undetachable) {}
 
@@ -91,7 +108,7 @@ public class ToolCallStep {
     private final long maxWaitMs;
     private final int maxOutputChars;
 
-    public ToolCallStep(AgentWorkerClient client, AgentProperties.Tool tool) {
+    public ToolCallSteps(AgentWorkerClient client, AgentProperties.Tool tool) {
         this.client = client;
         this.pollTimeoutMs = tool.getPollTimeout().toMillis();
         this.detachAfterMs = tool.getDetachAfter().toMillis();
@@ -140,12 +157,9 @@ public class ToolCallStep {
     /**
      * One look at the pending calls; never throws. {@code held} receives each SUCCESS output and
      * ERROR text by id — the run-memory copy the dispatcher reads instead of the backend.
-     *
-     * @param incoming whether a new input arrived in the session during this wait
-     * @param undetachable calls whose detach already failed once; they block until the budget
      */
     public Observation observe(List<Issued> pending, String agentId, String runId,
-                               Map<String, String> held, boolean incoming, Collection<String> undetachable) {
+                               Map<String, String> held, WaitState wait) {
         long now = System.currentTimeMillis();
         List<Outcome> settled = new ArrayList<>();
         List<Issued> stillPending = new ArrayList<>(pending.size());
@@ -164,8 +178,8 @@ public class ToolCallStep {
                 settled.add(outcome);
                 continue;
             }
-            boolean detachable = detachAfterMs > 0 && !undetachable.contains(id);
-            if (detachable && (now >= p.waitEndAtMs() || (incoming && now >= p.detachAtMs()))) {
+            boolean detachable = detachAfterMs > 0 && !wait.undetachable().contains(id);
+            if (detachable && (now >= p.waitEndAtMs() || (wait.incoming() && now >= p.detachAtMs()))) {
                 toDetach.add(p);
                 continue;
             }
@@ -239,6 +253,33 @@ public class ToolCallStep {
             default -> { }
         }
         return null;
+    }
+
+    /**
+     * Milliseconds to block before the next look: the distance to the nearest decision, never past
+     * the reconcile tick, never below the floor. Pure over the recorded schedule, so a replay reads
+     * the same rule; the clock only turns instants into a duration.
+     */
+    static long nextWakeMs(List<Issued> waiting, WaitState wait) {
+        long now = System.currentTimeMillis();
+        long next = Long.MAX_VALUE;
+        for (Issued p : waiting) {
+            next = Math.min(next, p.deadlineAtMs());
+            // A call whose detach already failed has only the budget left — its threshold and
+            // ceiling are spent, and waking for them would end in another useless attempt.
+            if (!wait.undetachable().contains(p.toolCallId())) {
+                next = Math.min(next, p.waitEndAtMs());
+                if (wait.incoming()) {
+                    next = Math.min(next, p.detachAtMs());
+                }
+            }
+        }
+        if (next == Long.MAX_VALUE) {
+            // Unreachable today — every pending call has a budget — but this guard is what keeps a
+            // future "never" instant from turning the subtraction below into a busy loop.
+            return RECV_TIMEOUT_MS;
+        }
+        return Math.max(RECV_MIN_MS, Math.min(RECV_TIMEOUT_MS, next - now));
     }
 
     /** Wait budget: the one declared by the spec (clamped to 30 min), or the worker's default. */

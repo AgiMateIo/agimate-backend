@@ -34,21 +34,21 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ToolCallStepTest {
+class ToolCallStepsTest {
 
     @Test
     @DisplayName("truncateOutput не трогает вывод в пределах лимита")
     void keepsShortOutput() {
         String output = "{\"ok\":true}";
-        assertSame(output, ToolCallStep.truncateOutput(output, 100));
-        assertSame(output, ToolCallStep.truncateOutput(output, output.length()));
+        assertSame(output, ToolCallSteps.truncateOutput(output, 100));
+        assertSame(output, ToolCallSteps.truncateOutput(output, output.length()));
     }
 
     @Test
     @DisplayName("длинный вывод обрезается до лимита с явной пометкой")
     void truncatesLongOutput() {
         String output = "x".repeat(150);
-        String cut = ToolCallStep.truncateOutput(output, 100);
+        String cut = ToolCallSteps.truncateOutput(output, 100);
         assertTrue(cut.startsWith("x".repeat(100)));
         assertTrue(cut.contains("truncated by worker: 150 chars total, first 100 shown"));
     }
@@ -57,7 +57,7 @@ class ToolCallStepTest {
     @DisplayName("суррогатная пара UTF-16 на границе не рвётся")
     void doesNotSplitSurrogatePair() {
         String output = "ab" + "😀".repeat(10); // 😀 = high+low surrogate
-        String cut = ToolCallStep.truncateOutput(output, 5); // граница внутри пары
+        String cut = ToolCallSteps.truncateOutput(output, 5); // граница внутри пары
         assertTrue(cut.contains("first 4 shown"));
         assertEquals("ab😀", cut.substring(0, 4));
     }
@@ -65,27 +65,27 @@ class ToolCallStepTest {
     @Test
     @DisplayName("effectiveTimeoutMs: спек не задал бюджет → дефолт воркера")
     void defaultBudgetWhenSpecSilent() {
-        assertEquals(60_000L, ToolCallStep.effectiveTimeoutMs(0, 60_000L));
-        assertEquals(60_000L, ToolCallStep.effectiveTimeoutMs(-5, 60_000L));
+        assertEquals(60_000L, ToolCallSteps.effectiveTimeoutMs(0, 60_000L));
+        assertEquals(60_000L, ToolCallSteps.effectiveTimeoutMs(-5, 60_000L));
     }
 
     @Test
     @DisplayName("effectiveTimeoutMs: заявленный бюджет побеждает дефолт")
     void specBudgetOverridesDefault() {
-        assertEquals(1_800_000L, ToolCallStep.effectiveTimeoutMs(1800, 60_000L));
-        assertEquals(300_000L, ToolCallStep.effectiveTimeoutMs(300, 60_000L));
+        assertEquals(1_800_000L, ToolCallSteps.effectiveTimeoutMs(1800, 60_000L));
+        assertEquals(300_000L, ToolCallSteps.effectiveTimeoutMs(300, 60_000L));
     }
 
     @Test
     @DisplayName("effectiveTimeoutMs: бюджет свыше 30 минут клампится")
     void specBudgetClampedToMax() {
-        assertEquals(1_800_000L, ToolCallStep.effectiveTimeoutMs(7200, 60_000L));
+        assertEquals(1_800_000L, ToolCallSteps.effectiveTimeoutMs(7200, 60_000L));
     }
 
     @Test
     @DisplayName("detachedInterim — валидный JSON со статусом и task_id")
     void interimIsValidJson() throws Exception {
-        JsonNode json = new ObjectMapper().readTree(ToolCallStep.detachedInterim("call-77"));
+        JsonNode json = new ObjectMapper().readTree(ToolCallSteps.detachedInterim("call-77"));
         assertEquals("detached", json.get("status").asText());
         assertEquals("call-77", json.get("task_id").asText());
         assertTrue(json.get("note").asText().contains("Do not call the tool again"));
@@ -94,9 +94,9 @@ class ToolCallStepTest {
     @Test
     @DisplayName("чекпоинты шагов переживают сериализатор DBOS: типы восстанавливаются, содержимого нет")
     void checksRoundTripThroughDbosSerializer() {
-        ToolCallStep.Outcomes outcomes = new ToolCallStep.Outcomes(List.of(
-                new ToolCallStep.Outcome("a", ToolCallStep.Status.SUCCESS, null),
-                new ToolCallStep.Outcome("b", ToolCallStep.Status.FAILED, "rpc rejected")));
+        ToolCallSteps.Outcomes outcomes = new ToolCallSteps.Outcomes(List.of(
+                new ToolCallSteps.Outcome("a", ToolCallSteps.Status.SUCCESS, null),
+                new ToolCallSteps.Outcome("b", ToolCallSteps.Status.FAILED, "rpc rejected")));
 
         String json = DBOSJavaSerializer.INSTANCE.serialize(outcomes);
         Object back = DBOSJavaSerializer.INSTANCE.deserialize(json);
@@ -108,16 +108,16 @@ class ToolCallStepTest {
     @Test
     @DisplayName("чекпоинты тул-шагов переживают сериализатор DBOS, включая моменты «никогда»")
     void stepCheckpointsRoundTripThroughDbosSerializer() {
-        ToolCallStep.IssuedBatch batch = new ToolCallStep.IssuedBatch(
-                List.of(new ToolCallStep.Outcome("x", ToolCallStep.Status.FAILED, "rejected")),
-                List.of(new ToolCallStep.Issued("a", 1L, 2L, 3L),
-                        new ToolCallStep.Issued("b", Long.MAX_VALUE, Long.MAX_VALUE, 9L)));
-        ToolCallStep.Observation observation = new ToolCallStep.Observation(
-                List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.SUCCESS, null)),
-                List.of(new ToolCallStep.Issued("b", 1L, 2L, 3L)),
-                List.of(new ToolCallStep.Issued("c", 4L, 5L, 6L)));
-        ToolCallStep.DetachResult detached = new ToolCallStep.DetachResult(
-                List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.DETACHED, null)),
+        ToolCallSteps.IssuedBatch batch = new ToolCallSteps.IssuedBatch(
+                List.of(new ToolCallSteps.Outcome("x", ToolCallSteps.Status.FAILED, "rejected")),
+                List.of(new ToolCallSteps.Issued("a", 1L, 2L, 3L),
+                        new ToolCallSteps.Issued("b", Long.MAX_VALUE, Long.MAX_VALUE, 9L)));
+        ToolCallSteps.Observation observation = new ToolCallSteps.Observation(
+                List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.SUCCESS, null)),
+                List.of(new ToolCallSteps.Issued("b", 1L, 2L, 3L)),
+                List.of(new ToolCallSteps.Issued("c", 4L, 5L, 6L)));
+        ToolCallSteps.DetachResult detached = new ToolCallSteps.DetachResult(
+                List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)),
                 List.of("b"));
 
         assertEquals(batch, roundTrip(batch));
@@ -137,14 +137,14 @@ class ToolCallStepTest {
         return tool;
     }
 
-    private static ToolCallStep.Call call(String id, int timeoutSeconds) {
-        return new ToolCallStep.Call(id, "sheets", "conn-1", "generate_report", "{}", timeoutSeconds);
+    private static ToolCallSteps.Call call(String id, int timeoutSeconds) {
+        return new ToolCallSteps.Call(id, "sheets", "conn-1", "generate_report", "{}", timeoutSeconds);
     }
 
     /** A call whose instants are all relative to now — for the observe tests, no clock games. */
-    private static ToolCallStep.Issued issued(String id, long detachInMs, long waitEndInMs, long deadlineInMs) {
+    private static ToolCallSteps.Issued issued(String id, long detachInMs, long waitEndInMs, long deadlineInMs) {
         long now = System.currentTimeMillis();
-        return new ToolCallStep.Issued(id, now + detachInMs, now + waitEndInMs, now + deadlineInMs);
+        return new ToolCallSteps.Issued(id, now + detachInMs, now + waitEndInMs, now + deadlineInMs);
     }
 
     private static GetToolResultResponse status(ToolResultStatus status) {
@@ -156,7 +156,7 @@ class ToolCallStepTest {
     class Issue {
 
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-        private final ToolCallStep step = new ToolCallStep(client, tool(60_000, 10_000, 120_000));
+        private final ToolCallSteps step = new ToolCallSteps(client, tool(60_000, 10_000, 120_000));
 
         @Test
         @DisplayName("все вызовы выдаются до первого ожидания; отказ одного не мешает остальным")
@@ -164,7 +164,7 @@ class ToolCallStepTest {
             doThrow(new RuntimeException("PERMISSION_DENIED: tool is off"))
                     .when(client).executeToolAsync(eq("a"), any(), any(), any(), any(), any(), any());
 
-            ToolCallStep.IssuedBatch batch = step.issue(List.of(
+            ToolCallSteps.IssuedBatch batch = step.issue(List.of(
                     call("a", 0), call("b", 0)), "agent-1", "run-1");
 
             InOrder order = inOrder(client);
@@ -173,9 +173,9 @@ class ToolCallStepTest {
             order.verify(client).executeToolAsync(eq("b"), eq("sheets"), eq("conn-1"), eq("generate_report"),
                     any(), eq("agent-1"), eq("run-1"));
             assertEquals(1, batch.rejected().size());
-            assertEquals(ToolCallStep.Status.FAILED, batch.rejected().get(0).status());
+            assertEquals(ToolCallSteps.Status.FAILED, batch.rejected().get(0).status());
             assertTrue(batch.rejected().get(0).error().contains("PERMISSION_DENIED"));
-            assertEquals(List.of("b"), batch.accepted().stream().map(ToolCallStep.Issued::toolCallId).toList());
+            assertEquals(List.of("b"), batch.accepted().stream().map(ToolCallSteps.Issued::toolCallId).toList());
         }
 
         @Test
@@ -183,7 +183,7 @@ class ToolCallStepTest {
         void scheduleTakesThresholdAndBudgetCeiling() {
             long before = System.currentTimeMillis();
 
-            ToolCallStep.Issued p = step.issue(List.of(call("a", 0)), "agent-1", "run-1")
+            ToolCallSteps.Issued p = step.issue(List.of(call("a", 0)), "agent-1", "run-1")
                     .accepted().get(0);
 
             assertEquals(before + 10_000, p.detachAtMs(), 2_000);
@@ -196,7 +196,7 @@ class ToolCallStepTest {
         void scheduleTakesMaxWaitCeiling() {
             long before = System.currentTimeMillis();
 
-            ToolCallStep.Issued p = step.issue(List.of(call("a", 1800)), "agent-1", "run-1")
+            ToolCallSteps.Issued p = step.issue(List.of(call("a", 1800)), "agent-1", "run-1")
                     .accepted().get(0);
 
             assertEquals(before + 10_000, p.detachAtMs(), 2_000);
@@ -207,9 +207,9 @@ class ToolCallStepTest {
         @Test
         @DisplayName("детач выключен: ни порога, ни потолка — только бюджет")
         void detachOffLeavesTheBudgetOnly() {
-            ToolCallStep noDetach = new ToolCallStep(client, tool(60_000, 0, 120_000));
+            ToolCallSteps noDetach = new ToolCallSteps(client, tool(60_000, 0, 120_000));
 
-            ToolCallStep.Issued p = noDetach.issue(List.of(call("a", 0)), "agent-1", "run-1")
+            ToolCallSteps.Issued p = noDetach.issue(List.of(call("a", 0)), "agent-1", "run-1")
                     .accepted().get(0);
 
             assertEquals(Long.MAX_VALUE, p.detachAtMs());
@@ -223,11 +223,12 @@ class ToolCallStepTest {
     class Observe {
 
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-        private final ToolCallStep step = new ToolCallStep(client, tool(60_000, 10_000, 120_000));
+        private final ToolCallSteps step = new ToolCallSteps(client, tool(60_000, 10_000, 120_000));
         private final Map<String, String> held = new HashMap<>();
 
-        private ToolCallStep.Observation observe(boolean incoming, ToolCallStep.Issued... pending) {
-            return step.observe(List.of(pending), "agent-1", "run-1", held, incoming, Set.of());
+        private ToolCallSteps.Observation observe(boolean incoming, ToolCallSteps.Issued... pending) {
+            return step.observe(List.of(pending), "agent-1", "run-1", held,
+                    new ToolCallSteps.WaitState(incoming, Set.of()));
         }
 
         @Test
@@ -237,9 +238,9 @@ class ToolCallStepTest {
                     .setStatus(ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS)
                     .setOutputJson(ByteString.copyFromUtf8("{\"ok\":1}")).build());
 
-            ToolCallStep.Observation observation = observe(false, issued("a", 10_000, 60_000, 60_000));
+            ToolCallSteps.Observation observation = observe(false, issued("a", 10_000, 60_000, 60_000));
 
-            assertEquals(ToolCallStep.Status.SUCCESS, observation.settled().get(0).status());
+            assertEquals(ToolCallSteps.Status.SUCCESS, observation.settled().get(0).status());
             assertEquals("{\"ok\":1}", held.get("a"));
             assertTrue(observation.pending().isEmpty());
             assertTrue(observation.toDetach().isEmpty());
@@ -255,13 +256,13 @@ class ToolCallStepTest {
             when(client.getToolResult("agent-1", "d", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_DETACHED));
 
-            ToolCallStep.Observation observation = observe(false,
+            ToolCallSteps.Observation observation = observe(false,
                     issued("e", 10_000, 60_000, 60_000),
                     issued("c", 10_000, 60_000, 60_000),
                     issued("d", 10_000, 60_000, 60_000));
 
-            assertEquals(List.of(ToolCallStep.Status.ERROR, ToolCallStep.Status.ABANDONED, ToolCallStep.Status.DETACHED),
-                    observation.settled().stream().map(ToolCallStep.Outcome::status).toList());
+            assertEquals(List.of(ToolCallSteps.Status.ERROR, ToolCallSteps.Status.ABANDONED, ToolCallSteps.Status.DETACHED),
+                    observation.settled().stream().map(ToolCallSteps.Outcome::status).toList());
             assertEquals("boom", held.get("e"));
         }
 
@@ -271,7 +272,7 @@ class ToolCallStepTest {
             when(client.getToolResult("agent-1", "a", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_PENDING));
 
-            ToolCallStep.Observation observation = observe(true, issued("a", 5_000, 60_000, 60_000));
+            ToolCallSteps.Observation observation = observe(true, issued("a", 5_000, 60_000, 60_000));
 
             assertEquals(1, observation.pending().size());
             assertTrue(observation.toDetach().isEmpty());
@@ -283,7 +284,7 @@ class ToolCallStepTest {
             when(client.getToolResult("agent-1", "a", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_PENDING));
 
-            ToolCallStep.Observation observation = observe(false, issued("a", -1_000, 60_000, 60_000));
+            ToolCallSteps.Observation observation = observe(false, issued("a", -1_000, 60_000, 60_000));
 
             assertEquals(1, observation.pending().size());
             assertTrue(observation.toDetach().isEmpty());
@@ -295,9 +296,9 @@ class ToolCallStepTest {
             when(client.getToolResult("agent-1", "a", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_PENDING));
 
-            ToolCallStep.Observation observation = observe(true, issued("a", -1_000, 60_000, 60_000));
+            ToolCallSteps.Observation observation = observe(true, issued("a", -1_000, 60_000, 60_000));
 
-            assertEquals(List.of("a"), observation.toDetach().stream().map(ToolCallStep.Issued::toolCallId).toList());
+            assertEquals(List.of("a"), observation.toDetach().stream().map(ToolCallSteps.Issued::toolCallId).toList());
             assertTrue(observation.settled().isEmpty());
         }
 
@@ -307,7 +308,7 @@ class ToolCallStepTest {
             when(client.getToolResult("agent-1", "a", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_PENDING));
 
-            ToolCallStep.Observation observation = observe(false, issued("a", -119_000, -1_000, 60_000));
+            ToolCallSteps.Observation observation = observe(false, issued("a", -119_000, -1_000, 60_000));
 
             assertEquals(1, observation.toDetach().size());
         }
@@ -315,16 +316,16 @@ class ToolCallStepTest {
         @Test
         @DisplayName("детач выключен и бюджет истёк — TIMEOUT, как до появления детача")
         void budgetEndsAsTimeoutWhenDetachIsOff() {
-            ToolCallStep noDetach = new ToolCallStep(client, tool(60_000, 0, 120_000));
+            ToolCallSteps noDetach = new ToolCallSteps(client, tool(60_000, 0, 120_000));
             when(client.getToolResult("agent-1", "a", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_PENDING));
 
-            ToolCallStep.Issued spent = new ToolCallStep.Issued(
+            ToolCallSteps.Issued spent = new ToolCallSteps.Issued(
                     "a", Long.MAX_VALUE, Long.MAX_VALUE, System.currentTimeMillis() - 1_000);
-            ToolCallStep.Observation observation = noDetach.observe(
-                    List.of(spent), "agent-1", "run-1", held, false, Set.of());
+            ToolCallSteps.Observation observation = noDetach.observe(
+                    List.of(spent), "agent-1", "run-1", held, new ToolCallSteps.WaitState(false, Set.of()));
 
-            assertEquals(ToolCallStep.Status.TIMEOUT, observation.settled().get(0).status());
+            assertEquals(ToolCallSteps.Status.TIMEOUT, observation.settled().get(0).status());
         }
 
         @Test
@@ -333,9 +334,9 @@ class ToolCallStepTest {
             when(client.getToolResult("agent-1", "a", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_PENDING));
 
-            ToolCallStep.Observation observation = step.observe(
+            ToolCallSteps.Observation observation = step.observe(
                     List.of(issued("a", -5_000, -1_000, 60_000)),
-                    "agent-1", "run-1", held, true, Set.of("a"));
+                    "agent-1", "run-1", held, new ToolCallSteps.WaitState(true, Set.of("a")));
 
             assertEquals(1, observation.pending().size());
             assertTrue(observation.toDetach().isEmpty());
@@ -348,12 +349,65 @@ class ToolCallStepTest {
             when(client.getToolResult("agent-1", "b", "run-1"))
                     .thenReturn(status(ToolResultStatus.TOOL_RESULT_STATUS_PENDING));
 
-            ToolCallStep.Observation observation = observe(false,
+            ToolCallSteps.Observation observation = observe(false,
                     issued("a", 10_000, 60_000, 60_000), issued("b", 10_000, 60_000, 60_000));
 
-            assertEquals(ToolCallStep.Status.FAILED, observation.settled().get(0).status());
+            assertEquals(ToolCallSteps.Status.FAILED, observation.settled().get(0).status());
             assertTrue(observation.settled().get(0).error().contains("grpc down"));
-            assertEquals(List.of("b"), observation.pending().stream().map(ToolCallStep.Issued::toolCallId).toList());
+            assertEquals(List.of("b"), observation.pending().stream().map(ToolCallSteps.Issued::toolCallId).toList());
+        }
+    }
+
+    @Nested
+    @DisplayName("nextWakeMs: когда будить ожидание")
+    class NextWake {
+
+        private static final ToolCallSteps.WaitState QUIET = new ToolCallSteps.WaitState(false, Set.of());
+
+        private static ToolCallSteps.Issued in(long detachInMs, long waitEndInMs, long deadlineInMs) {
+            long now = System.currentTimeMillis();
+            return new ToolCallSteps.Issued("a", now + detachInMs, now + waitEndInMs, now + deadlineInMs);
+        }
+
+        @Test
+        @DisplayName("без входящего — на потолке, но не позже страховочной минуты")
+        void cappedByTheReconcileTick() {
+            assertEquals(ToolCallSteps.RECV_TIMEOUT_MS,
+                    ToolCallSteps.nextWakeMs(List.of(in(10_000, 120_000, 1_800_000)), QUIET));
+        }
+
+        @Test
+        @DisplayName("с входящим — на пороге, а не на потолке")
+        void wakesAtTheThresholdWithAnIncoming() {
+            long wake = ToolCallSteps.nextWakeMs(List.of(in(20_000, 120_000, 1_800_000)),
+                    new ToolCallSteps.WaitState(true, Set.of()));
+
+            assertEquals(20_000, wake, 1_000);
+        }
+
+        @Test
+        @DisplayName("недетачимый вызов — только бюджет: порог и потолок его больше не будят")
+        void undetachableWaitsForTheBudget() {
+            long wake = ToolCallSteps.nextWakeMs(List.of(in(-5_000, -1_000, 30_000)),
+                    new ToolCallSteps.WaitState(true, Set.of("a")));
+
+            assertEquals(30_000, wake, 1_000);
+        }
+
+        @Test
+        @DisplayName("решение уже наступило — не спим, но и не крутимся: нижняя граница")
+        void neverBusyLoops() {
+            assertEquals(10, ToolCallSteps.nextWakeMs(List.of(in(-5_000, -1_000, -1_000)), QUIET));
+        }
+
+        @Test
+        @DisplayName("из нескольких вызовов решает ближайший")
+        void nearestDecisionWins() {
+            long wake = ToolCallSteps.nextWakeMs(
+                    List.of(in(50_000, 120_000, 1_800_000), in(5_000, 120_000, 1_800_000)),
+                    new ToolCallSteps.WaitState(true, Set.of()));
+
+            assertEquals(5_000, wake, 1_000);
         }
     }
 
@@ -362,11 +416,11 @@ class ToolCallStepTest {
     class Detaching {
 
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-        private final ToolCallStep step = new ToolCallStep(client, tool(60_000, 10_000, 120_000));
+        private final ToolCallSteps step = new ToolCallSteps(client, tool(60_000, 10_000, 120_000));
         private final Map<String, String> held = new HashMap<>();
-        private final ToolCallStep.Issued due = issued("a", -1_000, 60_000, 60_000);
+        private final ToolCallSteps.Issued due = issued("a", -1_000, 60_000, 60_000);
 
-        private ToolCallStep.DetachResult detach() {
+        private ToolCallSteps.DetachResult detach() {
             return step.detach(List.of(due), "agent-1", "run-1", held);
         }
 
@@ -376,9 +430,9 @@ class ToolCallStepTest {
             when(client.detachTool("agent-1", "a", "run-1")).thenReturn(DetachToolResponse.newBuilder()
                     .setStatus(ToolResultStatus.TOOL_RESULT_STATUS_DETACHED).build());
 
-            ToolCallStep.DetachResult result = detach();
+            ToolCallSteps.DetachResult result = detach();
 
-            assertEquals(ToolCallStep.Status.DETACHED, result.settled().get(0).status());
+            assertEquals(ToolCallSteps.Status.DETACHED, result.settled().get(0).status());
             assertTrue(held.isEmpty());
             assertTrue(result.undetachable().isEmpty());
         }
@@ -390,9 +444,9 @@ class ToolCallStepTest {
                     .setStatus(ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS)
                     .setOutputJson(ByteString.copyFromUtf8("{\"ok\":1}")).build());
 
-            ToolCallStep.DetachResult result = detach();
+            ToolCallSteps.DetachResult result = detach();
 
-            assertEquals(ToolCallStep.Status.SUCCESS, result.settled().get(0).status());
+            assertEquals(ToolCallSteps.Status.SUCCESS, result.settled().get(0).status());
             assertEquals("{\"ok\":1}", held.get("a"));
         }
 
@@ -402,9 +456,9 @@ class ToolCallStepTest {
             when(client.detachTool("agent-1", "a", "run-1")).thenReturn(DetachToolResponse.newBuilder()
                     .setStatus(ToolResultStatus.TOOL_RESULT_STATUS_ERROR).setError("boom").build());
 
-            ToolCallStep.DetachResult result = detach();
+            ToolCallSteps.DetachResult result = detach();
 
-            assertEquals(ToolCallStep.Status.ERROR, result.settled().get(0).status());
+            assertEquals(ToolCallSteps.Status.ERROR, result.settled().get(0).status());
             assertEquals("boom", held.get("a"));
         }
 
@@ -413,7 +467,7 @@ class ToolCallStepTest {
         void failureMarksUndetachable() {
             when(client.detachTool("agent-1", "a", "run-1")).thenThrow(new RuntimeException("grpc down"));
 
-            ToolCallStep.DetachResult result = detach();
+            ToolCallSteps.DetachResult result = detach();
 
             assertTrue(result.settled().isEmpty());
             assertEquals(List.of("a"), result.undetachable());

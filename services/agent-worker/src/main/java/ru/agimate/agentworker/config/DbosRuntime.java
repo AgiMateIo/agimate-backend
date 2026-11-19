@@ -12,7 +12,7 @@ import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
 import ru.agimate.agentworker.workers.run.AgentRunner;
 import ru.agimate.agentworker.workers.run.LlmCall;
-import ru.agimate.agentworker.workers.run.ToolCallStep;
+import ru.agimate.agentworker.workers.run.ToolCallSteps;
 import ru.agimate.agentworker.workers.AgentRunWorkflow;
 import ru.agimate.agentworker.workers.Queues;
 
@@ -75,7 +75,7 @@ public class DbosRuntime implements SmartLifecycle {
         AgentRunner runner = new AgentRunner(dbos, client,
                 new LlmCall(client, modelFactory, mapper, templates, props.getConcurrency().getLlm(),
                         props.getLlm()),
-                new ToolCallStep(client, props.getTool()), templates, props.getAgent().getMaxTurns());
+                new ToolCallSteps(client, props.getTool()), templates, props.getAgent().getMaxTurns());
         dbos.registerProxy(AgentRunWorkflow.class, runner, Queues.INSTANCE);
     }
 

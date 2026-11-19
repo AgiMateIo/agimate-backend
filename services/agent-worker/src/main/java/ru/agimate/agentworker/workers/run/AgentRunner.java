@@ -45,11 +45,11 @@ public class AgentRunner implements AgentRunWorkflow {
     private final ContextMaterialsFetcher fetcher;
     private final ContextBuilder contextBuilder;
     private final LlmCall llmCall;
-    private final ToolCallStep toolStep;
+    private final ToolCallSteps toolStep;
     private final ResponseTemplates templates;
     private final int maxTurns;
 
-    public AgentRunner(DBOS dbos, AgentWorkerClient client, LlmCall llmCall, ToolCallStep toolStep,
+    public AgentRunner(DBOS dbos, AgentWorkerClient client, LlmCall llmCall, ToolCallSteps toolStep,
                         ResponseTemplates templates, int maxTurns) {
         this.dbos = dbos;
         this.client = client;

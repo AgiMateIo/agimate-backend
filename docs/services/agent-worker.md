@@ -55,10 +55,10 @@ else is a durable step of that workflow, and every checkpoint holds identifiers,
 |---|---|---|
 | `save_message` | `ChannelMessageLog` — one per dialogue event | `duplicate`/`cancelled`/`steered` flags |
 | `llm_call` | `LlmCall` — credentials inline, the provider request under a per-worker semaphore (`concurrency.llm`), streamed (`stream: true`) and assembled into one turn, retries on 429/5xx and on a waiting budget while nothing has arrived; then `SaveTurn` of the assistant turn | `call_id` (`runId-n`), `turn_index`, `finish_reason`, model, token counts, or the provider's failure |
-| `tool_issue` | `ToolCallStep.issue` — `ExecuteToolAsync` for every call of the turn and the waiting schedule of each (threshold, ceiling, budget) | accepted calls with their three instants, plus the calls the backend refused |
+| `tool_issue` | `ToolCallSteps.issue` — `ExecuteToolAsync` for every call of the turn and the waiting schedule of each (threshold, ceiling, budget) | accepted calls with their three instants, plus the calls the backend refused |
 | — | `DBOS.recv("run_events", …)` in the workflow body, not a step — control-api wakes the wait with a message (`tool_finished`, `steerable`, `cancel_requested`); the timeout is the distance to the nearest decision, capped at a minute | — |
-| `tool_observe` | `ToolCallStep.observe` — one `GetToolResult` per still-pending call (also the run's sign of life), then the verdict: settled, wait on, or detach | settled outcomes, what is still pending, what must be detached |
-| `tool_detach` | `ToolCallStep.detach` — `DetachTool` for the due calls; the model gets an interim task handle and the result returns later as a `tool_completed` trigger | what the race settled, and what stayed undetachable |
+| `tool_observe` | `ToolCallSteps.observe` — one `GetToolResult` per still-pending call (also the run's sign of life), then the verdict: settled, wait on, or detach | settled outcomes, what is still pending, what must be detached |
+| `tool_detach` | `ToolCallSteps.detach` — `DetachTool` for the due calls; the model gets an interim task handle and the result returns later as a `tool_completed` trigger | what the race settled, and what stayed undetachable |
 | `report_failure` | `SendMessage` with the run's outcome | `true` |
 
 A call is detached when a new input has arrived in the session after `detach-after` (the next turn
@@ -85,7 +85,7 @@ assembled dialogue never lands in the DBOS system database), the loop, and failu
 distinct concerns to collaborators: `ChannelMessageLog` (the run's single writer of dialogue events —
 inbound ack, progress, answer, error — one `save_message` durable step per event with a
 deterministic per-run `seq`, so replays dedupe backend-side) and
-`LlmCallDispatcher`/`ToolCallDispatcher` wrapping `LlmCall`/`ToolCallStep` into the
+`LlmCallDispatcher`/`ToolCallDispatcher` wrapping `LlmCall`/`ToolCallSteps` into the
 `llm_call`/`tool_calls` steps and owning the replay branch. `LlmCallDispatcher` is a pure
 data-returner: token usage and the truncation `incompleteReason` ride up on the `LlmReply`. `AgiMateAgent` surfaces all loop events
 through one injected `RunRecorder` — `onStart` (the turn-1 message list, before the first call),
