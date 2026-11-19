@@ -88,6 +88,33 @@ class RunEventsTest {
     }
 
     @Test
+    @DisplayName("сбой поиска адресатов не выходит наружу: уведомление не рвёт создание рана")
+    void addressLookupFailureIsSwallowed() {
+        when(clientProvider.getIfAvailable()).thenReturn(client);
+        when(agentRunRepository.findRunningIdsBySession(sessionId))
+                .thenThrow(new IllegalStateException("db down"));
+
+        assertDoesNotThrow(() -> events.inputArrived(sessionId, UUID.randomUUID()));
+
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    @DisplayName("адресаты ищутся после коммита: запрос не может откатить транзакцию вызывающего")
+    void addressesAreResolvedAfterCommit() {
+        when(clientProvider.getIfAvailable()).thenReturn(client);
+        when(agentRunRepository.findRunningIdsBySession(sessionId)).thenReturn(List.of(runId));
+        TransactionSynchronizationManager.initSynchronization();
+
+        events.inputArrived(sessionId, UUID.randomUUID());
+
+        verifyNoInteractions(agentRunRepository);
+        TransactionSynchronizationManager.getSynchronizations()
+                .forEach(TransactionSynchronization::afterCommit);
+        verify(agentRunRepository).findRunningIdsBySession(sessionId);
+    }
+
+    @Test
     @DisplayName("у рана без сессии будить некого — запрос за адресатами не делается")
     void directRunHasNoOneToWake() {
         when(clientProvider.getIfAvailable()).thenReturn(client);

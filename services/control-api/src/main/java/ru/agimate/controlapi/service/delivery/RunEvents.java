@@ -44,9 +44,18 @@ public class RunEvents {
         if (sessionId == null) {
             return;
         }
-        agentRunRepository.findRunningIdsBySession(sessionId)
-                .forEach(runningId -> send(runningId, RunEvent.steerable(newRunId.toString()),
-                        "input:" + runningId + ":" + newRunId));
+        // Both halves happen after commit: a notification must not be able to mark the caller's
+        // transaction rollback-only, and the runs it addresses are the ones already committed.
+        afterCommit(() -> {
+            try {
+                agentRunRepository.findRunningIdsBySession(sessionId)
+                        .forEach(runningId -> deliver(runningId, RunEvent.steerable(newRunId.toString()),
+                                "input:" + runningId + ":" + newRunId));
+            } catch (Exception e) {
+                log.warn("run events for session {} were not sent ({})",
+                        sessionId, e.getClass().getSimpleName());
+            }
+        });
     }
 
     /** The user asked to stop these runs: a waiting tool step ends now instead of at its next tick. */
@@ -60,20 +69,23 @@ public class RunEvents {
      * swallowed by another run's — the same call id is unique per run, not globally.
      */
     private void send(UUID runId, RunEvent event, String idempotencyKey) {
+        afterCommit(() -> deliver(runId, event, idempotencyKey));
+    }
+
+    /** The send itself, best-effort: for a caller that is already past its commit. */
+    private void deliver(UUID runId, RunEvent event, String idempotencyKey) {
         DBOSClient client = clientProvider.getIfAvailable();
         if (client == null) {
             log.debug("run event {} for run {} skipped: dbos.enabled=false", event.kind(), runId);
             return;
         }
-        afterCommit(() -> {
-            try {
-                client.send(runId.toString(), event, WorkerProtocol.RUN_EVENTS_TOPIC, idempotencyKey);
-            } catch (Exception e) {
-                // Ids only: a JDBC message can carry SQL and its parameters.
-                log.warn("run event {} for run {} was not sent ({})",
-                        event.kind(), runId, e.getClass().getSimpleName());
-            }
-        });
+        try {
+            client.send(runId.toString(), event, WorkerProtocol.RUN_EVENTS_TOPIC, idempotencyKey);
+        } catch (Exception e) {
+            // Ids only: a JDBC message can carry SQL and its parameters.
+            log.warn("run event {} for run {} was not sent ({})",
+                    event.kind(), runId, e.getClass().getSimpleName());
+        }
     }
 
     /** After commit when there is one; immediately otherwise (a call outside a transaction). */
