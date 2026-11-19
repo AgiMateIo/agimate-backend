@@ -55,12 +55,20 @@ else is a durable step of that workflow, and every checkpoint holds identifiers,
 |---|---|---|
 | `save_message` | `ChannelMessageLog` — one per dialogue event | `duplicate`/`cancelled`/`steered` flags |
 | `llm_call` | `LlmCall` — credentials inline, the provider request under a per-worker semaphore (`concurrency.llm`), streamed (`stream: true`) and assembled into one turn, retries on 429/5xx and on a waiting budget while nothing has arrived; then `SaveTurn` of the assistant turn | `call_id` (`runId-n`), `turn_index`, `finish_reason`, model, token counts, or the provider's failure |
-| `tool_calls` | `ToolCallStep` — `ExecuteToolAsync` for every call of the turn, then a round-robin poll of `GetToolResult` (50 → 100 → 200 → 500 ms, 2 s after the first minute); a call still pending at `detach-after` is detached (`DetachTool`), the model gets an interim task handle and the result returns later as a `tool_completed` trigger | id + status per call (SUCCESS/ERROR/DETACHED/TIMEOUT/ABANDONED/FAILED) |
+| `tool_issue` | `ToolCallStep.issue` — `ExecuteToolAsync` for every call of the turn and the waiting schedule of each (threshold, ceiling, budget) | accepted calls with their three instants, plus the calls the backend refused |
+| — | `DBOS.recv("run_events", …)` in the workflow body, not a step — control-api wakes the wait with a message (`tool_finished`, `steerable`, `cancel_requested`); the timeout is the distance to the nearest decision, capped at a minute | — |
+| `tool_observe` | `ToolCallStep.observe` — one `GetToolResult` per still-pending call (also the run's sign of life), then the verdict: settled, wait on, or detach | settled outcomes, what is still pending, what must be detached |
+| `tool_detach` | `ToolCallStep.detach` — `DetachTool` for the due calls; the model gets an interim task handle and the result returns later as a `tool_completed` trigger | what the race settled, and what stayed undetachable |
 | `report_failure` | `SendMessage` with the run's outcome | `true` |
+
+A call is detached when a new input has arrived in the session after `detach-after` (the next turn
+absorbs it anyway) or at the ceiling `max-wait` (a run holds its session's queue partition). A lost
+event is not a lost result: the minute-long `recv` is the reconciliation pass, so the worst case is
+one interval of delay.
 
 The reply of a step lives in run memory; a crash replay re-reads it by id (`GetTurn`,
 `GetToolResult`) and regenerates the worker's own notices. The backend executes tools
-concurrently from the moment they are issued, so one polling loop is as parallel as one
+concurrently from the moment they are issued, so one waiting loop is as parallel as one
 workflow per call used to be.
 
 The package root holds the producer contract: the `AgentRunWorkflow` interface and `Queues`. The
@@ -143,6 +151,10 @@ single-writer'а и контрактное требование к трансп�
 [worker-protocol.md](../contracts/worker-protocol.md), раздел «Стиринг».
 
 ## Configuration
+
+Размер воркера под нагрузку — [agent-worker-load-calculator.html](../operations/agent-worker-load-calculator.html):
+сколько ранов он держит одновременно, где упирается и как это связано с CPU/RAM.
+
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
 binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example`. Key sections:
 `grpc` (target/tls/auth-token), `agent` (id/max-turns), `llm` (три бюджета вокруг вызова модели:
@@ -156,8 +168,10 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
 спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
 не отменяет джобу на бэке, модель получает явное «could still complete»; detach-after — grace
-ожидания до детача (дефолт 10 с, ≤0 выключает): не уложившийся вызов отцепляется, модель получает
-task handle, результат приедет триггером `tool_completed`; бюджеты остаются потолком блокирующего
+ожидания до детача (дефолт 10 с, ≤0 выключает): вызов, не уложившийся в него **и** получивший
+входящее в сессии, отцепляется, модель получает task handle, результат приедет триггером
+`tool_completed`; max-wait — потолок тихого ожидания (дефолт 120 с): дальше вызов отцепляется, даже
+без входящего, потому что ран держит партицию сессии; бюджеты остаются потолком блокирующего
 фолбэка при недоступном `DetachTool`; max-output-chars — потолок
 вывода одного тула: гигантский вывод раздувает контекст всех последующих turns, поэтому обрезается
 с явной пометкой), `response` (`language` —
