@@ -14,8 +14,9 @@ public enum MediaTransportType {
     CHAT_MODALITIES,
 
     /**
-     * {@code POST /media} with {@code async: false} and a model-native {@code input} — the Polza
-     * dialect. The result comes back as a link and is downloaded separately.
+     * {@code POST /media} with {@code async: true} and a model-native {@code input} — the
+     * media-endpoint dialect. The submit returns a job, {@code GET /media/{id}} is polled for the
+     * result, and the picture comes back as a link and is downloaded separately.
      */
     MEDIA_ENDPOINT
 }

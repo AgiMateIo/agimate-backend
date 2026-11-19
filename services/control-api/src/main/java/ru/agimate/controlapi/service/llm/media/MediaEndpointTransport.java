@@ -32,9 +32,11 @@ import java.util.Set;
  * against Polza, whose image models are unreachable over chat/completions at all — an image-only
  * model answers a bare 500 there, an image+text one answers 200 with no picture and a full charge.
  *
- * <p>{@code async: false} asks for the answer in the same request, and that is the normal path. A
- * provider is still free to hand back a pending job (a slow model, a server-side cap), so a bounded
- * poll follows — otherwise exactly the heaviest generations would be the ones that fail.
+ * <p>{@code async: true} takes a job back at once and collects the picture by polling. A request held
+ * open for the whole generation keeps the connection silent for tens of seconds, and a provider that
+ * closes or blackholes such silence loses exactly the heaviest generations; a poll every few seconds
+ * keeps the connection alive by itself. The loop starts from the submit response, so a provider that
+ * answers synchronously anyway is read as it is.
  */
 @Component
 @RequiredArgsConstructor
@@ -62,8 +64,12 @@ public class MediaEndpointTransport implements MediaTransport {
     @Override
     public GeneratedImage generate(GenerationRequest request) {
         ResolvedLlm resolved = request.resolved();
-        Map<String, Object> response = post(resolved, body(request));
-        Map<String, Object> completed = awaitCompletion(resolved, response);
+        Map<String, Object> submitted = post(resolved, body(request));
+        if (!STATUS_COMPLETED.equals(submitted.get("status"))) {
+            log.info("media generation accepted id={} status={} model={} provider={}",
+                    id(submitted), submitted.get("status"), resolved.model(), resolved.provider().getId());
+        }
+        Map<String, Object> completed = awaitCompletion(resolved, submitted);
         InputImage image = imageFetcher.fetch(resultUrl(completed));
         logCost(resolved, completed);
         // No token counts here: media endpoints bill in money, and inventing tokens would corrupt the log.
@@ -92,7 +98,7 @@ public class MediaEndpointTransport implements MediaTransport {
         }
         Map<String, Object> core = new LinkedHashMap<>();
         core.put("model", request.resolved().model());
-        core.put("async", false);
+        core.put("async", true);
         core.put("input", input);
 
         Map<String, Object> defaults = Map.of("input", declaredDefaults(request.resolved()));
@@ -216,11 +222,20 @@ public class MediaEndpointTransport implements MediaTransport {
         return value;
     }
 
-    /** {@code data[0].url} — the link to the generated picture. */
+    /**
+     * The link to the generated picture: {@code data[0].url} in the submit answer, but the status
+     * schema declares {@code data} as a single object — both shapes are read rather than betting on
+     * one, because losing a finished picture over a wrapper is exactly the kind of loss this
+     * transport exists to avoid.
+     */
     static String resultUrl(Map<String, Object> response) {
-        if (response.get("data") instanceof List<?> data && !data.isEmpty()
-                && data.get(0) instanceof Map<?, ?> first && first.get("url") instanceof String url
+        Object data = response.get("data");
+        if (data instanceof List<?> list && !list.isEmpty()
+                && list.get(0) instanceof Map<?, ?> first && first.get("url") instanceof String url
                 && !url.isBlank()) {
+            return url;
+        }
+        if (data instanceof Map<?, ?> single && single.get("url") instanceof String url && !url.isBlank()) {
             return url;
         }
         throw new MediaInferenceException("media generation completed without an image link");

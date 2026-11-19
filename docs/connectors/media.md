@@ -107,7 +107,7 @@
 | Транспорт | Запрос | Результат | Кому |
 |---|---|---|---|
 | `CHAT_MODALITIES` (дефолт, поле пустое) | `POST /chat/completions` с `modalities: ["image","text"]`, исходники — части user-сообщения | data-URI в `message.images[]` | OpenRouter и прокси к нему |
-| `MEDIA_ENDPOINT` | `POST /media` с `async: false` и `input: {prompt, images[]}` (исходники — голый base64) | ссылка в `data[0].url`, скачивается отдельно | Polza |
+| `MEDIA_ENDPOINT` | `POST /media` с `async: true` и `input: {prompt, images[]}` (исходники — голый base64), результат — опросом `GET /media/{id}` | ссылка в `data[0].url`, скачивается отдельно | шлюзы с модель-нативным медийным эндпойнтом |
 
 Дефолта по типу провайдера быть не может: OpenRouter и Polza оба `OPENAI_COMPATIBLE`. **Провайдеру
 с медийным эндпойнтом транспорт задаётся руками** — иначе его image-модели отвечают либо 500, либо

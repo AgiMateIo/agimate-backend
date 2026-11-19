@@ -70,7 +70,7 @@ YandexART и FusionBrain выглядит одинаково и не совпа�
 | `chat/completions` + `modalities`, модель с `output_modalities: ["image"]` (flux, seedream, qwen…) | **500** `INTERNAL_ERROR`, `raw: "Unknown error"` |
 | то же, модель с `["image","text"]` (gemini-*-image) | **200 без картинки**: `content: ""`, `images` нет — **при `image_tokens: 1290` и `cost_rub: 2.90`** |
 | `POST /images/generations` | **201 + `requestId`**, результат забирается через `GET /media/{id}` |
-| `POST /media` с `async: false` | **200 синхронно**: `status: completed`, `data[0].url` |
+| `POST /media` с `async: false` (замер июля) | **200 синхронно**: `status: completed`, `data[0].url` |
 | ссылка из ответа | публичный https, `image/png`, без авторизации |
 | `input.images[]` | работает и как `{"type":"url"}`, и как `{"type":"base64"}` (голый base64, без `data:`-префикса), до 8 штук |
 | тело только с `prompt` | **400** у части моделей: им нужны `aspect_ratio`, `quality`, `image_resolution` |
@@ -85,6 +85,14 @@ YandexART и FusionBrain выглядит одинаково и не совпа�
 3. **Поллинг оказался фолбэком, а не архитектурой.** `async: false` отвечает в том же запросе, и
    «дорогая фаза C» из плана сжалась до одного запроса за байтами. Цикл ожидания остаётся только на
    случай, если провайдер всё-таки вернёт незавершённую задачу.
+
+   **С 2026-11-19 всё наоборот: транспорт просит `async: true` и опрашивает `GET /media/{id}`.**
+   Причина — в нашем HTTP-клиенте: httpcore5 включает TCP keepalive с порогами 5/5/3
+   (`SO_KEEPALIVE`, `keepidle` 5 с, `keepintvl` 5 с, `keepcnt` 3), а шлюзы, не отвечающие на
+   keepalive-пробы, теряют простаивающее соединение через 20 с с `Connection timed out` — при том
+   что генерация на стороне провайдера доходит до конца и списывает деньги. Опрос раз в 5 с держит
+   соединение живым сам. Пороги keepalive в `PublicOnlyHttp` при этом отодвинуты до 300/60/3:
+   детектор мёртвого пира остаётся, но медленный ответ за мёртвого больше не считается.
 4. **Профиль параметров оказался не улучшением, а условием работоспособности.** Тело с одним
    `prompt` отвергается доброй половиной моделей, и вычислить набор по флагам `required` нельзя —
    они врут. Поэтому транспорт подставляет **всё объявленное** из `top_provider.parameters`
@@ -123,7 +131,8 @@ public interface MediaTransport {
 ```
 
 - `CHAT_MODALITIES` — прежний код как есть (OpenRouter и прокси к нему);
-- `MEDIA_ENDPOINT` — `POST /media` с `async: false` и модель-нативным `input` (диалект Polza).
+- `MEDIA_ENDPOINT` — `POST /media` с `async: true` и модель-нативным `input`, результат — опросом
+  `GET /media/{id}` (диалект медийного эндпойнта).
 
 **Стратегия возвращает байты, а не ссылку.** Тогда `MediaInferenceService` остаётся тем, чем был
 (резолв модели → вызов → файловый слой → учёт), а вся разница между провайдерами заперта за

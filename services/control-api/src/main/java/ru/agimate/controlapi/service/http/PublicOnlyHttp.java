@@ -13,6 +13,7 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuil
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.util.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -61,6 +62,20 @@ public class PublicOnlyHttp {
      */
     private static final int MAX_CONNECTIONS = 200;
     private static final int MAX_CONNECTIONS_PER_ROUTE = 50;
+
+    /**
+     * Keepalive is a dead-peer detector, not a response watchdog. httpcore5 ships it on with 5 s
+     * idle / 5 s interval / 3 probes, so 20 seconds of silence kills a live connection — and a
+     * provider that does not answer probes at all then loses every long call. These values keep the
+     * detector — eight minutes of silence before a peer is declared dead — while leaving slow
+     * answers alone; a real hang is bounded by the caller's read timeout.
+     */
+    static final SocketConfig SOCKET_CONFIG = SocketConfig.custom()
+            .setSoKeepAlive(true)
+            .setTcpKeepIdle(300)
+            .setTcpKeepInterval(60)
+            .setTcpKeepCount(3)
+            .build();
 
     private final PublicTargets targets;
     private final CloseableHttpClient httpClient;
@@ -133,6 +148,7 @@ public class PublicOnlyHttp {
                 .setTlsSocketStrategy(new DefaultClientTlsStrategy(trust.context()))
                 .setMaxConnTotal(MAX_CONNECTIONS)
                 .setMaxConnPerRoute(MAX_CONNECTIONS_PER_ROUTE)
+                .setDefaultSocketConfig(SOCKET_CONFIG)
                 .setDefaultConnectionConfig(ConnectionConfig.custom()
                         .setConnectTimeout(Timeout.ofMilliseconds(CONNECT_TIMEOUT.toMillis()))
                         .build())

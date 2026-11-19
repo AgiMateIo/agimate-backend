@@ -51,13 +51,14 @@ class MediaEndpointTransportTest {
     class Body {
 
         @Test
-        @DisplayName("генерация: model + async=false + input.prompt, без images")
+        @DisplayName("генерация: model + async=true (результат забирается опросом) + input.prompt, без images")
         void generation() {
             Map<String, Object> body = MediaEndpointTransport.body(
                     new GenerationRequest(resolved(Map.of()), "нарисуй кота", List.of()));
 
             assertEquals("google/gemini-2.5-flash-image", body.get("model"));
-            assertEquals(false, body.get("async"));
+            assertEquals(true, body.get("async"),
+                    "долгая тишина в соединении убивает генерацию: ждём ответ опросом, а не в том же запросе");
             Map<?, ?> input = (Map<?, ?>) body.get("input");
             assertEquals("нарисуй кота", input.get("prompt"));
             assertFalse(input.containsKey("images"), "без исходников ключ images не появляется");
@@ -151,6 +152,13 @@ class MediaEndpointTransportTest {
         void resultUrl() {
             assertEquals("https://s3.polza.ai/f/1.png", MediaEndpointTransport.resultUrl(
                     Map.of("status", "completed", "data", List.of(Map.of("url", "https://s3.polza.ai/f/1.png")))));
+        }
+
+        @Test
+        @DisplayName("статус присылает data объектом, а не массивом — ссылка читается и так")
+        void resultUrlFromSingleObject() {
+            assertEquals("https://files.example/f/2.png", MediaEndpointTransport.resultUrl(
+                    Map.of("status", "completed", "data", Map.of("url", "https://files.example/f/2.png"))));
         }
 
         @Test
