@@ -60,15 +60,15 @@ allprojects {
                 // FCM through RuStore's universal API (user-api): the whole of what is needed from
                 // Google is an access token minted from a service account — firebase-admin sends
                 // natively, and a natively sent message the universal SDK on the device discards
-                implementation("com.google.auth:google-auth-library-oauth2-http:1.54.0")
+                implementation("com.google.auth:google-auth-library-oauth2-http:1.58.0")
 
                 // Public Suffix List for the egress proxy's host patterns (libs/common). Already on
                 // every classpath through gRPC and google-auth; pinned so the list does not age silently.
-                implementation("com.google.guava:guava:33.7.2-jre")
+                implementation("com.google.guava:guava:33.8.0-jre")
 
-                implementation("com.squareup.okhttp3:okhttp:5.5.0")
-                implementation("com.squareup.okhttp3:okhttp-brotli:5.5.0")
-                implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
+                implementation("com.squareup.okhttp3:okhttp:5.5.1")
+                implementation("com.squareup.okhttp3:okhttp-brotli:5.5.1")
+                implementation("com.squareup.okhttp3:logging-interceptor:5.5.1")
 
                 // Astronomy Engine (astro-коннектор control-api) — с JitPack
                 implementation("io.github.cosinekitty:astronomy:2.1.19")

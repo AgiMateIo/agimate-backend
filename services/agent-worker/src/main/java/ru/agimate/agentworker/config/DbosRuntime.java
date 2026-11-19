@@ -64,9 +64,10 @@ public class DbosRuntime implements SmartLifecycle {
         //
         // The two claims above are about DBOS internals, not about our code, and nothing here
         // fails loudly if they stop holding — a lost single-writer guarantee shows up as
-        // interleaved history, not as an exception. Both read off dev.dbos:transact 1.1.1
-        // (QueuesDAO.startQueuedWorkflows, Queue.resolveLimits, newVirtualThreadPerTaskExecutor);
-        // re-read them on the next version bump.
+        // interleaved history, not as an exception. Read off dev.dbos:transact 1.3.0: a legacy
+        // partitioned queue still maps its concurrency onto partitionConcurrency
+        // (Queue.resolveLimits), QueuesDAO.startQueuedWorkflows enforces limits per that scope,
+        // and workflows run on newVirtualThreadPerTaskExecutor; re-read on the next version bump.
         dbos.registerQueue(new Queue(Queues.RUN_QUEUE)
                 .withPartitioningEnabled(true)
                 .withConcurrency(1));
