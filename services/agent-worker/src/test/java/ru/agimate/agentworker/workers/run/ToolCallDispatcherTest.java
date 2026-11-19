@@ -83,7 +83,7 @@ class ToolCallDispatcherTest {
                         .setConnectionId("conn-2")
                         .setAnnotations(ToolAnnotations.newBuilder().setOpenWorldHint(true))
                         .build()));
-        private final ToolCallDispatcher dispatcher = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry);
+        private final ToolCallDispatcher dispatcher = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry, id -> false);
 
         private final List<AgentChatMessage.ToolCall> calls = List.of(
                 new AgentChatMessage.ToolCall("a", "wx__get_weather", "{\"city\":\"Berlin\"}"),
@@ -224,7 +224,7 @@ class ToolCallDispatcherTest {
                 ConnectorToolSpec.newBuilder().setConnectorCode("platform").setNamespace("platform").setName("agent_list")
                         .setConnectionId("conn-1").setLlmName("platform__agent_list")
                         .setDisclosure(ru.agimate.agentworker.Disclosure.DISCLOSURE_LAZY).build()));
-        private final ToolCallDispatcher dispatcher = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry);
+        private final ToolCallDispatcher dispatcher = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry, id -> false);
         private final List<AgentChatMessage.ToolCall> call = List.of(
                 new AgentChatMessage.ToolCall("d", "tool-loader__load_tools", "{\"names\":[\"platform__agent_list\",\"nope\"]}"));
 
@@ -341,7 +341,7 @@ class ToolCallDispatcherTest {
                 ConnectorToolSpec.newBuilder().setConnectorCode("wx").setNamespace("wx").setName("get_weather")
                         .setConnectionId("conn-1").build()));
         private final ToolCallDispatcher dispatcher =
-                new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry);
+                new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry, id -> false);
         private final List<AgentChatMessage.ToolCall> calls =
                 List.of(new AgentChatMessage.ToolCall("a", "wx__get_weather", "{}"));
 
@@ -359,7 +359,7 @@ class ToolCallDispatcherTest {
 
         /** The backend's answer to the steering probe: what is still there to absorb. */
         private void probeAnswers(SteeringMessage... messages) {
-            when(client.claimSteering("agent-1", "run-1")).thenReturn(
+            when(client.claimSteeringOnce("agent-1", "run-1")).thenReturn(
                     ClaimSteeringResponse.newBuilder().addAllMessages(List.of(messages)).build());
         }
 
@@ -397,7 +397,7 @@ class ToolCallDispatcherTest {
 
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(calls);
 
-            verify(client).claimSteering("agent-1", "run-1");
+            verify(client).claimSteeringOnce("agent-1", "run-1");
             verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(true, Set.of())));
             assertTrue(results.get(0).contentJson().contains("\"detached\""));
         }
@@ -420,10 +420,49 @@ class ToolCallDispatcherTest {
         }
 
         @Test
+        @DisplayName("сообщение уже поглощено этим раном — событие устарело, бэкенд не спрашиваем")
+        void absorbedSteerableNeedsNoProbe() {
+            ToolCallSteps.Issued issued = new ToolCallSteps.Issued("a", 0, 0, 0);
+            accepts(issued);
+            ToolCallDispatcher aware = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry,
+                    runId -> "run-2".equals(runId));
+            when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
+                    .thenReturn(Optional.of((Object) RunEvent.steerable("run-2")), Optional.empty());
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of(), List.of()));
+
+            aware.dispatchAll(calls);
+
+            verify(client, never()).claimSteeringOnce(any(), any());
+            verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(false, Set.of())));
+        }
+
+        @Test
+        @DisplayName("стиринг за другим сообщением поглощён — всплеск тоже не повод спрашивать бэкенд")
+        void absorbedSteerableInTheBurstNeedsNoProbe() {
+            accepts(new ToolCallSteps.Issued("a", 0, 0, 0));
+            ToolCallDispatcher aware = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry,
+                    runId -> "run-2".equals(runId));
+            when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
+                    .thenReturn(Optional.of((Object) RunEvent.toolFinished("call-1")),
+                            Optional.of((Object) RunEvent.steerable("run-2")),
+                            Optional.empty());
+            when(step.observe(any(), any(), any(), any(), any())).thenReturn(
+                    new ToolCallSteps.Observation(
+                            List.of(new ToolCallSteps.Outcome("a", ToolCallSteps.Status.DETACHED, null)), List.of(), List.of()));
+
+            aware.dispatchAll(calls);
+
+            verify(client, never()).claimSteeringOnce(any(), any());
+            verify(step).observe(any(), any(), any(), any(), eq(new ToolCallSteps.WaitState(false, Set.of())));
+        }
+
+        @Test
         @DisplayName("проба не удалась — верим событию: недоступный бэкенд не отменяет отцепку")
         void probeFailureTrustsTheEvent() {
             accepts(new ToolCallSteps.Issued("a", 0, 0, 0));
-            when(client.claimSteering("agent-1", "run-1")).thenThrow(new RuntimeException("grpc down"));
+            when(client.claimSteeringOnce("agent-1", "run-1")).thenThrow(new RuntimeException("grpc down"));
             when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
                     .thenReturn(Optional.of((Object) RunEvent.steerable("run-2")), Optional.empty());
             when(step.observe(any(), any(), any(), any(), any())).thenReturn(

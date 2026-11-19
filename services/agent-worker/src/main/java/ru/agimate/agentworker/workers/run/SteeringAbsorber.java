@@ -87,6 +87,11 @@ class SteeringAbsorber {
         return result;
     }
 
+    /** Whether this process already took that run's message into the conversation. */
+    boolean absorbed(String steeredRunId) {
+        return absorbed.contains(steeredRunId);
+    }
+
     /**
      * Confirmation is hooked to the assistant turn — the LLM call after the absorption has
      * returned, so the model has provably seen the message. Deliberately this late: a claim whose

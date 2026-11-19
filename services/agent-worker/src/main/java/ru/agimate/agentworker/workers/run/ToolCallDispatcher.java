@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Per-run {@link AgiMateAgent.ToolDispatcher}: the turn's calls go through three durable steps
@@ -54,15 +55,18 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
     private final String agentId;
     private final String runId;
     private final ToolRegistry registry;
+    /** Whether the run already took that message into the conversation — its event is stale then. */
+    private final Predicate<String> absorbedSteering;
 
     ToolCallDispatcher(DBOS dbos, ToolCallSteps step, AgentWorkerClient client, String agentId, String runId,
-                       ToolRegistry registry) {
+                       ToolRegistry registry, Predicate<String> absorbedSteering) {
         this.dbos = dbos;
         this.step = step;
         this.client = client;
         this.agentId = agentId;
         this.runId = runId;
         this.registry = registry;
+        this.absorbedSteering = absorbedSteering;
     }
 
     @Override
@@ -140,7 +144,7 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
                 log.debug("run event {} while waiting for tools, {} more coalesced into this pass",
                         RunEventInbox.kind(message.get()), burst.count());
                 // A `steerable` behind another message must not be lost with the rest of the burst.
-                if (!incoming && (RunEventInbox.isSteerable(message.get()) || burst.steerable())) {
+                if (!incoming && needsConfirmation(message.get(), burst)) {
                     incoming = stillSteerable();
                 }
             }
@@ -165,6 +169,23 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
     }
 
     /**
+     * Does anything in this wake claim there is an input waiting? A `steerable` for a message this
+     * run already absorbed does not: its event outlived the reason, and the run's own ledger knows
+     * it. Only what the ledger cannot explain goes on to the backend.
+     */
+    private boolean needsConfirmation(Object message, RunEventInbox.Drained burst) {
+        if (RunEventInbox.isSteerable(message) && notAbsorbed(RunEventInbox.runId(message))) {
+            return true;
+        }
+        return burst.steerableRuns().stream().anyMatch(this::notAbsorbed);
+    }
+
+    /** A payload that names no run cannot be checked against the ledger, so it is taken at its word. */
+    private boolean notAbsorbed(String steeredRunId) {
+        return steeredRunId == null || !absorbedSteering.test(steeredRunId);
+    }
+
+    /**
      * Is there still something for this run to absorb? Only the backend knows: an event outlives
      * its message — the seam may have absorbed it already, or the run it announced never arrived.
      * The claim is the cheap way to ask, because it is idempotent for this main and a claim alone
@@ -176,7 +197,9 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
      */
     private boolean stillSteerable() {
         try {
-            return !client.claimSteering(agentId, runId).getMessagesList().isEmpty();
+            // One attempt on purpose: a probe has a default answer, so a control-api restart must
+            // not hold the wait through the client's retry ladder.
+            return !client.claimSteeringOnce(agentId, runId).getMessagesList().isEmpty();
         } catch (Exception e) {
             log.warn("steering probe failed, trusting the event: {}", e.getMessage());
             return true;

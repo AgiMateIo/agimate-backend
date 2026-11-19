@@ -106,6 +106,18 @@ public class AgentWorkerClient {
      * here because the wrapper drops the cause on purpose.
      */
     private static <T> T call(String rpc, Supplier<T> op) {
+        return call(rpc, op, UNAVAILABLE_MAX_ATTEMPTS);
+    }
+
+    /**
+     * One attempt, no retry ladder: for a call whose caller has a cheap default answer, waiting out
+     * a control-api restart (~63 s across the ladder) is worse than not knowing.
+     */
+    private static <T> T callOnce(String rpc, Supplier<T> op) {
+        return call(rpc, op, 1);
+    }
+
+    private static <T> T call(String rpc, Supplier<T> op, int maxAttempts) {
         long backoffMs = UNAVAILABLE_INITIAL_BACKOFF_MS;
         for (int attempt = 1; ; attempt++) {
             try {
@@ -118,9 +130,9 @@ public class AgentWorkerClient {
                     log.debug("control-api RPC {}: {}", rpc, e.getMessage());
                     throw new ControlApiCallException(rpc, e.getStatus());
                 }
-                if (code == Status.Code.UNAVAILABLE && attempt < UNAVAILABLE_MAX_ATTEMPTS) {
+                if (code == Status.Code.UNAVAILABLE && attempt < maxAttempts) {
                     log.info("control-api RPC {} unavailable (attempt {}/{}), retrying in {} ms",
-                            rpc, attempt, UNAVAILABLE_MAX_ATTEMPTS, backoffMs);
+                            rpc, attempt, maxAttempts, backoffMs);
                     try {
                         Thread.sleep(backoffMs);
                     } catch (InterruptedException ie) {
@@ -155,6 +167,15 @@ public class AgentWorkerClient {
      */
     public ClaimSteeringResponse claimSteering(String agentId, String runId) {
         return call("ClaimSteering", () -> ctx().claimSteering(ClaimSteeringRequest.newBuilder()
+                .setAgentId(agentId).setRunId(runId).build()));
+    }
+
+    /**
+     * The same claim, one attempt only: a tool wait asks it as a probe and has a default answer, so
+     * one retry ladder (~63 s) must not hold the wait.
+     */
+    public ClaimSteeringResponse claimSteeringOnce(String agentId, String runId) {
+        return callOnce("ClaimSteering", () -> ctx().claimSteering(ClaimSteeringRequest.newBuilder()
                 .setAgentId(agentId).setRunId(runId).build()));
     }
 

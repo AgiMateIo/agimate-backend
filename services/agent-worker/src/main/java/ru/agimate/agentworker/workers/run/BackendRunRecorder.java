@@ -112,4 +112,12 @@ class BackendRunRecorder implements RunRecorder {
     public List<AgentChatMessage> pollSteering() {
         return steering.poll();
     }
+
+    /**
+     * Whether this run's message is already in the conversation: a `steerable` event outlives its
+     * reason, and the run's own ledger is the first place to check that — before the backend is.
+     */
+    boolean absorbedSteering(String steeredRunId) {
+        return steering.absorbed(steeredRunId);
+    }
 }

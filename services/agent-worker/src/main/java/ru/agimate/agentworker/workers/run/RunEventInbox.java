@@ -5,6 +5,8 @@ import ru.agimate.agentworker.RunEvent;
 import ru.agimate.agentworker.WorkerProtocol;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -27,11 +29,16 @@ final class RunEventInbox {
     private static final int MAX_DRAIN = 64;
 
     /**
-     * @param count     messages consumed
-     * @param steerable whether any of them said «an input is waiting» — the reason a drained burst
-     *                  still has to be verified with the backend
+     * @param count         messages consumed
+     * @param steerableRuns the runs named by the batch's `steerable` events — the reason a drained
+     *                      burst still has to be verified; a {@code null} id means an event whose
+     *                      payload named no run, which cannot be checked against the run's ledger
      */
-    record Drained(int count, boolean steerable) {}
+    record Drained(int count, java.util.List<String> steerableRuns) {
+        boolean steerable() {
+            return !steerableRuns.isEmpty();
+        }
+    }
 
     private RunEventInbox() {
     }
@@ -51,21 +58,34 @@ final class RunEventInbox {
         return null;
     }
 
+    /** @return the run a `steerable` event names, or {@code null} when the payload names none */
+    static String runId(Object payload) {
+        if (payload instanceof RunEvent event) {
+            return event.runId();
+        }
+        if (payload instanceof Map<?, ?> fields && fields.get("runId") instanceof String runId) {
+            return runId;
+        }
+        return null;
+    }
+
     /**
      * Consume everything the run's topic holds right now. Each peek is a durable step of the
      * workflow, so the number of rounds is capped; whatever is left is read by the next wait.
      */
     static Drained drain(DBOS dbos) {
         int count = 0;
-        boolean steerable = false;
+        List<String> steerableRuns = new ArrayList<>(2);
         while (count < MAX_DRAIN) {
             Optional<Object> message = dbos.recv(WorkerProtocol.RUN_EVENTS_TOPIC, Duration.ofMillis(PEEK_MS));
             if (message.isEmpty()) {
                 break;
             }
             count++;
-            steerable |= isSteerable(message.get());
+            if (isSteerable(message.get())) {
+                steerableRuns.add(runId(message.get()));
+            }
         }
-        return new Drained(count, steerable);
+        return new Drained(count, steerableRuns);
     }
 }

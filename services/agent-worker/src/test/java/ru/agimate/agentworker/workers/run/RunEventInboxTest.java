@@ -76,7 +76,17 @@ class RunEventInboxTest {
         RunEventInbox.Drained drained = RunEventInbox.drain(dbos);
 
         assertEquals(2, drained.count());
+        assertEquals(List.of("run-2"), drained.steerableRuns());
         verify(dbos, times(3)).recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("runId читается и из записи, и из словаря: по нему сверяемся с учётом рана")
+    void readsTheNamedRun() {
+        assertEquals("run-2", RunEventInbox.runId(RunEvent.steerable("run-2")));
+        assertEquals("run-2", RunEventInbox.runId(Map.of("kind", RunEvent.STEERABLE, "runId", "run-2")));
+        assertNull(RunEventInbox.runId(RunEvent.toolFinished("call-1")));
+        assertNull(RunEventInbox.runId("what"));
     }
 
     @Test
@@ -88,7 +98,7 @@ class RunEventInboxTest {
                 Optional.of((Object) RunEvent.steerable("run-2")),
                 Optional.empty());
 
-        assertTrue(RunEventInbox.drain(dbos).steerable());
+        assertEquals(List.of("run-2"), RunEventInbox.drain(dbos).steerableRuns());
     }
 
     @Test
