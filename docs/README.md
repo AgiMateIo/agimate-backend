@@ -59,6 +59,7 @@ SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
 | [local-stack.md](operations/local-stack.md) | Локальный стенд: профили `infra`, `edge`, `full` |
 | [deploy.md](operations/deploy.md) | Переменные окружения, генерация ключей, порты |
 | [ci.md](operations/ci.md) | Сборка и деплой |
+| [agent-worker-load-calculator.html](operations/agent-worker-load-calculator.html) | Ёмкость воркера: сколько ранов одновременно и где узкое место — LLM-слоты, RAM или CPU |
 
 ## Разработка
 

@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-worker · Калькулятор нагрузки</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a2f3a;
+    --txt:#e6e9ef; --dim:#9aa3b2; --accent:#6ea8fe; --accent2:#7ee0a8;
+    --accent3:#c9a0ff; --warn:#ffb454; --bad:#ff6b6b; --ok:#7ee0a8;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--txt);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1180px; margin:0 auto; padding:24px 20px 80px}
+  h1{font-size:21px; margin:0 0 4px}
+  h2{font-size:12.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); margin:0 0 14px}
+  h3{font-size:13px; margin:0 0 8px; color:var(--txt)}
+  .sub{color:var(--dim); margin:0 0 20px; font-size:13px}
+  .grid{display:grid; gap:16px}
+  .cols-2{grid-template-columns:1fr 1fr}
+  .cols-3{grid-template-columns:1fr 1fr 1fr}
+  @media(max-width:900px){.cols-2,.cols-3{grid-template-columns:1fr}}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px}
+  .panel.alt{background:var(--panel2)}
+  .field{display:grid; grid-template-columns:1fr 96px; gap:10px; align-items:center; margin:9px 0}
+  .field label{font-size:13px; line-height:1.35}
+  .field label small{display:block; color:var(--dim); font-size:11px; font-family:var(--mono)}
+  .field input[type=number]{width:100%; background:#0c0e13; color:var(--txt); border:1px solid var(--line);
+    border-radius:7px; padding:6px 8px; font-family:var(--mono); text-align:right;}
+  .field input[type=number]:focus{outline:1px solid var(--accent)}
+  .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .btn{background:transparent; color:var(--accent); border:1px solid var(--line); border-radius:8px;
+    padding:6px 12px; cursor:pointer; font-size:12px}
+  .btn:hover{border-color:var(--accent)}
+  table{width:100%; border-collapse:collapse; margin-top:4px}
+  th,td{text-align:right; padding:7px 8px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:13px}
+  th:first-child,td:first-child{text-align:left; font-family:inherit}
+  th{color:var(--dim); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.04em}
+  .pill{font-family:var(--mono); font-size:22px; font-weight:700}
+  .pill.chan{color:var(--accent)} .pill.llm{color:var(--accent2)} .pill.tool{color:var(--warn)} .pill.trig{color:var(--accent3)}
+  .tag{font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:5px; background:#0c0e13; border:1px solid var(--line); color:var(--dim)}
+  .tag.llm{color:var(--accent2)} .tag.tool{color:var(--warn)} .tag.ram{color:var(--accent)} .tag.cpu{color:var(--accent3)}
+  .tag.bad{color:var(--bad); border-color:#513033}
+  .tag.ok{color:var(--ok); border-color:#2f4a3a}
+  .kpi{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; text-align:center; margin:6px 0 2px}
+  .kpi.k2{grid-template-columns:repeat(2,1fr)}
+  .kpi.k4{grid-template-columns:repeat(4,1fr)}
+  .kpi div small{display:block; color:var(--dim); font-size:11px; margin-top:2px}
+  .bar{display:flex; height:24px; border-radius:7px; overflow:hidden; margin:12px 0 4px; border:1px solid var(--line)}
+  .bar span{display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; color:#0b0d12; min-width:0; overflow:hidden; white-space:nowrap}
+  .seg-llm{background:var(--accent2)} .seg-tool{background:var(--warn)} .seg-oh{background:#4a5161; color:var(--txt)}
+  .note{font-size:12px; color:var(--dim); margin-top:10px}
+  .note.warn{color:var(--warn)} .note.bad{color:var(--bad)} .note.ok{color:var(--ok)}
+  code,pre{font-family:var(--mono)}
+  pre{background:#0c0e13; border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; font-size:12.5px; margin:8px 0 0}
+  .formula{background:#0c0e13; border-left:3px solid var(--accent); padding:8px 12px; border-radius:0 6px 6px 0; font-family:var(--mono); font-size:12px; color:var(--dim); margin:8px 0}
+  details{margin-top:16px} summary{cursor:pointer; color:var(--accent); font-size:13px}
+  .hl{color:var(--txt)} .bottleneck{color:var(--bad); font-weight:600}
+  .sectlabel{display:flex; align-items:center; gap:8px}
+
+  /* Hero */
+  .hero{display:grid; grid-template-columns:1.4fr 1fr; gap:18px; align-items:center;
+    background:linear-gradient(135deg,#161b26 0%,#14171e 60%,#171a21 100%);
+    border:1px solid #2c3648; border-radius:14px; padding:20px 22px; margin-bottom:16px}
+  @media(max-width:900px){.hero{grid-template-columns:1fr}}
+  .hero-num{font-family:var(--mono); font-size:46px; font-weight:700; line-height:1; color:var(--accent2)}
+  .hero-label{display:block; color:var(--dim); font-size:13px; margin-top:6px}
+  .hero-side{display:grid; gap:8px; font-size:13px}
+  .hero-side div{display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); padding-bottom:6px}
+  .hero-side div:last-child{border-bottom:0; padding-bottom:0}
+  .hero-side b{font-family:var(--mono); color:var(--txt)}
+
+  /* Ceiling cards */
+  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  @media(max-width:900px){.cards{grid-template-columns:1fr}}
+  .card{background:#12151c; border:1px solid var(--line); border-radius:11px; padding:14px}
+  .card.bad{border-color:#5a2f34; box-shadow:0 0 0 1px #5a2f3433 inset}
+  .card .cap{font-family:var(--mono); font-size:29px; font-weight:700; color:var(--txt)}
+  .card.bad .cap{color:var(--bad)}
+  .card .cap-sub{font-size:11.5px; color:var(--dim); margin-top:4px; min-height:32px}
+  .card .badge{display:inline-block; margin-top:10px; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    padding:2px 7px; border-radius:5px; border:1px solid var(--line); color:var(--dim)}
+  .card.bad .badge{color:var(--bad); border-color:#513033}
+  .card.ok .badge{color:var(--ok); border-color:#2f4a3a}
+  .verdict{border-radius:9px; padding:10px 12px; margin-top:12px; font-size:12.5px; border:1px solid var(--line)}
+  .verdict.ok{border-color:#2f4a3a; background:#121b16; color:var(--ok)}
+  .verdict.bad{border-color:#513033; background:#1d1416; color:var(--bad)}
+  .verdict.warn{border-color:#4a3a22; background:#1d1810; color:var(--warn)}
+  .mini{font-size:11px; color:var(--dim); font-family:var(--mono)}
+  .tbl-note{font-size:11.5px; color:var(--dim); margin-top:8px; text-align:left; font-family:inherit}
+  .table-wrap{overflow-x:auto}
+  .src{font-size:11px; color:var(--dim); margin-top:14px}
+  @media(max-width:600px){.kpi,.kpi.k4{grid-template-columns:1fr 1fr}}
+  @media(max-width:420px){.kpi,.kpi.k2,.kpi.k4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>agent-worker · Калькулятор нагрузки</h1>
+  <p class="sub">
+    Сколько ранов воркер ведёт одновременно и где упирается: <span class="tag llm">LLM-слоты</span>
+    <span class="tag ram">RAM</span> <span class="tag cpu">CPU</span>.
+    Очередь <code>agent_exec</code> партиционирована по сессии, <code>concurrency=1</code>;
+    глобального лимита на число выполняющихся ранов нет. Считаем именно раны: у одного агента
+    может быть много сессий. Всё считается локально в браузере.
+  </p>
+
+  <!-- ─────────── HERO ─────────── -->
+  <div class="hero">
+    <div>
+      <span class="hero-num" id="heroActive">–</span>
+      <span class="hero-label">ранов одновременно ведёт один воркер при целевой утилизации LLM ρ</span>
+    </div>
+    <div class="hero-side">
+      <div><span>Узкое место воркера</span><b id="heroBottleneck">–</b></div>
+      <div><span>Флот, ранов/мин</span><b id="heroFleet">–</b></div>
+      <div><span>Ещё помещается в памяти</span><b id="heroParked">–</b></div>
+      <div><span>Под текущую нагрузку</span><b id="heroWorkers">–</b></div>
+    </div>
+  </div>
+  <div class="note" id="insight" style="margin:-4px 0 16px"></div>
+
+  <!-- ─────────── 1. RUN PROFILE ─────────── -->
+  <div class="panel" style="margin-bottom:16px">
+    <h2>1 · Профиль одного рана</h2>
+    <div class="grid cols-2">
+      <div>
+        <div class="field"><label>t — ходов (LLM-вызовов) на ран<small>шт</small></label><input type="number" id="turns" value="4" min="1" step="1"></div>
+        <div class="field"><label>T_llm — средняя латентность вызова<small>сек · стриминг + thinking</small></label><input type="number" id="tllm" value="8" min="0.1" step="0.5"></div>
+      </div>
+      <div>
+        <div class="field"><label>T_tools — суммарное ожидание тулов<small>сек · за весь ран</small></label><input type="number" id="ttools" value="10" min="0" step="0.5"></div>
+        <div class="field"><label>O — накладные воркера<small>сек · контекст, gRPC, чекпоинты</small></label><input type="number" id="overhead" value="2" min="0" step="0.5"></div>
+      </div>
+    </div>
+    <div class="bar" id="bar" title="Из чего складывается T_run"></div>
+    <div class="kpi">
+      <div><span class="pill" id="trun">–</span><small>T_run, сек/ран</small></div>
+      <div><span class="pill llm" id="dllm">–</span><small>D_llm — LLM-секунды/ран</small></div>
+      <div><span class="pill" id="llmShare">–</span><small>доля рана в LLM</small></div>
+    </div>
+    <div class="formula">T_run = t·T_llm + T_tools + O &nbsp;|&nbsp; D_llm = t·T_llm</div>
+  </div>
+
+  <!-- ─────────── 2. WORKER + HARDWARE ─────────── -->
+  <div class="panel" style="margin-bottom:16px">
+    <h2>2 · Воркер и железо</h2>
+    <div class="grid cols-3">
+      <div>
+        <div class="field"><label>CPU cores на воркер<small>шт</small></label><input type="number" id="cores" value="2" min="1" step="1"></div>
+        <div class="field"><label>RAM на воркер<small>GiB</small></label><input type="number" id="ramGb" value="4" min="1" step="1"></div>
+        <div class="field"><label>RSS в простое<small>MB · JVM + Spring + DBOS</small></label><input type="number" id="baselineRss" value="400" min="0" step="50"></div>
+      </div>
+      <div>
+        <div class="field"><label>ρ — целевая утилизация<small>0.5–0.8</small></label><input type="number" id="rho" value="0.7" min="0.05" max="0.95" step="0.05"></div>
+        <div class="field"><label>Запас RAM<small>0.5–0.9</small></label><input type="number" id="ramSafety" value="0.8" min="0.2" max="0.95" step="0.05"></div>
+        <div class="field"><label>LLM-слотов на воркер<small>agent.concurrency.llm</small></label><input type="number" id="slots" value="3" min="1" step="1"></div>
+      </div>
+      <div>
+        <div class="field"><label>Воркеров во флоте<small>N</small></label><input type="number" id="workers" value="2" min="1" step="1"></div>
+        <div class="formula" style="margin-top:16px">
+          Очередь: <code>agent_exec</code><br>
+          Партиция: сессия, <code>concurrency=1</code><br>
+          Глобального лимита на раны нет
+        </div>
+      </div>
+    </div>
+    <div class="note">
+      <span class="hl">LLM-слоты</span> — единственный настоящий ограничитель внутри воркера: семафор вокруг вызовов модели.
+      У тулов семафора нет; ран просто паркует виртуальный поток.
+    </div>
+  </div>
+
+  <!-- ─────────── 3. PER-RUN MEMORY / CPU ─────────── -->
+  <div class="panel" style="margin-bottom:16px">
+    <h2>3 · Память и CPU одного рана</h2>
+    <div class="grid cols-2">
+      <div>
+        <div class="field"><label>Контекст на ран<small>KB · system + history + user</small></label><input type="number" id="ctxKb" value="50" min="0" step="5"></div>
+        <div class="field"><label>Выводы тулов на ран<small>KB · сумма текстов</small></label><input type="number" id="toolKb" value="64" min="0" step="8"></div>
+        <div class="field"><label>Служебная память рана<small>MB · DBOS, потоки, объекты</small></label><input type="number" id="fixedHeap" value="0.04" min="0" step="0.01"></div>
+        <div class="field"><label>Контекст, MB на KB<small>замерено 1.6 байт/символ</small></label><input type="number" id="ctxFactor" value="0.0016" min="0" step="0.0001"></div>
+      </div>
+      <div>
+        <div class="field"><label>Тулы, MB на KB<small>замерено 1.2 байт/символ</small></label><input type="number" id="toolFactor" value="0.0012" min="0" step="0.0001"></div>
+        <div class="field"><label>Множитель RSS<small>heap → RSS, GC/native</small></label><input type="number" id="rssFactor" value="1.5" min="1" step="0.1"></div>
+        <div class="field"><label>CPU на ран<small>ms · замерено 72–105</small></label><input type="number" id="cpuMs" value="120" min="0" step="10"></div>
+        <div class="field"><label>RAM под раны<small>MB после baseline</small></label><input type="text" id="ramUsable" value="–" readonly style="width:100%;background:#0c0e13;color:var(--dim);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-family:var(--mono);text-align:right"></div>
+      </div>
+    </div>
+    <div class="kpi k2" style="margin-top:12px">
+      <div><span class="pill" id="heapPerRun">–</span><small>heap на ран, MB</small></div>
+      <div><span class="pill" id="rssPerRun">–</span><small>RSS на ран, MB</small></div>
+    </div>
+    <div class="formula">heap/ран = fixed + ctx_KB·ctxFactor + tools_KB·toolFactor &nbsp;|&nbsp; RSS/ран = max(0.1, rssFactor·heap/ран)</div>
+    <div class="note">
+      Дефолты — из локального замера 2026-11-05 (JDK 25, macOS, фейковый провайдер).
+      На целевом стенде перемерить: <code>jcmd</code> heap, <code>ps</code> RSS/CPU.
+    </div>
+    <div class="note warn">
+      При <code>agent.concurrency.llm=1000</code> каждый ран держит активный LLM-запрос:
+      замерено ~0.12 MB heap на ран для малого контекста против ~0.05 MB у припаркованного.
+      Модель ниже считает припаркованный ран; при высоком <code>slots</code> добавь
+      ~0.07 MB на активный ран или замерь свой профиль.
+    </div>
+  </div>
+
+  <!-- ─────────── 4. CAPACITY ─────────── -->
+  <div class="panel" style="margin-bottom:16px">
+    <h2>4 · Ёмкость одного воркера</h2>
+    <div class="cards">
+      <div class="card" id="cardLlm">
+        <div class="cap" id="lLlm">–</div>
+        <div class="cap-sub">ранов в полёте по LLM-слотам<br>при целевой утилизации ρ</div>
+        <span class="badge" id="badgeLlm">LLM-слоты</span>
+      </div>
+      <div class="card" id="cardRam">
+        <div class="cap" id="lRam">–</div>
+        <div class="cap-sub">ранов помещается в RAM<br>с учётом baseline и запаса</div>
+        <span class="badge" id="badgeRam">RAM</span>
+      </div>
+      <div class="card" id="cardCpu">
+        <div class="cap" id="lCpu">–</div>
+        <div class="cap-sub">ранов по CPU<br>при целевой утилизации ρ</div>
+        <span class="badge" id="badgeCpu">CPU</span>
+      </div>
+    </div>
+    <div class="kpi k4" style="margin-top:14px">
+      <div><span class="pill" id="lMax">–</span><small>ранов в полёте (узкое место)</small></div>
+      <div><span class="pill llm" id="activeLlm">–</span><small>реально думают LLM-вызовов</small></div>
+      <div><span class="pill" id="throughputWorker">–</span><small>ранов/мин на воркер</small></div>
+      <div><span class="pill" id="throughputFleet">–</span><small>ранов/мин на флот</small></div>
+    </div>
+    <div class="formula">
+      L_llm = slots·ρ·T_run / D_llm &nbsp;|&nbsp; L_cpu = cores·ρ·T_run / cpu_сек &nbsp;|&nbsp;
+      L_ram = (RAM·safety − baseline) / RSS_ран
+    </div>
+    <div class="note">
+      <span class="hl">Ключевое:</span> семафор LLM не ограничивает число стартующих ранов — он только решает,
+      кто из них сейчас делает вызов. Остальные висят в памяти припаркованными.
+      Поэтому «сколько работает» и «сколько помещается» — разные числа.
+    </div>
+    <div class="note ok">
+      Проверено с <code>AGENT_CONCURRENCY_LLM=1000</code>: воркер держит 1000 одновременных
+      LLM-запросов (heap +61 MB на 500 ранов, RSS +103 MB). Внутренний потолок уходит к CPU,
+      а реальный провайдер обычно упирается раньше — по concurrency или RPM.
+    </div>
+  </div>
+
+  <!-- ─────────── 5. LOAD → WORKERS ─────────── -->
+  <div class="panel" style="margin-bottom:16px">
+    <h2>5 · Нагрузка → сколько воркеров нужно</h2>
+    <div class="grid cols-2">
+      <div>
+        <div class="field"><label>λ — поток ранов на флот<small>ранов/мин</small></label><input type="number" id="lambda" value="12" min="0" step="1"></div>
+        <div class="field"><label>Лимит одновременных LLM у провайдера<small>0 = не проверять</small></label><input type="number" id="provConc" value="0" min="0" step="1"></div>
+        <div class="field"><label>Лимит RPM у провайдера<small>0 = не проверять</small></label><input type="number" id="provRpm" value="0" min="0" step="10"></div>
+      </div>
+      <div>
+        <div class="kpi k2">
+          <div><span class="pill" id="inflight">–</span><small>ранов в полёте по Литтлу</small></div>
+          <div><span class="pill llm" id="llmCallsMin">–</span><small>LLM-вызовов/мин</small></div>
+        </div>
+        <div class="kpi k2" style="margin-top:10px">
+          <div><span class="pill llm" id="concurrentLlm">–</span><small>LLM одновременно (среднее)</small></div>
+          <div><span class="pill" id="slotsNeeded">–</span><small>нужно слотов с запасом ρ</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table style="margin-top:14px">
+        <thead><tr><th>Ограничивает</th><th>Нужно воркеров</th><th>Почему</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag llm">LLM-слоты</span></td><td id="workersByLlm">–</td><td class="tbl-note" id="whyLlm">–</td></tr>
+          <tr><td><span class="tag ram">RAM</span></td><td id="workersByRam">–</td><td class="tbl-note" id="whyRam">–</td></tr>
+          <tr><td><span class="tag cpu">CPU</span></td><td id="workersByCpu">–</td><td class="tbl-note" id="whyCpu">–</td></tr>
+          <tr><td><b>Рекомендация</b></td><td id="workersRecommended" class="bottleneck">–</td><td class="tbl-note" id="whyRecommended">–</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="formula">
+      L = λ·T_run / 60 &nbsp;|&nbsp; LLM-вызовов/мин = λ·t &nbsp;|&nbsp;
+      нужно слотов = λ·t·T_llm / (60·ρ)
+    </div>
+
+    <div class="verdict" id="providerVerdict">Заполни лимиты провайдера — проверю, упираешься ли ты в них.</div>
+    <div class="note">
+      Распределение сессий по воркерам не идеально равномерное; для запаса и N+1 добавь воркер.
+      Провайдер видит не только среднее: запас <code>ρ</code> уже заложен в «нужно слотов».
+    </div>
+  </div>
+
+  <!-- ─────────── 6. BURST ─────────── -->
+  <div class="panel" style="margin-bottom:16px">
+    <h2>6 · Всплеск сессий — хватит ли RAM</h2>
+    <div class="grid cols-2">
+      <div>
+        <div class="field"><label>B — одновременных сессий<small>разных партиций</small></label><input type="number" id="burst" value="200" min="0" step="50"></div>
+        <div class="formula" style="margin-top:14px">
+          Партиция = сессия<br>
+          DBOS стартует все свободные партиции<br>
+          <span class="hl">Глобального лимита нет</span>
+        </div>
+      </div>
+      <div>
+        <div class="kpi k2">
+          <div><span class="pill" id="burstPerWorker">–</span><small>сессий на воркер</small></div>
+          <div><span class="pill" id="burstMem">–</span><small>RSS воркера, MB</small></div>
+        </div>
+        <div class="kpi k2" style="margin-top:10px">
+          <div><span class="pill" id="burstMaxWorker">–</span><small>макс. сессий на воркер</small></div>
+          <div><span class="pill" id="burstMaxFleet">–</span><small>макс. сессий на флот</small></div>
+        </div>
+      </div>
+    </div>
+    <div class="verdict" id="burstVerdict">–</div>
+    <div class="note">
+      Всплеск опасен тем, что раны занимают память <b>до</b> семафора LLM: они уже держат контекст,
+      хотя вызов модели ещё не начали. Если B больше потолка — нужен ограничитель притока на стороне
+      control-api или больше RAM. CPU и LLM-слоты всплеск не останавливают.
+    </div>
+  </div>
+
+  <!-- ─────────── 7. METHODOLOGY ─────────── -->
+  <details>
+    <summary>Методика, замеры и допущения</summary>
+    <div class="note" style="line-height:1.7">
+      <h3>Как замерено</h3>
+      <p>
+        Настоящий <code>AgentWorkerApplication</code> запускался отдельным JVM с изолированной схемой DBOS.
+        Рядом работали фейковый control-api по gRPC и фейковый OpenAI-совместимый провайдер: они отдавали
+        <code>RunContext</code>, <code>LlmCredentials</code> и SSE-поток с настраиваемым числом чанков.
+        Раны с разными <code>sessionId</code> ставились в <code>agent_exec</code> через <code>DBOSClient</code>.
+      </p>
+      <p>
+        Схема измерения памяти — <b>наклон</b>: в одном и том же воркере после прогрева замерялся heap
+        при N ранах в полёте, затем при 2N; разница делилась на N. Так гасится дрейф базовой линии
+        (JIT, кеши, выделенный heap). Перед замерами — <code>jcmd &lt;pid&gt; GC.run</code> и
+        <code>jcmd &lt;pid&gt; GC.heap_info</code>; RSS — <code>ps -o rss</code>; CPU — <code>ps -o cputime</code>.
+        LLM-поток в этих сценариях медленный нарочно, чтобы все раны оставались в полёте.
+      </p>
+
+      <h3>Что получилось локально</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Сценарий</th><th>Heap на ран</th><th>RSS на ран</th><th>CPU на ран</th></tr></thead>
+          <tbody>
+            <tr><td>~10 KB контекста, 1 ход</td><td>0.047–0.05 MB</td><td>0.10 MB</td><td>—</td></tr>
+            <tr><td>~208 KB контекста, 1 ход</td><td>0.37 MB</td><td>0.39 MB</td><td>—</td></tr>
+            <tr><td>~384 KB выводов тулов, 4 хода</td><td>0.51 MB</td><td>0.32 MB</td><td>—</td></tr>
+            <tr><td>1–2 хода, 200 чанков</td><td>—</td><td>—</td><td>72–75 ms</td></tr>
+            <tr><td>2 хода + 2 тула</td><td>—</td><td>—</td><td>90 ms</td></tr>
+            <tr><td>4 хода + 6 тулов</td><td>—</td><td>—</td><td>103 ms</td></tr>
+            <tr><td>1000 одновременных LLM, slots=1000</td><td>0.12 MB</td><td>0.21 MB</td><td>—</td></tr>
+            <tr><td>Простой прогретого воркера</td><td>33–65 MB</td><td>276–481 MB</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="tbl-note">
+        Замерено 2026-11-05, macOS, JDK 25. RSS в простое гуляет из-за выделенного heap: для расчёта взят
+        консервативный дефолт 400 MB. CPU на целевом Linux-стенде может отличаться.
+      </p>
+
+      <h3>Почему старый калькулятор не подходит</h3>
+      <p>
+        Старый считал <code>worker_concurrency</code> для очередей <code>channel_messages</code>/<code>triggers</code>
+        и общих <code>llm_calls</code>/<code>tool_calls</code>. В текущем воркере одна очередь
+        <code>agent_exec</code>, партиционированная по сессии с <code>concurrency=1</code>; диалоги и триггеры —
+        одинаковые раны. Отдельного глобального лимита на выполняющиеся раны нет: <code>workerConcurrency</code>
+        на партиционированной очереди применяется per-partition. Единственный ограничитель — семафор
+        <code>agent.concurrency.llm</code>. Поэтому старые формулы про channel/trigger и сумму очередей
+        здесь не работают.
+      </p>
+
+      <h3>Что не учтено</h3>
+      <ul>
+        <li>CPU Postgres на чекпоинты DBOS и CPU control-api на <code>GetRunContext</code> / <code>SaveMessage</code> / <code>SaveTurn</code>.</li>
+        <li>Реальная латентность и лимиты провайдера: <code>T_llm</code> задаётся вручную.</li>
+        <li>GC-паузы, выделенный heap, metaspace, native-память; RSS-множитель — эмпирический.</li>
+        <li>Реальное исполнение тулов: коннекторы, MCP, внешние API; в модели только время ожидания.</li>
+        <li>Картинки: байты вложений тянутся inline на каждый LLM-вызов и дают разовый всплеск памяти.</li>
+        <li>Неравномерность распределения сессий по воркерам и восстановление после падения.</li>
+      </ul>
+
+      <h3>Как перемерить на целевом стенде</h3>
+      <ol>
+        <li>Прогрей воркер: 5 ранов, затем <code>jcmd &lt;pid&gt; GC.run</code> и <code>jcmd &lt;pid&gt; GC.heap_info</code>.</li>
+        <li>Запусти N ранов, дай им всем получить контекст и встать на семафор LLM.</li>
+        <li>Ещё N ранов, снова GC и heap. <code>(heap_2N − heap_N) / N</code> — удержанный heap на ран.</li>
+        <li>Повтори для трёх профилей: малый контекст, большой контекст, тулы с большим выводом.</li>
+        <li><code>ps -o rss=,cputime= -p &lt;pid&gt;</code> — RSS и CPU; CPU считай как разницу до/после сценария минус idle.</li>
+      </ol>
+      <p class="src">
+        Калькулятор — ориентир для оценки размера, а не SLA. Он показывает, какой ресурс упрётся первым
+        и насколько велик запас; точные цифры даёт замер на целевой VM.
+      </p>
+    </div>
+  </details>
+
+  <div class="row" style="margin-top:16px">
+    <button class="btn" id="reset">Сбросить дефолты</button>
+    <span class="mini">Все значения меняются на лету; данные никуда не отправляются.</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const num = id => parseFloat($(id).value) || 0;
+  const ceil = x => Math.ceil(x - 1e-9);
+  const fmt = (x, d=1) => {
+    if (!Number.isFinite(x)) return '∞';
+    if (Number.isNaN(x)) return '–';
+    return x.toLocaleString('ru-RU', {minimumFractionDigits:0, maximumFractionDigits:d});
+  };
+  const fmtInt = x => {
+    if (!Number.isFinite(x)) return '∞';
+    if (Number.isNaN(x)) return '–';
+    return Math.round(x).toLocaleString('ru-RU');
+  };
+  const pct = x => Number.isFinite(x) ? Math.round(x*100) + '%' : '–';
+  const bigger = (a,b) => a > b;
+  const finiteOrInf = x => Number.isFinite(x) ? x : Infinity;
+
+  const DEFAULTS = {
+    turns:4, tllm:8, ttools:10, overhead:2,
+    cores:2, ramGb:4, baselineRss:400, rho:0.7, ramSafety:0.8, slots:3, workers:2,
+    ctxKb:50, toolKb:64, fixedHeap:0.04, ctxFactor:0.0016, toolFactor:0.0012,
+    rssFactor:1.5, cpuMs:120, lambda:12, provConc:0, provRpm:0, burst:200
+  };
+
+  function drawBar(el, segs, total){
+    el.innerHTML = '';
+    for (const [cls, label, val] of segs) {
+      if (val <= 0) continue;
+      const s = document.createElement('span');
+      s.className = cls;
+      s.style.flex = val;
+      s.appendChild(document.createTextNode(total > 0 && val/total > 0.14 ? `${label} ${fmt(val)}` : ''));
+      s.title = `${label}: ${fmt(val)}`;
+      el.appendChild(s);
+    }
+  }
+
+  function compute(){
+    const turns = Math.max(1, num('turns'));
+    const tllm = Math.max(0.1, num('tllm'));
+    const ttools = Math.max(0, num('ttools'));
+    const overhead = Math.max(0, num('overhead'));
+
+    const cores = Math.max(1, num('cores'));
+    const ramGb = Math.max(0.1, num('ramGb'));
+    const baseline = Math.max(0, num('baselineRss'));
+    const rho = Math.min(0.95, Math.max(0.05, num('rho')));
+    const ramSafety = Math.min(0.95, Math.max(0.2, num('ramSafety')));
+    const slots = Math.max(1, num('slots'));
+    const workers = Math.max(1, num('workers'));
+
+    const ctxKb = Math.max(0, num('ctxKb'));
+    const toolKb = Math.max(0, num('toolKb'));
+    const fixedHeap = Math.max(0, num('fixedHeap'));
+    const ctxFactor = Math.max(0, num('ctxFactor'));
+    const toolFactor = Math.max(0, num('toolFactor'));
+    const rssFactor = Math.max(1, num('rssFactor'));
+    const cpuMs = Math.max(0, num('cpuMs'));
+
+    const lambda = Math.max(0, num('lambda'));
+    const provConc = Math.max(0, num('provConc'));
+    const provRpm = Math.max(0, num('provRpm'));
+    const burst = Math.max(0, num('burst'));
+
+    // 1. run profile
+    const trun = turns * tllm + ttools + overhead;
+    const dllm = turns * tllm;
+    $('trun').textContent = fmt(trun);
+    $('dllm').textContent = fmt(dllm);
+    $('llmShare').textContent = pct(dllm / trun);
+    drawBar($('bar'), [
+      ['seg-llm', 'LLM', dllm],
+      ['seg-tool', 'тулы', ttools],
+      ['seg-oh', 'gRPC/чекпоинты', overhead]
+    ], trun);
+
+    // 2/3. memory + cpu
+    const heapPerRun = fixedHeap + ctxKb * ctxFactor + toolKb * toolFactor;
+    const rssPerRun = Math.max(0.1, rssFactor * heapPerRun);
+    const ramMb = ramGb * 1024;
+    const ramUsable = Math.max(0, ramMb * ramSafety - baseline);
+    $('heapPerRun').textContent = fmt(heapPerRun, 2);
+    $('rssPerRun').textContent = fmt(rssPerRun, 2);
+    $('ramUsable').value = fmtInt(ramUsable) + ' MB';
+
+    // 4. ceilings
+    const lLlm = slots * rho * trun / dllm;
+    const lCpu = cpuMs > 0 ? cores * rho * trun / (cpuMs / 1000) : Infinity;
+    const lRam = ramUsable / rssPerRun;
+    const min = Math.min(lLlm, lRam, lCpu);
+    const bottleneck = !Number.isFinite(min) ? '—'
+      : (min === lLlm ? 'LLM-слоты' : min === lRam ? 'RAM' : 'CPU');
+
+    $('lLlm').textContent = fmt(lLlm, 2);
+    $('lRam').textContent = fmtInt(lRam);
+    $('lCpu').textContent = fmtInt(lCpu);
+    $('lMax').textContent = fmt(min, 2);
+    $('heroBottleneck').textContent = bottleneck;
+
+    const cards = [['cardLlm','badgeLlm','LLM-слоты',lLlm],
+                   ['cardRam','badgeRam','RAM',lRam],
+                   ['cardCpu','badgeCpu','CPU',lCpu]];
+    for (const [card, badge, name, value] of cards) {
+      const isMin = Number.isFinite(min) && value === min;
+      $(card).classList.toggle('bad', isMin);
+      $(card).classList.toggle('ok', !isMin && Number.isFinite(value));
+      $(badge).textContent = isMin ? 'узкое место' : name;
+    }
+
+    const activeLlm = min * dllm / trun;
+    const throughputWorker = min > 0 ? min / trun * 60 : 0;
+    const throughputFleet = throughputWorker * workers;
+    const parkedRoom = Math.max(0, lRam - min);
+
+    $('activeLlm').textContent = fmt(activeLlm, 2);
+    $('throughputWorker').textContent = fmt(throughputWorker, 2);
+    $('throughputFleet').textContent = fmt(throughputFleet, 2);
+    $('heroActive').textContent = fmt(min, 2);
+    $('heroFleet').textContent = fmt(throughputFleet, 2);
+    $('heroParked').textContent = fmtInt(parkedRoom);
+    $('insight').innerHTML =
+      `Потолки на воркер: <span class="hl">LLM-слоты — ${fmt(lLlm, 1)}</span>, ` +
+      `CPU — ${fmtInt(lCpu)}, RAM — ${fmtInt(lRam)}. ` +
+      `Узкое место — <b>${bottleneck}</b>. ` +
+      (bottleneck === 'LLM-слоты'
+        ? 'CPU и RAM важны не для пропускной способности, а для того, сколько ранов переживёт всплеск: припаркованные раны занимают память, но не двигаются.'
+        : 'Если узкое место не LLM-слоты, проверь дефолты CPU/RAM: возможно, они слишком консервативны.');
+
+    // 5. load -> workers
+    const inflight = lambda / 60 * trun;
+    const llmCallsMin = lambda * turns;
+    const concurrentLlm = lambda / 60 * dllm;
+    const slotsNeeded = concurrentLlm / rho;
+    const workersByLlm = slotsNeeded > 0 ? ceil(slotsNeeded / slots) : 0;
+    const workersByRam = inflight > 0 ? (lRam > 0 ? ceil(inflight / lRam) : Infinity) : 0;
+    const workersByCpu = inflight > 0 ? (lCpu > 0 ? ceil(inflight / lCpu) : Infinity) : 0;
+    const recommended = Math.max(1, workersByLlm, workersByRam, workersByCpu);
+
+    $('inflight').textContent = fmt(inflight, 2);
+    $('llmCallsMin').textContent = fmt(llmCallsMin, 1);
+    $('concurrentLlm').textContent = fmt(concurrentLlm, 2);
+    $('slotsNeeded').textContent = fmt(slotsNeeded, 2);
+
+    $('workersByLlm').textContent = fmtWorkers(workersByLlm);
+    $('workersByRam').textContent = fmtWorkers(workersByRam);
+    $('workersByCpu').textContent = fmtWorkers(workersByCpu);
+    $('workersRecommended').textContent = fmtWorkers(recommended);
+    $('heroWorkers').textContent = fmtWorkers(recommended) + ' ' + plural(recommended, 'воркер', 'воркера', 'воркеров');
+
+    $('whyLlm').textContent = `нужно ${fmt(slotsNeeded, 1)} слотов, по ${slots} на воркер`;
+    $('whyRam').textContent = `в полёте ${fmt(inflight, 1)} ранов, по ${fmtInt(lRam)} на воркер`;
+    $('whyCpu').textContent = `в полёте ${fmt(inflight, 1)} ранов, по ${fmtInt(lCpu)} на воркер`;
+
+    // which resource drives the recommendation
+    const candidates = [['LLM-слоты', workersByLlm], ['RAM', workersByRam], ['CPU', workersByCpu]];
+    candidates.sort((a,b) => numberOrZero(b[1]) - numberOrZero(a[1]));
+    const drive = candidates[0][1] === recommended ? candidates[0][0] : bottleneck;
+    $('whyRecommended').textContent = `максимум из трёх ограничений; ограничивает — ${drive}`;
+
+    // provider
+    const pv = $('providerVerdict');
+    pv.className = 'verdict';
+    const parts = [];
+    let providerOk = true;
+    if (provConc > 0) {
+      const ok = slotsNeeded <= provConc;
+      providerOk = providerOk && ok;
+      parts.push(`одновременных LLM: нужно ${fmt(slotsNeeded, 1)}, лимит ${fmtInt(provConc)} — ${ok ? 'ок' : 'превышение'}`);
+    }
+    if (provRpm > 0) {
+      const ok = llmCallsMin <= provRpm;
+      providerOk = providerOk && ok;
+      parts.push(`RPM: ${fmt(llmCallsMin, 1)}/мин, лимит ${fmtInt(provRpm)} — ${ok ? 'ок' : 'превышение'}`);
+    }
+    if (parts.length === 0) {
+      pv.textContent = 'Заполни лимиты провайдера — проверю, упираешься ли ты в них.';
+    } else {
+      pv.textContent = parts.join(' · ');
+      pv.classList.add(providerOk ? 'ok' : 'bad');
+    }
+
+    // 6. burst
+    const burstPerWorker = Math.ceil(burst / workers);
+    const burstMem = baseline + burstPerWorker * rssPerRun;
+    const burstMaxWorker = lRam;
+    const burstMaxFleet = lRam * workers;
+    $('burstPerWorker').textContent = fmtInt(burstPerWorker);
+    $('burstMem').textContent = fmtInt(burstMem);
+    $('burstMaxWorker').textContent = fmtInt(burstMaxWorker);
+    $('burstMaxFleet').textContent = fmtInt(burstMaxFleet);
+
+    const bv = $('burstVerdict');
+    bv.className = 'verdict';
+    if (burst <= 0) {
+      bv.classList.add('warn');
+      bv.textContent = 'Всплеск не задан.';
+    } else if (burst <= burstMaxFleet) {
+      bv.classList.add('ok');
+      bv.textContent = `Помещается: ${fmtInt(burst)} сессий на ${fmtInt(workers)} ${plural(workers, 'воркере', 'воркерах', 'воркерах')}, по ${fmtInt(burstPerWorker)} на воркер; RSS воркера ≈ ${fmtInt(burstMem)} MB.`;
+    } else {
+      bv.classList.add('bad');
+      bv.textContent = `Не помещается: ${fmtInt(burst)} сессий больше потолка ${fmtInt(burstMaxFleet)} на флоте. Нужен ограничитель притока или больше RAM.`;
+    }
+  }
+
+  function numberOrZero(x){ return Number.isFinite(x) ? x : 1e15; }
+  function fmtWorkers(x){ return Number.isFinite(x) ? fmtInt(x) : '∞'; }
+  function plural(n, one, few, many){
+    if (!Number.isFinite(n)) return many;
+    const m10 = n % 10, m100 = n % 100;
+    if (m10 === 1 && m100 !== 11) return one;
+    if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+    return many;
+  }
+
+  $('reset').addEventListener('click', () => {
+    for (const [id, value] of Object.entries(DEFAULTS)) {
+      const el = $(id);
+      if (el) el.value = value;
+    }
+    compute();
+  });
+
+  document.querySelectorAll('input').forEach(el => el.addEventListener('input', compute));
+  compute();
+})();
+</script>
+</body>
+</html>
