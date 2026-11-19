@@ -7,6 +7,11 @@ package ru.agimate.agentworker;
  *
  * <p>{@code runId} is carried only where it means something to the receiver — the new run that
  * arrived in the session; the destination workflow id is the run being notified.
+ *
+ * <p>The ids are for logs and for correlating a message with the row that caused it: the receiver
+ * decides nothing from them. It re-reads the backend on every wake, so a fact the message does not
+ * name is still seen, and {@code kind} alone tells it whether an input is waiting (only that
+ * changes a decision — the other kinds just say «look now»).
  */
 public record RunEvent(String kind, String toolCallId, String runId) {
 

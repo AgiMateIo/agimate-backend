@@ -376,7 +376,8 @@ class ToolCallDispatcherTest {
             ToolCallStep.Issued issued = new ToolCallStep.Issued("a", 0, 0, 0);
             accepts(issued);
             when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
-                    .thenReturn(Optional.of((Object) Map.of("kind", RunEvent.STEERABLE, "runId", "run-2")));
+                    .thenReturn(Optional.of((Object) Map.of("kind", RunEvent.STEERABLE, "runId", "run-2")),
+                            Optional.empty());
             when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenReturn(
                     new ToolCallStep.Observation(List.of(), List.of(), List.of(issued)));
             when(step.detach(any(), any(), any(), any())).thenReturn(new ToolCallStep.DetachResult(
@@ -406,6 +407,26 @@ class ToolCallDispatcherTest {
             verify(step).observe(any(), any(), any(), any(), anyBoolean(), eq(Set.of("a")));
             verify(step, times(1)).detach(any(), any(), any(), any());
             assertTrue(results.get(0).contentJson().contains("did not finish within"));
+        }
+
+        @Test
+        @DisplayName("всплеск событий сливается в одно наблюдение, а не по одному на сообщение")
+        void burstIsCoalescedIntoOneObservation() {
+            accepts(new ToolCallStep.Issued("a", 0, 0, 0));
+            when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any()))
+                    .thenReturn(Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
+                            Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
+                            Optional.of((Object) Map.of("kind", RunEvent.TOOL_FINISHED)),
+                            Optional.empty());
+            when(step.observe(any(), any(), any(), any(), anyBoolean(), any())).thenReturn(
+                    new ToolCallStep.Observation(
+                            List.of(new ToolCallStep.Outcome("a", ToolCallStep.Status.DETACHED, null)), List.of(), List.of()));
+
+            dispatcher.dispatchAll(calls);
+
+            // Three queued messages became one look: the last recv is the peek that found nothing.
+            verify(dbos, times(4)).recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any());
+            verify(step, times(1)).observe(any(), any(), any(), any(), anyBoolean(), any());
         }
 
         @Test

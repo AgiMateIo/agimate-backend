@@ -173,10 +173,10 @@ public class AgentProperties {
          */
         private Duration detachAfter = Duration.ofSeconds(10);
         /**
-         * Ceiling on silent waiting: a call still running here is detached even without an
-         * incoming message, because a run holds its session's queue partition. Must stay well
-         * below control-api's stale-run threshold (15 min) — the wait reports for itself every
-         * {@code ToolCallDispatcher.RECV_TIMEOUT} anyway.
+         * Ceiling on how long one turn may hold its session's queue partition on a single tool
+         * call: a call still running here is detached even without an incoming message. Liveness
+         * does not constrain the value — the wait re-reads the backend at least once a minute
+         * ({@code ToolCallDispatcher.RECV_TIMEOUT}), and that read is what stamps the run alive.
          */
         private Duration maxWait = Duration.ofSeconds(120);
     }

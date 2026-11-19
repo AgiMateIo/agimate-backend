@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import ru.agimate.agentworker.ClaimSteeringResponse;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.ProgressType;
@@ -15,8 +16,10 @@ import ru.agimate.agentworker.ReportLlmUsageResponse;
 import ru.agimate.agentworker.SaveMessageResponse;
 import ru.agimate.agentworker.SavePromptResponse;
 import ru.agimate.agentworker.SaveTurnResponse;
+import ru.agimate.agentworker.SteeringMessage;
 import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.TurnRole;
+import ru.agimate.agentworker.WorkerProtocol;
 import ru.agimate.agentworker.agent.TestTemplates;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -24,7 +27,10 @@ import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -48,6 +54,7 @@ import static org.mockito.Mockito.when;
 class RunRecorderTest {
 
     private final AgentWorkerClient client = mock(AgentWorkerClient.class);
+    private final DBOS dbos = mock(DBOS.class);
     private ChannelMessageLog channelLog;
     private TurnLog turnLog;
     private BackendRunRecorder recorder;
@@ -55,7 +62,6 @@ class RunRecorderTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() throws Exception {
-        DBOS dbos = mock(DBOS.class);
         when(dbos.runStep(any(ThrowingSupplier.class), any(StepOptions.class)))
                 .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
         when(client.saveMessage(anyString(), anyString(), anyInt(), any(), any(), any(), any()))
@@ -68,7 +74,8 @@ class RunRecorderTest {
                 .setConnectorCode("wx").setNamespace("wx").setName("get_weather").setConnectionId("conn-1")
                 .build()));
         turnLog = new TurnLog(client, "agent-1", "run-1");
-        recorder = new BackendRunRecorder(client, channelLog, turnLog, registry, TestTemplates.of("ru"), "agent-1", "run-1");
+        recorder = new BackendRunRecorder(dbos, client, channelLog, turnLog, registry,
+                TestTemplates.of("ru"), "agent-1", "run-1");
     }
 
     private static AgentChatMessage assistantCalling() {
@@ -149,6 +156,32 @@ class RunRecorderTest {
         // Counted over any(): a skipped call would carry a null id, which eq("")/anyString() never match.
         verify(client, times(1)).reportLlmUsage(any(), any(), any(), any(), any(),
                 anyInt(), anyInt(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("шов опустошает топик: события поглощённых сообщений больше не будят ожидание")
+    void seamDropsStaleRunEvents() {
+        when(client.claimSteering("agent-1", "run-1")).thenReturn(ClaimSteeringResponse.newBuilder()
+                .addMessages(SteeringMessage.newBuilder().setRunId("run-2").setText("и ещё вопрос"))
+                .build());
+        when(dbos.recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any(Duration.class)))
+                .thenReturn(Optional.of((Object) Map.of("kind", "steerable")), Optional.empty());
+
+        List<AgentChatMessage> absorbed = recorder.pollSteering();
+
+        assertEquals(1, absorbed.size());
+        // One stale event plus the empty peek that ends the drain.
+        verify(dbos, times(2)).recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("шов опустошает топик и тогда, когда поглощать было нечего: правило одно на все швы")
+    void seamDrainsEvenWithoutAbsorption() {
+        when(client.claimSteering("agent-1", "run-1"))
+                .thenReturn(ClaimSteeringResponse.newBuilder().build());
+
+        assertEquals(List.of(), recorder.pollSteering());
+        verify(dbos).recv(eq(WorkerProtocol.RUN_EVENTS_TOPIC), any(Duration.class));
     }
 
     @Test

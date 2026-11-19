@@ -66,6 +66,11 @@ absorbs it anyway) or at the ceiling `max-wait` (a run holds its session's queue
 event is not a lost result: the minute-long `recv` is the reconciliation pass, so the worst case is
 one interval of delay.
 
+Two rules keep the topic from deciding things it should not (`RunEventInbox`): the steering seam
+empties it after absorbing — the events of messages the run already took are stale, and a message
+that arrives later sends a new one — and a wait that wakes on a message drains the rest of the
+burst before observing once, so a storm costs one look, not one per message.
+
 The reply of a step lives in run memory; a crash replay re-reads it by id (`GetTurn`,
 `GetToolResult`) and regenerates the worker's own notices. The backend executes tools
 concurrently from the moment they are issued, so one waiting loop is as parallel as one

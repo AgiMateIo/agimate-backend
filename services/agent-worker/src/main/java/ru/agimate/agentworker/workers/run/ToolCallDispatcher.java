@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.dbos.transact.DBOS;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.GetToolResultResponse;
-import ru.agimate.agentworker.RunEvent;
 import ru.agimate.agentworker.ToolResultStatus;
 import ru.agimate.agentworker.WorkerProtocol;
 import ru.agimate.agentworker.agent.AgiMateAgent;
@@ -139,11 +138,16 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
         while (!waiting.isEmpty()) {
             long timeoutMs = waitTimeoutMs(waiting, incoming, undetachable);
             Optional<Object> message = dbos.recv(WorkerProtocol.RUN_EVENTS_TOPIC, Duration.ofMillis(timeoutMs));
-            String kind = message.map(RunEventPayload::kind).orElse(null);
-            if (kind != null) {
-                log.debug("run event {} while waiting for tools", kind);
+            if (message.isPresent()) {
+                // A burst (a webhook storm creating run after run) must cost one observation, not one
+                // per message: everything a dropped message says — a result exists, the run was
+                // stopped — is re-read by the observation itself, and the one thing that changes the
+                // verdict, «an input is waiting», is sticky anyway.
+                int coalesced = RunEventInbox.drain(dbos);
+                log.debug("run event {} while waiting for tools, {} more coalesced into this pass",
+                        RunEventInbox.kind(message.get()), coalesced);
             }
-            incoming |= RunEvent.STEERABLE.equals(kind);
+            incoming |= message.map(RunEventInbox::isSteerable).orElse(false);
 
             // The step's inputs are rebuilt from recorded results on every pass; the lambda keeps
             // them in finals so a replay of the same pass sees the same call set.
@@ -189,6 +193,8 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
             }
         }
         if (next == Long.MAX_VALUE) {
+            // Unreachable today — every pending call has a budget — but this guard is what keeps a
+            // future "never" instant from turning the subtraction below into a busy loop.
             return RECV_TIMEOUT_MS;
         }
         return Math.max(RECV_MIN_MS, Math.min(RECV_TIMEOUT_MS, next - now));
