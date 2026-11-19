@@ -41,7 +41,7 @@ class DetachedToolResultDeliveryTest {
     private final TriggerLogService triggerLogService = mock(TriggerLogService.class);
 
     private final DetachedToolResultDelivery delivery = new DetachedToolResultDelivery(
-            toolCallLogRepository, agentRunRepository, triggerLogService);
+            toolCallLogRepository, agentRunRepository, triggerLogService, mock(RunEvents.class));
 
     private final UUID logId = UUID.randomUUID();
     private final UUID parentRunId = UUID.randomUUID();

@@ -135,6 +135,26 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     Optional<RunStatus> findStatusById(@Param("runId") UUID runId);
 
     /**
+     * The runs of a session that may be waiting right now: exactly the ones a {@code run_events}
+     * notification is addressed to. A stopped run is still RUNNING until a seam reads the flag, and it
+     * is still worth notifying — the wait ends sooner.
+     */
+    @Query("""
+            SELECT t.id FROM AgentRun t
+            WHERE t.sessionId = :sessionId
+              AND t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
+            """)
+    List<UUID> findRunningIdsBySession(@Param("sessionId") UUID sessionId);
+
+    /** The same across a conversation and its children — a stopped conversation stops delegated work. */
+    @Query("""
+            SELECT t.id FROM AgentRun t
+            WHERE t.sessionId IN :sessionIds
+              AND t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
+            """)
+    List<UUID> findRunningIdsBySessionIn(@Param("sessionIds") Collection<UUID> sessionIds);
+
+    /**
      * Steering claim: the ENQUEUED runs of the main's session that are strictly younger than the
      * main, oldest first. Native — JPQL has no row comparison, and {@code (created_at, id)} is the
      * queue's execution order ({@code id} is a uuidv7, the tiebreak within one timestamp). An older

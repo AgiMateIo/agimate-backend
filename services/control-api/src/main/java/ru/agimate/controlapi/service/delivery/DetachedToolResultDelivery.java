@@ -49,6 +49,7 @@ public class DetachedToolResultDelivery {
     private final ToolCallLogRepository toolCallLogRepository;
     private final AgentRunRepository agentRunRepository;
     private final TriggerLogService triggerLogService;
+    private final RunEvents runEvents;
 
     /** A delivery run ready to enqueue; {@code channels} is null for a direct parent. */
     public record Prepared(AgentRun run, Trigger trigger, Channels channels) {}
@@ -102,6 +103,7 @@ public class DetachedToolResultDelivery {
                 .originRunId(parent.getId())
                 .channels(ChannelsCodec.toMap(channels))
                 .build());
+        runEvents.inputArrived(run.getSessionId(), run.getId());
         return Optional.of(new Prepared(run, trigger, channels));
     }
 

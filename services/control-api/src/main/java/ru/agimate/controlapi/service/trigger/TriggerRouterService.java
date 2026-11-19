@@ -20,6 +20,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.file.FileReferenceService;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.delivery.RunEvents;
 import ru.agimate.controlapi.service.seed.ChannelTexts;
 import ru.agimate.controlapi.service.session.AgentSessionService;
 
@@ -48,6 +49,7 @@ public class TriggerRouterService {
 
     private final AgentRunRepository agentRunRepository;
     private final FileReferenceService fileReferenceService;
+    private final RunEvents runEvents;
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
@@ -183,6 +185,9 @@ public class TriggerRouterService {
                 if (route.sessionId() == null) {
                     warnIfQueueDeep(agentRun.getSessionId());
                 }
+                // The session's running run has something to absorb: wake it instead of letting its
+                // tool step wait out the timer.
+                runEvents.inputArrived(agentRun.getSessionId(), agentRun.getId());
 
                 agentDeliveryService.deliverTrigger(agentRun, trigger, route.channels(), route.message());
                 // After delivery: the file was in a conversation only if the message reached the agent.

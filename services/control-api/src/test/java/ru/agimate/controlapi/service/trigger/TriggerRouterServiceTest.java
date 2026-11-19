@@ -73,6 +73,8 @@ class TriggerRouterServiceTest {
     private ru.agimate.controlapi.service.session.AgentSessionService agentSessionService;
     @Mock
     private ru.agimate.controlapi.service.file.FileReferenceService fileReferenceService;
+    @Mock
+    private ru.agimate.controlapi.service.delivery.RunEvents runEvents;
 
     @InjectMocks
     private TriggerRouterService routerService;

@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.delivery.AgentTransport;
 import ru.agimate.controlapi.service.delivery.DetachedToolResultDelivery;
+import ru.agimate.controlapi.service.delivery.RunEvents;
 import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -30,17 +31,19 @@ public class AgentDeliveryService {
     private final AgentRepository agentRepository;
     private final ToolCallLogRepository toolCallLogRepository;
     private final DetachedToolResultDelivery detachedDelivery;
+    private final RunEvents runEvents;
 
     // We depend on the repository rather than on AgentService: delivery is a low-level mechanism and needs only
     // an agent lookup. Injecting the high-level AgentService would close a bean cycle
     public AgentDeliveryService(List<AgentTransport> transportList, AgentRepository agentRepository,
                                 ToolCallLogRepository toolCallLogRepository,
-                                DetachedToolResultDelivery detachedDelivery) {
+                                DetachedToolResultDelivery detachedDelivery, RunEvents runEvents) {
         this.transports = transportList.stream()
                 .collect(Collectors.toMap(AgentTransport::getAgentType, Function.identity()));
         this.agentRepository = agentRepository;
         this.toolCallLogRepository = toolCallLogRepository;
         this.detachedDelivery = detachedDelivery;
+        this.runEvents = runEvents;
     }
 
     /**
@@ -80,6 +83,11 @@ public class AgentDeliveryService {
         // the execution began, and the worker stamps detached_at mid-execution. The ownership
         // decision must read the current row, not a snapshot from before the tool started.
         toolCallLog = toolCallLogRepository.findById(toolCallLog.getId()).orElse(toolCallLog);
+        // Before the branch: a detached call has already moved on (the message is then unused), while a
+        // plain one is woken to read this very result instead of polling for it.
+        if (toolCallLog.getRunId() != null) {
+            runEvents.toolFinished(toolCallLog.getRunId(), toolCallLog.getExternalId());
+        }
         Agent agent = agentRepository.findById(toolCallLog.getAgentId())
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
         try {

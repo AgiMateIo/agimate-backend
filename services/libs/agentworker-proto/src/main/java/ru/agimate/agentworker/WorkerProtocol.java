@@ -21,4 +21,11 @@ public final class WorkerProtocol {
     public static final String RUN_CLASS = "AgentRunWorkflow";
     public static final String RUN_WORKFLOW = "run_agent";
     public static final String INSTANCE = "default";
+
+    /**
+     * DBOS message topic a running workflow waits on ({@code DBOS.recv}) for the events control-api
+     * sends it: a finished tool call, a new input in the session, a cancellation request. The
+     * payload is a {@link RunEvent}; the destination workflow id is the run id.
+     */
+    public static final String RUN_EVENTS_TOPIC = "run_events";
 }

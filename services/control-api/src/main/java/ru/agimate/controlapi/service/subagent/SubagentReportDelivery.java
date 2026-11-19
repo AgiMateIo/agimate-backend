@@ -13,6 +13,7 @@ import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
+import ru.agimate.controlapi.service.delivery.RunEvents;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -54,6 +55,7 @@ public class SubagentReportDelivery {
     private final AgentRepository agentRepository;
     private final TriggerLogService triggerLogService;
     private final SubagentService subagentService;
+    private final RunEvents runEvents;
 
     /** A report run ready to enqueue. */
     public record Prepared(AgentRun run, Trigger trigger, Channels channels) {}
@@ -122,6 +124,7 @@ public class SubagentReportDelivery {
                 .originRunId(childRunId)
                 .channels(ChannelsCodec.toMap(channels))
                 .build());
+        runEvents.inputArrived(run.getSessionId(), run.getId());
         log.info("child run {} reported into conversation {} ({} still working)",
                 childRunId, conversationId, remaining);
         return Optional.of(new Prepared(run, trigger, channels));

@@ -16,6 +16,7 @@ import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
+import ru.agimate.controlapi.service.delivery.RunEvents;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
 import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
 import ru.agimate.controlapi.realtime.RealtimePublisher;
@@ -49,13 +50,14 @@ class RunCancellationServiceTest {
     @Mock private AgentSessionRepository agentSessionRepository;
     @Mock private ChannelRepository channelRepository;
     @Mock private RealtimePublisher realtime;
+    @Mock private RunEvents runEvents;
 
     private RunCancellationService service;
 
     @BeforeEach
     void setUp() {
         service = new RunCancellationService(agentRunRepository, agentSessionRepository, channelRepository,
-                realtime);
+                realtime, runEvents);
     }
 
     private AgentRun run(RunStatus status, UUID ownerId) {

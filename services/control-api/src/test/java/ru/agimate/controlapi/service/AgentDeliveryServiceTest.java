@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.delivery.AgentTransport;
 import ru.agimate.controlapi.service.delivery.DetachedToolResultDelivery;
+import ru.agimate.controlapi.service.delivery.RunEvents;
 import ru.agimate.controlapi.service.dto.ToolResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -37,6 +38,7 @@ class AgentDeliveryServiceTest {
     private final AgentRepository agentRepository = mock(AgentRepository.class);
     private final ToolCallLogRepository toolCallLogRepository = mock(ToolCallLogRepository.class);
     private final DetachedToolResultDelivery detachedDelivery = mock(DetachedToolResultDelivery.class);
+    private final RunEvents runEvents = mock(RunEvents.class);
     private final Agent agent = mock(Agent.class);
 
     private final UUID agentId = UUID.randomUUID();
@@ -49,7 +51,7 @@ class AgentDeliveryServiceTest {
     void setUp() {
         when(transport.getAgentType()).thenReturn(AgentType.GENERIC);
         service = new AgentDeliveryService(List.of(transport), agentRepository,
-                toolCallLogRepository, detachedDelivery);
+                toolCallLogRepository, detachedDelivery, runEvents);
         lenient().when(agent.getType()).thenReturn(AgentType.GENERIC);
         lenient().when(agentRepository.findById(agentId)).thenReturn(Optional.of(agent));
     }
@@ -74,6 +76,33 @@ class AgentDeliveryServiceTest {
 
         verify(transport).deliverToolResult(agent, result);
         verify(detachedDelivery, never()).prepare(any(), any());
+    }
+
+    @Test
+    @DisplayName("результат вызова рана будит его ожидание сообщением, а не таймером")
+    void finishedCallWakesItsRun() {
+        UUID runId = UUID.randomUUID();
+        ToolCallLog log = ToolCallLog.builder()
+                .id(logId)
+                .agentId(agentId)
+                .runId(runId)
+                .externalId("call-1")
+                .name("generate_report")
+                .connectorCode("sheets")
+                .build();
+        when(toolCallLogRepository.findById(logId)).thenReturn(Optional.of(log));
+
+        service.deliverToolResult(log, result);
+
+        verify(runEvents).toolFinished(runId, "call-1");
+    }
+
+    @Test
+    @DisplayName("вызов вне рана никого не будит: адресата нет")
+    void callOutsideARunSendsNoEvent() {
+        service.deliverToolResult(log(null), result);
+
+        verify(runEvents, never()).toolFinished(any(), any());
     }
 
     @Test

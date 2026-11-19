@@ -14,11 +14,13 @@ import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
+import ru.agimate.controlapi.service.delivery.RunEvents;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
 import ru.agimate.controlapi.realtime.RealtimeEvent.AgentRequestChanged;
 import ru.agimate.controlapi.realtime.RealtimePublisher;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +45,7 @@ public class RunCancellationService {
     private final AgentSessionRepository agentSessionRepository;
     private final ChannelRepository channelRepository;
     private final RealtimePublisher realtime;
+    private final RunEvents runEvents;
 
     /**
      * @param status    the run's status when the request landed; the terminal one arrives later
@@ -64,6 +67,7 @@ public class RunCancellationService {
         int updated = agentRunRepository.requestCancel(runId, LocalDateTime.now());
         if (updated > 0) {
             log.info("cancel requested for run {} by user {}", runId, userId);
+            runEvents.cancelRequested(List.of(runId));
         }
         return new CancelResult(run.getStatus(), updated > 0);
     }
@@ -105,11 +109,23 @@ public class RunCancellationService {
         // Read before the update, published after it: these are the threads that were working, and
         // the payload must already show them stopped.
         List<UUID> threads = workingRequestThreads(sessionId);
+        // The same scope the bulk update covers; read before it, so the list is «who was running».
+        List<UUID> running = runningRunsOf(sessionId);
         LocalDateTime now = LocalDateTime.now();
         int updated = agentRunRepository.requestCancelBySession(sessionId, now)
                 + agentRunRepository.requestCancelByParentSession(sessionId, now);
         threads.forEach(threadId -> realtime.publish(new AgentRequestChanged(threadId, AgentRequestChanged.CANCELLED)));
+        runEvents.cancelRequested(running);
         return updated;
+    }
+
+    /** The session and its children — exactly what {@code requestCancelBySession} plus its parent clause stops. */
+    private List<UUID> runningRunsOf(UUID sessionId) {
+        List<UUID> sessionIds = new ArrayList<>();
+        sessionIds.add(sessionId);
+        agentSessionRepository.findChildren(sessionId, Pageable.unpaged())
+                .forEach(child -> sessionIds.add(child.getId()));
+        return agentRunRepository.findRunningIdsBySessionIn(sessionIds);
     }
 
     /**

@@ -17,6 +17,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
+import ru.agimate.controlapi.service.delivery.RunEvents;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,7 +63,7 @@ class SubagentReportDeliveryTest {
     @BeforeEach
     void setUp() {
         delivery = new SubagentReportDelivery(agentRunRepository, agentSessionRepository, agentRepository,
-                triggerLogService, subagentService);
+                triggerLogService, subagentService, mock(RunEvents.class));
         conversationAgent = Agent.builder().id(UUID.randomUUID()).name("Bot").type(AgentType.GENERIC).build();
         child = AgentRun.builder()
                 .agent(conversationAgent)
