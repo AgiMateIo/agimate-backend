@@ -124,20 +124,33 @@ class McpUtilsTest {
         }
 
         @Test
-        @DisplayName("loggable: userinfo и query вырезаны, длина ограничена")
-        void loggableRedacts() {
+        @DisplayName("loggable: URL сводится к origin — без userinfo, пути и query")
+        void loggableRedactsUrls() {
             String text = McpUtils.loggable(
-                    "I/O error on POST \"https://user:pass@srv.example/mcp?api_key=secret\": timed out");
+                    "I/O error on POST \"https://user:pass@srv.example:8443/deep/mcp?api_key=secret\": timed out");
 
             assertFalse(text.contains("user:pass"));
+            assertFalse(text.contains("/deep"));
             assertFalse(text.contains("api_key"));
+            assertTrue(text.contains("https://srv.example:8443"));
             assertTrue(text.startsWith("I/O error"));
         }
 
         @Test
-        @DisplayName("loggable: длинный ответ сервера обрезается")
+        @DisplayName("loggable: JWT и длинные непрозрачные токены маскируются")
+        void loggableMasksTokens() {
+            String text = McpUtils.loggable("rejected bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3"
+                    + "ODkwIn0 and y0__wgBEPyKjWUYopdJIM3Nm-8ZMK7Oo90H0k3wNZKr2jLar6lv");
+
+            assertTrue(text.contains("<token>"));
+            assertFalse(text.contains("eyJ"));
+            assertFalse(text.contains("y0__"));
+        }
+
+        @Test
+        @DisplayName("loggable: длинный текст обрезается")
         void loggableTruncates() {
-            String text = McpUtils.loggable("x".repeat(500));
+            String text = McpUtils.loggable("timed out ".repeat(100));
 
             assertEquals(201, text.length()); // 200 символов + многоточие
             assertTrue(text.endsWith("…"));

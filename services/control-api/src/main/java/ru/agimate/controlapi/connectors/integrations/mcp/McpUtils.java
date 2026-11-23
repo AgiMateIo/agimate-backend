@@ -9,6 +9,8 @@ import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Constants and parsing of the MCP connector's credentials.
@@ -96,18 +98,33 @@ public class McpUtils {
         }
     }
 
+    /** Any absolute URL, however it is embedded in the text. */
+    private static final Pattern URL_PATTERN = Pattern.compile("(?i)\\b[a-z][a-z0-9+.\\-]*://[^\\s\"']*");
+
+    /** Token-shaped runs: a JWT, a dotted key pair and any long opaque run are never useful in a log. */
+    private static final Pattern JWT_PATTERN = Pattern.compile("eyJ[A-Za-z0-9._-]{10,}");
+    private static final Pattern KEY_PAIR_PATTERN = Pattern.compile("[A-Za-z0-9_-]{20,}\\.[A-Za-z0-9_-]{20,}");
+    private static final Pattern LONG_RUN_PATTERN = Pattern.compile("[A-Za-z0-9_-]{32,}");
+
     /**
-     * An exception text safe to log: URL userinfo and query removed, length bounded. The text comes
-     * from the transport layer and may echo the request URL or an external response body; the full
-     * message still travels to the connection's owner as the validation error.
+     * An exception text safe to log. The text comes from the transport layer and may echo the request
+     * URL (userinfo, path, query) or a token; every URL is reduced to its origin, token-shaped runs are
+     * masked, and the result is bounded. The full message still travels to the connection's owner as
+     * the validation error.
      */
     public static String loggable(String message) {
         if (message == null) {
             return "no detail";
         }
-        String redacted = message
-                .replaceAll("(?i)://[^/@\\s\"']+@", "://")
-                .replaceAll("\\?[^\\s\"']*", "?…");
-        return redacted.length() > 200 ? redacted.substring(0, 200) + "…" : redacted;
+        Matcher urls = URL_PATTERN.matcher(message);
+        StringBuilder stripped = new StringBuilder();
+        while (urls.find()) {
+            urls.appendReplacement(stripped, Matcher.quoteReplacement(logTarget(urls.group())));
+        }
+        urls.appendTail(stripped);
+        String masked = JWT_PATTERN.matcher(stripped.toString()).replaceAll("<token>");
+        masked = KEY_PAIR_PATTERN.matcher(masked).replaceAll("<token>");
+        masked = LONG_RUN_PATTERN.matcher(masked).replaceAll("<token>");
+        return masked.length() > 200 ? masked.substring(0, 200) + "…" : masked;
     }
 }

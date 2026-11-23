@@ -152,7 +152,11 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
                             .toList());
             return authorizationOutcome(config.url(), credentials, e);
         } catch (ConnectorException e) {
+            // The transport text may echo the URL or a remote response body: the warn line stays
+            // factual, and the redacted detail is one debug line down for whoever needs it.
             log.warn("MCP validation for {} failed: {}", McpUtils.logTarget(config.url()),
+                    e.getClass().getSimpleName());
+            log.debug("MCP validation for {} failure detail: {}", McpUtils.logTarget(config.url()),
                     McpUtils.loggable(e.getMessage()));
             return IntegrationValidationResult.failure(McpUtils.FIELD_URL, e.getMessage());
         } catch (Exception e) {

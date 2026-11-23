@@ -73,6 +73,8 @@ public class McpClient {
      */
     private static final int MAX_TOOL_PAGES = 100;
     private static final int MAX_TOOLS = 10_000;
+    /** The per-request timeout bounds one page; this bounds the whole pagination, pages included. */
+    private static final Duration TOOLS_LIST_BUDGET = Duration.ofSeconds(60);
 
     private final RestClient restClient;
     private final AtomicLong requestId = new AtomicLong(1);
@@ -121,17 +123,24 @@ public class McpClient {
     public ToolsListing listTools(ServerConfig config) {
         Session session = openSession(config);
         List<JsonNode> tools = new ArrayList<>();
+        long startedAt = System.nanoTime();
         String cursor = null;
         for (int page = 1; ; page++) {
             if (page > MAX_TOOL_PAGES) {
                 throw new ConnectorException("MCP tools/list returned more than " + MAX_TOOL_PAGES + " pages");
             }
+            if (System.nanoTime() - startedAt > TOOLS_LIST_BUDGET.toNanos()) {
+                throw new ConnectorException("MCP tools/list took longer than "
+                        + TOOLS_LIST_BUDGET.toSeconds() + " s");
+            }
             Map<String, Object> params = cursor == null ? Map.of() : Map.of("cursor", cursor);
             JsonNode result = rpc(config, session.sessionId(), "tools/list", params);
-            result.path("tools").forEach(tools::add);
-            if (tools.size() > MAX_TOOLS) {
+            JsonNode pageTools = result.path("tools");
+            // Checked before copying: otherwise one huge page lands in the accumulator whole.
+            if (pageTools.size() + tools.size() > MAX_TOOLS) {
                 throw new ConnectorException("MCP tools/list returned more than " + MAX_TOOLS + " tools");
             }
+            pageTools.forEach(tools::add);
             JsonNode next = result.get("nextCursor");
             String nextCursor = next != null && !next.isNull() ? next.asText() : null;
             // A cursor equal to the one just sent would loop the same page forever.
