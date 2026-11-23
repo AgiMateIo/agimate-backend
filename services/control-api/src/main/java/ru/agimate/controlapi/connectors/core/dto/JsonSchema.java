@@ -13,6 +13,12 @@ import java.util.Map;
  * {@code description}, {@code properties}, {@code required}, {@code items}, {@code enum},
  * {@code additionalProperties}. Every field is nullable — an empty schema serialises to {@code {}} («any»).
  *
+ * <p>Keywords that have two JSON forms stay untyped: {@code type} is a string or an array of strings
+ * ({@code ["string","null"]} for a nullable field), {@code additionalProperties} is a boolean or a
+ * schema, {@code enum} holds values of any type. {@code Object} rather than a JSON node because the
+ * DTO crosses both Jackson generations: {@code JsonUtils} parses it with Jackson 2 while Spring MVC
+ * serialises it with Jackson 3, and a Jackson-2 node is not serialisable by Jackson 3.
+ *
  * <p>{@link #extra} ({@code @JsonAnyGetter}/{@code @JsonAnySetter}) collects every other keyword
  * ({@code anyOf}/{@code oneOf}/{@code $ref}/{@code format}/{@code default}/{@code minimum}/…). That gives a
  * lossless round-trip of an arbitrary JSON Schema coming from an external MCP server: unknown fields
@@ -20,13 +26,13 @@ import java.util.Map;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record JsonSchema(
-        String type,
+        Object type,
         String description,
         Map<String, JsonSchema> properties,
         List<String> required,
         JsonSchema items,
-        @JsonProperty("enum") List<String> enumValues,
-        JsonSchema additionalProperties,
+        @JsonProperty("enum") List<Object> enumValues,
+        Object additionalProperties,
         @JsonAnyGetter @JsonAnySetter Map<String, Object> extra
 ) {
 
@@ -42,7 +48,7 @@ public record JsonSchema(
 
     /** string + {@code enum}. */
     public static JsonSchema enumString(String description, List<String> values) {
-        return new JsonSchema("string", description, null, null, null, values, null, null);
+        return new JsonSchema("string", description, null, null, null, List.copyOf(values), null, null);
     }
 
     public static JsonSchema array(String description, JsonSchema items) {

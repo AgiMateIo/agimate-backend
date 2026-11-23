@@ -10,6 +10,7 @@ import ru.agimate.controlapi.database.entities.ConnectionTool;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,5 +77,35 @@ class ConnectionToolMapperTest {
         assertTrue(spec.annotations().readOnlyHint());
         assertTrue(JsonUtils.writeValueAsString(spec.inputSchema()).contains("date-time"),
                 "нестандартный keyword схемы переживает round-trip");
+    }
+
+    @Test
+    @DisplayName("булева форма additionalProperties не обнуляет схему и переживает round-trip")
+    void preservesBooleanAdditionalProperties() {
+        assertSchemaRoundTrip("""
+                {"type":"object","properties":{"event_id":{"type":"string"}},
+                 "additionalProperties":false,"required":["event_id"]}""");
+    }
+
+    @Test
+    @DisplayName("массив типов (nullable-поле) не обнуляет схему и переживает round-trip")
+    void preservesTypeArray() {
+        assertSchemaRoundTrip("""
+                {"type":"object","properties":{"description":{"type":["string","null"]}}}""");
+    }
+
+    @Test
+    @DisplayName("числовые значения enum не приводятся к строке")
+    void preservesNumericEnum() {
+        assertSchemaRoundTrip("""
+                {"type":"object","properties":{"limit":{"type":"integer","enum":[10,20,50,100]}}}""");
+    }
+
+    /** The schema reaches the worker re-serialised from {@link ConnectorToolSpec}, so the tree must survive intact. */
+    private static void assertSchemaRoundTrip(String rawSchema) {
+        ConnectorToolSpec spec = ConnectionToolMapper.toSpec(tool(rawSchema, null));
+        assertNotNull(spec.inputSchema(), "схема не должна теряться");
+        assertEquals(JsonUtils.toJsonNodeOrNull(rawSchema),
+                JsonUtils.toJsonNodeOrNull(JsonUtils.writeValueAsString(spec.inputSchema())));
     }
 }
