@@ -406,7 +406,7 @@ public class ConnectorPresetSeedReader {
                     name,
                     bool(item, "isRequired", bool(item, "required", false)),
                     bool(item, "isSecret", bool(item, "secret", false)),
-                    text(item, "valuePrefix"),
+                    literalText(item, "valuePrefix"),
                     text(item, "keyPrefix"),
                     text(item, "label"),
                     text(item, "labelRu")));
@@ -555,6 +555,29 @@ public class ConnectorPresetSeedReader {
             return null;
         }
         String text = String.valueOf(value).strip();
+        return text.isEmpty() ? null : text;
+    }
+
+    /**
+     * Like {@link #text(JsonNode, String)}, but keeps the edges: a {@code valuePrefix} is
+     * whitespace-significant ("OAuth ", "ApiKey "), and stripping it silently turns the header into a
+     * different scheme — the server then answers 401 while the form looks filled in correctly.
+     */
+    private static String literalText(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        String text = value.asText();
+        return text.isEmpty() ? null : text;
+    }
+
+    private static String literalText(Map<?, ?> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value);
         return text.isEmpty() ? null : text;
     }
 
@@ -760,7 +783,7 @@ public class ConnectorPresetSeedReader {
                 required = booleanOrNull(header.get("isRequired"), where + ".isRequired");
             }
             String label = text(header, "label");
-            String valuePrefix = text(header, "valuePrefix");
+            String valuePrefix = literalText(header, "valuePrefix");
             fields.add(new PresetHeaderField(
                     name,
                     label != null ? label : name,

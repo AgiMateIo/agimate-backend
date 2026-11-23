@@ -36,8 +36,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * response that is either {@code application/json} (a single one) or {@code text/event-stream} (an
  * SSE stream).
  *
- * <p>The session is short-lived and stateless: every high-level operation ({@link #probe},
- * {@link #listTools}, {@link #callTool}, {@link #readResource}) does its own {@code initialize} plus
+ * <p>The session is short-lived and stateless: every high-level operation ({@link #listTools},
+ * {@link #callTool}, {@link #readResource}) does its own {@code initialize} plus
  * {@code notifications/initialized}, reusing the {@code Mcp-Session-Id} within that call. A pool of
  * long-lived sessions is out of scope for v1. Inside the layer we throw only
  * {@link ConnectorException}.
@@ -103,13 +103,15 @@ public class McpClient {
     /** The {@code serverInfo} from the response to {@code initialize}. */
     public record ServerInfo(String name, String version) {}
 
-    /** Handshake: confirms reachability and auth, and returns {@code serverInfo} (used in validate). */
-    public ServerInfo probe(ServerConfig config) {
-        return openSession(config).serverInfo();
-    }
+    /**
+     * One session's answer: {@code serverInfo} from the handshake and the server's full tool list.
+     * Validation needs both, and {@code tools/list} is the first call that actually checks the token —
+     * a server may answer {@code initialize} without one.
+     */
+    public record ToolsListing(ServerInfo serverInfo, List<JsonNode> tools) {}
 
-    /** The server's full tool list (unrolling pagination by {@code nextCursor}); raw JSON for each tool. */
-    public List<JsonNode> listTools(ServerConfig config) {
+    /** {@code initialize} + {@code tools/list}, unrolling pagination by {@code nextCursor}. */
+    public ToolsListing listTools(ServerConfig config) {
         Session session = openSession(config);
         List<JsonNode> tools = new ArrayList<>();
         String cursor = null;
@@ -120,7 +122,7 @@ public class McpClient {
             JsonNode next = result.get("nextCursor");
             cursor = next != null && !next.isNull() ? next.asText() : null;
         } while (cursor != null && !cursor.isBlank());
-        return tools;
+        return new ToolsListing(session.serverInfo(), tools);
     }
 
     /** Calling a tool: {@code tools/call}; returns the {@code result} (content/structuredContent/isError) as a map. */
@@ -206,6 +208,8 @@ public class McpClient {
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RestClientResponseException e) {
+            // Status only: the request headers carry the token and the body may carry user content.
+            log.debug("MCP initialize at {} failed: HTTP {}", config.url(), e.getStatusCode().value());
             throw authorizationFailure(e).orElseGet(
                     () -> new ConnectorException("MCP initialize failed: " + e.getMessage()));
         } catch (ConnectorException e) {
@@ -249,6 +253,7 @@ public class McpClient {
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RestClientResponseException e) {
+            log.debug("MCP {} at {} failed: HTTP {}", method, config.url(), e.getStatusCode().value());
             throw authorizationFailure(e).orElseGet(
                     () -> new ConnectorException("MCP " + method + " failed: " + e.getMessage()));
         } catch (ConnectorException e) {

@@ -99,9 +99,9 @@ class McpConnectorServiceTest {
     class Validate {
 
         @Test
-        @DisplayName("успех: identifier = URL, доступность подтверждена probe")
+        @DisplayName("успех: identifier = URL, tools/list в той же сессии подтвердил токен")
         void success() {
-            when(mcpClient.probe(any())).thenReturn(new McpClient.ServerInfo("Weather", "1.0"));
+            when(mcpClient.listTools(any())).thenReturn(listing("Weather"));
 
             IntegrationValidationResult result = service.validateCredentials(Map.of(McpUtils.FIELD_URL, URL));
 
@@ -111,9 +111,19 @@ class McpConnectorServiceTest {
         }
 
         @Test
+        @DisplayName("пустой serverInfo — подпись по хосту")
+        void fallsBackToHost() {
+            when(mcpClient.listTools(any())).thenReturn(listing(""));
+
+            IntegrationValidationResult result = service.validateCredentials(Map.of(McpUtils.FIELD_URL, URL));
+
+            assertTrue(result.displayName().contains("srv.example"));
+        }
+
+        @Test
         @DisplayName("сервер недоступен/auth: failure на поле url")
         void failure() {
-            when(mcpClient.probe(any())).thenThrow(new ConnectorException("401 Unauthorized"));
+            when(mcpClient.listTools(any())).thenThrow(new ConnectorException("401 Unauthorized"));
 
             IntegrationValidationResult result = service.validateCredentials(Map.of(McpUtils.FIELD_URL, URL));
 
@@ -124,7 +134,7 @@ class McpConnectorServiceTest {
         @Test
         @DisplayName("401 и найденный AS: третий исход, добытое едет в derivedCredentials")
         void authorizationRequired() {
-            when(mcpClient.probe(any())).thenThrow(unauthorized(null));
+            when(mcpClient.listTools(any())).thenThrow(unauthorized(null));
             when(authDiscovery.discover(eq(URL), any(), any())).thenReturn(Optional.of(new OAuthSetup(
                     "https://auth.example.com",
                     "https://auth.example.com/authorize",
@@ -142,9 +152,9 @@ class McpConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("401, но сервер авторизации не найден: отказ с предложением статического токена")
+        @DisplayName("401 без токена, сервер авторизации не найден: совет дать статический токен")
         void authorizationServerNotFound() {
-            when(mcpClient.probe(any())).thenThrow(unauthorized(null));
+            when(mcpClient.listTools(any())).thenThrow(unauthorized(null));
             when(authDiscovery.discover(eq(URL), any(), any())).thenReturn(Optional.empty());
 
             IntegrationValidationResult result = service.validateCredentials(Map.of(McpUtils.FIELD_URL, URL));
@@ -154,9 +164,51 @@ class McpConnectorServiceTest {
         }
 
         @Test
+        @DisplayName("401 с переданным bearer-токеном: виновато поле auth_token, а не предложение «дайте токен»")
+        void rejectedBearerToken() {
+            when(mcpClient.listTools(any())).thenThrow(unauthorized(null));
+            when(authDiscovery.discover(eq(URL), any(), any())).thenReturn(Optional.empty());
+
+            IntegrationValidationResult result = service.validateCredentials(Map.of(
+                    McpUtils.FIELD_URL, URL, McpUtils.FIELD_AUTH_TOKEN, "wrong"));
+
+            assertFalse(result.valid());
+            assertEquals(McpUtils.FIELD_AUTH_TOKEN, result.errorField());
+            assertTrue(result.errorMessage().contains("rejected"));
+        }
+
+        @Test
+        @DisplayName("401 с переданными заголовками: виновато поле headers")
+        void rejectedHeaders() {
+            when(mcpClient.listTools(any())).thenThrow(unauthorized(null));
+            when(authDiscovery.discover(eq(URL), any(), any())).thenReturn(Optional.empty());
+
+            IntegrationValidationResult result = service.validateCredentials(Map.of(
+                    McpUtils.FIELD_URL, URL, McpUtils.FIELD_HEADERS, "{\"Authorization\":\"OAuth wrong\"}"));
+
+            assertFalse(result.valid());
+            assertEquals(McpUtils.FIELD_HEADERS, result.errorField());
+            assertTrue(result.errorMessage().contains("rejected"));
+        }
+
+        @Test
+        @DisplayName("токен из пробелов — отсутствующий: советуем статический токен, а не «rejected»")
+        void blankTokenCountsAsAbsent() {
+            when(mcpClient.listTools(any())).thenThrow(unauthorized(null));
+            when(authDiscovery.discover(eq(URL), any(), any())).thenReturn(Optional.empty());
+
+            IntegrationValidationResult result = service.validateCredentials(Map.of(
+                    McpUtils.FIELD_URL, URL, McpUtils.FIELD_AUTH_TOKEN, "   "));
+
+            assertFalse(result.valid());
+            assertEquals(McpUtils.FIELD_URL, result.errorField());
+            assertTrue(result.errorMessage().contains("static token"));
+        }
+
+        @Test
         @DisplayName("отказ discovery (нет CIMD, нет S256) — обычная ошибка валидации")
         void discoveryRefusal() {
-            when(mcpClient.probe(any())).thenThrow(unauthorized(null));
+            when(mcpClient.listTools(any())).thenThrow(unauthorized(null));
             when(authDiscovery.discover(eq(URL), any(), any()))
                     .thenThrow(new ConnectorException("does not support the S256 PKCE method"));
 
@@ -164,6 +216,26 @@ class McpConnectorServiceTest {
 
             assertFalse(result.valid());
             assertTrue(result.errorMessage().contains("S256"));
+        }
+
+        @Test
+        @DisplayName("отказ discovery при переданном токене: сообщение про токен, а не про PKCE")
+        void discoveryRefusalWithToken() {
+            when(mcpClient.listTools(any())).thenThrow(unauthorized(null));
+            when(authDiscovery.discover(eq(URL), any(), any()))
+                    .thenThrow(new ConnectorException("does not support the S256 PKCE method"));
+
+            IntegrationValidationResult result = service.validateCredentials(Map.of(
+                    McpUtils.FIELD_URL, URL, McpUtils.FIELD_AUTH_TOKEN, "wrong"));
+
+            assertFalse(result.valid());
+            assertEquals(McpUtils.FIELD_AUTH_TOKEN, result.errorField());
+            assertTrue(result.errorMessage().contains("rejected"));
+            assertFalse(result.errorMessage().contains("S256"));
+        }
+
+        private static McpClient.ToolsListing listing(String serverName) {
+            return new McpClient.ToolsListing(new McpClient.ServerInfo(serverName, "1.0"), List.of());
         }
     }
 

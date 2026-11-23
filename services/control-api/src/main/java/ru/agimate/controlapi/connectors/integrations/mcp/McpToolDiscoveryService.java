@@ -47,7 +47,7 @@ public class McpToolDiscoveryService {
             return null;
         }
         McpClient.ServerConfig config = McpUtils.toServerConfig(credentialStore.read(connection));
-        List<JsonNode> rawTools = mcpClient.listTools(config);
+        List<JsonNode> rawTools = mcpClient.listTools(config).tools();
         return rawTools.stream()
                 .map(tool -> McpToolMapper.toEntity(connectionId, tool))
                 .filter(Objects::nonNull)

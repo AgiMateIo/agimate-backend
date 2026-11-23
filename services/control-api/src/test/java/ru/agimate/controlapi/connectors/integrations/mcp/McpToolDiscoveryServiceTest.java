@@ -85,7 +85,8 @@ class McpToolDiscoveryServiceTest {
             when(secretRepository.findById(SECRET_ID)).thenReturn(Optional.of(secret));
             when(secretService.reveal(secret, IDENTITY))
                     .thenReturn(Map.of(McpUtils.FIELD_URL, "https://srv/mcp"));
-            when(mcpClient.listTools(any())).thenReturn(List.of(rawTool("a"), rawTool("b")));
+            when(mcpClient.listTools(any())).thenReturn(new McpClient.ToolsListing(
+                    new McpClient.ServerInfo("srv", "1.0"), List.of(rawTool("a"), rawTool("b"))));
 
             List<ConnectionTool> fresh = service.discover(IDENTITY);
 

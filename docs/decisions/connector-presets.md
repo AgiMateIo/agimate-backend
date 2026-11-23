@@ -34,7 +34,8 @@ DCR, 4 OAuth no-DCR, 27 API key/Bearer, 19 без авторизации, 12 н�
 
 **Бэкенд.** `GET /manage/connectors/{code}` отдаёт `IntegrationMeta.credentialFields`; у MCP это
 `url` (URL, обязательный), `auth_token` (SECRET, Bearer) и `headers` (SECRET JSON).
-`POST /manage/connections/` делает живой `initialize`-probe, для MCP кладёт `url` в
+`POST /manage/connections/` делает живую проверку (`initialize` + `tools/list`: один `initialize`
+ничего не говорит о токене — Яндекс отвечает на него 200 и без авторизации), для MCP кладёт `url` в
 `connections.params`, токен и заголовки — в секрет, а `subCode` = `url.trim()`; несколько экземпляров
 одного сервера разрешены. `ConnectionResponse` возвращает `subCode`. OAuth-поток обрабатывает 401,
 но требует **CIMD**: `McpAuthDiscovery` отказывает серверу без
@@ -353,7 +354,9 @@ presets:
 - `params.url` — https, `identity` уникален в рамках коннектора;
 - `params` — подмножество несекретных полей коннектора, `fields` — подмножество его
   `credentialFields`; `header_fields` без дублей, имена — валидные HTTP-заголовки,
-  `valuePrefix`/`keyPrefix` — строки; пустой `label`/`labelRu` подставляется именем заголовка;
+  `valuePrefix`/`keyPrefix` — строки; `valuePrefix` хранится **побайтово**, с пробелом на конце
+  (`OAuth `, `ApiKey `) — обрезка превращает префикс в другую схему и сервер отвечает 401; пустой
+  `label`/`labelRu` подставляется именем заголовка;
 - `availability` — известное значение; `auth_methods` — подмножество `OAUTH`/`TOKEN`/`NONE` без
   дублей (дубли отбрасываются при сиде); список — `declared.authMethods`, иначе `primaryAuth`;
   после фильтра CIMD он может остаться пустым — это `AUTH_UNSUPPORTED`; `AVAILABLE` требует

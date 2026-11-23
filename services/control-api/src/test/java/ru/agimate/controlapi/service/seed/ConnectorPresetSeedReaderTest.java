@@ -9,6 +9,7 @@ import ru.agimate.controlapi.database.enums.ConnectorPresetAuth;
 import ru.agimate.controlapi.database.enums.ConnectorPresetAvailability;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.model.PresetFieldOverride;
+import ru.agimate.controlapi.database.model.PresetHeaderField;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -149,6 +150,8 @@ class ConnectorPresetSeedReaderTest {
 
             assertEquals(List.of(ConnectorPresetAuth.TOKEN), seed.authMethods());
             assertEquals(3, seed.headerFields().size());
+            // The trailing space is significant: without it the client sends «OAuth<token>».
+            assertEquals("OAuth ", seed.headerFields().get(0).valuePrefix());
             assertNull(seed.fields());
             assertEquals(1, seed.headerGroups().size());
             assertEquals(List.of("x-org-id", "x-cloud-org-id"), seed.headerGroups().get(0).oneOf());
@@ -387,6 +390,16 @@ class ConnectorPresetSeedReaderTest {
                     }
                     """));
         }
+    }
+
+    @Test
+    @DisplayName("overrides.yaml: пробел в конце valuePrefix сохраняется")
+    void overridePrefixKeepsTrailingSpace() {
+        List<PresetHeaderField> fields = ConnectorPresetSeedReader.parseOverrideHeaders(List.of(Map.of(
+                "name", "Authorization", "secret", true, "required", true,
+                "valuePrefix", "OAuth ")), "yandex-calendar");
+
+        assertEquals("OAuth ", fields.get(0).valuePrefix());
     }
 
     private ConnectorPresetSeed read(String code, String json) {

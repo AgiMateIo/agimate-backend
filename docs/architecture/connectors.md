@@ -387,8 +387,10 @@ auth — статический Bearer-токен/произвольные за�
 - `getTools()` пуст (статических тулов нет); тулы экземпляра читает из `connection_tools` сам
   `ToolDefinitionService`, как у любого DYNAMIC-коннектора. Сырой `_meta` тула хранится в
   `connection_tools.meta`, из него при чтении выводится `ui` (вью и видимость MCP Apps).
-- `validateCredentials` = хендшейк `initialize` (доступность + auth); `identifier` = URL сервера (канонический
-  ключ экземпляра, идёт в `sub_code`).
+- `validateCredentials` = `initialize` + `tools/list` в одной сессии (доступность + **проверка токена**):
+  `initialize` сам по себе ничего не доказывает — сервер вправе ответить на него без авторизации (Яндекс
+  отвечает 200 и с мусорным токеном), а 401 прилетает только на `tools/list`. `identifier` = URL сервера
+  (канонический ключ экземпляра, идёт в `sub_code`).
 - `executeTool` проксирует в `tools/call`; путь исполнения (`ToolExecutionService`, свежие credentials по
   `connection_id`) — общий, без изменений.
 - `readView` — `resources/read` страницы вью (клиент объявляет расширение `io.modelcontextprotocol/ui`),
@@ -396,7 +398,7 @@ auth — статический Bearer-токен/произвольные за�
 
 **SSRF-guard.** URL задаёт пользователь, а запрос делает бэкенд — цель проверяется общим гардом
 исходящих вызовов (`PublicOnlyHttp`, см. [outbound-http.md](outbound-http.md)): перед каждым
-обращением (`probe`/`tools/list`/`tools/call`, единый чокпоинт `McpClient.openSession`) и, что важнее,
+обращением (`listTools`/`tools/call`/`readResource`, единый чокпоинт `McpClient.openSession`) и, что важнее,
 внутри резолвера имён самого клиента. Флаг `app.net.allow-private-targets` (default `false`) снимает
 проверку для локальной разработки.
 

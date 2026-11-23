@@ -5,6 +5,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -38,23 +39,37 @@ public class McpUtils {
     /**
      * The grant wins over a static token: an OAuth connection exists only because the server answered
      * 401 to whatever static token was given, so that token is known not to work.
+     *
+     * <p>Both fields are declared SECRET, and {@link ru.agimate.controlapi.connectors.core.dto.CredentialField}
+     * trims only URL and TEXT — so a token pasted with a trailing space or newline reaches the server
+     * as is and is rejected. The edges are trimmed here, at the only place that builds a request.
      */
     private static String bearer(Map<String, String> credentials) {
         String accessToken = OAuthCredentials.accessToken(credentials);
         if (OAuthCredentials.isOAuth(credentials) && accessToken != null && !accessToken.isBlank()) {
-            return accessToken;
+            return accessToken.trim();
         }
-        return credentials.get(FIELD_AUTH_TOKEN);
+        String token = credentials.get(FIELD_AUTH_TOKEN);
+        return token == null || token.isBlank() ? null : token.trim();
     }
 
+    /** Parsed as is, then trimmed: whitespace around a pasted value is never part of a header. */
     private static Map<String, String> parseHeaders(String headersJson) {
         if (headersJson == null || headersJson.isBlank()) {
             return Map.of();
         }
+        Map<String, String> parsed;
         try {
-            return JsonUtils.MAPPER.readValue(headersJson, JsonUtils.MAP_STRING_TYPE_REFERENCE);
+            parsed = JsonUtils.MAPPER.readValue(headersJson, JsonUtils.MAP_STRING_TYPE_REFERENCE);
         } catch (Exception e) {
             throw new ConnectorException("Invalid 'headers' JSON: " + e.getMessage());
         }
+        Map<String, String> headers = new LinkedHashMap<>();
+        parsed.forEach((name, value) -> {
+            if (name != null && !name.isBlank() && value != null) {
+                headers.put(name.trim(), value.trim());
+            }
+        });
+        return headers;
     }
 }

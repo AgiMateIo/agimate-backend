@@ -114,10 +114,12 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     }
 
     /**
-     * Validation = the {@code initialize} handshake: it confirms the server is reachable and the auth
-     * works. Tools are not persisted here — the instance's id is not assigned yet; they are synced by
-     * {@link McpToolDiscoveryListener} after the commit. {@code identifier} = the server's URL (the
-     * instance's canonical key).
+     * Validation = {@code initialize} plus {@code tools/list}. The handshake alone proves nothing about
+     * the token: a server may answer it unauthenticated (Yandex does), so a wrong token would still
+     * produce a connection that cannot call a single tool. {@code tools/list} is the first call that
+     * checks the credentials. Tools are not persisted here — the instance's id is not assigned yet;
+     * they are synced by {@link McpToolDiscoveryListener} after the commit. {@code identifier} = the
+     * server's URL (the instance's canonical key).
      *
      * <p>A 401 is a third outcome rather than a failure: the server is alive and told us where to
      * authorise. What discovery found out travels back in {@code derivedCredentials} and lands in the
@@ -128,12 +130,28 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     public IntegrationValidationResult validateCredentials(Map<String, String> credentials) {
         McpClient.ServerConfig config = McpUtils.toServerConfig(credentials);
         try {
-            McpClient.ServerInfo info = mcpClient.probe(config);
-            String label = info.name() != null && !info.name().isBlank() ? info.name() : host(config.url());
+            McpClient.ToolsListing listing = mcpClient.listTools(config);
+            String name = listing.serverInfo().name();
+            String label = name != null && !name.isBlank() ? name : host(config.url());
+            log.info("MCP validation for {} passed: tools/list returned {} tool(s)",
+                    config.url(), listing.tools().size());
             return IntegrationValidationResult.success(config.url(), "MCP: " + label);
         } catch (McpUnauthorizedException e) {
-            return authorizationOutcome(config.url(), e);
+            // The one line that tells a rejected token apart from an unreachable server: a 401 on
+            // tools/list is what a wrong or expired credential looks like from here.
+            log.warn("MCP validation for {}: the server answered 401 to tools/list ({} sent)",
+                    config.url(), describeCredentials(credentials));
+            // Metadata only: a value of the wrong length or a stray header name is the usual cause of
+            // a rejected request, and neither is a secret. A token sitting in `headers` shows up here
+            // while `auth_token` stays empty, which is exactly what the preset's `OAuth ` prefix does.
+            log.debug("MCP validation for {}: bearer token length {}, headers {}",
+                    config.url(), config.authToken() == null ? 0 : config.authToken().length(),
+                    config.headers().entrySet().stream()
+                            .map(entry -> entry.getKey() + "(len=" + entry.getValue().length() + ")")
+                            .toList());
+            return authorizationOutcome(config.url(), credentials, e);
         } catch (ConnectorException e) {
+            log.warn("MCP validation for {} failed: {}", config.url(), e.getMessage());
             return IntegrationValidationResult.failure(McpUtils.FIELD_URL, e.getMessage());
         } catch (Exception e) {
             log.warn("Failed to validate MCP server {}", config.url(), e);
@@ -145,21 +163,70 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
      * A server that answered 401 either tells us where its authorisation server is — and then the
      * connection is created unauthorised — or it does not, and then OAuth is simply unavailable for
      * it. The latter is not a broken server: with a static token it keeps working, which is what the
-     * message says.
+     * message says. When a token was supplied and still got 401, the message points at the token
+     * instead: telling the user to «provide a static token» they already provided sends them in circles.
      */
-    private IntegrationValidationResult authorizationOutcome(String url, McpUnauthorizedException failure) {
+    private IntegrationValidationResult authorizationOutcome(String url, Map<String, String> credentials,
+                                                             McpUnauthorizedException failure) {
         Optional<OAuthSetup> setup;
         try {
             setup = authDiscovery.discover(url, failure.challenge().orElse(null), McpClient.protocolVersion());
         } catch (ConnectorException e) {
-            return IntegrationValidationResult.failure(McpUtils.FIELD_URL, e.getMessage());
+            log.warn("MCP validation for {}: OAuth discovery failed: {}", url, e.getMessage());
+            return hasStaticToken(credentials)
+                    ? rejectedToken(credentials)
+                    : IntegrationValidationResult.failure(McpUtils.FIELD_URL, e.getMessage());
         }
-        return setup
-                .map(value -> IntegrationValidationResult.authorizationRequired(
-                        url, "MCP: " + host(url), OAuthCredentials.of(value)))
-                .orElseGet(() -> IntegrationValidationResult.failure(McpUtils.FIELD_URL,
-                        "The server requires authorization but does not expose an authorization server; "
-                                + "provide a static token instead"));
+        if (setup.isPresent()) {
+            log.info("MCP validation for {}: the server requires OAuth, authorization server {}",
+                    url, setup.get().issuer());
+            return IntegrationValidationResult.authorizationRequired(
+                    url, "MCP: " + host(url), OAuthCredentials.of(setup.get()));
+        }
+        if (!hasStaticToken(credentials)) {
+            log.info("MCP validation for {}: no authorization server; a static token is required", url);
+            return IntegrationValidationResult.failure(McpUtils.FIELD_URL,
+                    "The server requires authorization but does not expose an authorization server; "
+                            + "provide a static token instead");
+        }
+        log.warn("MCP validation for {}: no authorization server to fall back to; the supplied credentials "
+                + "were rejected", url);
+        return rejectedToken(credentials);
+    }
+
+    /** Presence only, never a value: a validation log must not become a credential dump. */
+    private static String describeCredentials(Map<String, String> credentials) {
+        boolean bearer = hasValue(credentials.get(McpUtils.FIELD_AUTH_TOKEN));
+        boolean headers = hasValue(credentials.get(McpUtils.FIELD_HEADERS));
+        boolean oauth = hasValue(OAuthCredentials.accessToken(credentials));
+        if (oauth) {
+            return "OAuth access token";
+        }
+        if (bearer && headers) {
+            return "bearer token and custom headers";
+        }
+        if (bearer) {
+            return "bearer token";
+        }
+        return headers ? "custom headers" : "no credentials";
+    }
+
+    private static boolean hasStaticToken(Map<String, String> credentials) {
+        return hasValue(credentials.get(McpUtils.FIELD_AUTH_TOKEN))
+                || hasValue(credentials.get(McpUtils.FIELD_HEADERS));
+    }
+
+    private static boolean hasValue(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    /** The field to blame: the bearer token when there is one, the header map otherwise. */
+    private static IntegrationValidationResult rejectedToken(Map<String, String> credentials) {
+        String field = hasValue(credentials.get(McpUtils.FIELD_AUTH_TOKEN))
+                ? McpUtils.FIELD_AUTH_TOKEN
+                : McpUtils.FIELD_HEADERS;
+        return IntegrationValidationResult.failure(field,
+                "The MCP server rejected the credentials; check that the token is complete and not expired");
     }
 
     /** MCP has no static tools — the set is always per instance, in {@code connection_tools}. */
