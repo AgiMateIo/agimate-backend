@@ -67,6 +67,13 @@ public class McpClient {
     /** A view is a single self-contained page; anything bigger is not one we are willing to hand to a browser. */
     private static final int MAX_RESOURCE_CHARS = 5 * 1024 * 1024;
 
+    /**
+     * Pagination is server-driven: a hostile or broken server can keep answering {@code nextCursor}
+     * forever, so both the number of pages and the accumulated tool count are bounded.
+     */
+    private static final int MAX_TOOL_PAGES = 100;
+    private static final int MAX_TOOLS = 10_000;
+
     private final RestClient restClient;
     private final AtomicLong requestId = new AtomicLong(1);
 
@@ -115,13 +122,24 @@ public class McpClient {
         Session session = openSession(config);
         List<JsonNode> tools = new ArrayList<>();
         String cursor = null;
-        do {
+        for (int page = 1; ; page++) {
+            if (page > MAX_TOOL_PAGES) {
+                throw new ConnectorException("MCP tools/list returned more than " + MAX_TOOL_PAGES + " pages");
+            }
             Map<String, Object> params = cursor == null ? Map.of() : Map.of("cursor", cursor);
             JsonNode result = rpc(config, session.sessionId(), "tools/list", params);
             result.path("tools").forEach(tools::add);
+            if (tools.size() > MAX_TOOLS) {
+                throw new ConnectorException("MCP tools/list returned more than " + MAX_TOOLS + " tools");
+            }
             JsonNode next = result.get("nextCursor");
-            cursor = next != null && !next.isNull() ? next.asText() : null;
-        } while (cursor != null && !cursor.isBlank());
+            String nextCursor = next != null && !next.isNull() ? next.asText() : null;
+            // A cursor equal to the one just sent would loop the same page forever.
+            if (nextCursor == null || nextCursor.isBlank() || nextCursor.equals(cursor)) {
+                break;
+            }
+            cursor = nextCursor;
+        }
         return new ToolsListing(session.serverInfo(), tools);
     }
 
@@ -209,7 +227,8 @@ public class McpClient {
                     .toEntity(byte[].class);
         } catch (RestClientResponseException e) {
             // Status only: the request headers carry the token and the body may carry user content.
-            log.debug("MCP initialize at {} failed: HTTP {}", config.url(), e.getStatusCode().value());
+            log.debug("MCP initialize at {} failed: HTTP {}",
+                    McpUtils.logTarget(config.url()), e.getStatusCode().value());
             throw authorizationFailure(e).orElseGet(
                     () -> new ConnectorException("MCP initialize failed: " + e.getMessage()));
         } catch (ConnectorException e) {
@@ -253,7 +272,8 @@ public class McpClient {
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RestClientResponseException e) {
-            log.debug("MCP {} at {} failed: HTTP {}", method, config.url(), e.getStatusCode().value());
+            log.debug("MCP {} at {} failed: HTTP {}", method,
+                    McpUtils.logTarget(config.url()), e.getStatusCode().value());
             throw authorizationFailure(e).orElseGet(
                     () -> new ConnectorException("MCP " + method + " failed: " + e.getMessage()));
         } catch (ConnectorException e) {

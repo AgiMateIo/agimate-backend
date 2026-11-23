@@ -5,7 +5,9 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 
+import java.net.URI;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -71,5 +73,41 @@ public class McpUtils {
             }
         });
         return headers;
+    }
+
+    /**
+     * A URL safe to log: scheme and host only. The user types the URL, and it may carry credentials
+     * as userinfo or a query ({@code ?api_key=…}) — exactly the case
+     * {@link ru.agimate.controlapi.connectors.core.dto.CredentialField#opens} keeps in the secret.
+     */
+    public static String logTarget(String url) {
+        if (url == null) {
+            return "none";
+        }
+        try {
+            URI uri = URI.create(url.trim());
+            if (uri.getHost() == null) {
+                return "invalid url";
+            }
+            String origin = uri.getScheme() + "://" + uri.getHost().toLowerCase(Locale.ROOT);
+            return uri.getPort() > 0 ? origin + ":" + uri.getPort() : origin;
+        } catch (IllegalArgumentException e) {
+            return "invalid url";
+        }
+    }
+
+    /**
+     * An exception text safe to log: URL userinfo and query removed, length bounded. The text comes
+     * from the transport layer and may echo the request URL or an external response body; the full
+     * message still travels to the connection's owner as the validation error.
+     */
+    public static String loggable(String message) {
+        if (message == null) {
+            return "no detail";
+        }
+        String redacted = message
+                .replaceAll("(?i)://[^/@\\s\"']+@", "://")
+                .replaceAll("\\?[^\\s\"']*", "?…");
+        return redacted.length() > 200 ? redacted.substring(0, 200) + "…" : redacted;
     }
 }

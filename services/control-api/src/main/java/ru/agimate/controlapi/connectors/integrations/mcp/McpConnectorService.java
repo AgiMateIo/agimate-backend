@@ -134,27 +134,30 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
             String name = listing.serverInfo().name();
             String label = name != null && !name.isBlank() ? name : host(config.url());
             log.info("MCP validation for {} passed: tools/list returned {} tool(s)",
-                    config.url(), listing.tools().size());
+                    McpUtils.logTarget(config.url()), listing.tools().size());
             return IntegrationValidationResult.success(config.url(), "MCP: " + label);
         } catch (McpUnauthorizedException e) {
             // The one line that tells a rejected token apart from an unreachable server: a 401 on
             // tools/list is what a wrong or expired credential looks like from here.
             log.warn("MCP validation for {}: the server answered 401 to tools/list ({} sent)",
-                    config.url(), describeCredentials(credentials));
+                    McpUtils.logTarget(config.url()), describeCredentials(credentials));
             // Metadata only: a value of the wrong length or a stray header name is the usual cause of
             // a rejected request, and neither is a secret. A token sitting in `headers` shows up here
             // while `auth_token` stays empty, which is exactly what the preset's `OAuth ` prefix does.
             log.debug("MCP validation for {}: bearer token length {}, headers {}",
-                    config.url(), config.authToken() == null ? 0 : config.authToken().length(),
+                    McpUtils.logTarget(config.url()),
+                    config.authToken() == null ? 0 : config.authToken().length(),
                     config.headers().entrySet().stream()
                             .map(entry -> entry.getKey() + "(len=" + entry.getValue().length() + ")")
                             .toList());
             return authorizationOutcome(config.url(), credentials, e);
         } catch (ConnectorException e) {
-            log.warn("MCP validation for {} failed: {}", config.url(), e.getMessage());
+            log.warn("MCP validation for {} failed: {}", McpUtils.logTarget(config.url()),
+                    McpUtils.loggable(e.getMessage()));
             return IntegrationValidationResult.failure(McpUtils.FIELD_URL, e.getMessage());
         } catch (Exception e) {
-            log.warn("Failed to validate MCP server {}", config.url(), e);
+            log.warn("Failed to validate MCP server {}: {}", McpUtils.logTarget(config.url()),
+                    e.getClass().getSimpleName());
             return IntegrationValidationResult.failure(McpUtils.FIELD_URL, "Failed to reach MCP server");
         }
     }
@@ -172,25 +175,28 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         try {
             setup = authDiscovery.discover(url, failure.challenge().orElse(null), McpClient.protocolVersion());
         } catch (ConnectorException e) {
-            log.warn("MCP validation for {}: OAuth discovery failed: {}", url, e.getMessage());
+            log.warn("MCP validation for {}: OAuth discovery failed: {}", McpUtils.logTarget(url),
+                    McpUtils.loggable(e.getMessage()));
             return hasStaticToken(credentials)
                     ? rejectedToken(credentials)
                     : IntegrationValidationResult.failure(McpUtils.FIELD_URL, e.getMessage());
         }
         if (setup.isPresent()) {
+            // The issuer is remote-controlled metadata: its host is enough to tell installations apart.
             log.info("MCP validation for {}: the server requires OAuth, authorization server {}",
-                    url, setup.get().issuer());
+                    McpUtils.logTarget(url), McpUtils.logTarget(setup.get().issuer()));
             return IntegrationValidationResult.authorizationRequired(
                     url, "MCP: " + host(url), OAuthCredentials.of(setup.get()));
         }
         if (!hasStaticToken(credentials)) {
-            log.info("MCP validation for {}: no authorization server; a static token is required", url);
+            log.info("MCP validation for {}: no authorization server; a static token is required",
+                    McpUtils.logTarget(url));
             return IntegrationValidationResult.failure(McpUtils.FIELD_URL,
                     "The server requires authorization but does not expose an authorization server; "
                             + "provide a static token instead");
         }
         log.warn("MCP validation for {}: no authorization server to fall back to; the supplied credentials "
-                + "were rejected", url);
+                + "were rejected", McpUtils.logTarget(url));
         return rejectedToken(credentials);
     }
 
