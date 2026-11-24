@@ -17,6 +17,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
+import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 import ru.agimate.controlapi.connectors.integrations.ssh.SshConnectionConfig;
 import ru.agimate.controlapi.connectors.integrations.ssh.SshConnectorService;
 import ru.agimate.controlapi.connectors.integrations.ssh.SshExecutor;
@@ -112,6 +113,21 @@ class ConnectionServiceTest {
         private static final String OTHER_FINGERPRINT = "SHA256:HWWZq7WaZg2J/vjQggH4YuEAUVFyEwmNzQYNmZXyzv8";
         private static final String HOST_KEY_MISMATCH = "SSH host key does not match the pinned fingerprint";
         private static final String PRIVATE_KEY = "-----BEGIN OPENSSH PRIVATE KEY-----\nS3CRET-KEY-BODY\n-----END OPENSSH PRIVATE KEY-----\n";
+
+        @Test
+        @DisplayName("OAuth-коннекция не редактируется через секрет — только переподключение")
+        void oauthConnectionIsRefused() {
+            Connection connection = Connection.builder()
+                    .id(CONNECTION_ID).userId(USER_ID).connectorCode("mcp").build();
+            when(connectionRepository.findByIdNotDeleted(CONNECTION_ID)).thenReturn(Optional.of(connection));
+            when(credentialStore.read(connection))
+                    .thenReturn(Map.of(OAuthCredentials.ISSUER, "https://auth.example.com"));
+
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.updateSecret(CONNECTION_ID, USER_ID, Map.of("auth_token", "new")));
+
+            verify(credentialStore, never()).write(any(), any());
+        }
 
         private static Map<String, String> fullCredentials() {
             Map<String, String> values = new HashMap<>();

@@ -39,7 +39,7 @@ import java.util.UUID;
  * row and a renamed file reuse the identity.
  *
  * <p>{@code auth_methods} already contains only supported methods: {@code OAUTH} is filtered out at
- * seed time when the server does not declare CIMD. The raw probe inputs that produce
+ * seed time when the server declares neither CIMD nor DCR. The raw probe inputs that produce
  * {@code availability} stay in the JSON; the catalogue query reads this one column.
  */
 @Entity

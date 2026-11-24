@@ -78,11 +78,13 @@ class ConnectionCredentialStoreTest {
                     "url", " https://x/mcp ",
                     "auth_token", "t",
                     "headers", "{\"X-Key\":\"k\"}",
-                    "oauth_access_token", "a"));
+                    "oauth_access_token", "a",
+                    "oauth_client_secret", "s"));
 
             assertEquals(Map.of("url", "https://x/mcp"), connection.getParams());
             verify(secretService).update(secret, CONNECTION_ID,
-                    Map.of("auth_token", "t", "headers", "{\"X-Key\":\"k\"}", "oauth_access_token", "a"));
+                    Map.of("auth_token", "t", "headers", "{\"X-Key\":\"k\"}",
+                            "oauth_access_token", "a", "oauth_client_secret", "s"));
         }
 
         @Test

@@ -35,6 +35,13 @@ app:
     # proxy:
     #   url: "http://user:password@host:port"
     #   hosts: "openrouter.ai,api.openai.com,api.telegram.org"
+  connectors:
+    mcp:
+      oauth:
+        # DCR-only servers work with an empty client-id; CIMD is simply not offered locally.
+        client-id: "__APP_CONNECTORS_MCP_OAUTH_CLIENT_ID__"
+        redirect-uri: "__APP_CONNECTORS_MCP_OAUTH_REDIRECT_URI__"
+        dcr-enabled: "__APP_CONNECTORS_MCP_OAUTH_DCR_ENABLED__"
   user-api:
     # Notifications go to user-api, which owns the devices and the transport. The key is the same
     # value as user-api's app.s2s.key — one secret, both sides, from the same ./dev-init.sh run.

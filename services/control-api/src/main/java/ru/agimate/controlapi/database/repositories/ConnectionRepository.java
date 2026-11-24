@@ -1,6 +1,8 @@
 package ru.agimate.controlapi.database.repositories;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,6 +21,15 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
 
     @Query("SELECT c FROM Connection c WHERE c.id = :id AND c.deletedAt IS NULL")
     Optional<Connection> findByIdNotDeleted(@Param("id") UUID id);
+
+    /**
+     * The OAuth writers' entry point: a short read-modify-write of the secret must see the row as it
+     * is now, and two of them must not interleave. {@code FOR UPDATE} waits behind the outer
+     * {@code complete} transaction, which holds the same row through {@code burnOauthState}.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Connection c WHERE c.id = :id AND c.deletedAt IS NULL")
+    Optional<Connection> findByIdNotDeletedForUpdate(@Param("id") UUID id);
 
     @Query("SELECT c FROM Connection c WHERE c.id IN :ids AND c.deletedAt IS NULL")
     List<Connection> findByIdInNotDeleted(@Param("ids") Collection<UUID> ids);
@@ -129,7 +140,7 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
      * completion got there first — without this a double callback would run two parallel attempts to
      * redeem one authorisation code.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE Connection c SET c.oauthState = null, c.oauthStateExpiresAt = null "
             + "WHERE c.id = :id AND c.oauthState = :state")
     int burnOauthState(@Param("id") UUID id, @Param("state") String state);

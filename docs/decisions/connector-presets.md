@@ -37,20 +37,22 @@ DCR, 4 OAuth no-DCR, 27 API key/Bearer, 19 без авторизации, 12 н�
 `POST /manage/connections/` делает живую проверку (`initialize` + `tools/list`: один `initialize`
 ничего не говорит о токене — Яндекс отвечает на него 200 и без авторизации), для MCP кладёт `url` в
 `connections.params`, токен и заголовки — в секрет, а `subCode` = `url.trim()`; несколько экземпляров
-одного сервера разрешены. `ConnectionResponse` возвращает `subCode`. OAuth-поток обрабатывает 401,
-но требует **CIMD**: `McpAuthDiscovery` отказывает серверу без
-`client_id_metadata_document_supported`. DCR в коде не реализован.
+одного сервера разрешены. `ConnectionResponse` возвращает `subCode`. OAuth-поток обрабатывает 401:
+`McpAuthDiscovery` выбирает CIMD, если сервер его объявляет и задан `client-id`, иначе DCR, если
+объявлен `registration_endpoint` и включён `dcr-enabled`. DCR-клиент живёт в секрете коннекции
+вместе с грантом — отдельной таблицы регистраций нет
+([mcp-oauth-dcr.md](mcp-oauth-dcr.md)).
 
 **Ограничение, которое нельзя игнорировать.** Из 68 OAuth-серверов только 18 объявляют CIMD; 46
-умеют только DCR, ещё 4 требуют pre-registered клиента. Но 20 DCR-серверов уже объявляют статический
-токен (`declared.authMethods`), ещё у `square` есть заголовок, но нет `authMethods`. Значит, без
-токена остаются 25 DCR-only + 4 pre-registered ≈ 29 карточек (30, пока `square` не исправлен). Для
-остальных `availability` и причина — в модели; DCR-фолбэк остаётся отдельным решением.
+умеют только DCR, ещё 4 требуют pre-registered клиента. DCR-фолбэк реализован: DCR-only карточки
+получают `OAUTH` и разрешаются при включённом DCR, а 20 из них, уже объявляющих статический токен,
+остаются доступны и через `TOKEN`. Без альтернативы остаются 4 pre-registered клиента; это
+по-прежнему `AUTH_UNSUPPORTED`. Для остальных `availability` и причина — в модели.
 
-Важная оговорка: CIMD — необходимое, но не достаточное условие. `McpAuthDiscovery` дополнительно
-требует S256 PKCE и `authorization_endpoint`/`token_endpoint`; датасет по-прежнему не хранит PKCE и
-endpoint'ы — их обнаруживает сам OAuth-поток при создании. Поэтому `availability` для OAuth остаётся
-**best-effort**, а окончательная проверка происходит при подключении. Для протокола и транспорта
+Важная оговорка: CIMD или DCR — необходимое, но не достаточное условие. `McpAuthDiscovery`
+дополнительно требует S256 PKCE и `authorization_endpoint`/`token_endpoint`; датасет по-прежнему не
+хранит PKCE и endpoint'ы — их обнаруживает сам OAuth-поток при создании. Поэтому `availability` для
+OAuth остаётся **best-effort**, а окончательная проверка происходит при подключении. Для протокола и транспорта
 появились точные признаки: `probe.handshake.supported` (17 `up` — `true`, 2 — `false`, 5 — `null`) и
 `probe.transportConfirmed` (24 `true`, 102 `false`); из них при сиде вычисляется `availability`, а в
 базе остаётся только результат.
@@ -121,7 +123,7 @@ services/control-api/src/main/resources/seed/connectors/
 | `icon_url` | TEXT | иконка; на фронте fallback-монограмма |
 | `category` | TEXT NOT NULL | `ContentCategory` (`@Enumerated(EnumType.STRING)`) после маппинга |
 | `jurisdiction` | TEXT | ISO 3166-1 alpha-2: фильтр по стране и бейдж на карточке; NULL — страна не указана |
-| `auth_methods` | JSONB NOT NULL DEFAULT `'[]'` | только **поддерживаемые** способы: `["OAUTH","TOKEN"]`; OAuth попадает сюда лишь при CIMD, отфильтровано при сиде |
+| `auth_methods` | JSONB NOT NULL DEFAULT `'[]'` | только **поддерживаемые** способы: `["OAUTH","TOKEN"]`; OAuth попадает сюда при CIMD или DCR, отфильтровано при сиде |
 | `availability` | TEXT NOT NULL | `AVAILABLE`, `DOWN`, `TRANSPORT_UNSUPPORTED`, `PROTOCOL_UNSUPPORTED`, `AUTH_UNSUPPORTED`; вычисляется при сиде |
 | `docs_url` | TEXT | ссылка «где взять токен» |
 | `params` | JSONB NOT NULL DEFAULT `'{}'` | несекретные значения формы, у MCP `{"url": ...}` |
@@ -134,7 +136,7 @@ services/control-api/src/main/resources/seed/connectors/
 | `created_at`, `updated_at` | TIMESTAMP | как у остальных сущностей |
 
 `auth` — не колонка, а производный бейдж в ответе: `auth_methods` хранит уже **поддерживаемые**
-способы (`OAUTH` — только при CIMD, `TOKEN` и `NONE` — всегда), поэтому отдельный `oauth_support` и
+способы (`OAUTH` — при CIMD или DCR, `TOKEN` и `NONE` — всегда), поэтому отдельный `oauth_support` и
 фильтрация на чтении не нужны. Приоритет бейджа: `OAUTH` → `TOKEN` → `NONE` → `UNKNOWN`.
 
 Ограничения и индексы:
@@ -184,7 +186,7 @@ services/control-api/src/main/resources/seed/connectors/
 | `jurisdiction.country` | `jurisdiction` | фильтр по стране и бейдж |
 | `url` / `probe.endpointUrl` | `params.url`, `identity` | форма и «уже подключено» |
 | `docsUrl` | `docs_url` | ссылка «где взять токен» |
-| `declared.authMethods` + `probe.authType` + `probe.authDetails` | `auth_methods` | поддерживаемые способы; `oauth2.1` → `OAUTH` только при CIMD |
+| `declared.authMethods` + `probe.authType` + `probe.authDetails` | `auth_methods` | поддерживаемые способы; `oauth2.1` → `OAUTH` при CIMD или DCR |
 | `probe.status`, транспорт, `probe.handshake` | `availability` | один код состояния карточки; в колонки не переезжает |
 | `declared.headers` + `overrides.yaml` | `fields`, `header_fields` | форма подключения |
 | `declared.headerGroups` | `header_groups` | «ровно один из» заголовков |
@@ -196,7 +198,7 @@ services/control-api/src/main/resources/seed/connectors/
   диагностика probe, а не данные каталога; версии протокола сводятся в `availability`;
 - `declared.source`, `protocolVersions` — провенанс; исходные файлы остаются в репозитории;
 - сырой `declared.headers` — в базу попадает уже собранный `header_fields`, а не тексты вендора;
-- `probe.authDetails` целиком — нужен только признак CIMD; scopes и endpoints OAuth-поток
+- `probe.authDetails` целиком — нужен только признак CIMD/DCR; scopes и endpoints OAuth-поток
   обнаруживает сам;
 - `vendor`, `toolCount`, `lastChecked`, `note`, `addedAt` — витрине и форме не нужны; остаются в
   JSON и добавляются точечно, если появится продуктовая потребность;
@@ -296,7 +298,7 @@ WHERE p.source_present = TRUE
   Затем **фильтр поддержки**: `OAUTH` остаётся, только если
   `authDetails.clientIdMetadataDocumentSupported = true`; `TOKEN` и `NONE` — всегда. Пустой
   результат — `[]`: форма не предлагает недоступный OAuth, а `availability` станет
-  `AUTH_UNSUPPORTED`. Отдельного `oauth_support` в базе нет — CIMD проверяется здесь и логируется.
+  `AUTH_UNSUPPORTED`. Отдельного `oauth_support` в базе нет — CIMD/DCR проверяются здесь и логируются.
   Если остались и `OAUTH`, и `TOKEN`, форма предлагает выбор «OAuth или токен». Сид **не угадывает**
   `TOKEN` по наличию заголовка: `square` — известный пропуск в данных, пока там нет `authMethods`;
   временный обход — `authMethods: [OAUTH, TOKEN]` в `overrides.yaml`.
@@ -359,10 +361,10 @@ presets:
   `label`/`labelRu` подставляется именем заголовка;
 - `availability` — известное значение; `auth_methods` — подмножество `OAUTH`/`TOKEN`/`NONE` без
   дублей (дубли отбрасываются при сиде); список — `declared.authMethods`, иначе `primaryAuth`;
-  после фильтра CIMD он может остаться пустым — это `AUTH_UNSUPPORTED`; `AVAILABLE` требует
+  после фильтра CIMD/DCR он может остаться пустым — это `AUTH_UNSUPPORTED`; `AVAILABLE` требует
   непустой `auth_methods`;
 - `category` — известный код таксономии; `jurisdiction` — ISO 3166-1 alpha-2 или NULL;
-- `auth_methods` с `OAUTH` — только при CIMD (фильтр применён при сиде: без CIMD `OAUTH` в список
+- `auth_methods` с `OAUTH` — при CIMD или DCR (фильтр применён при сиде: без обоих `OAUTH` в список
   не попадает); с `TOKEN` — либо `fields.auth_token`, либо хотя бы один `header_fields` с
   `secret = true` (не обязательно `Authorization`: у MaxStat `X-API-Token`, у Telphin
   `X-Auth-Token`, у New Relic `api-key`);
@@ -393,7 +395,7 @@ presets:
 - `code`, `connectorCode` — на верхнем уровне.
 - `card.auth` — производный основной способ по уже отфильтрованным `auth_methods`: `OAUTH` → `TOKEN`
   → `NONE` → `UNKNOWN`. Поэтому DCR-сервер со статическим токеном показывает `TOKEN`, а OAuth-only
-  DCR даёт `auth = UNKNOWN` и `availability = AUTH_UNSUPPORTED`.
+  DCR становится `OAUTH` (при включённом DCR) и разрешается при подключении.
 - `connection.identity` — `params.url.trim()`; `connection.availability` — **подсказка**, не гейт
   создания: `AVAILABLE` включает карточку, остальные значения — disabled с текстом по коду. Точную
   причину (`DCR` против `PRE_REGISTERED`, `false` против `null`) бэкенд пишет в debug-лог (файл
@@ -444,9 +446,9 @@ presets:
   `globalping`, `monday-com`, `paypal`, `plaid`, `square`, `webflow`, `wix`) и пять, у которых probe
   уже нашёл `/mcp` (`cloudflare-workers-bindings`, `dodo-payments`, `invideo`, `semgrep`, `sentry`),
   — ведут на `/mcp`; 12 из них без `declared.transport` (`transport_source = INFERRED`) блокируются.
-  `cloudflare-workers-bindings` объявил transport (`DECLARED`), но остаётся DCR-only. По auth прошли
-  бы `monday-com`, `dodo-payments`, `invideo`, `semgrep`, `sentry` (CIMD) и `square` (токен после
-  исправления `authMethods`); остальные — DCR-only.
+  `cloudflare-workers-bindings` объявил transport (`DECLARED`), его DCR-карточка теперь разрешается
+  через DCR. По auth прошли бы `monday-com`, `dodo-payments`, `invideo`, `semgrep`, `sentry` (CIMD) и
+  `square` (токен после исправления `authMethods`); остальные — DCR-only и идут через DCR.
 - `protocol_compatible` проверяется для `up`: 17 серверов повторяют нашу ревизию `2025-06-18`
   (13 handshake-серверов и 4 stateless). `aws-knowledge` и `vkusvill` отвечают на `initialize`
   понижением до `2025-03-26` — это не отказ: клиент возвращённую `protocolVersion` не проверяет,
@@ -456,9 +458,9 @@ presets:
   `handshake.supported = null` — `initialize` закрыт 401 — остаются «не проверено» и блокируются.
   У `auth_required` handshake неизвестен по природе, поэтому он не блокирует.
 - `auth_methods` с `TOKEN` открывает 20 DCR-серверов со статическим токеном; `square` — известный
-  пропуск в данных, пока `declared.authMethods` не добавлен. `OAUTH` без CIMD и без `TOKEN`
+  пропуск в данных, пока `declared.authMethods` не добавлен. `OAUTH` без CIMD и без DCR и без `TOKEN`
   остаётся заблокированным.
-- CIMD — необходимое, но не достаточное условие: `McpAuthDiscovery` ещё требует S256 PKCE и
+- CIMD или DCR — необходимое, но не достаточное условие: `McpAuthDiscovery` ещё требует S256 PKCE и
   `authorization_endpoint`/`token_endpoint`. Датасет PKCE/endpoints не хранит; окончательная
   проверка — при создании. `availability` для OAuth остаётся best-effort.
 - `availability` — **подсказка для карточки**, а не политика создания: если пользователь с валидным
@@ -472,10 +474,10 @@ presets:
 - `TRANSPORT_UNSUPPORTED` — `transport != STREAMABLE_HTTP` или `transport_source`/`legacy_sse` не
   проходят условие выше;
 - `PROTOCOL_UNSUPPORTED` — `up` с `protocol_compatible != TRUE` (отказ или не измерено);
-- `AUTH_UNSUPPORTED` — `auth_methods` пуст: ни `NONE`, ни `TOKEN`, ни `OAUTH + CIMD` не доступны.
+- `AUTH_UNSUPPORTED` — `auth_methods` пуст: ни `NONE`, ни `TOKEN`, ни `OAUTH + CIMD/DCR` не доступны.
 
 Приоритет: `DOWN` → `TRANSPORT_UNSUPPORTED` → `PROTOCOL_UNSUPPORTED` → `AUTH_UNSUPPORTED`. Точную
-причину (`DCR` против `PRE_REGISTERED`, `false` против `null`) бэкенд пишет в debug-лог, а не в
+причину (нет CIMD/DCR против PRE_REGISTERED, `false` против `null`) бэкенд пишет в debug-лог, а не в
 ответ: фронту она не нужна. Тексты — забота фронта; бэкенд не переводит причины.
 
 ### Создание подключения
@@ -586,7 +588,7 @@ presets:
 - [x] `PresetAvailabilityPolicy`: чистая функция `availability` по `status`, транспорту,
   `transport_source`, `legacy_sse`, `protocol_compatible` и `auth_methods`; вызывается при сиде.
 - [x] Валидатор: `params`/`fields`/`header_fields`/`header_groups`, `identity`, категории,
-  `jurisdiction`, enum'ы, `name`; `auth_methods` подмножество (дубли и `OAUTH` без CIMD
+  `jurisdiction`, enum'ы, `name`; `auth_methods` подмножество (дубли и `OAUTH` без CIMD/DCR
   отбрасываются), `availability`; `valuePrefix`/`keyPrefix`; точный набор ключей `overrides.yaml`
   (`categories`/`presets`, `authMethods`/`fields`/`headerFields`), запрет override для
   несуществующего `code` и ключа категории.
@@ -618,7 +620,7 @@ presets:
 - [x] `ConnectorPresetBootstrapTest` — upsert, сохранение `enabled`, `source_present`, переводы,
   переименование файла при том же `identity`, `auth_methods`/`availability`, advisory-лок перед
   скрытием.
-- [x] `PresetAvailabilityPolicyTest` — CIMD/token, `transport_source`/`legacy_sse`,
+- [x] `PresetAvailabilityPolicyTest` — CIMD/DCR/token, `transport_source`/`legacy_sse`,
   `protocol_compatible` false/null, четыре причины и `AVAILABLE`; `ConnectorPresetSeedReaderTest` —
   понижение версии у обеих эр и отказ в понижении.
 - [x] `PresetFormAssemblerTest` — слияние, локализация подписей по языку запроса,
@@ -649,10 +651,9 @@ presets:
 
 ## Вне рамок
 
-- **DCR-фолбэк и pre-registered клиенты.** 25 DCR-серверов без статического токена (плюс `square`,
-  пока данные не исправлены) и 4 pre-registered остаются `AUTH_UNSUPPORTED`. Ещё 20 DCR-серверов
-  уже открыты через `auth_methods`. Это самый большой рычаг каталога, но отдельное решение: меняется
-  `McpAuthDiscovery`/`McpOAuthClient`.
+- **Pre-registered клиенты.** 4 сервера требуют клиента, заведённого у них вручную, и остаются
+  `AUTH_UNSUPPORTED`. DCR-фолбэк для остальных реализован отдельным решением
+  ([mcp-oauth-dcr.md](mcp-oauth-dcr.md)); 20 DCR-серверов по-прежнему открыты и через `TOKEN`.
 - **Клиент MCP на 2026-07-28 (stateless).** Текущий `McpClient` говорит `2025-06-18`; `aws-knowledge`
   и `vkusvill` его не принимают, пять stateless-серверов не проверены. Отдельное решение: научить
   клиент новой эре, иначе эти карточки останутся закрытыми.
@@ -673,9 +674,9 @@ presets:
 
 ## Открытые хвосты
 
-- DCR: когда делать и в каком объёме — отдельным решением; от него зависит, станет ли
-  `availability = AVAILABLE` у 25 DCR-карточек без токена и 4 pre-registered. Ещё 20 DCR-серверов уже
-  открыты статическим токеном.
+- DCR-фолбэк реализован ([mcp-oauth-dcr.md](mcp-oauth-dcr.md)); от замера зависит, станет ли
+  `availability = AVAILABLE` у 25 DCR-карточек без токена. 4 pre-registered остаются закрытыми.
+  Ещё 20 DCR-серверов открыты статическим токеном.
 - `availability` — подсказка, не гейт: PKCE и endpoint'ы OAuth-поток обнаруживает сам; протокол и
   транспорт сводятся в `availability` при сиде, но `auth_required` не позволяет подтвердить их без
   креденшелов. Окончательное решение — `validateCredentials` при создании.
@@ -683,7 +684,8 @@ presets:
   `auth_required`-серверов с исходным `/sse` без `declared.transport` — восемь (`egnyte`,
   `globalping`, `monday-com`, `paypal`, `plaid`, `square`, `webflow`, `wix`) и четыре, у которых
   probe нашёл `/mcp` (`dodo-payments`, `invideo`, `semgrep`, `sentry`); если добавить
-  `declared.transport`, `transport_source = DECLARED` снимет транспортный блок (но не OAuth DCR).
+  `declared.transport`, `transport_source = DECLARED` снимет транспортный блок; OAuth-часть уже
+  поддержана DCR-фолбэком.
   Из них `monday-com`, `dodo-payments`, `invideo`, `semgrep`, `sentry` (CIMD) и `square` (токен)
   прошли бы по auth. Ещё 5 `up` с `handshake.supported = null` (`apify`, `yandex-calendar`,
   `yandex-disk`, `yandex-mail`, `yandex-telemost`). `cloudinary` с опциональным API-key не

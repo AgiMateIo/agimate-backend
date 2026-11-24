@@ -105,7 +105,7 @@ SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
 | [schema-conventions.md](decisions/schema-conventions.md) | Имена индексов и ограничений, комментарии в changelog'ах, сворачивание `updates/` в `initial/` |
 | [media-transport.md](decisions/media-transport.md) | Как выбирается диалект провайдера при генерации изображений |
 | [acp-comparison.md](decisions/acp-comparison.md) | Agent Communication Protocol против нашей архитектуры |
-| [mcp-oauth.md](decisions/mcp-oauth.md) | OAuth в MCP-коннекторе: discovery по 401, CIMD вместо DCR, состояние на коннекции |
+| [mcp-oauth.md](decisions/mcp-oauth.md) | OAuth в MCP-коннекторе: discovery по 401, CIMD с DCR-фолбэком, состояние на коннекции |
 | [reasoning-content.md](decisions/reasoning-content.md) | Где живёт рассуждение модели: поле сообщения и `thinking_text`, потому что провайдер требует его назад |
 | [run-cancellation.md](decisions/run-cancellation.md) | Остановка рана: кооперативная отмена на шве, drain тул-хода, точка невозврата по `openWorldHint` |
 | [history-from-turn-ledger.md](decisions/history-from-turn-ledger.md) | История сессии из журнала ходов `agent_run_turns`, а не из проекции канала |
@@ -160,6 +160,7 @@ SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
 | [skill-binding-opens-internal-connectors.md](decisions/skill-binding-opens-internal-connectors.md) | Привязка навыка открывает внутренние коннекторы: строка-режим — единственный легальный экземпляр, внешние выбирает пользователь, удаление навыка грант не снимает |
 | [connector-presets.md](decisions/connector-presets.md) | Каталог MCP-подключений: скопированные JSON-файлы `seed/connectors/mcp/` — источник истины, база — проекция для карточек и формы; переводы отдельной таблицей, поиск SQL `LIKE`, `availability` — один код доступности, вычисляемый при сиде |
 | [tool-wait-events.md](decisions/tool-wait-events.md) | Конец ожидания инструмента по событию: отцепка только при входящем в сессии, потолок вместо таймаута, уведомления из control-api в воркер через durable-сообщения DBOS |
+| [mcp-oauth-dcr.md](decisions/mcp-oauth-dcr.md) | Клиентская идентичность OAuth в MCP: CIMD остаётся основным, DCR — фолбэк для серверов без него; DCR-клиент живёт в секрете коннекции вместе с грантом, без отдельной таблицы регистраций |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md), [agent-skill-references](decisions/deferred/agent-skill-references.md), [workflow-connector](decisions/deferred/workflow-connector.md) |
 
 ## Как ведётся документация

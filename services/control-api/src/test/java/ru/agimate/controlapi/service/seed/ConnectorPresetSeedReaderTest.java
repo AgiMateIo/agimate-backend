@@ -96,8 +96,30 @@ class ConnectorPresetSeedReaderTest {
         }
 
         @Test
-        @DisplayName("DCR-only без токена оставляет пустой список и AUTH_UNSUPPORTED")
-        void dcrOnlyIsUnsupported() {
+        @DisplayName("DCR объявлен — OAUTH остаётся, auth_token не показывается")
+        void dcrKeepsOauth() {
+            ConnectorPresetSeed seed = read("dcr-only", """
+                    {
+                      "name": "DCR only",
+                      "category": "dev-tools",
+                      "url": "https://example.com/mcp",
+                      "declared": { "transport": "streamable-http", "authMethods": ["oauth2.1"] },
+                      "probe": {
+                        "status": "auth_required", "transport": "streamable-http",
+                        "transportConfirmed": false, "authType": "oauth2.1_dcr",
+                        "authDetails": { "clientIdMetadataDocumentSupported": false, "dcrSupported": true }
+                      }
+                    }
+                    """);
+
+            assertEquals(List.of(ConnectorPresetAuth.OAUTH), seed.authMethods());
+            assertNull(seed.fields());
+            assertEquals(ConnectorPresetAvailability.AVAILABLE, seed.availability());
+        }
+
+        @Test
+        @DisplayName("ни CIMD, ни DCR — пустой список и AUTH_UNSUPPORTED")
+        void neitherCimdNorDcr() {
             ConnectorPresetSeed seed = read("dcr-only", """
                     {
                       "name": "DCR only",

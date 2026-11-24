@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.integrations.mcp.McpUtils;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ public class McpAuthDiscovery {
     private static final String OFFLINE_ACCESS = "offline_access";
 
     private final OAuthHttpClient http;
+    private final McpOAuthProperties properties;
 
     /**
      * @param challenge the {@code Bearer} challenge from the 401, when the server sent one — it may
@@ -53,7 +55,8 @@ public class McpAuthDiscovery {
             issuer = firstAuthorizationServer(prm);
             resourceScopes = stringList(prm.get("scopes_supported"));
             if (issuer == null) {
-                log.info("Protected resource metadata of {} lists no authorization_servers", serverUrl);
+                log.info("Protected resource metadata of {} lists no authorization_servers",
+                        McpUtils.logTarget(serverUrl));
                 return Optional.empty();
             }
         } else {
@@ -76,7 +79,7 @@ public class McpAuthDiscovery {
                 "Authorization server metadata not found for " + issuer));
 
         requirePkce(metadata, issuer);
-        requireClientIdMetadataDocuments(metadata, issuer);
+        ClientIdentification client = identifyClient(metadata, issuer);
 
         String scope = chooseScope(challenge, resourceScopes, metadata);
         return Optional.of(new OAuthSetup(
@@ -84,7 +87,8 @@ public class McpAuthDiscovery {
                 required(metadata, "authorization_endpoint", issuer),
                 required(metadata, "token_endpoint", issuer),
                 resource,
-                scope));
+                scope,
+                client));
     }
 
     /** Header first, then the two well-known URIs the spec prescribes, in that order. */
@@ -99,7 +103,7 @@ public class McpAuthDiscovery {
                 return document;
             }
             log.debug("resource_metadata {} advertised but not readable; falling back to well-known",
-                    advertised.get());
+                    McpUtils.logTarget(advertised.get()));
         }
         for (String url : resourceMetadataCandidates(serverUrl)) {
             Optional<JsonNode> document = http.getJson(url, protocolVersion);
@@ -135,7 +139,8 @@ public class McpAuthDiscovery {
             }
             String declared = document.get().path("issuer").asText("");
             if (!issuer.equals(declared)) {
-                log.warn("Authorization server metadata at {} declares issuer {} — rejected", url, declared);
+                log.warn("Authorization server metadata at {} declares issuer {} — rejected",
+                        McpUtils.logTarget(url), McpUtils.logTarget(declared));
                 continue;
             }
             return document;
@@ -173,15 +178,40 @@ public class McpAuthDiscovery {
     }
 
     /**
-     * The only client identification v1 has. The refusal is logged with the issuer on purpose: that
-     * log is the measurement by which the manual fallback gets its priority back.
+     * CIMD first, DCR second. The refusal distinguishes the three ways to end up here: the server
+     * lacks both mechanisms, CIMD is declared but this installation has no document, or DCR is
+     * declared but switched off — one generic «does not support CIMD» would hide which knob to turn.
      */
-    private static void requireClientIdMetadataDocuments(JsonNode metadata, String issuer) {
-        if (!metadata.path("client_id_metadata_document_supported").asBoolean(false)) {
-            log.info("Authorization server {} does not support client ID metadata documents", issuer);
-            throw new ConnectorException("Authorization server " + issuer
-                    + " does not support client ID metadata documents; this server is not supported yet");
+    private ClientIdentification identifyClient(JsonNode metadata, String issuer) {
+        boolean cimd = metadata.path("client_id_metadata_document_supported").asBoolean(false);
+        String registrationEndpoint = metadata.path("registration_endpoint").asText("");
+        boolean dcr = !registrationEndpoint.isBlank();
+
+        if (cimd && !properties.getClientId().isBlank()) {
+            return new ClientIdentification(OAuthClientSource.CIMD, null, List.of());
         }
+        if (dcr && properties.isDcrEnabled()) {
+            return new ClientIdentification(OAuthClientSource.DCR, registrationEndpoint,
+                    stringList(metadata.get("token_endpoint_auth_methods_supported")));
+        }
+
+        log.info("Authorization server {} supports no usable client identification (CIMD declared={}, "
+                + "DCR endpoint={}, client-id configured={}, dcr-enabled={})",
+                issuer, cimd, dcr, !properties.getClientId().isBlank(), properties.isDcrEnabled());
+        if (dcr) {
+            throw new ConnectorException("Authorization server " + issuer
+                    + " supports dynamic client registration, but it is disabled on this installation "
+                    + "(" + (cimd ? "client-id is empty and " : "") + "app.connectors.mcp.oauth.dcr-enabled"
+                    + " is false); enable DCR or provide a static token");
+        }
+        if (cimd) {
+            throw new ConnectorException("Authorization server " + issuer
+                    + " supports client ID metadata documents, but app.connectors.mcp.oauth.client-id "
+                    + "is not configured; set client-id or enable DCR");
+        }
+        throw new ConnectorException("Authorization server " + issuer
+                + " supports neither client ID metadata documents nor dynamic client registration; "
+                + "provide a static token instead");
     }
 
     /**

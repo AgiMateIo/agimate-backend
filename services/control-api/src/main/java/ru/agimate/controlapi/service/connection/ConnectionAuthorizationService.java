@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -39,7 +40,7 @@ public class ConnectionAuthorizationService {
     private final ApplicationEventPublisher eventPublisher;
 
     /** Where to send the browser. Also the way back for a re-authorisation and for a wider scope. */
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public String startAuthorization(UUID connectionId, UUID userId) {
         Connection connection = connectionService.getOwnedConnection(connectionId, userId);
         requireOAuthCapable(connection);
@@ -72,14 +73,17 @@ public class ConnectionAuthorizationService {
         if (connectionRepository.burnOauthState(connection.getId(), state) == 0) {
             throw new BadRequestStatusException("Authorization request has already been used");
         }
-        // The bulk update went around the persistence context, which still holds the old values — and
-        // the entity is saved again below. Without this the flush would write the state back.
-        connection.setOauthState(null);
-        connection.setOauthStateExpiresAt(null);
+        // The bulk update cleared the persistence context. Reload the row: the callback may have
+        // been in flight while the user deleted or disabled the connection, and saving the old
+        // snapshot would write deleted_at/enabled back from before that change.
+        connection = connectionRepository.findByIdNotDeleted(connection.getId())
+                .filter(fresh -> !fresh.isDeleted())
+                .orElseThrow(() -> new NotFoundStatusException("Authorization request not found"));
 
         try {
             if (error != null && !error.isBlank()) {
                 oauthService.verifyIssuer(connection, issuer);
+                oauthService.rejectAuthorization(connection, error);
                 log.info("Authorization of connection {} was not granted: {}", connection.getId(), error);
                 throw new BadRequestStatusException("Authorization was not granted (" + error + ")");
             }

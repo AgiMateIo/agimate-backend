@@ -8,6 +8,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.database.entities.Connection;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -15,12 +16,13 @@ import java.util.UUID;
 /**
  * The OAuth grant of one connection: starting the flow, finishing it, keeping the tokens alive.
  *
- * <p>Only two things ever write a grant — the user finishing authorisation, and the refresh job.
- * That is what makes locking unnecessary: the job row is claimed by the scheduler through
+ * <p>Only two paths obtain a grant — the user finishing authorisation, and the refresh job. Clearing
+ * a rejected client and widening the requested scope edit the secret separately; they do not mint
+ * tokens. The locking stays small because the job row is claimed by the scheduler through
  * {@code FOR UPDATE SKIP LOCKED}, so two nodes never refresh the same connection, and the one
  * remaining overlap — a re-authorisation racing a refresh — is settled inside
- * {@link McpOAuthStore#storeRefreshed} by comparing the refresh token that was exchanged with the one
- * now stored.
+ * {@link McpOAuthStore#storeRefreshed} by comparing the client and the refresh token that were
+ * exchanged with the ones now stored.
  */
 @Slf4j
 @Service
@@ -35,11 +37,19 @@ public class McpOAuthService {
 
     private final McpOAuthStore store;
     private final McpOAuthClient client;
+    private final DynamicClientRegistrar registrar;
+    private final OAuthRegistrationLimiter registrationLimiter;
+    private final McpOAuthProperties properties;
 
     /**
      * Mints the {@code state} and the PKCE verifier and returns the address to send the browser to.
      * They are born here rather than at creation time so that a user who filled the form and walked
      * away leaves no live state behind.
+     *
+     * <p>The client is chosen before the state: a registration is network and may fail, and a state
+     * that leads to nothing is worse than no state at all. The order is the grant's client, the
+     * client of an abandoned attempt, a new registration — a working reconnect neither registers nor
+     * shows a second consent screen.
      */
     public String startAuthorization(Connection connection) {
         Map<String, String> credentials = store.credentials(connection);
@@ -47,11 +57,72 @@ public class McpOAuthService {
             throw new ConnectorException("This connection does not use OAuth");
         }
 
+        OAuthSetup setup = OAuthCredentials.setup(credentials);
+        SelectedClient selected = selectClient(setup, credentials, connection.getUserId());
         String state = CryptoUtils.randomHex(32);
         String verifier = Pkce.generateVerifier();
-        store.startFlow(connection, state, LocalDateTime.now().plus(STATE_TTL), verifier);
+        store.startFlow(connection.getId(), state, LocalDateTime.now().plus(STATE_TTL), verifier,
+                OAuthCredentials.flowClientKeys(
+                        selected.identity(), selected.registeredScope(), selected.secretExpiresAt()));
 
-        return client.authorizationUrl(OAuthCredentials.setup(credentials), state, verifier);
+        return client.authorizationUrl(setup, selected.identity(), state, verifier);
+    }
+
+    private SelectedClient selectClient(OAuthSetup setup, Map<String, String> credentials, UUID userId) {
+        if (setup.client().source() == OAuthClientSource.CIMD) {
+            String clientId = properties.getClientId();
+            if (clientId == null || clientId.isBlank()) {
+                throw new ConnectorException("Client ID metadata documents are not configured on this "
+                        + "installation (app.connectors.mcp.oauth.client-id)");
+            }
+            return new SelectedClient(
+                    new ClientIdentity(OAuthClientSource.CIMD, clientId, null, TokenEndpointAuthMethod.NONE),
+                    null, null);
+        }
+
+        SelectedClient grant = reusable(credentials, setup.scope(), true);
+        if (grant != null) {
+            return grant;
+        }
+        SelectedClient flow = reusable(credentials, setup.scope(), false);
+        if (flow != null) {
+            return flow;
+        }
+        registrationLimiter.check(userId, setup.client().registrationEndpoint());
+        RegisteredClient registered = registrar.register(setup);
+        return new SelectedClient(registered.identity(), registered.registeredScope(),
+                registered.secretExpiresAt());
+    }
+
+    /**
+     * A DCR client can serve this attempt when it exists, its secret has not expired and the scope it
+     * was registered with covers the requested one. An empty registered scope is «unknown», not
+     * «everything»: it is reusable only when nothing is requested.
+     */
+    private static SelectedClient reusable(Map<String, String> credentials, String requestedScope,
+                                           boolean grant) {
+        ClientIdentity identity = grant
+                ? OAuthCredentials.grantClient(credentials)
+                : OAuthCredentials.flowClient(credentials);
+        if (identity == null || identity.source() != OAuthClientSource.DCR) {
+            return null;
+        }
+        if (identity.tokenEndpointAuthMethod() != TokenEndpointAuthMethod.NONE && !identity.hasSecret()) {
+            return null;
+        }
+        Long expiresAt = grant
+                ? OAuthCredentials.grantSecretExpiresAt(credentials)
+                : OAuthCredentials.flowSecretExpiresAt(credentials);
+        if (expiresAt != null && expiresAt <= Instant.now().getEpochSecond()) {
+            return null;
+        }
+        String registeredScope = grant
+                ? OAuthCredentials.grantRegisteredScope(credentials)
+                : OAuthCredentials.flowRegisteredScope(credentials);
+        if (!OAuthCredentials.scopeCovers(registeredScope, requestedScope)) {
+            return null;
+        }
+        return new SelectedClient(identity, registeredScope, expiresAt);
     }
 
     /**
@@ -71,12 +142,56 @@ public class McpOAuthService {
             throw new ConnectorException("Authorization was not started for this connection");
         }
 
-        OAuthTokens tokens = client.exchangeCode(setup, code, verifier);
+        ClientIdentity identity = OAuthCredentials.flowClient(credentials);
+        if (identity == null) {
+            // A flow started before this deployment has no flow keys; it was necessarily CIMD.
+            if (setup.client().source() != OAuthClientSource.CIMD || properties.getClientId().isBlank()) {
+                throw new ConnectorException("Authorization was not started for this connection");
+            }
+            identity = new ClientIdentity(OAuthClientSource.CIMD, properties.getClientId(), null,
+                    TokenEndpointAuthMethod.NONE);
+        }
+
+        OAuthTokens tokens;
+        try {
+            tokens = client.exchangeCode(setup, identity, code, verifier);
+        } catch (OAuthClientAuthenticationException e) {
+            clearRejectedClient(connection.getId(), false);
+            throw e;
+        } catch (OAuthScopeRejectedException e) {
+            clearRejectedClient(connection.getId(), true);
+            throw e;
+        }
         store.storeGrant(connection, credentials, tokens);
 
         if (tokens.refreshToken() == null) {
             log.info("Connection {} authorized without a refresh token; it will live until the access "
                     + "token expires", connection.getId());
+        }
+    }
+
+    /**
+     * The authorisation server answered with an error code instead of a code. A rejected client or a
+     * rejected scope leaves the same dead client behind, so the next start must not reuse it.
+     */
+    public void rejectAuthorization(Connection connection, String error) {
+        if ("invalid_client".equals(error)) {
+            clearRejectedClient(connection.getId(), false);
+        } else if ("invalid_scope".equals(error)) {
+            // A server that treats the registered scope as a ceiling may also refuse the
+            // unregistered offline_access; dropping it makes the retry ask for the rest.
+            clearRejectedClient(connection.getId(), true);
+        }
+    }
+
+    private void clearRejectedClient(UUID connectionId, boolean dropOfflineAccess) {
+        try {
+            store.clearRejectedClient(connectionId, dropOfflineAccess);
+        } catch (RuntimeException e) {
+            // The authorisation failure is the answer the user needs; a cleanup failure is worth a
+            // line, not a different exception.
+            log.warn("Connection {}: rejected-client cleanup failed: {}", connectionId,
+                    e.getClass().getSimpleName());
         }
     }
 
@@ -103,6 +218,16 @@ public class McpOAuthService {
         }
 
         Map<String, String> credentials = store.credentials(connection);
+        OAuthSetup setup = OAuthCredentials.setup(credentials);
+        ClientIdentity identity = grantIdentity(credentials);
+        if (identity == null) {
+            // A DCR grant without its client cannot refresh: the refresh token belongs to a client
+            // that no longer exists here. Without touching the network, stop the job and say why.
+            store.expireWithoutClient(connectionId);
+            log.info("Connection {} has no usable OAuth client; re-authorisation required", connectionId);
+            return false;
+        }
+
         String refreshToken = OAuthCredentials.refreshToken(credentials);
         if (refreshToken == null || refreshToken.isBlank()) {
             log.debug("Connection {} has no refresh token; nothing to refresh", connectionId);
@@ -111,7 +236,7 @@ public class McpOAuthService {
 
         OAuthTokens tokens;
         try {
-            tokens = client.refresh(OAuthCredentials.setup(credentials), refreshToken);
+            tokens = client.refresh(setup, identity, refreshToken);
         } catch (OAuthGrantRejectedException e) {
             // The only failure that means «only the user can fix this». A timeout or a 5xx propagates
             // and the job retries — otherwise one blinking network moves a live connection into
@@ -120,9 +245,45 @@ public class McpOAuthService {
                 log.info("Refresh token of connection {} was rejected: re-authorisation required", connectionId);
             }
             return false;
+        } catch (OAuthClientAuthenticationException e) {
+            if (store.rejectRefreshClient(connectionId, refreshToken)) {
+                log.info("OAuth client of connection {} was rejected: re-authorisation required", connectionId);
+            }
+            return false;
+        } catch (OAuthScopeRejectedException e) {
+            // A client bounded by a scope it cannot use is as dead as a rejected one: the next start
+            // registers a new client for the current scope instead of repeating the same refusal.
+            if (store.rejectRefreshClient(connectionId, refreshToken, true)) {
+                log.info("OAuth scope of connection {} was rejected: re-authorisation required", connectionId);
+            }
+            return false;
         }
 
-        return store.storeRefreshed(connectionId, refreshToken, tokens);
+        return store.storeRefreshed(connectionId, identity.clientId(), refreshToken, tokens);
+    }
+
+    /**
+     * The identity the grant was issued to. CIMD comes from configuration (with the saved client id
+     * as a fallback), DCR from the grant itself; a DCR grant whose client was cleared returns null.
+     */
+    private ClientIdentity grantIdentity(Map<String, String> credentials) {
+        if (OAuthCredentials.clientSource(credentials) == OAuthClientSource.CIMD) {
+            ClientIdentity saved = OAuthCredentials.grantClient(credentials);
+            String clientId = saved != null ? saved.clientId() : properties.getClientId();
+            if (clientId == null || clientId.isBlank()) {
+                return null;
+            }
+            return new ClientIdentity(OAuthClientSource.CIMD, clientId, null,
+                    TokenEndpointAuthMethod.NONE);
+        }
+        ClientIdentity identity = OAuthCredentials.grantClient(credentials);
+        if (identity == null || identity.source() != OAuthClientSource.DCR) {
+            return null;
+        }
+        if (identity.tokenEndpointAuthMethod() != TokenEndpointAuthMethod.NONE && !identity.hasSecret()) {
+            return null;
+        }
+        return identity;
     }
 
     /**
@@ -166,5 +327,8 @@ public class McpOAuthService {
         if (!issuer.equals(setup.issuer())) {
             throw new ConnectorException("The authorization response came from a different issuer");
         }
+    }
+
+    private record SelectedClient(ClientIdentity identity, String registeredScope, Long secretExpiresAt) {
     }
 }

@@ -37,6 +37,10 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
 | `APP_MCP_SERVER_PUBLIC_URL` | Public base of the MCP server as its clients see it: `https://mcp.agimate.io` on prod, where the whole host is proxied to control-api under `/control`; locally the default `http://localhost:8080/control`. The OAuth issuer, the resource `<base>/mcp` and the metadata addresses are derived from it, never from `Host`. See [decisions/mcp-server-oauth.md](../decisions/mcp-server-oauth.md) |
+| `APP_CONNECTORS_MCP_OAUTH_CLIENT_ID` | HTTPS address of the CIMD document. Empty disables only CIMD; DCR-only servers still connect when DCR is enabled. See [decisions/mcp-oauth-dcr.md](../decisions/mcp-oauth-dcr.md) |
+| `APP_CONNECTORS_MCP_OAUTH_REDIRECT_URI` | Frontend callback for MCP OAuth, e.g. `https://agimate.io/connections/oauth/callback`; the same value is registered with DCR. Required for both CIMD and DCR |
+| `APP_CONNECTORS_MCP_OAUTH_DCR_ENABLED` | Allow new dynamic client registrations (default `true`). Existing DCR grants keep refreshing with `false`; a re-authorisation that needs a new client is refused |
+| `APP_CONNECTORS_MCP_OAUTH_REGISTRATIONS_PER_USER_PER_HOUR` / `..._PER_SERVER_PER_HOUR` | New DCR registrations per user and per authorisation-server origin, per node (default `10` and `100`, `<=0` disables). See [decisions/mcp-oauth-dcr.md](../decisions/mcp-oauth-dcr.md) |
 | `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for app/webhook traffic (default `true`) |
 | `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE` | Trigger events per minute per connection — `/app/trigger/new` + `/webhook/*` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE` | Tool results per minute per connection — `/app/tools/result` (default `120`, `<=0` disables) |

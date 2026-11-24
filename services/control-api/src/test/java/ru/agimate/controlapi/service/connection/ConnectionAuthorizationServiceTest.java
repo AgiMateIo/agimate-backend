@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,6 +68,8 @@ class ConnectionAuthorizationServiceTest {
     private void stateFound() {
         when(connectionRepository.findByOauthStateAndUserId(STATE, USER_ID))
                 .thenReturn(Optional.of(connection));
+        lenient().when(connectionRepository.findByIdNotDeleted(CONNECTION_ID))
+                .thenReturn(Optional.of(connection));
     }
 
     @Nested
@@ -106,6 +109,20 @@ class ConnectionAuthorizationServiceTest {
         }
 
         @Test
+        @DisplayName("коннекцию удалили, пока callback шёл, — снимок не воскрешает её")
+        void deletedDuringCallback() {
+            stateFound();
+            when(connectionRepository.burnOauthState(CONNECTION_ID, STATE)).thenReturn(1);
+            when(connectionRepository.findByIdNotDeleted(CONNECTION_ID)).thenReturn(Optional.empty());
+
+            assertThrows(NotFoundStatusException.class,
+                    () -> service.complete(USER_ID, STATE, "code", null, null));
+
+            verify(oauthService, never()).completeAuthorization(any(), any(), any());
+            verify(eventPublisher, never()).publishEvent(any(ConnectorCreatedEvent.class));
+        }
+
+        @Test
         @DisplayName("успех: обмен кода, событие о готовности коннекции")
         void success() {
             stateFound();
@@ -129,8 +146,22 @@ class ConnectionAuthorizationServiceTest {
 
             assertTrue(e.getMessage().contains("access_denied"));
             verify(oauthService).verifyIssuer(connection, null);
+            verify(oauthService).rejectAuthorization(connection, "access_denied");
             verify(oauthService, never()).completeAuthorization(any(), any(), any());
             verify(eventPublisher, never()).publishEvent(any(ConnectorCreatedEvent.class));
+        }
+
+        @Test
+        @DisplayName("invalid_scope в callback — очистка отвергнутого клиента до отказа")
+        void rejectedScopeCleansClient() {
+            stateFound();
+            when(connectionRepository.burnOauthState(CONNECTION_ID, STATE)).thenReturn(1);
+
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.complete(USER_ID, STATE, null, "invalid_scope", null));
+
+            verify(oauthService).rejectAuthorization(connection, "invalid_scope");
+            verify(oauthService, never()).completeAuthorization(any(), any(), any());
         }
 
         @Test

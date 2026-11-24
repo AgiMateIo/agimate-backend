@@ -426,13 +426,17 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 добытое (issuer, эндпойнты AS, канонический `resource`, выбранный scope) едет в её секрет через
 `IntegrationValidationResult.derivedCredentials`.
 
-Идентификация клиента — только Client ID Metadata Document: `client_id` это HTTPS-адрес нашего JSON,
-задаётся `app.connectors.mcp.oauth.client-id` (и парный `redirect-uri`), оба на публичном origin фронта.
-Публичных эндпойнтов у флоу нет: браузер возвращается на страницу фронта, а завершает
-`POST /manage/connections/oauth/complete` — обычный аутентифицированный вызов, и он же привязывает грант к
-тому, кто его начал. Токены живут в том же секрете, срок истечения — колонкой `oauth_expires_at`;
-обновляет их только джоба `oauth_refresh`, а 401 посреди `tools/call` переводит коннекцию в
-`AUTH_EXPIRED` и отдаёт агенту ссылку на переподключение.
+Идентификация клиента: CIMD, если сервер объявляет `client_id_metadata_document_supported` и задан
+`app.connectors.mcp.oauth.client-id`; иначе DCR, если есть `registration_endpoint` и включён
+`dcr-enabled`; иначе отказ с предложением статического токена. CIMD stateless и принадлежит
+установке, DCR-клиент живёт в секрете коннекции вместе с грантом (`oauth_client_*`), клиент текущей
+попытки — в `oauth_flow_client_*`; отдельной таблицы регистраций нет
+([../decisions/mcp-oauth-dcr.md](../decisions/mcp-oauth-dcr.md)). Публичных эндпойнтов у флоу нет:
+браузер возвращается на страницу фронта, а завершает `POST /manage/connections/oauth/complete` —
+обычный аутентифицированный вызов, и он же привязывает грант к тому, кто его начал. Токены живут в
+том же секрете, срок истечения — колонкой `oauth_expires_at`; обновляет их только джоба
+`oauth_refresh`, а 401 посреди `tools/call` переводит коннекцию в `AUTH_EXPIRED` и отдаёт агенту
+ссылку на переподключение.
 
 ### Пресеты подключений MCP
 
@@ -443,7 +447,7 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 `params` (у MCP — `url`), `identity`, оверрайды полей, заголовки, поддерживаемые `auth_methods` и
 один код `availability`.
 
-Входы probe (`status`, транспорт, handshake, CIMD) колонками не становятся: сид сводит их в
+Входы probe (`status`, транспорт, handshake, CIMD/DCR) колонками не становятся: сид сводит их в
 `auth_methods` и `availability`. Форма собирается на чтении из декларации коннектора и оверрайдов
 пресета (`PresetFormAssembler`), поэтому изменение `credentialFields` коннектора не требует
 пересида. Manage- и публичный каталоги используют один `ConnectorPresetQueryService`; публичный

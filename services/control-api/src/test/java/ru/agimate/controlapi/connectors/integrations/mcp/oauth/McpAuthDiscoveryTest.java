@@ -13,6 +13,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -50,12 +51,15 @@ class McpAuthDiscoveryTest {
     @Mock
     private OAuthHttpClient http;
 
+    private McpOAuthProperties properties;
     private McpAuthDiscovery discovery;
     private final Map<String, String> documents = new HashMap<>();
 
     @BeforeEach
     void setUp() {
-        discovery = new McpAuthDiscovery(http);
+        properties = new McpOAuthProperties();
+        properties.setClientId("https://agimate.example/client.json");
+        discovery = new McpAuthDiscovery(http, properties);
         documents.clear();
         when(http.getJson(anyString(), any())).thenAnswer(invocation -> {
             String url = invocation.getArgument(0);
@@ -172,14 +176,14 @@ class McpAuthDiscoveryTest {
         }
 
         @Test
-        @DisplayName("AS не объявил CIMD — отказ: других механизмов в v1 нет")
-        void noClientIdMetadataDocuments() {
+        @DisplayName("AS не объявил ни CIMD, ни DCR — отказ про статический токен")
+        void noClientIdentification() {
             documents.put(ISSUER + "/.well-known/oauth-authorization-server",
                     AS_METADATA.replace("\"client_id_metadata_document_supported\": true", "\"x\": 1"));
 
             ConnectorException e = assertThrows(ConnectorException.class,
                     () -> discovery.discover(SERVER, null, PROTOCOL));
-            assertTrue(e.getMessage().contains("client ID metadata documents"));
+            assertTrue(e.getMessage().contains("static token"));
         }
 
         @Test
@@ -192,6 +196,117 @@ class McpAuthDiscoveryTest {
             ConnectorException e = assertThrows(ConnectorException.class,
                     () -> discovery.discover(SERVER, null, PROTOCOL));
             assertTrue(e.getMessage().contains("different server"));
+        }
+    }
+
+    @Nested
+    @DisplayName("выбор идентичности клиента")
+    class ClientIdentificationChoice {
+
+        private static final String DCR_METADATA = """
+                {"issuer": "https://auth.example.com",
+                 "authorization_endpoint": "https://auth.example.com/authorize",
+                 "token_endpoint": "https://auth.example.com/token",
+                 "registration_endpoint": "https://auth.example.com/register",
+                 "token_endpoint_auth_methods_supported": ["none", "client_secret_basic"],
+                 "code_challenge_methods_supported": ["S256"]}
+                """;
+
+        @BeforeEach
+        void prm() {
+            documents.put("https://mcp.example.com/.well-known/oauth-protected-resource", PRM);
+        }
+
+        @Test
+        @DisplayName("CIMD и DCR объявлены — CIMD остаётся первым выбором")
+        void cimdFirst() {
+            documents.put(ISSUER + "/.well-known/oauth-authorization-server",
+                    DCR_METADATA.replace("\"code_challenge_methods_supported\": [\"S256\"]",
+                            "\"code_challenge_methods_supported\": [\"S256\"],"
+                                    + "\"client_id_metadata_document_supported\": true"));
+
+            OAuthSetup setup = discovery.discover(SERVER, null, PROTOCOL).orElseThrow();
+
+            assertEquals(OAuthClientSource.CIMD, setup.client().source());
+            assertNull(setup.client().registrationEndpoint());
+        }
+
+        @Test
+        @DisplayName("CIMD нет — DCR, endpoint и методы сохраняются в setup")
+        void dcrFallback() {
+            documents.put(ISSUER + "/.well-known/oauth-authorization-server", DCR_METADATA);
+
+            OAuthSetup setup = discovery.discover(SERVER, null, PROTOCOL).orElseThrow();
+
+            assertEquals(OAuthClientSource.DCR, setup.client().source());
+            assertEquals("https://auth.example.com/register", setup.client().registrationEndpoint());
+            assertEquals(List.of("none", "client_secret_basic"),
+                    setup.client().tokenEndpointAuthMethods());
+        }
+
+        @Test
+        @DisplayName("пустой client-id отключает только CIMD: DCR работает")
+        void emptyClientIdStillAllowsDcr() {
+            properties.setClientId("");
+            documents.put(ISSUER + "/.well-known/oauth-authorization-server", DCR_METADATA);
+
+            assertEquals(OAuthClientSource.DCR,
+                    discovery.discover(SERVER, null, PROTOCOL).orElseThrow().client().source());
+        }
+
+        @Test
+        @DisplayName("CIMD объявлен, client-id пуст, DCR нет — отказ называет client-id")
+        void cimdDeclaredButNotConfigured() {
+            properties.setClientId("");
+            documents.put(ISSUER + "/.well-known/oauth-authorization-server",
+                    AS_METADATA);
+
+            ConnectorException e = assertThrows(ConnectorException.class,
+                    () -> discovery.discover(SERVER, null, PROTOCOL));
+
+            assertTrue(e.getMessage().contains("client-id"));
+        }
+
+        @Test
+        @DisplayName("DCR есть, но выключен флагом — отказ называет dcr-enabled")
+        void dcrDisabled() {
+            properties.setDcrEnabled(false);
+            documents.put(ISSUER + "/.well-known/oauth-authorization-server", DCR_METADATA);
+
+            ConnectorException e = assertThrows(ConnectorException.class,
+                    () -> discovery.discover(SERVER, null, PROTOCOL));
+
+            assertTrue(e.getMessage().contains("dcr-enabled"));
+        }
+
+        @Test
+        @DisplayName("CIMD настроен, DCR выключен — CIMD всё равно выбирается")
+        void cimdWinsWhenDcrDisabled() {
+            properties.setDcrEnabled(false);
+            documents.put(ISSUER + "/.well-known/oauth-authorization-server",
+                    DCR_METADATA.replace("\"code_challenge_methods_supported\": [\"S256\"]",
+                            "\"code_challenge_methods_supported\": [\"S256\"],"
+                                    + "\"client_id_metadata_document_supported\": true"));
+
+            assertEquals(OAuthClientSource.CIMD,
+                    discovery.discover(SERVER, null, PROTOCOL).orElseThrow().client().source());
+        }
+
+        @Test
+        @DisplayName("client-id пуст и DCR выключен — отказ называет оба рычага")
+        void cimdEmptyAndDcrDisabled() {
+            properties.setClientId("");
+            properties.setDcrEnabled(false);
+            documents.put(ISSUER + "/.well-known/oauth-authorization-server",
+                    DCR_METADATA.replace("\"code_challenge_methods_supported\": [\"S256\"]",
+                            "\"code_challenge_methods_supported\": [\"S256\"],"
+                                    + "\"client_id_metadata_document_supported\": true"));
+
+            ConnectorException e = assertThrows(ConnectorException.class,
+                    () -> discovery.discover(SERVER, null, PROTOCOL));
+
+            assertTrue(e.getMessage().contains("client-id"));
+            assertTrue(e.getMessage().contains("dcr-enabled"));
         }
     }
 

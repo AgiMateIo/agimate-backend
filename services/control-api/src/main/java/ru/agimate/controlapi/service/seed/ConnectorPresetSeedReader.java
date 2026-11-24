@@ -191,12 +191,13 @@ public class ConnectorPresetSeedReader {
             methods = primary == null ? List.of() : List.of(primary);
         }
         boolean cimd = bool(probe.path("authDetails"), "clientIdMetadataDocumentSupported", false);
+        boolean dcr = bool(probe.path("authDetails"), "dcrSupported", false);
         List<ConnectorPresetAuth> supported = methods.stream()
-                .filter(method -> method != ConnectorPresetAuth.OAUTH || cimd)
+                .filter(method -> method != ConnectorPresetAuth.OAUTH || cimd || dcr)
                 .distinct()
                 .toList();
-        if (methods.contains(ConnectorPresetAuth.OAUTH) && !cimd) {
-            log.debug("{}: OAUTH dropped — the server does not declare CIMD", where);
+        if (methods.contains(ConnectorPresetAuth.OAUTH) && !cimd && !dcr) {
+            log.debug("{}: OAUTH dropped — the server declares neither CIMD nor DCR", where);
         }
         if (supported.isEmpty()) {
             log.debug("{}: no supported auth method (declared={}, probe.authType={})",

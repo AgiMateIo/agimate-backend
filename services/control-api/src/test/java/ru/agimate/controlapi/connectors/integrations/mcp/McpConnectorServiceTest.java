@@ -14,9 +14,11 @@ import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.core.dto.ViewCallResult;
 import ru.agimate.controlapi.connectors.core.dto.ViewPage;
+import ru.agimate.controlapi.connectors.integrations.mcp.oauth.ClientIdentification;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpAuthDiscovery;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpOAuthService;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedException;
+import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthClientSource;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthSetup;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
@@ -140,7 +142,8 @@ class McpConnectorServiceTest {
                     "https://auth.example.com/authorize",
                     "https://auth.example.com/token",
                     "https://srv.example/mcp",
-                    "read")));
+                    "read",
+                    new ClientIdentification(OAuthClientSource.CIMD, null, List.of()))));
 
             IntegrationValidationResult result = service.validateCredentials(Map.of(McpUtils.FIELD_URL, URL));
 
