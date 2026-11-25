@@ -28,7 +28,7 @@ Cursor, свой скрипт) подключается к `https://<host>/mcp` 
 | `GET` / `DELETE` | `405` — потоков и сессий нет |
 | `Mcp-Session-Id`, `Last-Event-ID` | игнорируются: не выдаются и не отражаются |
 | `MCP-Protocol-Version` | если прислан и не равен `2026-07-28` — `400` и `-32022` с `data: {supported, requested}` |
-| Методы | `server/discover`, `tools/list`, `tools/call`, `tasks/get`, `tasks/update`, `tasks/cancel` |
+| Методы | `server/discover`, `tools/list`, `tools/call`, `skills/list`, `skills/get`, `resources/list`, `resources/read`, `tasks/get`, `tasks/update`, `tasks/cancel` |
 | `initialize`, `ping` | оставлены **сверх ревизии**: живые клиенты всё ещё открываются `initialize` и пингуют; `initialize` отдаёт те же капабилити, что и `server/discover` |
 | `resultType` | во всех результатах, всегда `"complete"` — кроме `CreateTaskResult` с `"task"` |
 | `ttlMs` / `cacheScope` | `server/discover` — 1 ч, `public` (одинаков для всех); `tools/list` — `0`, `private` (привязки агента меняются на ходу, `list_changed` не шлём) |
@@ -51,10 +51,11 @@ Cursor, свой скрипт) подключается к `https://<host>/mcp` 
 Выполнить оба без поломки legacy-клиентов можно, только различая эпоху запроса — по
 `io.modelcontextprotocol/protocolVersion` в `_meta`: у modern-запроса он есть, у legacy нет.
 
-Осознанно не поддержано: сессии и возобновляемые SSE (их нет в ревизии), промпты, ресурсы,
-пагинация листинга, уведомления `tools/list_changed` и `notifications/tasks` с
+Осознанно не поддержано: сессии и возобновляемые SSE (их нет в ревизии), промпты, шаблоны ресурсов
+и подписки, пагинация `tools/list`, уведомления `tools/list_changed` и `notifications/tasks` с
 `subscriptions/listen` (без канала «сервер → клиент» их некуда послать — поллинг спека разрешает),
-`input_required`/MRTR (нет тулов, спрашивающих клиента).
+`input_required`/MRTR (нет тулов, спрашивающих клиента). Ресурсы есть только как `SKILL.md`
+навыков — см. «Навыки».
 
 ## OAuth: подключение по одной ссылке
 
@@ -112,6 +113,26 @@ JSON-RPC ответе: модель должна их увидеть и реши
 
 Тул с объявленным `outputSchema` получает `structuredContent`; тот же payload дублируется текстом для
 клиентов, которые структурированный вывод не читают.
+
+## Навыки (расширение `io.modelcontextprotocol/skills`)
+
+`server/discover` объявляет `resources` и расширение `io.modelcontextprotocol/skills`. Клиент
+получает навыки, доступные агенту: тот же гейт, что у контекста рана, — привязанные навыки, чьи
+требования разрешились в живые подключения. Навык, удержанный гейтом, в листинг не попадает.
+
+| Метод | Что отдаёт |
+|:--|:--|
+| `skills/list` | Страницу навыков: `uri` вида `skill://<name>/SKILL.md`, `frontmatter` и манифест из одного файла с SHA-256 и размером |
+| `skills/get` | Одну запись по `uri`; работает и для навыка, не попавшего на текущую страницу |
+| `resources/list` | Те же `SKILL.md` как ресурсы `text/markdown` |
+| `resources/read` | Текст `SKILL.md` по точному `uri` |
+
+`SKILL.md` собирается детерминированно из колонок навыка: `name` — kebab-case до 64 символов (при
+совпадении имён второй получает суффикс `-2`), `description` — описание навыка с фолбэком на
+заголовок и имя, до 1024 символов. `connectors`, `params` и всё, что говорит о внутренней
+маршрутизации, наружу не уезжает. `ttlMs = 0`, `cacheScope = "private"`: привязки и тексты меняются
+на ходу, `list_changed` не шлём. Неизвестный `uri` — `-32602`. `directoryRead`, шаблоны ресурсов и
+подписки не поддерживаются. Тело навыка — недоверенный текст; клиент применяет свою политику.
 
 ## Таски (расширение `io.modelcontextprotocol/tasks`)
 

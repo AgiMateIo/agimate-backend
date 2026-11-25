@@ -47,7 +47,7 @@ SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
 |---|---|
 | [worker-protocol.md](contracts/worker-protocol.md) | control-api ↔ agent-worker: DBOS + gRPC |
 | [acp.md](contracts/acp.md) | Agent Client Protocol поверх WebSocket, для IDE |
-| [mcp-server.md](contracts/mcp-server.md) | MCP-сервер: тулы агента наружу, ревизия 2026-07-28 |
+| [mcp-server.md](contracts/mcp-server.md) | MCP-сервер: тулы и навыки агента наружу, ревизия 2026-07-28 |
 | [api-keys.md](contracts/api-keys.md) | Позиционный формат ключей платформы |
 | [centrifugo-channels.md](contracts/centrifugo-channels.md) | Неймспейсы реального времени и выпуск токенов |
 | [trigger-log-probe.md](contracts/trigger-log-probe.md) | Probe-код обнаружения каналов: бэкенд, фронт и текст в мессенджере |
@@ -161,6 +161,7 @@ SPRING_PROFILES_ACTIVE=local,develop ./gradlew :control-api:bootRun
 | [connector-presets.md](decisions/connector-presets.md) | Каталог MCP-подключений: скопированные JSON-файлы `seed/connectors/mcp/` — источник истины, база — проекция для карточек и формы; переводы отдельной таблицей, поиск SQL `LIKE`, `availability` — один код доступности, вычисляемый при сиде |
 | [tool-wait-events.md](decisions/tool-wait-events.md) | Конец ожидания инструмента по событию: отцепка только при входящем в сессии, потолок вместо таймаута, уведомления из control-api в воркер через durable-сообщения DBOS |
 | [mcp-oauth-dcr.md](decisions/mcp-oauth-dcr.md) | Клиентская идентичность OAuth в MCP: CIMD остаётся основным, DCR — фолбэк для серверов без него; DCR-клиент живёт в секрете коннекции вместе с грантом, без отдельной таблицы регистраций |
+| [mcp-skills.md](decisions/mcp-skills.md) | Навыки через MCP: свои отдаём внешнему клиенту как Agent Skills, чужие принимаем как капабилити подключения рядом с тулами, а не как пользовательские навыки |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [terminal-app](decisions/deferred/terminal-app.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md), [page-publishing](decisions/deferred/page-publishing.md), [agent-skill-references](decisions/deferred/agent-skill-references.md), [workflow-connector](decisions/deferred/workflow-connector.md) |
 
 ## Как ведётся документация

@@ -112,6 +112,7 @@
   памяти; повторное прикрепление изображений из истории, расшифровка аудио, вложения в ACP-канале;
   генерация изображений и видео отдельными коннекторами.
 - **MCP наружу.** Подключение по одной ссылке: OAuth на `/mcp` с выбором агента на фронте
-  (свой AS в control-api) → [mcp-server-oauth.md](decisions/mcp-server-oauth.md). Дальше prompts и
-  resources, агент как тул в чужом клиенте, client-credentials для безголовых клиентов.
-  → [mcp-server.md](contracts/mcp-server.md)
+  (свой AS в control-api) → [mcp-server-oauth.md](decisions/mcp-server-oauth.md). Навыки агента уже
+  отдаются по расширению skills; дальше prompts, приём навыков чужих MCP-серверов, агент как тул в
+  чужом клиенте, client-credentials для безголовых клиентов.
+  → [mcp-skills.md](decisions/mcp-skills.md), [mcp-server.md](contracts/mcp-server.md)
