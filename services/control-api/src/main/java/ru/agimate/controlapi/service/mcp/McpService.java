@@ -13,7 +13,13 @@ import ru.agimate.controlapi.controller.mcp.dto.InitializeResult;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcError;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcRequest;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcResponse;
+import ru.agimate.controlapi.controller.mcp.dto.McpResource;
 import ru.agimate.controlapi.controller.mcp.dto.McpTool;
+import ru.agimate.controlapi.controller.mcp.dto.ResourceContent;
+import ru.agimate.controlapi.controller.mcp.dto.ResourceReadResult;
+import ru.agimate.controlapi.controller.mcp.dto.ResourcesListResult;
+import ru.agimate.controlapi.controller.mcp.dto.SkillGetResult;
+import ru.agimate.controlapi.controller.mcp.dto.SkillsListResult;
 import ru.agimate.controlapi.controller.mcp.dto.TaskResult;
 import ru.agimate.controlapi.controller.mcp.dto.ToolCallResult;
 import ru.agimate.controlapi.controller.mcp.dto.ToolsListResult;
@@ -34,15 +40,18 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The MCP surface over an agent's tools: {@code server/discover}, {@code tools/list},
- * {@code tools/call} and the tasks extension ({@code tasks/get}, {@code tasks/update},
- * {@code tasks/cancel}) — plus {@code initialize}, kept beyond the revision.
+ * The MCP surface over an agent's tools and skills: {@code server/discover}, {@code tools/list},
+ * {@code tools/call}, the tasks extension ({@code tasks/get}, {@code tasks/update},
+ * {@code tasks/cancel}) and the skills extension ({@code skills/list}, {@code skills/get},
+ * {@code resources/list}, {@code resources/read}) — plus {@code initialize}, kept beyond the
+ * revision.
  *
  * <p>Only the {@code 2026-07-28} revision is served, and only its stateless shape — no sessions, no
- * SSE, no prompts or resources. That is what keeps this a dispatcher over one request: without a
- * server→client channel there is nothing to hold between calls. A task is not held state either —
- * it is the {@code tool_call_logs} row itself ({@code taskId} = {@code external_id}, a task is a
- * row with {@code detached_at}), so any node answers any poll.
+ * SSE, no prompts. Resources exist only as skill {@code SKILL.md} files. That is what keeps this a
+ * dispatcher over one request: without a server→client channel there is nothing to hold between
+ * calls. A task is not held state either — it is the {@code tool_call_logs} row itself
+ * ({@code taskId} = {@code external_id}, a task is a row with {@code detached_at}), so any node
+ * answers any poll.
  */
 @Slf4j
 @Service
@@ -55,13 +64,15 @@ public class McpService {
     private static final String SERVER_VERSION = "1";
 
     static final String TASKS_EXTENSION = "io.modelcontextprotocol/tasks";
+    static final String SKILLS_EXTENSION = "io.modelcontextprotocol/skills";
 
     private static final String SERVER_INFO_META = "io.modelcontextprotocol/serverInfo";
     private static final String CLIENT_CAPABILITIES_META = "io.modelcontextprotocol/clientCapabilities";
 
     private static final Map<String, Object> CAPABILITIES = Map.of(
             "tools", Map.of(),
-            "extensions", Map.of(TASKS_EXTENSION, Map.of()));
+            "resources", Map.of(),
+            "extensions", Map.of(TASKS_EXTENSION, Map.of(), SKILLS_EXTENSION, Map.of()));
 
     /**
      * How long a {@code tools/call} without the tasks extension waits. Client-side budgets are of
@@ -98,11 +109,15 @@ public class McpService {
      */
     private static final long TOOLS_LIST_TTL_MS = 0;
 
+    /** Skill bindings and bodies change at runtime too, and no {@code list_changed} is sent. */
+    private static final long SKILLS_LIST_TTL_MS = 0;
+
     private static final String CACHE_PUBLIC = "public";
     private static final String CACHE_PRIVATE = "private";
 
     private final AgentService agentService;
     private final McpToolCatalog toolCatalog;
+    private final McpSkillCatalog skillCatalog;
     private final AgentToolCallService agentToolCallService;
     private final ToolCallLogService toolCallLogService;
     private final InboundRateLimiter rateLimiter;
@@ -123,6 +138,10 @@ public class McpService {
             case "ping" -> JsonRpcResponse.ok(request.id(), EmptyResult.INSTANCE);
             case "tools/list" -> JsonRpcResponse.ok(request.id(), listTools(principal));
             case "tools/call" -> callTool(principal, request);
+            case "skills/list" -> listSkills(principal, request);
+            case "skills/get" -> getSkill(principal, request);
+            case "resources/list" -> listResources(principal, request.id());
+            case "resources/read" -> readResource(principal, request);
             case "tasks/get" -> taskMethod(principal, request, this::taskGet);
             case "tasks/cancel" -> taskMethod(principal, request, this::taskCancel);
             case "tasks/update" -> taskMethod(principal, request, this::taskUpdate);
@@ -163,6 +182,86 @@ public class McpService {
         log.debug("MCP tools/list for agent {}: {} tools", agent.getId(), tools.size());
         // Private: the listing is this agent's bindings under its policies.
         return new ToolsListResult(tools, TOOLS_LIST_TTL_MS, CACHE_PRIVATE);
+    }
+
+    private JsonRpcResponse listSkills(AgentPrincipal principal, JsonRpcRequest request) {
+        Integer offset = cursor(request.paramsOrEmpty().get("cursor"));
+        if (offset == null) {
+            return JsonRpcResponse.error(request.id(), JsonRpcError.INVALID_PARAMS, "Invalid cursor");
+        }
+        Agent agent = agentService.findById(principal.agentId());
+        McpSkillCatalog.Page page = skillCatalog.forAgent(agent.getId(), offset);
+        return JsonRpcResponse.ok(request.id(), new SkillsListResult(
+                page.entries().stream().map(McpSkillCatalog.Entry::skill).toList(),
+                page.nextCursor(), SKILLS_LIST_TTL_MS, CACHE_PRIVATE));
+    }
+
+    private JsonRpcResponse getSkill(AgentPrincipal principal, JsonRpcRequest request) {
+        String uri = uri(request);
+        if (uri == null) {
+            return JsonRpcResponse.error(request.id(), JsonRpcError.INVALID_PARAMS, "uri is required");
+        }
+        McpSkillCatalog.Entry entry = skillCatalog.find(principal.agentId(), uri).orElse(null);
+        if (entry == null) {
+            return unknownSkill(request.id(), uri);
+        }
+        return JsonRpcResponse.ok(request.id(),
+                new SkillGetResult(entry.skill(), SKILLS_LIST_TTL_MS, CACHE_PRIVATE));
+    }
+
+    private JsonRpcResponse listResources(AgentPrincipal principal, Object requestId) {
+        Agent agent = agentService.findById(principal.agentId());
+        McpSkillCatalog.Page page = skillCatalog.forAgent(agent.getId(), 0);
+        List<McpResource> resources = page.entries().stream()
+                .map(entry -> {
+                    String name = String.valueOf(entry.skill().frontmatter().get("name"));
+                    String description = String.valueOf(entry.skill().frontmatter().get("description"));
+                    long size = entry.skill().resources().get(0).size();
+                    return new McpResource(entry.skill().uri(), name, name, description,
+                            "text/markdown", size);
+                })
+                .toList();
+        return JsonRpcResponse.ok(requestId,
+                new ResourcesListResult(resources, SKILLS_LIST_TTL_MS, CACHE_PRIVATE));
+    }
+
+    private JsonRpcResponse readResource(AgentPrincipal principal, JsonRpcRequest request) {
+        String uri = uri(request);
+        if (uri == null) {
+            return JsonRpcResponse.error(request.id(), JsonRpcError.INVALID_PARAMS, "uri is required");
+        }
+        McpSkillCatalog.Entry entry = skillCatalog.find(principal.agentId(), uri).orElse(null);
+        if (entry == null) {
+            return unknownSkill(request.id(), uri);
+        }
+        return JsonRpcResponse.ok(request.id(), new ResourceReadResult(
+                List.of(new ResourceContent(uri, "text/markdown", entry.content())),
+                SKILLS_LIST_TTL_MS, CACHE_PRIVATE));
+    }
+
+    private static String uri(JsonRpcRequest request) {
+        Object value = request.paramsOrEmpty().get("uri");
+        return value instanceof String text && !text.isBlank() ? text : null;
+    }
+
+    /** {@code null} — invalid cursor; absent — the first page. */
+    private static Integer cursor(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (!(value instanceof String text) || text.isBlank()) {
+            return null;
+        }
+        try {
+            int parsed = Integer.parseInt(text);
+            return parsed >= 0 ? parsed : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static JsonRpcResponse unknownSkill(Object requestId, String uri) {
+        return JsonRpcResponse.error(requestId, JsonRpcError.INVALID_PARAMS, "Unknown skill: " + uri);
     }
 
     private JsonRpcResponse callTool(AgentPrincipal principal, JsonRpcRequest request) {

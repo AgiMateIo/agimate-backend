@@ -153,7 +153,8 @@ class McpAdminSurfaceTest {
     private final InboundRateLimiter rateLimiter = mock(InboundRateLimiter.class);
 
     private final McpService mcpService = new McpService(
-            agentService, catalog, agentToolCallService, toolCallLogService, rateLimiter);
+            agentService, catalog, mock(McpSkillCatalog.class), agentToolCallService, toolCallLogService,
+            rateLimiter);
 
     private final Agent agent = Agent.builder()
             .id(AGENT_ID).userId(USER_ID).name("mcp-admin").type(AgentType.MCP).build();

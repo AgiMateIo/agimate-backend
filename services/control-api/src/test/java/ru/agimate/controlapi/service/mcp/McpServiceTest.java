@@ -20,6 +20,12 @@ import ru.agimate.controlapi.controller.mcp.dto.InitializeResult;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcError;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcRequest;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcResponse;
+import ru.agimate.controlapi.controller.mcp.dto.McpSkillEntry;
+import ru.agimate.controlapi.controller.mcp.dto.McpSkillResource;
+import ru.agimate.controlapi.controller.mcp.dto.ResourceReadResult;
+import ru.agimate.controlapi.controller.mcp.dto.ResourcesListResult;
+import ru.agimate.controlapi.controller.mcp.dto.SkillGetResult;
+import ru.agimate.controlapi.controller.mcp.dto.SkillsListResult;
 import ru.agimate.controlapi.controller.mcp.dto.ToolCallResult;
 import ru.agimate.controlapi.controller.mcp.dto.ToolsListResult;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -69,6 +75,8 @@ class McpServiceTest {
     @Mock
     private McpToolCatalog toolCatalog;
     @Mock
+    private McpSkillCatalog skillCatalog;
+    @Mock
     private AgentToolCallService agentToolCallService;
     @Mock
     private ToolCallLogService toolCallLogService;
@@ -111,13 +119,16 @@ class McpServiceTest {
     class Protocol {
 
         @Test
-        @DisplayName("initialize отдаёт единственную ревизию, tools и расширение tasks")
+        @DisplayName("initialize отдаёт единственную ревизию, tools, resources и оба расширения")
         void initialize() {
             InitializeResult result = (InitializeResult) call("initialize", Map.of()).result();
 
             assertEquals("2026-07-28", result.protocolVersion());
             assertTrue(result.capabilities().containsKey("tools"));
-            assertEquals(Map.of("io.modelcontextprotocol/tasks", Map.of()),
+            assertTrue(result.capabilities().containsKey("resources"));
+            assertEquals(Map.of(
+                            "io.modelcontextprotocol/tasks", Map.of(),
+                            "io.modelcontextprotocol/skills", Map.of()),
                     result.capabilities().get("extensions"));
         }
 
@@ -137,6 +148,7 @@ class McpServiceTest {
 
             assertEquals(List.of("2026-07-28"), result.supportedVersions());
             assertTrue(result.capabilities().containsKey("tools"));
+            assertTrue(result.capabilities().containsKey("resources"));
             assertNotNull(result.meta().get("io.modelcontextprotocol/serverInfo"));
         }
 
@@ -158,7 +170,7 @@ class McpServiceTest {
         @Test
         @DisplayName("неизвестный метод → -32601")
         void unknownMethod() {
-            assertEquals(JsonRpcError.METHOD_NOT_FOUND, call("resources/list", Map.of()).error().code());
+            assertEquals(JsonRpcError.METHOD_NOT_FOUND, call("prompts/list", Map.of()).error().code());
         }
     }
 
@@ -273,6 +285,100 @@ class McpServiceTest {
             assertThrows(TooManyRequestsStatusException.class,
                     () -> call("tools/call", Map.of("name", "telegram_bot__send")));
             verify(toolCatalog, never()).forAgent(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("навыки (расширение io.modelcontextprotocol/skills)")
+    class Skills {
+
+        private static final String URI = "skill://board-workflow/SKILL.md";
+
+        private final McpSkillCatalog.Entry entry = new McpSkillCatalog.Entry(
+                new McpSkillEntry(URI,
+                        Map.of("name", "board-workflow", "description", "Ведёт доску."),
+                        List.of(new McpSkillResource(URI, "sha256:abc", 42))),
+                "---\nname: board-workflow\ndescription: \"Ведёт доску.\"\n---\n\nHandle the board.\n");
+
+        private void catalogWithSkill() {
+            when(skillCatalog.forAgent(AGENT_ID, 0))
+                    .thenReturn(new McpSkillCatalog.Page(List.of(entry), null));
+        }
+
+        @Test
+        @DisplayName("skills/list отдаёт запись с манифестом, приватно и сразу несвежо")
+        void listSkills() {
+            catalogWithSkill();
+
+            SkillsListResult result = (SkillsListResult) call("skills/list", Map.of()).result();
+
+            assertEquals(1, result.skills().size());
+            assertEquals(URI, result.skills().get(0).uri());
+            assertEquals(0, result.ttlMs());
+            assertEquals("private", result.cacheScope());
+        }
+
+        @Test
+        @DisplayName("невалидный курсор → -32602")
+        void invalidCursor() {
+            assertEquals(JsonRpcError.INVALID_PARAMS,
+                    call("skills/list", Map.of("cursor", "abc")).error().code());
+        }
+
+        @Test
+        @DisplayName("skills/get по известному URI отдаёт ту же запись")
+        void getSkill() {
+            when(skillCatalog.find(AGENT_ID, URI)).thenReturn(Optional.of(entry));
+
+            SkillGetResult result = (SkillGetResult) call("skills/get", Map.of("uri", URI)).result();
+
+            assertEquals(URI, result.skill().uri());
+            assertEquals(0, result.ttlMs());
+            assertEquals("private", result.cacheScope());
+        }
+
+        @Test
+        @DisplayName("skills/get по неизвестному URI → -32602")
+        void getUnknownSkill() {
+            when(skillCatalog.find(AGENT_ID, "skill://nope/SKILL.md")).thenReturn(Optional.empty());
+
+            assertEquals(JsonRpcError.INVALID_PARAMS,
+                    call("skills/get", Map.of("uri", "skill://nope/SKILL.md")).error().code());
+        }
+
+        @Test
+        @DisplayName("resources/list отдаёт SKILL.md как markdown-ресурс")
+        void listResources() {
+            catalogWithSkill();
+
+            ResourcesListResult result = (ResourcesListResult) call("resources/list", Map.of()).result();
+
+            assertEquals(1, result.resources().size());
+            assertEquals(URI, result.resources().get(0).uri());
+            assertEquals("board-workflow", result.resources().get(0).name());
+            assertEquals("text/markdown", result.resources().get(0).mimeType());
+            assertEquals(42L, result.resources().get(0).size());
+        }
+
+        @Test
+        @DisplayName("resources/read отдаёт ровно те байты, что в манифесте")
+        void readResource() {
+            when(skillCatalog.find(AGENT_ID, URI)).thenReturn(Optional.of(entry));
+
+            ResourceReadResult result = (ResourceReadResult) call("resources/read", Map.of("uri", URI)).result();
+
+            assertEquals(URI, result.contents().get(0).uri());
+            assertEquals("text/markdown", result.contents().get(0).mimeType());
+            assertEquals(entry.content(), result.contents().get(0).text());
+        }
+
+        @Test
+        @DisplayName("resources/read чужого URI → -32602")
+        void readUnknownResource() {
+            when(skillCatalog.find(AGENT_ID, "skill://nope/SKILL.md")).thenReturn(Optional.empty());
+
+            assertEquals(JsonRpcError.INVALID_PARAMS,
+                    call("resources/read", Map.of("uri", "skill://nope/SKILL.md")).error().code());
         }
     }
 
