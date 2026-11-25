@@ -160,6 +160,10 @@ description: "Ведёт задачи на доске: создать, пере�
   точное сравнение карты расширений обновляется.
 - `McpResultJsonTest`: новые результаты несут `resultType` и `ttlMs`/`cacheScope`.
 
+Живой прогон 2026-11-25: MCP Inspector 2.16.0 (`--cli --protocol-era modern --verify`) на локальном
+агенте с навыком `persist-memory` — один навык, один файл, digest и размер совпали, conformance
+пуст; `resources/list` и `resources/read` отдают тот же `SKILL.md`.
+
 ### Документация
 
 - `docs/contracts/mcp-server.md`: таблица методов и раздел «Навыки»; из «осознанно не поддержано»
