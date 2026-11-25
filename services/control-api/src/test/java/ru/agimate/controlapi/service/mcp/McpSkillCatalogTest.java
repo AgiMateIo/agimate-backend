@@ -13,6 +13,7 @@ import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.runcontext.RunCatalog;
+import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -24,6 +25,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -75,7 +77,7 @@ class McpSkillCatalogTest {
 
         String expected = """
                 ---
-                name: board-workflow
+                name: "board-workflow"
                 description: "Ведёт доску."
                 ---
 
@@ -96,8 +98,8 @@ class McpSkillCatalogTest {
     @Test
     @DisplayName("одинаковые имена внутри одного сервера разводятся суффиксом, оба навыка достижимы")
     void disambiguatesNames() {
-        UUID first = UUID.randomUUID();
-        UUID second = UUID.randomUUID();
+        UUID first = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID second = UUID.fromString("00000000-0000-0000-0000-000000000002");
         when(runCatalog.skillsForAgent(AGENT_ID)).thenReturn(List.of(
                 bound(first, "review", "First"), bound(second, "review", "Second")));
         when(skillRepository.findAllById(any())).thenReturn(List.of(
@@ -130,8 +132,8 @@ class McpSkillCatalogTest {
     @Test
     @DisplayName("пустое описание падает на title, длинное обрезается до 1024 code points")
     void fallsBackAndTruncatesDescription() {
-        UUID first = UUID.randomUUID();
-        UUID second = UUID.randomUUID();
+        UUID first = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID second = UUID.fromString("00000000-0000-0000-0000-000000000002");
         when(runCatalog.skillsForAgent(AGENT_ID)).thenReturn(List.of(
                 bound(first, "one", null), bound(second, "two", "x".repeat(1200))));
         when(skillRepository.findAllById(any())).thenReturn(List.of(
@@ -163,6 +165,76 @@ class McpSkillCatalogTest {
         when(skillRepository.findAllById(any())).thenReturn(List.of());
 
         assertTrue(catalog.find(AGENT_ID, "skill://nope/SKILL.md").isEmpty());
+    }
+
+    @Test
+    @DisplayName("name в YAML остаётся строкой для числовых, булевых и date-подобных имён")
+    void nameStaysStringInYaml() {
+        for (String raw : List.of("2024", "2024-01-01", "true", "null", "0x1f")) {
+            UUID skillId = UUID.randomUUID();
+            when(runCatalog.skillsForAgent(AGENT_ID)).thenReturn(List.of(bound(skillId, raw, "d")));
+            when(skillRepository.findAllById(any()))
+                    .thenReturn(List.of(skill(skillId, raw, null, "body")));
+
+            String content = catalog.forAgent(AGENT_ID, 0).entries().get(0).content();
+            Object name = SkillFrontmatterParser.parseRaw(content, "SKILL.md").fields().get("name");
+
+            assertInstanceOf(String.class, name, raw);
+            assertEquals(raw, name, raw);
+        }
+    }
+
+    @Test
+    @DisplayName("непечатаемые символы описания переживают YAML как данные")
+    void escapesNonPrintables() {
+        String description = "line\u007f and \u0085 next end";
+        UUID skillId = UUID.randomUUID();
+        when(runCatalog.skillsForAgent(AGENT_ID))
+                .thenReturn(List.of(bound(skillId, "board-workflow", description)));
+        when(skillRepository.findAllById(any()))
+                .thenReturn(List.of(skill(skillId, "board-workflow", null, "body")));
+
+        String content = catalog.forAgent(AGENT_ID, 0).entries().get(0).content();
+
+        assertEquals(description, SkillFrontmatterParser.parseRaw(content, "SKILL.md")
+                .fields().get("description"));
+    }
+
+    @Test
+    @DisplayName("усечение длинного имени не оставляет двойной дефис")
+    void truncationDoesNotLeaveDoubleHyphen() {
+        UUID skillId = UUID.randomUUID();
+        String longName = "a".repeat(54) + "-" + "b".repeat(20);
+        when(runCatalog.skillsForAgent(AGENT_ID)).thenReturn(List.of(bound(skillId, longName, "d")));
+        when(skillRepository.findAllById(any()))
+                .thenReturn(List.of(skill(skillId, longName, null, "body")));
+
+        String name = (String) catalog.forAgent(AGENT_ID, 0).entries().get(0)
+                .skill().frontmatter().get("name");
+
+        assertTrue(name.matches("[a-z0-9]+(-[a-z0-9]+)*"), name);
+        assertFalse(name.contains("--"), name);
+    }
+
+    @Test
+    @DisplayName("суффикс при совпадении не зависит от порядка строк репозитория")
+    void uriAssignmentIsStableAcrossListOrder() {
+        UUID low = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID high = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        when(skillRepository.findAllById(any())).thenReturn(List.of(
+                skill(low, "review", null, "low body"),
+                skill(high, "review", null, "high body")));
+
+        when(runCatalog.skillsForAgent(AGENT_ID)).thenReturn(List.of(
+                bound(high, "review", "high"), bound(low, "review", "low")));
+        List<McpSkillCatalog.Entry> first = catalog.forAgent(AGENT_ID, 0).entries();
+
+        when(runCatalog.skillsForAgent(AGENT_ID)).thenReturn(List.of(
+                bound(low, "review", "low"), bound(high, "review", "high")));
+        List<McpSkillCatalog.Entry> second = catalog.forAgent(AGENT_ID, 0).entries();
+
+        assertEquals(first.get(0).content(), second.get(0).content());
+        assertTrue(first.get(0).content().contains("low body"));
     }
 
     @Test

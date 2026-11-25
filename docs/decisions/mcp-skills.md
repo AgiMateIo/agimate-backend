@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: partial
 created: 2026-11-25
 updated: 2026-11-25
 ---
@@ -88,7 +88,7 @@ MCP-клиентом.
 
 ```markdown
 ---
-name: board-workflow
+name: "board-workflow"
 description: "Ведёт задачи на доске: создать, передвинуть, закрыть."
 ---
 
@@ -97,7 +97,7 @@ description: "Ведёт задачи на доске: создать, пере�
 
 - `name` — kebab-case, `[a-z0-9-]`, не длиннее 64 символов. Имя навыка у нас уже kebab-case, но
   длину проверяем: длинное усекаем и добавляем хвост-хеш. При совпадении имён двух привязанных
-  навыков второму даём суффикс `-2`, затем `-3`; пишем WARN с обоими исходными именами.
+  навыков второму даём суффикс `-2`, затем `-3`; пишем WARN с исходным именем.
 - `description` — `description` навыка, иначе `title`, иначе `name`. Обрезаем до 1024 символов
   (предел Agent Skills), переводы строк нормализуем. Экранируем как YAML-строку в двойных кавычках,
   чтобы распарсенное значение совпало с полем frontmatter побайтово.
@@ -148,13 +148,16 @@ description: "Ведёт задачи на доске: создать, пере�
 
 ### Тесты
 
-- `McpSkillCatalogTest`: гейт (удержанный навык не попадает), нормализация и усечение имени,
-  суффиксы при совпадении, fallback и обрезка описания, детерминированный `SKILL.md`, размер и
-  SHA-256, отсутствие `connectors` в frontmatter, пропуск удалённой строки.
-- `McpServiceTest`: капабилити `resources` и расширение skills; `skills/list` (включая пагинацию),
-  `skills/get` (известный и неизвестный), `resources/list`, `resources/read` (известный,
-  неизвестный, чужой путь); существующий тест `unknownMethod` переводится с `resources/list` на
-  `prompts/list`; точное сравнение карты расширений обновляется.
+- `RunCatalogSkillsForAgentTest`: гейт — удержанный навык в листинг не попадает.
+- `McpSkillCatalogTest`: нормализация и усечение имени без двойного дефиса, суффиксы при совпадении
+  и их устойчивость к порядку строк, fallback и обрезка описания, YAML round-trip имени и описания
+  (числовые и date-подобные имена, C1-контролы), детерминированный `SKILL.md`, размер и SHA-256,
+  отсутствие `connectors` в frontmatter, пропуск удалённой строки.
+- `McpServiceTest`: капабилити `resources` и расширение skills; `skills/list` (включая пагинацию,
+  пустой и невалидный курсор), `skills/get` (известный, неизвестный, без `uri`), `resources/list`
+  (все записи, не первая страница), `resources/read` (известный, неизвестный, чужой путь, без
+  `uri`); существующий тест `unknownMethod` переводится с `resources/list` на `prompts/list`;
+  точное сравнение карты расширений обновляется.
 - `McpResultJsonTest`: новые результаты несут `resultType` и `ttlMs`/`cacheScope`.
 
 ### Документация
@@ -267,14 +270,14 @@ AFTER_COMMIT на создание/изменение подключения, п
 
 ### Исходящее (фаза 1)
 
-- [ ] DTO результатов и `_meta`-полей; `McpResult` получает новые типы
-- [ ] `RunCatalog.skillsForAgent(agentId)` — тот же гейт, без сборки тулов
-- [ ] `McpSkillCatalog`: имена, frontmatter, `SKILL.md`, SHA-256, размер, пагинация
-- [ ] `McpService`: капабилити `resources` + расширение skills, методы `skills/list`, `skills/get`,
-      `resources/list`, `resources/read`
-- [ ] Тесты `McpSkillCatalogTest`, `McpServiceTest`, `McpResultJsonTest`; обновить существующее
-      ожидание карты расширений и тест неизвестного метода
-- [ ] `docs/contracts/mcp-server.md`, `docs/README.md`, `docs/roadmap.md`
+- [x] DTO результатов и `_meta`-полей; `McpResult` получает новые типы (2026-11-25)
+- [x] `RunCatalog.skillsForAgent(agentId)` — тот же гейт, без сборки тулов (2026-11-25)
+- [x] `McpSkillCatalog`: имена, frontmatter, `SKILL.md`, SHA-256, размер, пагинация (2026-11-25)
+- [x] `McpService`: капабилити `resources` + расширение skills, методы `skills/list`, `skills/get`,
+      `resources/list`, `resources/read` (2026-11-25)
+- [x] Тесты `McpSkillCatalogTest`, `McpServiceTest`, `McpResultJsonTest`; обновить существующее
+      ожидание карты расширений и тест неизвестного метода (2026-11-25)
+- [x] `docs/contracts/mcp-server.md`, `docs/README.md`, `docs/roadmap.md` (2026-11-25)
 
 ### Входящее (фаза 2)
 

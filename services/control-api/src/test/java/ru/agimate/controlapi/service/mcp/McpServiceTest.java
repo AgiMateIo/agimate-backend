@@ -298,11 +298,12 @@ class McpServiceTest {
                 new McpSkillEntry(URI,
                         Map.of("name", "board-workflow", "description", "Ведёт доску."),
                         List.of(new McpSkillResource(URI, "sha256:abc", 42))),
-                "---\nname: board-workflow\ndescription: \"Ведёт доску.\"\n---\n\nHandle the board.\n");
+                "---\nname: \"board-workflow\"\ndescription: \"Ведёт доску.\"\n---\n\nHandle the board.\n");
 
         private void catalogWithSkill() {
             when(skillCatalog.forAgent(AGENT_ID, 0))
                     .thenReturn(new McpSkillCatalog.Page(List.of(entry), null));
+            when(skillCatalog.all(AGENT_ID)).thenReturn(List.of(entry));
         }
 
         @Test
@@ -323,6 +324,28 @@ class McpServiceTest {
         void invalidCursor() {
             assertEquals(JsonRpcError.INVALID_PARAMS,
                     call("skills/list", Map.of("cursor", "abc")).error().code());
+        }
+
+        @Test
+        @DisplayName("пустой курсор — первая страница, а не ошибка")
+        void blankCursorIsFirstPage() {
+            when(skillCatalog.forAgent(AGENT_ID, 0))
+                    .thenReturn(new McpSkillCatalog.Page(List.of(), null));
+
+            SkillsListResult result = (SkillsListResult) call("skills/list", Map.of("cursor", "")).result();
+
+            assertEquals(0, result.skills().size());
+        }
+
+        @Test
+        @DisplayName("числовой курсор уходит в каталог смещением")
+        void passesCursor() {
+            when(skillCatalog.forAgent(AGENT_ID, 2))
+                    .thenReturn(new McpSkillCatalog.Page(List.of(), null));
+
+            call("skills/list", Map.of("cursor", "2"));
+
+            verify(skillCatalog).forAgent(AGENT_ID, 2);
         }
 
         @Test
@@ -347,6 +370,12 @@ class McpServiceTest {
         }
 
         @Test
+        @DisplayName("skills/get без uri → -32602")
+        void getWithoutUri() {
+            assertEquals(JsonRpcError.INVALID_PARAMS, call("skills/get", Map.of()).error().code());
+        }
+
+        @Test
         @DisplayName("resources/list отдаёт SKILL.md как markdown-ресурс")
         void listResources() {
             catalogWithSkill();
@@ -358,6 +387,21 @@ class McpServiceTest {
             assertEquals("board-workflow", result.resources().get(0).name());
             assertEquals("text/markdown", result.resources().get(0).mimeType());
             assertEquals(42L, result.resources().get(0).size());
+        }
+
+        @Test
+        @DisplayName("resources/list не ограничен первой страницей skills/list")
+        void listResourcesUsesAllEntries() {
+            McpSkillCatalog.Entry second = new McpSkillCatalog.Entry(
+                    new McpSkillEntry("skill://second/SKILL.md",
+                            Map.of("name", "second", "description", "Второй."),
+                            List.of(new McpSkillResource("skill://second/SKILL.md", "sha256:def", 7))),
+                    "---\nname: \"second\"\ndescription: \"Второй.\"\n---\n\nbody\n");
+            when(skillCatalog.all(AGENT_ID)).thenReturn(List.of(entry, second));
+
+            ResourcesListResult result = (ResourcesListResult) call("resources/list", Map.of()).result();
+
+            assertEquals(2, result.resources().size());
         }
 
         @Test
@@ -379,6 +423,12 @@ class McpServiceTest {
 
             assertEquals(JsonRpcError.INVALID_PARAMS,
                     call("resources/read", Map.of("uri", "skill://nope/SKILL.md")).error().code());
+        }
+
+        @Test
+        @DisplayName("resources/read без uri → -32602")
+        void readWithoutUri() {
+            assertEquals(JsonRpcError.INVALID_PARAMS, call("resources/read", Map.of()).error().code());
         }
     }
 

@@ -55,13 +55,18 @@ public class McpSkillCatalog {
     public record Page(List<Entry> entries, String nextCursor) {
     }
 
-    /** A page of the agent's skills, ordered like the agent's bindings. */
+    /** A page of the agent's skills, in a stable order by skill id. */
     public Page forAgent(UUID agentId, int offset) {
         List<Entry> all = entries(agentId);
         int from = Math.max(0, Math.min(offset, all.size()));
         int to = Math.min(from + PAGE_SIZE, all.size());
         String next = to < all.size() ? String.valueOf(to) : null;
         return new Page(List.copyOf(all.subList(from, to)), next);
+    }
+
+    /** Every entry, for the base resources listing, which has no cursor here. */
+    public List<Entry> all(UUID agentId) {
+        return entries(agentId);
     }
 
     /** The entry with exactly this URI, or empty — the same catalogue {@link #forAgent} lists. */
@@ -75,7 +80,11 @@ public class McpSkillCatalog {
     }
 
     private List<Entry> entries(UUID agentId) {
-        List<AgentSkillWithConnectorsResponse> bound = runCatalog.skillsForAgent(agentId);
+        List<AgentSkillWithConnectorsResponse> bound = runCatalog.skillsForAgent(agentId).stream()
+                // The repository promises no order; the suffix assignment must not swap URIs between
+                // two requests that list the same skills.
+                .sorted(java.util.Comparator.comparing(AgentSkillWithConnectorsResponse::skillId))
+                .toList();
         if (bound.isEmpty()) {
             return List.of();
         }
@@ -92,7 +101,12 @@ public class McpSkillCatalog {
             if (row == null) {
                 continue;
             }
-            String name = uniqueName(normalizeName(row.getName()), names);
+            String baseName = normalizeName(row.getName());
+            if (names.contains(baseName)) {
+                log.warn("MCP skill name '{}' collides for agent {}; suffixing the later one",
+                        baseName, agentId);
+            }
+            String name = uniqueName(baseName, names);
             String description = description(skill, row);
             String content = render(name, description, row.getMdContent());
             String uri = "skill://" + name + "/SKILL.md";
@@ -118,7 +132,8 @@ public class McpSkillCatalog {
         if (base.length() > MAX_NAME_LENGTH) {
             String tail = Integer.toHexString(base.hashCode());
             int keep = MAX_NAME_LENGTH - tail.length() - 1;
-            base = (base.substring(0, keep) + "-" + tail).replaceAll("-+$", "");
+            String prefix = base.substring(0, keep).replaceAll("-+$", "");
+            base = prefix + "-" + tail;
         }
         return base;
     }
@@ -159,8 +174,8 @@ public class McpSkillCatalog {
     }
 
     private static String render(String name, String description, String body) {
-        String content = "---\nname: " + name + "\ndescription: " + quoted(description) + "\n---\n\n"
-                + (body == null ? "" : body);
+        String content = "---\nname: " + quoted(name) + "\ndescription: " + quoted(description)
+                + "\n---\n\n" + (body == null ? "" : body);
         return content.endsWith("\n") ? content : content + "\n";
     }
 
@@ -176,7 +191,9 @@ public class McpSkillCatalog {
                 case '\r' -> out.append("\\r");
                 case '\t' -> out.append("\\t");
                 default -> {
-                    if (c < 0x20) {
+                    // YAML forbids literal C0/C1 controls; U+2028 and U+2029 are line breaks to
+                    // YAML 1.1 consumers, so they must travel as escapes too.
+                    if (c < 0x20 || (c >= 0x7f && c <= 0x9f) || c == ' ' || c == ' ') {
                         out.append(String.format("\\u%04x", (int) c));
                     } else {
                         out.append(c);

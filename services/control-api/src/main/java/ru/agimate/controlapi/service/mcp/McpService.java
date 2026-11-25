@@ -191,6 +191,7 @@ public class McpService {
         }
         Agent agent = agentService.findById(principal.agentId());
         McpSkillCatalog.Page page = skillCatalog.forAgent(agent.getId(), offset);
+        log.debug("MCP skills/list for agent {}: {} skills", agent.getId(), page.entries().size());
         return JsonRpcResponse.ok(request.id(), new SkillsListResult(
                 page.entries().stream().map(McpSkillCatalog.Entry::skill).toList(),
                 page.nextCursor(), SKILLS_LIST_TTL_MS, CACHE_PRIVATE));
@@ -211,8 +212,8 @@ public class McpService {
 
     private JsonRpcResponse listResources(AgentPrincipal principal, Object requestId) {
         Agent agent = agentService.findById(principal.agentId());
-        McpSkillCatalog.Page page = skillCatalog.forAgent(agent.getId(), 0);
-        List<McpResource> resources = page.entries().stream()
+        List<McpSkillCatalog.Entry> entries = skillCatalog.all(agent.getId());
+        List<McpResource> resources = entries.stream()
                 .map(entry -> {
                     String name = String.valueOf(entry.skill().frontmatter().get("name"));
                     String description = String.valueOf(entry.skill().frontmatter().get("description"));
@@ -244,13 +245,16 @@ public class McpService {
         return value instanceof String text && !text.isBlank() ? text : null;
     }
 
-    /** {@code null} — invalid cursor; absent — the first page. */
+    /** {@code null} — invalid cursor; absent or blank — the first page. */
     private static Integer cursor(Object value) {
         if (value == null) {
             return 0;
         }
-        if (!(value instanceof String text) || text.isBlank()) {
+        if (!(value instanceof String text)) {
             return null;
+        }
+        if (text.isBlank()) {
+            return 0;
         }
         try {
             int parsed = Integer.parseInt(text);
