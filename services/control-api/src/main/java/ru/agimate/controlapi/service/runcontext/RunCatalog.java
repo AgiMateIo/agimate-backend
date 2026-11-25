@@ -179,6 +179,16 @@ public class RunCatalog {
                 onDemand(connections, scope.requiredConnections(), TOOL_LOADER));
     }
 
+    /**
+     * The satisfied skills of an agent, without assembling tools — the same gate {@link #forAgent}
+     * uses, for surfaces that only need the skills (the MCP skills extension).
+     */
+    public List<AgentSkillWithConnectorsResponse> skillsForAgent(UUID agentId) {
+        Agent agent = agentRepository.findById(agentId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
+        return skillScope(agent.getId(), true).skills();
+    }
+
     /** The agent-level catalogue for a call outside a run: the tools of the satisfied skills, nothing route-specific. */
     public Catalog forAgent(UUID agentId) {
         Agent agent = agentRepository.findById(agentId)
