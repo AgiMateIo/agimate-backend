@@ -53,6 +53,10 @@ class McpResultJsonTest {
                 new InitializeResult("2026-07-28", Map.of(), new InitializeResult.ServerInfo("agimate", "1")),
                 new DiscoverResult(List.of("2026-07-28"), Map.of(), 3_600_000L, "public", Map.of()),
                 new ToolsListResult(List.of(), 0, "private"),
+                new SkillsListResult(List.of(), null, 0, "private"),
+                new SkillGetResult(null, 0, "private"),
+                new ResourcesListResult(List.of(), 0, "private"),
+                new ResourceReadResult(List.of(), 0, "private"),
                 ToolCallResult.text("ok", null),
                 ToolCallResult.error("boom"));
 
@@ -61,6 +65,15 @@ class McpResultJsonTest {
             assertTrue(json.contains("\"resultType\":\"complete\""),
                     result.getClass().getSimpleName() + " должен нести дискриминатор: " + json);
         }
+    }
+
+    @Test
+    @DisplayName("skills/list: nextCursor не появляется, когда страница последняя")
+    void skillsListOmitsNullCursor() {
+        String json = mapper.writeValueAsString(new SkillsListResult(List.of(), null, 0, "private"));
+
+        assertTrue(json.contains("\"ttlMs\":0"), json);
+        assertFalse(json.contains("nextCursor"), json);
     }
 
     @Test
