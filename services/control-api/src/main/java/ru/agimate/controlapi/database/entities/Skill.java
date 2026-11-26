@@ -21,15 +21,13 @@ import java.util.UUID;
 
 /**
  * Unique by {@code (user_id, name, language)} among live rows, NULLS NOT DISTINCT — the partial index
- * {@code uq_skills_user_id_name_language_active}, which JPA cannot express. {@code origin_connection_id}
- * is unique across live and soft-deleted rows ({@code uq_skills_origin_connection_id}): an app owns one
- * skill per instance, and a deleted one is not recreated.
+ * {@code uq_skills_user_id_name_language_active}, which JPA cannot express.
+ * {@code connection_skill_id} is unique across live and soft-deleted rows: one copy per declaration,
+ * and a deleted one is not recreated.
  */
 @Entity
-@Table(name = "skills", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_skills_origin_connection_id", columnNames = "origin_connection_id"),
-        @UniqueConstraint(name = "uq_skills_connection_skill_id", columnNames = "connection_skill_id")
-})
+@Table(name = "skills", uniqueConstraints =
+        @UniqueConstraint(name = "uq_skills_connection_skill_id", columnNames = "connection_skill_id"))
 @Getter
 @Setter
 @Builder
@@ -122,16 +120,9 @@ public class Skill extends BaseEntity {
     private Boolean isPublic = false;
 
     /**
-     * The app instance that brought this skill and the instance it always resolves to. Legacy during
-     * the expand migration: new app copies use {@link #connectionSkillId} instead.
-     */
-    @Column(name = "origin_connection_id")
-    private UUID originConnectionId;
-
-    /**
-     * The declared skill this row is a copy of. Replaces {@link #originConnectionId}; the connection is
-     * derived through {@code connection_skills.connection_id}. Unique across live and soft-deleted
-     * rows: a copy deleted by the user is not recreated by the next link.
+     * The declared skill this row is a copy of; the connection is derived through
+     * {@code connection_skills.connection_id}. Unique across live and soft-deleted rows: a copy
+     * deleted by the user is not recreated by the next link.
      */
     @Column(name = "connection_skill_id")
     private UUID connectionSkillId;
@@ -148,9 +139,9 @@ public class Skill extends BaseEntity {
         return deletedAt != null;
     }
 
-    /** A copy brought by a connection, under either the new link or the legacy origin column. */
+    /** A copy brought by a connection. */
     public boolean isAppCopy() {
-        return connectionSkillId != null || originConnectionId != null;
+        return connectionSkillId != null;
     }
 
     /** Distinct connector codes in declaration order — the view of the readers that work by code. */

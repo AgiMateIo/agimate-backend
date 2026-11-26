@@ -835,20 +835,6 @@ class AgentSkillServiceTest {
         private final Connection appA = connection(appAId, "app", "Телефон A");
         private final Connection appB = connection(appBId, "app", "Телефон B");
 
-        private Skill originSkill() {
-            Skill skill = Skill.builder()
-                    .id(SKILL_ID).userId(USER_ID).name("app-desktop").version(1)
-                    .connectors(ConnectorRequirement.ofCodes(List.of("app")))
-                    .originConnectionId(appAId).updatedBy(SkillUpdatedBy.APP)
-                    .build();
-            when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(skill));
-            when(skillRepository.findByIdInNotDeleted(any())).thenReturn(List.of(skill));
-            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(
-                    AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
-                            .userId(USER_ID).skillId(SKILL_ID).build()));
-            return skill;
-        }
-
         private AgentSkillService.RequirementState withheldState() {
             List<AgentSkillService.WithheldSkill> withheld = service.gate(AGENT_ID).withheld();
             assertEquals(1, withheld.size(), "навык должен быть удержан");
@@ -858,7 +844,10 @@ class AgentSkillServiceTest {
         @Test
         @DisplayName("навык разрешается ровно в свой экземпляр, даже если привязан другой app")
         void resolvesToItsOwnInstance() {
-            originSkill();
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any()))
+                    .thenReturn(List.of(declaration(connectionSkillId, appAId, false)));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA, appB));
 
             assertEquals(Map.of(SKILL_ID, Set.of(appAId)), service.gate(AGENT_ID).satisfied());
@@ -867,21 +856,14 @@ class AgentSkillServiceTest {
         @Test
         @DisplayName("свой экземпляр не привязан, другой app привязан → NOT_BOUND")
         void ownInstanceNotBound() {
-            originSkill();
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any()))
+                    .thenReturn(List.of(declaration(connectionSkillId, appAId, false)));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appB));
             when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of(appA));
 
             assertEquals(AgentSkillService.RequirementState.NOT_BOUND, withheldState());
-        }
-
-        @Test
-        @DisplayName("свой экземпляр удалён — навык не подхватывает чужой app, а остаётся без выбора")
-        void deletedOriginDoesNotFallBackToAnotherApp() {
-            originSkill();
-            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appB));
-            when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of());
-
-            assertEquals(AgentSkillService.RequirementState.NOT_CHOSEN, withheldState());
         }
 
         private Skill appCopy(UUID connectionSkillId) {
@@ -976,9 +958,13 @@ class AgentSkillServiceTest {
         }
 
         @Test
-        @DisplayName("привязка навыка форсирует ссылку на origin")
+        @DisplayName("привязка навыка форсирует ссылку на объявленное подключение")
         void bindingForcesOriginReference() {
-            originSkill();
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            ConnectionSkill declaration = declaration(connectionSkillId, appAId, false);
+            when(connectionSkillRepository.findById(connectionSkillId)).thenReturn(Optional.of(declaration));
+            when(connectionSkillRepository.findAllById(any())).thenReturn(List.of(declaration));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA));
 
             service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
@@ -989,16 +975,22 @@ class AgentSkillServiceTest {
         @Test
         @DisplayName("чужой экземпляр в requested → 400")
         void anotherInstanceIsRejected() {
-            originSkill();
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findById(connectionSkillId))
+                    .thenReturn(Optional.of(declaration(connectionSkillId, appAId, false)));
 
             assertThrows(BadRequestStatusException.class,
                     () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("app", appBId), null));
         }
 
         @Test
-        @DisplayName("matches сужается до origin: в мастере не предлагается другой app")
+        @DisplayName("matches сужается до объявленного подключения")
         void matchesNarrowToOrigin() {
-            originSkill();
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any()))
+                    .thenReturn(List.of(declaration(connectionSkillId, appAId, false)));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA, appB));
             when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of(appA, appB));
             when(agentSkillRepository.findByAgentId(eq(AGENT_ID), any(Pageable.class)))
@@ -1014,9 +1006,12 @@ class AgentSkillServiceTest {
         }
 
         @Test
-        @DisplayName("план показывает origin как выбранный экземпляр и объясняет, что он не привязан")
+        @DisplayName("план показывает объявленное подключение выбранным и объясняет, что оно не привязано")
         void planShowsOriginAsChosen() {
-            originSkill();
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any()))
+                    .thenReturn(List.of(declaration(connectionSkillId, appAId, false)));
             when(connectionRepository.findByIdNotDeleted(appAId)).thenReturn(Optional.of(appA));
             when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of(appA, appB));
 

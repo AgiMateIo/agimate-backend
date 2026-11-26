@@ -7,7 +7,6 @@ import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.controlapi.database.model.AppSkill;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -49,11 +48,6 @@ public class App extends BaseEntity {
     @Column(name = "version", columnDefinition = "TEXT")
     private String version;
 
-    /** The last skill declaration the app sent; the skill row is the user's copy of it. */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "skill", columnDefinition = "JSONB")
-    private AppSkill skill;
-
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
@@ -77,14 +71,6 @@ public class App extends BaseEntity {
     @Column(name = "info", columnDefinition = "JSONB")
     private Map<String, Object> info;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "triggers", columnDefinition = "JSONB")
-    private Map<String, Object> triggers;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "tools", columnDefinition = "JSONB")
-    private Map<String, Object> tools;
-
     public boolean isDeleted() {
         return deletedAt != null;
     }
@@ -100,7 +86,5 @@ public class App extends BaseEntity {
     public void disconnect() {
         this.deviceId = null;
         this.info = null;
-        this.triggers = null;
-        this.tools = null;
     }
 }

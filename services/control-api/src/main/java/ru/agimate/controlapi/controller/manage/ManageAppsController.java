@@ -73,7 +73,9 @@ public class ManageAppsController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         var app = appService.getAppById(appId, userId);
-        return SuccessResponse.ok(UserAppDetailResponse.from(app));
+        return SuccessResponse.ok(UserAppDetailResponse.from(app,
+                appService.getToolsByAppIdAndUser(appId, userId),
+                appService.getTriggersByAppIdAndUser(appId, userId)));
     }
 
     @Operation(summary = "Update an app (partial)",

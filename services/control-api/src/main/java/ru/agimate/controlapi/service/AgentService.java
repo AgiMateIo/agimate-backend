@@ -32,6 +32,7 @@ import ru.agimate.controlapi.database.entities.AgentPreset;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.AgentType;
@@ -47,6 +48,7 @@ import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -55,6 +57,7 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.secret.SecretService;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.util.AgentNames;
 import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import ru.agimate.common.security.keys.AppKeyUtils;
@@ -89,6 +92,7 @@ public class AgentService {
     private final ConnectorRegistry connectorRegistry;
     private final ToolDefinitionService toolDefinitionService;
     private final ConnectionTriggerRepository connectionTriggerRepository;
+    private final ConnectionToolRepository connectionToolRepository;
     private final ConnectionAccessEvaluator accessEvaluator;
     private final ConnectionBindingService connectionBindingService;
     private final AgentSkillRepository agentSkillRepository;
@@ -285,25 +289,37 @@ public class AgentService {
         };
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, ToolDefinition> buildToolDefinitionMap(UUID userId) {
         List<App> apps = appRepository.findByUserIdNotDeleted(userId);
         Map<String, ToolDefinition> map = new LinkedHashMap<>();
 
         for (App app : apps) {
-            if (app.getTools() == null) continue;
-            for (var entry : app.getTools().entrySet()) {
-                String toolName = entry.getKey();
-                var value = (Map<String, Object>) entry.getValue();
-                String description = value.getOrDefault("description", "").toString();
-                List<String> params = value.get("params") instanceof List<?> list
-                        ? list.stream().map(Object::toString).toList()
-                        : List.of();
-                map.put(toolName, new ToolDefinition(toolName, description, params));
+            for (ConnectionTool tool : connectionToolRepository.findActiveByConnectionId(app.getId())) {
+                map.put(tool.getName(), new ToolDefinition(
+                        tool.getName(),
+                        tool.getDescription() != null ? tool.getDescription() : "",
+                        paramsOf(tool.getInputSchema())));
             }
         }
 
         return map;
+    }
+
+    private static List<String> paramsOf(String inputSchema) {
+        if (inputSchema == null || inputSchema.isBlank()) {
+            return List.of();
+        }
+        try {
+            var properties = JsonUtils.MAPPER.readTree(inputSchema).get("properties");
+            if (properties == null || !properties.isObject()) {
+                return List.of();
+            }
+            List<String> params = new ArrayList<>();
+            properties.fieldNames().forEachRemaining(params::add);
+            return params;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     @Transactional

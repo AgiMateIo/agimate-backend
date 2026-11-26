@@ -17,9 +17,10 @@ import ru.agimate.controlapi.controller.app.dto.SkillDeclaration;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
+import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.ExecutionKind;
-import ru.agimate.controlapi.database.model.AppSkill;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -32,7 +33,6 @@ import ru.agimate.controlapi.service.dto.AppTool;
 import ru.agimate.controlapi.service.dto.AppTrigger;
 import ru.agimate.common.security.keys.AppKeyUtils;
 import ru.agimate.common.security.keys.GeneratedAppKey;
-import ru.agimate.controlapi.util.StarterTexts;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -194,55 +194,56 @@ public class AppService {
     public List<AppTool> getToolsByAppIdAndUser(UUID appId, UUID userId) {
         var app = appRepository.findByIdAndUserIdNotDeleted(appId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
-        return parseTools(app.getTools());
+        return connectionToolRepository.findActiveByConnectionId(app.getId()).stream()
+                .map(AppService::toAppTool)
+                .toList();
     }
 
     public List<AppTrigger> getTriggersByAppIdAndUser(UUID appId, UUID userId) {
         var app = appRepository.findByIdAndUserIdNotDeleted(appId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
-        return parseTriggers(app.getTriggers());
-    }
-
-
-    @SuppressWarnings("unchecked")
-    private List<AppTool> parseTools(Map<String, Object> tools) {
-        if (tools == null) return List.of();
-        return tools.entrySet().stream()
-                .map(entry -> {
-                    var value = (Map<String, Object>) entry.getValue();
-                    var description = value.getOrDefault("description", "").toString();
-                    return new AppTool(
-                            entry.getKey(),
-                            asString(value.get("title")),
-                            description,
-                            deriveParams(value.get("params"), value.get("inputSchema")),
-                            value.get("inputSchema"),
-                            value.get("outputSchema"),
-                            value.get("annotations"));
-                })
+        return connectionTriggerRepository.findActiveByConnectionId(app.getId()).stream()
+                .map(AppService::toAppTrigger)
                 .toList();
     }
 
-    @SuppressWarnings("unchecked")
-    private List<AppTrigger> parseTriggers(Map<String, Object> triggers) {
-        if (triggers == null) return List.of();
-        return triggers.entrySet().stream()
-                .map(entry -> {
-                    var value = (Map<String, Object>) entry.getValue();
-                    var description = value.getOrDefault("description", "").toString();
-                    return new AppTrigger(
-                            entry.getKey(),
-                            asString(value.get("title")),
-                            description,
-                            deriveParams(value.get("params"), value.get("paramsSchema")),
-                            value.get("paramsSchema"));
-                })
-                .toList();
+    private static AppTool toAppTool(ConnectionTool tool) {
+        Object inputSchema = parseJson(tool.getInputSchema());
+        return new AppTool(
+                tool.getName(),
+                tool.getTitle(),
+                tool.getDescription() != null ? tool.getDescription() : "",
+                deriveParams(null, inputSchema),
+                inputSchema,
+                parseJson(tool.getOutputSchema()),
+                parseJson(tool.getAnnotations()));
     }
 
-    /** Parameter names for the UI: the explicit {@code params} list, else the schema's {@code properties} keys, else empty. */
+    private static AppTrigger toAppTrigger(ConnectionTrigger trigger) {
+        Object paramsSchema = parseJson(trigger.getParamsSchema());
+        return new AppTrigger(
+                trigger.getName(),
+                trigger.getTitle(),
+                trigger.getDescription() != null ? trigger.getDescription() : "",
+                deriveParams(null, paramsSchema),
+                paramsSchema);
+    }
+
+    /** JSONB text from {@code connection_tools}/{@code connection_triggers} back to the wire shape. */
+    private static Object parseJson(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return JsonUtils.MAPPER.readValue(raw, Object.class);
+        } catch (Exception e) {
+            return raw;
+        }
+    }
+
+    /** Parameter names for the UI: the schema's {@code properties} keys, else empty. */
     @SuppressWarnings("unchecked")
-    private List<String> deriveParams(Object params, Object schema) {
+    private static List<String> deriveParams(Object params, Object schema) {
         if (params instanceof List<?> list) {
             return list.stream().map(Object::toString).toList();
         }
@@ -251,11 +252,6 @@ public class AppService {
         }
         return List.of();
     }
-
-    private static String asString(Object value) {
-        return value != null ? value.toString() : null;
-    }
-
 
     /**
      * Declare the device, its catalogue, and — when the client sends the blocks — the app's identity
@@ -292,33 +288,19 @@ public class AppService {
             throw new BadRequestStatusException(
                     "The skill block requires the app block: the skill name is built from app.code");
         }
+        if (hasSkills) {
+            ConnectionSkillSync.validate(declarations);
+        }
         String appCode = linkDeviceRequest.app() != null ? normalizeAppCode(linkDeviceRequest.app().code()) : null;
         String appVersion = linkDeviceRequest.app() != null
                 ? requireText(linkDeviceRequest.app().version(), "app.version") : null;
-        AppSkill legacyDeclaration = null;
-        if (fullReplacement) {
-            SkillDeclaration defaultDeclaration =
-                    linkDeviceRequest.skills().get(ConnectionSkillSync.LEGACY_KEY);
-            legacyDeclaration = defaultDeclaration != null ? toAppSkill(defaultDeclaration) : null;
-        } else if (linkDeviceRequest.skill() != null) {
-            legacyDeclaration = toAppSkill(linkDeviceRequest.skill());
-        }
-
         boolean firstLink = !app.isLinked();
         if (firstLink) {
             app.setDeviceId(linkDeviceRequest.deviceId());
         }
         app.setInfo(buildDeviceFeatures(linkDeviceRequest));
-        app.setTriggers(linkDeviceRequest.triggers());
-        app.setTools(linkDeviceRequest.tools());
         if (linkDeviceRequest.app() != null) {
             applyIdentity(app, appCode, linkDeviceRequest.app().title(), appVersion);
-        }
-        if (fullReplacement) {
-            // The map is the whole catalogue: no default means no legacy declaration either.
-            app.setSkill(legacyDeclaration);
-        } else if (legacyDeclaration != null) {
-            app.setSkill(legacyDeclaration);
         }
         App saved = appRepository.save(app);
         syncAppCatalog(saved.getId(), linkDeviceRequest);
@@ -382,15 +364,6 @@ public class AppService {
                             + "characters, got: '" + raw + "'");
         }
         return code;
-    }
-
-    private static AppSkill toAppSkill(SkillDeclaration skill) {
-        return new AppSkill(
-                blankToNull(skill.title()),
-                requireText(skill.description(), "skill.description"),
-                requireText(skill.body(), "skill.body"),
-                StarterTexts.starters(skill.starters(), StarterTexts.MAX_SKILL_STARTERS, "app skill"),
-                skill.language());
     }
 
     private static String requireText(String value, String field) {

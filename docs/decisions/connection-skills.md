@@ -1,5 +1,5 @@
 ---
-status: partial
+status: implemented
 created: 2026-11-26
 updated: 2026-11-26
 ---
@@ -88,16 +88,17 @@ updated: 2026-11-26
 - Новая nullable-колонка `UUID` + FK `fk_skills_connection_skill` на `connection_skills(id)`.
 - `uq_skills_connection_skill_id` — уникальность **включая soft-deleted**: у объявления одна копия,
   и удаление копии пользователем не воскрешается следующей линковкой.
-- `origin_connection_id` и `uq_skills_origin_connection_id` живут до конца перехода (см.
-  «Миграция»), затем удаляются. Новый код читает `connection_skill_id`, старый — `origin`.
+- `origin_connection_id` и его уникальность удалены contract-миграцией; единственный указатель —
+  `connection_skill_id`.
 - `updated_by` остаётся: `APP` — текст обновляется при линковке, `USER` — нет.
 
 ### `apps`
 
-`apps.skill` (JSONB) перестаёт быть источником: его заменяет `connection_skills`. На переходный
-период колонка остаётся и заполняется для legacy-блока `skill` и для `skills.default`; после
-выпуска удаляется. `apps` продолжает хранить `code`/`title`/`version`, `tools`, `triggers`,
-`deviceId`/`info`.
+`apps.skill`, `apps.tools` и `apps.triggers` удалены contract-миграцией: источник каталога —
+`connection_skills`/`connection_tools`/`connection_triggers`. `apps` хранит только
+`code`/`title`/`version`, `description`, `deviceId`/`info`, ключи и состояние. Читатели
+`UserAppDetailResponse`, `GET /manage/apps/{id}/tools|triggers` и
+`AgentService.buildToolDefinitionMap` переведены на нормализованные таблицы.
 
 ## Синхронизация
 
@@ -114,17 +115,12 @@ updated: 2026-11-26
    - копия жива и `updated_by = APP` — обновляет title/description/тело/стартеры, `version++`;
    - копия жива и `updated_by = USER` — не трогает;
    - копия soft-deleted — не воскрешает: удаление пользователем окончательное.
-5. **Adoption.** Если копии по `connection_skill_id` нет, но у этого же подключения есть legacy
-   origin-копия того же `default` (живая или soft-deleted), sync проставляет ей
-   `connection_skill_id` и использует её вместо создания второй. Это закрывает и старые строки,
-   не попавшие в backfill, и гонку rolling deploy, когда старый экземпляр успел создать копию
-   после миграции.
-6. При удалении приложения проходит по всем объявлениям подключения и удаляет их копии, **пропуская
+5. При удалении приложения проходит по всем объявлениям подключения и удаляет их копии, **пропуская
    уже soft-deleted**. `SkillService.delete` на удалённой строке отвечает 404, поэтому вызов
    подряд без проверки откатил бы всю транзакцию удаления приложения.
 
-Инвариант: после backfill и после каждого sync не существует строки `skills` с заполненным
-`origin_connection_id` и пустым `connection_skill_id`. Его проверяет миграция и тест sync.
+Инвариант: каждая копия подключения имеет `connection_skill_id`; origin-колонки в схеме больше
+нет.
 
 ## Линковка
 
@@ -168,10 +164,8 @@ updated: 2026-11-26
 - Legacy-блок `skill` (один объект без ключа) принимается как объявление ключа `default` и
   **обновляет только его**, не трогая остальные ключи. Так старый клиент не стирает навыки,
   объявленные новым. `skill` и `skills` в одном запросе — `400`.
-- `skills.default`, пришедший в карте, обрабатывается **ровно как legacy `skill`**: кроме
-  `connection_skills` он пишет legacy-колонки `apps.skill` и `origin_connection_id` у копии
-  `default` на время перехода. Иначе новый клиент, перешедший на `skills`, потерял бы обещание
-  отката: старый код прочитал бы устаревший `apps.skill`, а копия осталась бы без origin.
+- `skills.default` — обычное объявление ключа `default`; legacy-колонок, куда бы оно
+  дополнительно писало, в текущей схеме нет.
 - Контракт клиента: **ключи стабильны**. Первая версия клиента, переходящая с `skill` на `skills`,
   обязана прислать `default` вместе с новыми ключами; иначе старое объявление исчезнет, а его
   копия `app-<code>` заморозится и останется рядом с новыми — дубль. Переименование ключа
@@ -238,13 +232,10 @@ updated: 2026-11-26
   ветка «любое подключение кода» не должна срабатывать.
 - `AgentSkillService.resolveConnection`: ссылка привязки форсируется на это подключение; чужой id
   в запросе — `400`.
-- `SkillSpecs.fitsConnection`: точный предикат
-  `(skills.connection_skill_id IS NOT NULL AND EXISTS (SELECT 1 FROM connection_skills cs WHERE cs.id = skills.connection_skill_id AND cs.connection_id = :connectionId))`
-  `OR (skills.connection_skill_id IS NULL AND (skills.origin_connection_id IS NULL OR skills.origin_connection_id = :connectionId))`.
-  Добавлять подзапрос к старой ветке нельзя: у копий, кроме `default`, `origin` пуст, и они
-  начнут матчиться с любым `app`-подключением.
+- `SkillSpecs.fitsConnection`: копия с `connection_skill_id` матчится только через объявление;
+  пользовательский навык без него — с любым подходящим подключением, как раньше.
 - `matches` мастера: если `connectionSkillId != null`, список сужается до выведенного подключения;
-  иначе работает прежнее правило origin. Копия от приложения A не появляется на странице B.
+  иначе работает прежнее правило кода и params. Копия от приложения A не появляется на странице B.
 - `SkillOriginResponse` получает `connectionSkillId` и `key`; остальные поля (`connectionId`,
   `code`, `title`, `version`, `deviceName`) считаются как раньше.
 
@@ -253,9 +244,8 @@ updated: 2026-11-26
 `agent_connections`. Без неё копия приходит агенту как `NOT_BOUND` — это существующее правило
 `skill-binding-opens-internal-connectors.md`, и оно не меняется.
 
-Во время перехода код поддерживает оба указателя: если `connectionSkillId` пуст, а
-`originConnectionId` заполнен, origin выводится из старой колонки. После contract-миграции остаётся
-только новый путь.
+Contract-миграция оставляет только путь через `connectionSkillId`; `originConnectionId` в коде и
+БД больше нет.
 
 ## Ран
 
@@ -274,9 +264,10 @@ updated: 2026-11-26
 
 ## Миграция и обратная совместимость
 
-Миграция — expand/contract, двумя выпусками.
+Миграция — expand/contract, выполнена в одном выпуске: expand добавил и заполнил новые колонки,
+contract сразу удалил legacy. Ниже — история обеих фаз.
 
-### Expand (этот выпуск)
+### Expand (выполнен)
 
 1. Создать `connection_skills`.
 2. Добавить `skills.connection_skill_id` (nullable) и FK; уникальность пока не добавлять.
@@ -302,11 +293,18 @@ updated: 2026-11-26
    любое `app`-подключение. Это осознанная цена; откат безопасен только для приложений с одним
    legacy-навыком.
 
-### Contract (следующий выпуск)
+### Contract (выполнен)
 
-- Удалить `uq_skills_origin_connection_id`, FK и колонку `skills.origin_connection_id`.
-- Удалить `apps.skill` и модель `AppSkill`.
-- Убрать legacy-ветку чтения origin из `AgentSkillService`/`SkillSpecs`/`SkillService`.
+- Удалены `uq_skills_origin_connection_id`, FK и колонка `skills.origin_connection_id`.
+- Удалены `apps.skill`, `apps.tools`, `apps.triggers` и модель `AppSkill`: источник каталога
+  подключения — `connection_skills`/`connection_tools`/`connection_triggers`.
+- Перед удалением повторно добиты `connection_skills` из `apps.skill`/origin-копий, а
+  `connection_tools`/`connection_triggers` — из JSONB там, где у подключения ещё нет живых строк.
+- Читатели JSONB переведены на нормализованные таблицы: `UserAppDetailResponse`,
+  `GET /manage/apps/{id}/tools|triggers` и `AgentService.buildToolDefinitionMap`.
+- Legacy-ветка чтения origin убрана из `AgentSkillService`/`SkillSpecs`/`SkillService`.
+- Старый код после contract не откатывается; legacy-блок `skill` в запросе остаётся alias'ом на
+  `default` и продолжает работать со старыми клиентами.
 
 ### Совместимость
 
@@ -318,13 +316,12 @@ updated: 2026-11-26
   включается только после выката control-api, клиенты выпускаются после сервера. Отдельного эха
   принятых ключей или проверки версии в протоколе нет — сознательно не усложняем; цена — молчаливая
   потеря навыков при линковке на старый сервер, которую ловит порядок выката, а не ответ.
-- **Обратная совместимость — для клиентов и данных, не для отката кода.** Пока у приложения один
-  legacy-навык, старый код продолжает работать через `origin_connection_id` и `apps.skill`. После
-  первого multi-skill откат на старый код не поддержан: старый код не знает `connection_skill_id`
-  и увидит копии без origin. Expand-колонки остаются ради чтения старых строк и отката
-  одно-навыковых приложений, а не ради полноценного даунгрейда.
-- `skills.connection_skill_id` — единственный источник истины после переключения; `origin` остаётся
-  только для отката и чтения старых строк.
+- **Обратная совместимость — для клиентов, не для отката кода.** Старый клиент с `skill` продолжает
+  работать: блок превращается в объявление `default`. Откат на старый код после contract
+  невозможен — колонок `origin_connection_id`, `apps.skill`, `apps.tools` и `apps.triggers` больше
+  нет. Перед выкатом нужен дамп.
+- `skills.connection_skill_id` — единственный источник истины; `connection_*` — единственный
+  каталог подключения.
 
 ## Альтернативы
 
@@ -375,5 +372,5 @@ updated: 2026-11-26
       удаление приложения с уже удалённой копией, лимит 32, инвариант миграции
 - [x] Документация: `app-skills.md` (пометка о замене), `connectors.md` (раздел APP),
       `mcp-skills.md` (синхронизировать таблицу с общей схемой), `roadmap.md`, `docs/README.md`
-- [ ] Contract-миграция: удалить `origin_connection_id`, `apps.skill`, legacy-ветки (следующий
-      выпуск)
+- [x] Contract-миграция: удалить `origin_connection_id`, `apps.skill`, `apps.tools`, `apps.triggers`,
+      legacy-ветки; читателей JSONB перевести на `connection_*`

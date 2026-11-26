@@ -403,11 +403,11 @@ public class SkillService {
     }
 
     private static UUID originConnectionId(Skill skill, Map<UUID, ConnectionSkill> connectionSkills) {
-        if (skill.getConnectionSkillId() != null) {
-            ConnectionSkill connectionSkill = connectionSkills.get(skill.getConnectionSkillId());
-            return connectionSkill != null ? connectionSkill.getConnectionId() : null;
+        if (skill.getConnectionSkillId() == null) {
+            return null;
         }
-        return skill.getOriginConnectionId();
+        ConnectionSkill connectionSkill = connectionSkills.get(skill.getConnectionSkillId());
+        return connectionSkill != null ? connectionSkill.getConnectionId() : null;
     }
 
     private static String deviceName(Map<String, Object> info) {

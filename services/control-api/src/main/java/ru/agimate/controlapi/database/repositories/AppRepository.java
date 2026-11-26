@@ -41,9 +41,6 @@ public interface AppRepository extends JpaRepository<App, UUID> {
     @Query("SELECT a FROM App a WHERE a.userId = :userId AND a.deletedAt IS NULL ORDER BY a.createdAt DESC")
     Page<App> findByUserIdNotDeleted(@Param("userId") UUID userId, Pageable pageable);
 
-    @Query("SELECT a FROM App a WHERE a.userId = :userId AND a.deletedAt IS NULL AND (a.deviceId IS NOT NULL OR a.triggers IS NOT NULL OR a.tools IS NOT NULL) ORDER BY a.createdAt DESC")
-    List<App> findWithCapabilitiesByUserId(@Param("userId") UUID userId);
-
     @Query("SELECT a FROM App a WHERE a.keyId = :keyId AND a.deletedAt IS NULL AND a.enabled = true")
     Optional<App> findActiveKeyByKeyId(@Param("keyId") String keyId);
 

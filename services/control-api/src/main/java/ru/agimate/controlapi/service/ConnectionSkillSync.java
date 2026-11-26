@@ -61,10 +61,7 @@ public class ConnectionSkillSync {
         if (declarations == null) {
             return;
         }
-        if (declarations.size() > MAX_SKILLS) {
-            throw new BadRequestStatusException(
-                    "At most " + MAX_SKILLS + " skills per app, got " + declarations.size());
-        }
+        validate(declarations);
 
         List<ConnectionSkill> existing = connectionSkillRepository.findByConnectionIdOrderByNameAsc(connectionId);
         Map<String, ConnectionSkill> byUri = new LinkedHashMap<>();
@@ -85,9 +82,7 @@ public class ConnectionSkillSync {
         }
         for (Map.Entry<String, SkillDeclaration> entry : declarations.entrySet()) {
             String key = entry.getKey();
-            validateKey(key);
             SkillDeclaration declaration = entry.getValue();
-            validateDeclaration(key, declaration);
 
             String uri = uri(connectionId, key);
             declaredUris.add(uri);
@@ -124,10 +119,6 @@ public class ConnectionSkillSync {
         List<ConnectionSkill> connectionSkills =
                 connectionSkillRepository.findByConnectionIdOrderByNameAsc(connectionId);
 
-        skillRepository.findByOriginConnectionId(connectionId)
-                .filter(copy -> copy.getConnectionSkillId() == null && !copy.isDeleted())
-                .ifPresent(copy -> skillService.delete(copy.getId(), userId, false));
-
         LocalDateTime now = LocalDateTime.now();
         for (ConnectionSkill connectionSkill : connectionSkills) {
             skillRepository.findByConnectionSkillId(connectionSkill.getId())
@@ -143,16 +134,6 @@ public class ConnectionSkillSync {
     private void ensureCopy(ConnectionSkill connectionSkill, UUID userId, String appCode, String appTitle,
                             boolean legacyDefault) {
         Skill copy = skillRepository.findByConnectionSkillId(connectionSkill.getId()).orElse(null);
-        if (copy == null && legacyDefault) {
-            copy = skillRepository.findByOriginConnectionId(connectionSkill.getConnectionId()).orElse(null);
-            if (copy != null) {
-                // Adoption: an old writer created this copy before the declaration existed, or the
-                // backfill missed it. Linking it keeps the name and the user's bindings intact.
-                copy.setConnectionSkillId(connectionSkill.getId());
-                copy = skillRepository.save(copy);
-            }
-        }
-
         if (copy != null) {
             if (copy.isDeleted() || copy.getUpdatedBy() == SkillUpdatedBy.USER) {
                 return;
@@ -173,7 +154,6 @@ public class ConnectionSkillSync {
                 .userId(userId)
                 .isPublic(false)
                 .connectionSkillId(connectionSkill.getId())
-                .originConnectionId(legacyDefault ? connectionSkill.getConnectionId() : null)
                 .updatedBy(SkillUpdatedBy.APP)
                 .build();
         skillRepository.save(created);
@@ -187,9 +167,6 @@ public class ConnectionSkillSync {
         copy.setMdContent(connectionSkill.getContent());
         copy.setStarters(new ArrayList<>(connectionSkill.getStarters()));
         copy.setVersion((copy.getVersion() == null ? 0 : copy.getVersion()) + 1);
-        if (legacyDefault) {
-            copy.setOriginConnectionId(connectionSkill.getConnectionId());
-        }
         skillRepository.save(copy);
         log.info("Refreshed app skill copy '{}' version={}", copy.getName(), copy.getVersion());
     }
@@ -242,6 +219,23 @@ public class ConnectionSkillSync {
         frontmatter.put("starters", declaration.starters() == null ? List.of() : declaration.starters());
         frontmatter.put("language", declaration.language() != null ? declaration.language().name() : null);
         return frontmatter;
+    }
+
+    /** Pure validation shared by the link path (before the app row is written) and by {@link #sync}. */
+    public static void validate(Map<String, SkillDeclaration> declarations) {
+        if (declarations == null) {
+            return;
+        }
+        if (declarations.size() > MAX_SKILLS) {
+            throw new BadRequestStatusException(
+                    "At most " + MAX_SKILLS + " skills per app, got " + declarations.size());
+        }
+        for (Map.Entry<String, SkillDeclaration> entry : declarations.entrySet()) {
+            validateKey(entry.getKey());
+            validateDeclaration(entry.getKey(), entry.getValue());
+            StarterTexts.starters(entry.getValue().starters(), StarterTexts.MAX_SKILL_STARTERS,
+                    "skill " + entry.getKey());
+        }
     }
 
     private static void validateKey(String key) {

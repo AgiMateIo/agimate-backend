@@ -52,9 +52,8 @@ public class SkillSpecs {
      * connection would satisfy the requirement by code. Not indexed, as with
      * {@link #hasConnector(String)}.
      *
-     * <p>A copy with {@code connection_skill_id} is matched through its declaration, never through
-     * {@code origin_connection_id = NULL}: every copy except the legacy {@code default} has no origin,
-     * and the old fallback would show it on every app's page.
+     * <p>A copy with {@code connection_skill_id} is matched only through its declaration; a user
+     * skill without one matches any fitting connection, as before.
      */
     public static Specification<Skill> fitsConnection(UUID connectionId) {
         return (root, query, cb) -> {
@@ -75,9 +74,7 @@ public class SkillSpecs {
                     cb.exists(fitting),
                     cb.or(
                             cb.and(cb.isNotNull(root.get("connectionSkillId")), cb.exists(declared)),
-                            cb.and(cb.isNull(root.get("connectionSkillId")),
-                                    cb.or(cb.isNull(root.get("originConnectionId")),
-                                            cb.equal(root.get("originConnectionId"), connectionId)))));
+                            cb.isNull(root.get("connectionSkillId"))));
         };
     }
 

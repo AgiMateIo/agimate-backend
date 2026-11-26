@@ -83,7 +83,6 @@ class ConnectionSkillSyncTest {
         assertEquals(ContentCategory.PLATFORM, screenshot.getCategory());
         assertEquals(List.of("app"), screenshot.getConnectorCodes());
         assertEquals(List.of("Сделай скриншот"), screenshot.getStarters());
-        assertNull(screenshot.getOriginConnectionId());
         assertEquals("Screenshots", screenshot.getTitle());
     }
 
@@ -165,36 +164,8 @@ class ConnectionSkillSyncTest {
     }
 
     @Test
-    @DisplayName("усыновляет legacy origin-копию вместо создания второй")
-    void adoptsLegacyOriginCopy() {
-        ConnectionSkill existing = connectionSkill("default", "Старое", "Старое тело");
-        Skill legacy = Skill.builder()
-                .id(UUID.randomUUID())
-                .name("app-desktop")
-                .originConnectionId(CONNECTION_ID)
-                .updatedBy(SkillUpdatedBy.APP)
-                .version(2)
-                .build();
-
-        when(connectionSkillRepository.findByConnectionIdOrderByNameAsc(CONNECTION_ID))
-                .thenReturn(List.of(existing));
-        when(connectionSkillRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(skillRepository.findByConnectionSkillId(existing.getId())).thenReturn(Optional.empty());
-        when(skillRepository.findByOriginConnectionId(CONNECTION_ID)).thenReturn(Optional.of(legacy));
-        when(skillRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-
-        sync.sync(CONNECTION_ID, USER_ID, "desktop", null, Map.of(
-                "default", declaration(null, "Новое описание", "Новое тело")), false);
-
-        assertEquals(existing.getId(), legacy.getConnectionSkillId());
-        assertEquals("Новое описание", legacy.getDescription());
-        assertEquals(3, legacy.getVersion());
-        verify(skillRepository, times(2)).save(legacy);
-    }
-
-    @Test
-    @DisplayName("legacy default сохраняет имя app-<code> и origin")
-    void legacyDefaultKeepsNameAndOrigin() {
+    @DisplayName("legacy default сохраняет имя app-<code>")
+    void legacyDefaultKeepsName() {
         when(connectionSkillRepository.findByConnectionIdOrderByNameAsc(CONNECTION_ID)).thenReturn(List.of());
         when(connectionSkillRepository.save(any())).thenAnswer(invocation -> {
             ConnectionSkill connectionSkill = invocation.getArgument(0);
@@ -202,7 +173,6 @@ class ConnectionSkillSyncTest {
             return connectionSkill;
         });
         when(skillRepository.findByConnectionSkillId(any())).thenReturn(Optional.empty());
-        when(skillRepository.findByOriginConnectionId(CONNECTION_ID)).thenReturn(Optional.empty());
         when(skillRepository.existsByKeyNotDeleted(any(), any(), isNull())).thenReturn(false);
 
         sync.sync(CONNECTION_ID, USER_ID, "desktop", null, Map.of(
@@ -212,7 +182,6 @@ class ConnectionSkillSyncTest {
         verify(skillRepository).save(copy.capture());
         assertEquals("app-desktop", copy.getValue().getName());
         assertEquals("desktop", copy.getValue().getTitle());
-        assertEquals(CONNECTION_ID, copy.getValue().getOriginConnectionId());
     }
 
     @Test
@@ -224,7 +193,6 @@ class ConnectionSkillSyncTest {
 
         when(connectionSkillRepository.findByConnectionIdOrderByNameAsc(CONNECTION_ID))
                 .thenReturn(List.of(connectionSkill));
-        when(skillRepository.findByOriginConnectionId(CONNECTION_ID)).thenReturn(Optional.empty());
         when(skillRepository.findByConnectionSkillId(connectionSkill.getId())).thenReturn(Optional.of(deleted));
         when(connectionSkillRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -243,7 +211,6 @@ class ConnectionSkillSyncTest {
 
         when(connectionSkillRepository.findByConnectionIdOrderByNameAsc(CONNECTION_ID))
                 .thenReturn(List.of(connectionSkill));
-        when(skillRepository.findByOriginConnectionId(CONNECTION_ID)).thenReturn(Optional.empty());
         when(skillRepository.findByConnectionSkillId(connectionSkill.getId())).thenReturn(Optional.of(live));
         when(connectionSkillRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 

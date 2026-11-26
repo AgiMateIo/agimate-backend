@@ -17,11 +17,12 @@ import ru.agimate.controlapi.controller.app.dto.LinkDeviceRequest;
 import ru.agimate.controlapi.controller.app.dto.SkillDeclaration;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
+import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
 import ru.agimate.controlapi.database.enums.ExecutionKind;
-import ru.agimate.controlapi.database.model.AppSkill;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -30,6 +31,8 @@ import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.dto.AppCreateResult;
+import ru.agimate.controlapi.service.dto.AppTool;
+import ru.agimate.controlapi.service.dto.AppTrigger;
 
 import java.util.List;
 import java.util.Map;
@@ -188,7 +191,6 @@ class AppServiceTest {
             assertSame(app, result);
             assertTrue(app.isLinked());
             assertNull(app.getCode());
-            assertNull(app.getSkill());
             verifyNoInteractions(connectionSkillSync);
             assertEquals("app_" + APP_ID, connection.getFullCode());
             verify(connectionRepository, never()).existsByFullCodeAndUserIdAndDeletedAtIsNull(anyString(), any());
@@ -206,7 +208,6 @@ class AppServiceTest {
             assertEquals("desktop", app.getCode());
             assertEquals("AgiMate Desktop", app.getTitle());
             assertEquals("1.4.2", app.getVersion());
-            assertNotNull(app.getSkill());
             assertEquals("app_desktop", connection.getFullCode());
             assertEquals("desktop", connection.getSubCode());
             assertEquals("AgiMate Desktop", connection.getName());
@@ -299,18 +300,15 @@ class AppServiceTest {
         }
 
         @Test
-        @DisplayName("без блока skill apps.skill не меняется и навык не трогается")
-        void missingSkillBlockKeepsDeclaration() {
-            AppSkill stored = new AppSkill("T", "d", "b", List.of(), ContentLanguage.EN);
+        @DisplayName("без блока skill каталог навыков не меняется")
+        void missingSkillBlockKeepsCatalogue() {
             App app = app("dev-0", "desktop", "AgiMate Desktop", "1.0");
-            app.setSkill(stored);
             when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
             when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID))
                     .thenReturn(Optional.of(connection("app_desktop", "desktop")));
 
             service.linkDevice(PRINCIPAL, request("dev-0", appDeclaration("desktop"), null));
 
-            assertSame(stored, app.getSkill());
             verifyNoInteractions(connectionSkillSync);
         }
 
@@ -394,12 +392,11 @@ class AppServiceTest {
             service.linkDevice(PRINCIPAL, requestWithSkills("dev-1", appDeclaration("desktop"), skills));
 
             verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop", skills, true);
-            assertNull(app.getSkill());
         }
 
         @Test
-        @DisplayName("skills.default пишет legacy apps.skill")
-        void skillsDefaultWritesLegacyDeclaration() {
+        @DisplayName("skills.default передаётся как обычное объявление")
+        void skillsDefaultIsDeclaration() {
             App app = app(null, null, null, null);
             when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
             when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID))
@@ -410,8 +407,6 @@ class AppServiceTest {
 
             service.linkDevice(PRINCIPAL, requestWithSkills("dev-1", appDeclaration("desktop"), skills));
 
-            assertNotNull(app.getSkill());
-            assertEquals("Takes screenshots", app.getSkill().description());
             verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop", skills, true);
         }
 
@@ -438,19 +433,62 @@ class AppServiceTest {
         }
 
         @Test
-        @DisplayName("пустая карта skills очищает legacy-объявление")
-        void emptySkillsClearsLegacyDeclaration() {
-            AppSkill stored = new AppSkill("T", "d", "b", List.of(), ContentLanguage.EN);
+        @DisplayName("пустая карта skills очищает каталог")
+        void emptySkillsClearsCatalogue() {
             App app = app(null, null, null, null);
-            app.setSkill(stored);
             when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
             when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID))
                     .thenReturn(Optional.of(connection("app_" + APP_ID, null)));
 
             service.linkDevice(PRINCIPAL, requestWithSkills("dev-1", appDeclaration("desktop"), Map.of()));
 
-            assertNull(app.getSkill());
             verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop", Map.of(), true);
+        }
+    }
+
+
+    @Nested
+    @DisplayName("каталог приложения")
+    class Catalogue {
+
+        @Test
+        @DisplayName("тулы читаются из connection_tools, а не из JSONB")
+        void toolsComeFromConnectionTools() {
+            App app = app("dev-0", "desktop", "AgiMate Desktop", "1.0");
+            when(appRepository.findByIdAndUserIdNotDeleted(APP_ID, USER_ID)).thenReturn(Optional.of(app));
+            when(connectionToolRepository.findActiveByConnectionId(APP_ID)).thenReturn(List.of(
+                    ConnectionTool.builder()
+                            .connectionId(APP_ID).name("screenshot").title("Screenshot")
+                            .description("Take a screenshot")
+                            .inputSchema("{\"type\":\"object\",\"properties\":{\"monitor\":{}}}")
+                            .build()));
+
+            List<AppTool> tools = service.getToolsByAppIdAndUser(APP_ID, USER_ID);
+
+            assertEquals(1, tools.size());
+            assertEquals("screenshot", tools.get(0).name());
+            assertEquals("Screenshot", tools.get(0).title());
+            assertEquals(List.of("monitor"), tools.get(0).params());
+            assertTrue(tools.get(0).inputSchema() instanceof java.util.Map<?, ?>);
+        }
+
+        @Test
+        @DisplayName("триггеры читаются из connection_triggers, а не из JSONB")
+        void triggersComeFromConnectionTriggers() {
+            App app = app("dev-0", "desktop", "AgiMate Desktop", "1.0");
+            when(appRepository.findByIdAndUserIdNotDeleted(APP_ID, USER_ID)).thenReturn(Optional.of(app));
+            when(connectionTriggerRepository.findActiveByConnectionId(APP_ID)).thenReturn(List.of(
+                    ConnectionTrigger.builder()
+                            .connectionId(APP_ID).name("file_created").title("File created")
+                            .description("A file appeared")
+                            .paramsSchema("{\"type\":\"object\",\"properties\":{\"path\":{}}}")
+                            .build()));
+
+            List<AppTrigger> triggers = service.getTriggersByAppIdAndUser(APP_ID, USER_ID);
+
+            assertEquals(1, triggers.size());
+            assertEquals("file_created", triggers.get(0).name());
+            assertEquals(List.of("path"), triggers.get(0).params());
         }
     }
 

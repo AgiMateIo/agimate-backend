@@ -763,10 +763,8 @@ public class AgentSkillService {
         // An app skill owns exactly its origin instance: the reference is forced the way an internal
         // connector's mode row is, and a different id is a client error rather than a silent correction.
         if (skill.isAppCopy()) {
-            UUID origin = skill.getConnectionSkillId() != null
-                    ? connectionSkillRepository.findById(skill.getConnectionSkillId())
-                            .map(ConnectionSkill::getConnectionId).orElse(null)
-                    : skill.getOriginConnectionId();
+            UUID origin = connectionSkillRepository.findById(skill.getConnectionSkillId())
+                    .map(ConnectionSkill::getConnectionId).orElse(null);
             if (origin == null) {
                 return Optional.empty();
             }
@@ -818,11 +816,11 @@ public class AgentSkillService {
     }
 
     private static UUID originConnectionId(Skill skill, Map<UUID, ConnectionSkill> connectionSkills) {
-        if (skill.getConnectionSkillId() != null) {
-            ConnectionSkill connectionSkill = connectionSkills.get(skill.getConnectionSkillId());
-            return connectionSkill != null ? connectionSkill.getConnectionId() : null;
+        if (skill.getConnectionSkillId() == null) {
+            return null;
         }
-        return skill.getOriginConnectionId();
+        ConnectionSkill connectionSkill = connectionSkills.get(skill.getConnectionSkillId());
+        return connectionSkill != null ? connectionSkill.getConnectionId() : null;
     }
 
     /** What the statuses need beyond the resolution: the user's connections to offer, the catalogue for names. */

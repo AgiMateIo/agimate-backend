@@ -116,6 +116,3 @@
   отдаются по расширению skills; дальше prompts, приём навыков чужих MCP-серверов, агент как тул в
   чужом клиенте, client-credentials для безголовых клиентов.
   → [mcp-skills.md](decisions/mcp-skills.md), [mcp-server.md](contracts/mcp-server.md)
-- **Несколько навыков у приложения.** `connection_skills` рядом с `connection_tools`, пользовательские
-  копии в `skills` через `connection_skill_id`; снять ограничение «один навык на приложение»,
-  стартеры, expand/contract-миграция. → [connection-skills.md](decisions/connection-skills.md)

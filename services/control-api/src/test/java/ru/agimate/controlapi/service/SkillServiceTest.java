@@ -417,11 +417,15 @@ class SkillServiceTest {
             UUID originId = UUID.randomUUID();
             Skill plain = Skill.builder().id(SKILL_ID).userId(USER_ID).name("plain").version(1)
                     .connectors(List.of()).build();
+            UUID connectionSkillId = UUID.randomUUID();
             Skill fromApp = Skill.builder().id(UUID.randomUUID()).userId(USER_ID).name("app-desktop")
                     .version(1).connectors(ConnectorRequirement.ofCodes(List.of("app")))
-                    .originConnectionId(originId).build();
+                    .connectionSkillId(connectionSkillId).build();
             when(skillRepository.findAll(any(Specification.class), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(plain, fromApp)));
+            when(connectionSkillRepository.findAllById(any())).thenReturn(List.of(
+                    ConnectionSkill.builder().id(connectionSkillId).connectionId(originId)
+                            .name("default").uri("app://" + originId + "/default").build()));
             when(connectionRepository.findByIdInNotDeleted(any())).thenReturn(List.of(
                     Connection.builder().id(originId).connectorCode("app").build()));
             when(appRepository.findAllByIdInNotDeleted(any())).thenReturn(List.of(
@@ -440,18 +444,22 @@ class SkillServiceTest {
     class AppBroughtSkills {
 
         private final UUID originId = UUID.randomUUID();
+        private final UUID connectionSkillId = UUID.randomUUID();
 
         @BeforeEach
         void knownConnectors() {
             lenient().when(connectorRepository.existsById("app")).thenReturn(true);
             lenient().when(connectorRepository.existsById("board")).thenReturn(true);
+            lenient().when(connectionSkillRepository.findAllById(any())).thenReturn(List.of(
+                    ConnectionSkill.builder().id(connectionSkillId).connectionId(originId)
+                            .name("default").uri("app://" + originId + "/default").build()));
         }
 
         private Skill originSkill(SkillUpdatedBy updatedBy) {
             return Skill.builder().id(SKILL_ID).userId(USER_ID).name("app-desktop").version(1)
                     .title("Old title").description("old description").mdContent("old body")
                     .connectors(ConnectorRequirement.ofCodes(List.of("app")))
-                    .originConnectionId(originId).updatedBy(updatedBy).build();
+                    .connectionSkillId(connectionSkillId).updatedBy(updatedBy).build();
         }
 
         private String md(String name, String connectors) {

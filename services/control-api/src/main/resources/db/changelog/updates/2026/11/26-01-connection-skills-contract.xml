@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Contract for docs/decisions/connection-skills.md. Before dropping the JSONB columns the
+         migration repeats the idempotent backfill, then refuses to continue if any live app would
+         lose its catalogue. Old code cannot run after this file; old clients keep working through
+         the request-level `skill` alias mapped to `default`. -->
+    <changeSet id="backfill-connection-skills-before-contract" author="agimate">
+        <sql>
+            INSERT INTO connection_skills
+                (id, connection_id, uri, name, title, description, starters, language, frontmatter,
+                 content, content_size, discovered_at)
+            SELECT uuidv7(),
+                   a.id,
+                   'app://' || a.id || '/default',
+                   'default',
+                   a.skill ->> 'title',
+                   a.skill ->> 'description',
+                   COALESCE(ARRAY(SELECT jsonb_array_elements_text(a.skill -> 'starters')), '{}'::text[]),
+                   a.skill ->> 'language',
+                   jsonb_build_object(
+                           'name', 'default',
+                           'title', a.skill ->> 'title',
+                           'description', a.skill ->> 'description',
+                           'starters', COALESCE(a.skill -> 'starters', '[]'::jsonb),
+                           'language', a.skill ->> 'language'
+                   ),
+                   a.skill ->> 'body',
+                   octet_length(a.skill ->> 'body'),
+                   a.updated_at
+            FROM apps a
+            WHERE a.skill IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM connection_skills cs
+                  WHERE cs.uri = 'app://' || a.id || '/default'
+              );
+        </sql>
+        <sql>
+            INSERT INTO connection_skills
+                (id, connection_id, uri, name, title, description, starters, language, frontmatter,
+                 content, content_size, discovered_at)
+            SELECT uuidv7(),
+                   s.origin_connection_id,
+                   'app://' || s.origin_connection_id || '/default',
+                   'default',
+                   s.title,
+                   s.description,
+                   s.starters,
+                   NULL,
+                   jsonb_build_object(
+                           'name', 'default',
+                           'title', s.title,
+                           'description', s.description,
+                           'starters', to_jsonb(s.starters)
+                   ),
+                   s.md_content,
+                   octet_length(s.md_content),
+                   s.updated_at
+            FROM (
+                SELECT DISTINCT ON (origin_connection_id) *
+                FROM skills
+                WHERE origin_connection_id IS NOT NULL
+                ORDER BY origin_connection_id, (deleted_at IS NULL) DESC, updated_at DESC
+            ) s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM connection_skills cs
+                WHERE cs.uri = 'app://' || s.origin_connection_id || '/default'
+            );
+        </sql>
+        <sql>
+            UPDATE skills s
+            SET connection_skill_id = cs.id
+            FROM connection_skills cs
+            WHERE s.origin_connection_id = cs.connection_id
+              AND cs.uri = 'app://' || cs.connection_id || '/default';
+        </sql>
+    </changeSet>
+
+    <!-- Old apps may have tools only in apps.tools; connection_tools is the normalized source now.
+         A live set wins; an app with no live rows gets its declaration materialized. -->
+    <changeSet id="backfill-connection-tools-before-contract" author="agimate">
+        <sql>
+            INSERT INTO connection_tools
+                (id, created_at, updated_at, connection_id, name, title, description,
+                 input_schema, output_schema, annotations)
+            SELECT uuidv7(),
+                   CURRENT_TIMESTAMP,
+                   CURRENT_TIMESTAMP,
+                   a.id,
+                   t.key,
+                   t.value ->> 'title',
+                   t.value ->> 'description',
+                   CASE
+                       WHEN jsonb_typeof(t.value -> 'inputSchema') != 'null'
+                           THEN (t.value -> 'inputSchema')::text
+                       WHEN jsonb_typeof(t.value -> 'params') = 'array' THEN
+                           CASE
+                               WHEN jsonb_array_length(t.value -> 'params') > 0 THEN
+                                   jsonb_build_object(
+                                           'type', 'object',
+                                           'properties', COALESCE((
+                                               SELECT jsonb_object_agg(p, '{}'::jsonb)
+                                               FROM jsonb_array_elements_text(t.value -> 'params') p
+                                           ), '{}'::jsonb)
+                                   )::text
+                               ELSE NULL
+                           END
+                       ELSE NULL
+                   END,
+                   CASE
+                       WHEN jsonb_typeof(t.value -> 'outputSchema') != 'null'
+                           THEN (t.value -> 'outputSchema')::text
+                   END,
+                   CASE
+                       WHEN jsonb_typeof(t.value -> 'annotations') != 'null'
+                           THEN (t.value -> 'annotations')::text
+                   END
+            FROM apps a
+            JOIN connections c ON c.id = a.id
+            CROSS JOIN LATERAL jsonb_each(a.tools) t
+            WHERE a.deleted_at IS NULL
+              AND a.tools IS NOT NULL
+              AND jsonb_typeof(a.tools) = 'object'
+              AND NOT EXISTS (
+                  SELECT 1 FROM connection_tools ct
+                  WHERE ct.connection_id = a.id AND ct.deleted_at IS NULL
+              );
+        </sql>
+    </changeSet>
+
+    <changeSet id="backfill-connection-triggers-before-contract" author="agimate">
+        <sql>
+            INSERT INTO connection_triggers
+                (id, created_at, updated_at, connection_id, name, title, description, params_schema)
+            SELECT uuidv7(),
+                   CURRENT_TIMESTAMP,
+                   CURRENT_TIMESTAMP,
+                   a.id,
+                   t.key,
+                   t.value ->> 'title',
+                   t.value ->> 'description',
+                   CASE
+                       WHEN jsonb_typeof(t.value -> 'paramsSchema') != 'null'
+                           THEN (t.value -> 'paramsSchema')::text
+                       WHEN jsonb_typeof(t.value -> 'params') = 'array' THEN
+                           CASE
+                               WHEN jsonb_array_length(t.value -> 'params') > 0 THEN
+                                   jsonb_build_object(
+                                           'type', 'object',
+                                           'properties', COALESCE((
+                                               SELECT jsonb_object_agg(p, '{}'::jsonb)
+                                               FROM jsonb_array_elements_text(t.value -> 'params') p
+                                           ), '{}'::jsonb)
+                                   )::text
+                               ELSE NULL
+                           END
+                       ELSE NULL
+                   END
+            FROM apps a
+            JOIN connections c ON c.id = a.id
+            CROSS JOIN LATERAL jsonb_each(a.triggers) t
+            WHERE a.deleted_at IS NULL
+              AND a.triggers IS NOT NULL
+              AND jsonb_typeof(a.triggers) = 'object'
+              AND NOT EXISTS (
+                  SELECT 1 FROM connection_triggers ct
+                  WHERE ct.connection_id = a.id AND ct.deleted_at IS NULL
+              );
+        </sql>
+    </changeSet>
+
+    <changeSet id="connection-skills-contract-invariants" author="agimate">
+        <sql splitStatements="false">
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1
+                           FROM skills
+                           WHERE origin_connection_id IS NOT NULL
+                             AND connection_skill_id IS NULL) THEN
+                    RAISE EXCEPTION 'connection-skills contract: origin copy without connection_skill_id';
+                END IF;
+
+                IF EXISTS (
+                    SELECT 1
+                    FROM apps a
+                    WHERE a.deleted_at IS NULL
+                      AND a.tools IS NOT NULL
+                      AND jsonb_typeof(a.tools) = 'object'
+                      AND a.tools != '{}'::jsonb
+                      AND NOT EXISTS (
+                          SELECT 1 FROM connection_tools ct
+                          WHERE ct.connection_id = a.id AND ct.deleted_at IS NULL
+                      )
+                ) THEN
+                    RAISE EXCEPTION 'connection-skills contract: live app tools have no connection_tools rows';
+                END IF;
+
+                IF EXISTS (
+                    SELECT 1
+                    FROM apps a
+                    WHERE a.deleted_at IS NULL
+                      AND a.triggers IS NOT NULL
+                      AND jsonb_typeof(a.triggers) = 'object'
+                      AND a.triggers != '{}'::jsonb
+                      AND NOT EXISTS (
+                          SELECT 1 FROM connection_triggers ct
+                          WHERE ct.connection_id = a.id AND ct.deleted_at IS NULL
+                      )
+                ) THEN
+                    RAISE EXCEPTION 'connection-skills contract: live app triggers have no connection_triggers rows';
+                END IF;
+            END $$;
+        </sql>
+    </changeSet>
+
+    <changeSet id="drop-skills-origin" author="agimate">
+        <dropUniqueConstraint tableName="skills" constraintName="uq_skills_origin_connection_id"/>
+        <dropForeignKeyConstraint baseTableName="skills"
+                                  constraintName="fk_skills_origin_connection"/>
+        <dropColumn tableName="skills" columnName="origin_connection_id"/>
+    </changeSet>
+
+    <changeSet id="drop-apps-jsonb-catalogues" author="agimate">
+        <dropColumn tableName="apps" columnName="skill"/>
+        <dropColumn tableName="apps" columnName="tools"/>
+        <dropColumn tableName="apps" columnName="triggers"/>
+    </changeSet>
+
+</databaseChangeLog>
