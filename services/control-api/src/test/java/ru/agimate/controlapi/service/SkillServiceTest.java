@@ -29,17 +29,18 @@ import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionSkill;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.controller.manage.dto.SkillListScope;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.enums.SkillUpdatedBy;
-import ru.agimate.controlapi.database.model.AppSkill;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
@@ -88,6 +89,8 @@ class SkillServiceTest {
     private ConnectorRepository connectorRepository;
     @Mock
     private ConnectionRepository connectionRepository;
+    @Mock
+    private ConnectionSkillRepository connectionSkillRepository;
     @Mock
     private ConnectorRegistry connectorRegistry;
     @Mock
@@ -472,106 +475,6 @@ class SkillServiceTest {
                     """.formatted(name);
         }
 
-        private AppSkill declaration() {
-            return new AppSkill("New title", "new description", "new body", List.of("do it"), ContentLanguage.RU);
-        }
-
-        @Test
-        @DisplayName("createFromApp ставит принудительные поля, origin и updated_by=APP")
-        void createForcesFields() {
-            when(skillRepository.findByOriginConnectionId(originId)).thenReturn(Optional.empty());
-            when(skillRepository.existsByKeyNotDeleted(USER_ID, "app-desktop", null)).thenReturn(false);
-            when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> {
-                Skill s = inv.getArgument(0);
-                s.setId(SKILL_ID);
-                return s;
-            });
-
-            Skill skill = service.createFromApp(USER_ID, originId, "desktop", "AgiMate Desktop",
-                    new AppSkill(null, "desc", "body", List.of("do it"), ContentLanguage.RU)).orElseThrow();
-
-            assertEquals("app-desktop", skill.getName());
-            assertEquals("AgiMate Desktop", skill.getTitle());
-            assertEquals(List.of("app"), skill.getConnectorCodes());
-            assertEquals(ContentCategory.PLATFORM, skill.getCategory());
-            assertEquals(Disclosure.LAZY, skill.getDisclosure());
-            assertEquals(SkillUpdatedBy.APP, skill.getUpdatedBy());
-            assertEquals(originId, skill.getOriginConnectionId());
-            assertNull(skill.getLanguage());
-            assertFalse(skill.getIsPublic());
-            assertEquals(List.of("do it"), skill.getStarters());
-        }
-
-        @Test
-        @DisplayName("имя app-<code> при коллизии получает суффикс -2, затем -3")
-        void nameCollisionGetsHyphenSuffix() {
-            when(skillRepository.findByOriginConnectionId(originId)).thenReturn(Optional.empty());
-            when(skillRepository.existsByKeyNotDeleted(USER_ID, "app-desktop", null)).thenReturn(true);
-            when(skillRepository.existsByKeyNotDeleted(USER_ID, "app-desktop-2", null)).thenReturn(true);
-            when(skillRepository.existsByKeyNotDeleted(USER_ID, "app-desktop-3", null)).thenReturn(false);
-            when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> inv.getArgument(0));
-
-            Skill skill = service.createFromApp(USER_ID, originId, "desktop", "AgiMate Desktop",
-                    declaration()).orElseThrow();
-
-            assertEquals("app-desktop-3", skill.getName());
-        }
-
-        @Test
-        @DisplayName("у подключения уже есть навык (даже удалённый) → второй не создаётся")
-        void existingOriginBlocksCreation() {
-            Skill deleted = originSkill(SkillUpdatedBy.APP);
-            deleted.setDeletedAt(java.time.LocalDateTime.now());
-            when(skillRepository.findByOriginConnectionId(originId)).thenReturn(Optional.of(deleted));
-
-            assertTrue(service.createFromApp(USER_ID, originId, "desktop", "AgiMate Desktop",
-                    declaration()).isEmpty());
-            verify(skillRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("приложение обновляет текст, пока его не правил пользователь")
-        void appRefreshesUntouchedSkill() {
-            Skill skill = originSkill(SkillUpdatedBy.APP);
-            when(skillRepository.findByIdForUpdate(SKILL_ID)).thenReturn(Optional.of(skill));
-
-            service.applyAppDeclaration(skill, "desktop", "AgiMate Desktop", declaration());
-
-            assertEquals("New title", skill.getTitle());
-            assertEquals("new description", skill.getDescription());
-            assertEquals("new body", skill.getMdContent());
-            assertEquals(List.of("do it"), skill.getStarters());
-            assertEquals(2, skill.getVersion());
-            verify(skillRepository).save(skill);
-        }
-
-        @Test
-        @DisplayName("после правки пользователя приложение не перезаписывает текст")
-        void userEditStopsRefresh() {
-            Skill skill = originSkill(SkillUpdatedBy.USER);
-            when(skillRepository.findByIdForUpdate(SKILL_ID)).thenReturn(Optional.of(skill));
-
-            service.applyAppDeclaration(skill, "desktop", "AgiMate Desktop", declaration());
-
-            assertEquals("old body", skill.getMdContent());
-            assertEquals(1, skill.getVersion());
-            verify(skillRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("правка, пришедшая между чтением и обновлением, побеждает: перечитываем под блокировкой")
-        void userEditCommittedBeforeRefreshWins() {
-            Skill stale = originSkill(SkillUpdatedBy.APP);
-            Skill edited = originSkill(SkillUpdatedBy.USER);
-            edited.setMdContent("user text");
-            when(skillRepository.findByIdForUpdate(SKILL_ID)).thenReturn(Optional.of(edited));
-
-            service.applyAppDeclaration(stale, "desktop", "AgiMate Desktop", declaration());
-
-            assertEquals("user text", edited.getMdContent());
-            verify(skillRepository, never()).save(any());
-        }
-
         @Test
         @DisplayName("переименование app-навыка → 400")
         void renameForbidden() {
@@ -649,27 +552,26 @@ class SkillServiceTest {
         }
 
         @Test
-        @DisplayName("удаление приложения удаляет живой origin-навык")
-        void deletesLiveOriginSkill() {
-            Skill live = originSkill(SkillUpdatedBy.APP);
-            when(skillRepository.findByOriginConnectionIdAndDeletedAtIsNull(originId)).thenReturn(Optional.of(live));
-            when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(live));
+        @DisplayName("деталь копии отдаёт connection_skill_id и ключ объявления")
+        void detailCarriesConnectionSkillLink() {
+            UUID connectionSkillId = UUID.randomUUID();
+            Skill copy = Skill.builder().id(SKILL_ID).userId(USER_ID).name("app-desktop-screenshot")
+                    .version(1).connectors(ConnectorRequirement.ofCodes(List.of("app")))
+                    .connectionSkillId(connectionSkillId).updatedBy(SkillUpdatedBy.APP).build();
+            when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(copy));
+            when(connectionSkillRepository.findAllById(any())).thenReturn(List.of(
+                    ConnectionSkill.builder().id(connectionSkillId).connectionId(originId)
+                            .name("screenshot").uri("app://" + originId + "/screenshot").build()));
+            when(connectionRepository.findByIdInNotDeleted(any())).thenReturn(List.of(
+                    Connection.builder().id(originId).connectorCode("app").build()));
+            when(appRepository.findAllByIdInNotDeleted(any())).thenReturn(List.of(
+                    App.builder().id(originId).code("desktop").title("AgiMate Desktop").version("1.4.2").build()));
 
-            service.deleteOriginSkill(originId, USER_ID);
+            SkillDetailResponse detail = service.getSkillDetail(SKILL_ID, USER_ID);
 
-            verify(skillRepository).softDelete(eq(SKILL_ID), any());
-            verify(agentSkillRepository).deleteBySkillId(SKILL_ID);
-        }
-
-        @Test
-        @DisplayName("уже удалённый origin-навык пропускается, удаление не падает")
-        void skipsAlreadyDeletedOriginSkill() {
-            when(skillRepository.findByOriginConnectionIdAndDeletedAtIsNull(originId)).thenReturn(Optional.empty());
-
-            assertDoesNotThrow(() -> service.deleteOriginSkill(originId, USER_ID));
-
-            verify(skillRepository, never()).softDelete(any(), any());
-            verifyNoInteractions(agentSkillRepository);
+            assertEquals(originId, detail.origin().connectionId());
+            assertEquals(connectionSkillId, detail.origin().connectionSkillId());
+            assertEquals("screenshot", detail.origin().key());
         }
 
         @Test

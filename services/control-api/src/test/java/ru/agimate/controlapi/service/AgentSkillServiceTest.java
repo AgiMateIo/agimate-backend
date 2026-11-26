@@ -21,6 +21,7 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgentSkillConnection;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionSkill;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
@@ -31,6 +32,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
@@ -84,6 +86,8 @@ class AgentSkillServiceTest {
     private SkillRepository skillRepository;
     @Mock
     private ConnectionRepository connectionRepository;
+    @Mock
+    private ConnectionSkillRepository connectionSkillRepository;
     @Mock
     private AgentSkillConnectionRepository agentSkillConnectionRepository;
     @Mock
@@ -878,6 +882,97 @@ class AgentSkillServiceTest {
             when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of());
 
             assertEquals(AgentSkillService.RequirementState.NOT_CHOSEN, withheldState());
+        }
+
+        private Skill appCopy(UUID connectionSkillId) {
+            Skill skill = Skill.builder()
+                    .id(SKILL_ID).userId(USER_ID).name("app-desktop").version(1)
+                    .connectors(ConnectorRequirement.ofCodes(List.of("app")))
+                    .connectionSkillId(connectionSkillId).updatedBy(SkillUpdatedBy.APP)
+                    .build();
+            when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(skill));
+            when(skillRepository.findByIdInNotDeleted(any())).thenReturn(List.of(skill));
+            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(
+                    AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
+                            .userId(USER_ID).skillId(SKILL_ID).build()));
+            return skill;
+        }
+
+        private ConnectionSkill declaration(UUID id, UUID connectionId, boolean deleted) {
+            return ConnectionSkill.builder()
+                    .id(id).connectionId(connectionId).uri("app://" + connectionId + "/screenshot")
+                    .name("screenshot").description("d").content("body")
+                    .deletedAt(deleted ? java.time.LocalDateTime.now() : null)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("копия разрешается через connection_skill в своё подключение")
+        void copyResolvesThroughDeclaration() {
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any()))
+                    .thenReturn(List.of(declaration(connectionSkillId, appAId, false)));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA, appB));
+
+            assertEquals(Map.of(SKILL_ID, Set.of(appAId)), service.gate(AGENT_ID).satisfied());
+        }
+
+        @Test
+        @DisplayName("soft-deleted объявление всё ещё выбирает своё подключение")
+        void deletedDeclarationStillSelectsItsConnection() {
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any()))
+                    .thenReturn(List.of(declaration(connectionSkillId, appAId, true)));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appA, appB));
+
+            assertEquals(Map.of(SKILL_ID, Set.of(appAId)), service.gate(AGENT_ID).satisfied());
+        }
+
+        @Test
+        @DisplayName("пропавшее объявление не откатывается к любому app")
+        void missingDeclarationDoesNotFallBack() {
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any())).thenReturn(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(appB));
+            when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of());
+
+            assertEquals(AgentSkillService.RequirementState.NOT_CHOSEN, withheldState());
+        }
+
+        @Test
+        @DisplayName("мастер не предлагает другое приложение для потерянного объявления")
+        void planDoesNotOfferAnotherAppForLostDeclaration() {
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any())).thenReturn(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+            when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of());
+            when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of(appA, appB));
+
+            SkillBindingPlanResponse plan = service.plan(AGENT_ID, SKILL_ID, USER_ID);
+
+            assertTrue(plan.connectors().get(0).matches().isEmpty());
+            assertEquals(AgentSkillService.RequirementState.NOT_CHOSEN, plan.connectors().get(0).state());
+        }
+
+        @Test
+        @DisplayName("мастер оставляет только объявленное подключение, даже если объявление soft-deleted")
+        void planNarrowsToDeclaredConnection() {
+            UUID connectionSkillId = UUID.randomUUID();
+            appCopy(connectionSkillId);
+            when(connectionSkillRepository.findAllById(any()))
+                    .thenReturn(List.of(declaration(connectionSkillId, appAId, true)));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+            when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of(appA));
+            when(connectionRepository.findByUserIdNotDeleted(USER_ID)).thenReturn(List.of(appA, appB));
+
+            SkillBindingPlanResponse plan = service.plan(AGENT_ID, SKILL_ID, USER_ID);
+
+            assertEquals(List.of(appAId), plan.connectors().get(0).matches().stream()
+                    .map(SkillConnectorStatus.ConnectionMatch::connectionId).toList());
         }
 
         @Test

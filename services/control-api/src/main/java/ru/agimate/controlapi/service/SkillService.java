@@ -28,18 +28,19 @@ import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionSkill;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.ContentTag;
 import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.enums.SkillUpdatedBy;
-import ru.agimate.controlapi.database.model.AppSkill;
 import ru.agimate.controlapi.database.model.ConnectorRequirement;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillSpecs;
@@ -52,10 +53,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -79,6 +82,7 @@ public class SkillService {
     private final AgentPresetRepository agentPresetRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectionRepository connectionRepository;
+    private final ConnectionSkillRepository connectionSkillRepository;
     private final ConnectorRegistry connectorRegistry;
     private final SkillPolicySync skillPolicySync;
     private final ContentLanguageResolver contentLanguageResolver;
@@ -230,7 +234,7 @@ public class SkillService {
         }
         // The app keeps the skill fresh only until the first user edit: after this the text is the
         // user's, even when they changed nothing but the access rules.
-        if (skill.getOriginConnectionId() != null) {
+        if (skill.isAppCopy()) {
             skill.setUpdatedBy(SkillUpdatedBy.USER);
         }
         skill.setVersion(skill.getVersion() + 1);
@@ -262,7 +266,7 @@ public class SkillService {
         skill.setConnectors(connectors);
         // The same rule as a full edit: changing only the requirement rules still makes the skill the
         // user's, and the app stops overwriting its text.
-        if (skill.getOriginConnectionId() != null) {
+        if (skill.isAppCopy()) {
             skill.setUpdatedBy(SkillUpdatedBy.USER);
         }
         skill.setVersion(skill.getVersion() + 1);
@@ -298,115 +302,13 @@ public class SkillService {
     }
 
     /**
-     * Create the skill an app brought at link time: the row is the user's copy, the app keeps the
-     * declaration in {@code apps.skill}. One skill per instance — a live or soft-deleted origin blocks
-     * creation, because deleting the skill was the user's decision.
-     *
-     * <p>The name, connectors, category and visibility are the backend's, not the app's: otherwise an
-     * app could claim another connector or publish a skill on the user's behalf. The name counter goes
-     * through hyphens ({@code app-code-2}) — a skill name is kebab-case.
-     *
-     * @return the created skill, or empty when the instance already owns one (including a race lost
-     *         on the unique origin index)
-     */
-    @Transactional
-    public Optional<Skill> createFromApp(UUID userId, UUID originConnectionId, String appCode,
-                                         String appTitle, AppSkill declaration) {
-        if (skillRepository.findByOriginConnectionId(originConnectionId).isPresent()) {
-            return Optional.empty();
-        }
-
-        Skill skill = Skill.builder()
-                .name(availableName(userId, "app-" + appCode))
-                .title(skillTitle(declaration, appTitle, appCode))
-                .description(declaration.description())
-                .mdContent(declaration.body())
-                .connectors(List.of(ConnectorRequirement.of(APP_CONNECTOR_CODE)))
-                .disclosure(Disclosure.LAZY)
-                .category(ContentCategory.PLATFORM)
-                .starters(new ArrayList<>(declaration.starters() != null ? declaration.starters() : List.of()))
-                .userId(userId)
-                .isPublic(false)
-                .originConnectionId(originConnectionId)
-                .updatedBy(SkillUpdatedBy.APP)
-                .build();
-
-        // The link path locks the app row (AppRepository.findByIdForUpdate) for the whole call, and it
-        // is the only caller: the check above and this insert are serialised, so there is no unique-
-        // origin race left to catch. Catching it here would be worse than useless — the exception from
-        // the repository proxy marks the caller's transaction rollback-only before the catch runs.
-        skill = skillRepository.save(skill);
-
-        log.info("Created app skill '{}' id={} for connection {}", skill.getName(), skill.getId(), originConnectionId);
-        return Optional.of(skill);
-    }
-
-    /**
-     * Refresh an app-brought skill from the app's latest declaration — until the user's first edit.
-     * A user edit of any kind (the body or only the rules) flips {@link SkillUpdatedBy#USER}, and from
-     * then on the declaration is stored but never copied over the user's text.
-     */
-    @Transactional
-    public void applyAppDeclaration(Skill skill, String appCode, String appTitle, AppSkill declaration) {
-        // Re-read under the row lock: a user edit committed between the link's read and this refresh
-        // must win. Without the lock the link would overwrite the text it never saw, leaving
-        // updated_by=USER over the app's text — the one loss the whole flag exists to prevent.
-        Skill current = skillRepository.findByIdForUpdate(skill.getId()).orElse(null);
-        if (current == null || current.getOriginConnectionId() == null
-                || current.getUpdatedBy() != SkillUpdatedBy.APP) {
-            return;
-        }
-        current.setTitle(skillTitle(declaration, appTitle, appCode));
-        current.setDescription(declaration.description());
-        current.setMdContent(declaration.body());
-        current.setStarters(new ArrayList<>(declaration.starters() != null ? declaration.starters() : List.of()));
-        current.setVersion(current.getVersion() + 1);
-        skillRepository.save(current);
-        log.info("Refreshed app skill '{}' id={} version={}", current.getName(), current.getId(), current.getVersion());
-    }
-
-    /** The live skill an instance owns, if any — what the app may still refresh at link time. */
-    public Optional<Skill> findLiveOriginSkill(UUID originConnectionId) {
-        return skillRepository.findByOriginConnectionIdAndDeletedAtIsNull(originConnectionId);
-    }
-
-    /**
-     * Delete the skill an instance owns, if it is still live. An already deleted one is skipped: the
-     * app deletion must not fail on it, and {@link #delete} answers 404 for a soft-deleted row.
-     */
-    @Transactional
-    public void deleteOriginSkill(UUID originConnectionId, UUID userId) {
-        skillRepository.findByOriginConnectionIdAndDeletedAtIsNull(originConnectionId)
-                .ifPresent(skill -> delete(skill.getId(), userId, false));
-    }
-
-    private String availableName(UUID userId, String base) {
-        String candidate = base;
-        int suffix = 2;
-        while (skillRepository.existsByKeyNotDeleted(userId, candidate, null)) {
-            candidate = base + "-" + suffix++;
-        }
-        return candidate;
-    }
-
-    private static String skillTitle(AppSkill declaration, String appTitle, String appCode) {
-        if (declaration.title() != null && !declaration.title().isBlank()) {
-            return declaration.title();
-        }
-        if (appTitle != null && !appTitle.isBlank()) {
-            return appTitle;
-        }
-        return appCode;
-    }
-
-    /**
      * An app skill is frozen where the app's identity is baked in: the name follows the code, the
      * requirement is the {@code app} connector, and publishing is refused because nobody else has this
      * origin instance.
      */
     private static void validateOriginEdit(Skill skill, String name, List<ConnectorRequirement> connectors,
                                            Boolean isPublic) {
-        if (skill.getOriginConnectionId() == null) {
+        if (!skill.isAppCopy()) {
             return;
         }
         if (!skill.getName().equals(name)) {
@@ -425,7 +327,7 @@ public class SkillService {
      * the narrower endpoint would be a way around it.
      */
     private static void validateOriginConnectors(Skill skill, List<ConnectorRequirement> connectors) {
-        if (skill.getOriginConnectionId() == null) {
+        if (!skill.isAppCopy()) {
             return;
         }
         List<String> codes = ConnectorRequirement.codes(connectors);
@@ -440,23 +342,33 @@ public class SkillService {
     }
 
     private SkillOriginResponse originOf(Skill skill) {
-        if (skill.getOriginConnectionId() == null) {
-            return null;
-        }
-        return origins(List.of(skill.getOriginConnectionId())).get(skill.getOriginConnectionId());
+        return originsOf(List.of(skill)).get(skill.getId());
     }
 
-    /** The listing's origin blocks in two queries for the whole page, not two per skill. */
+    /** The listing's origin blocks in bulk for the whole page, keyed by skill id. */
     private Map<UUID, SkillOriginResponse> originsOf(Collection<Skill> skills) {
-        List<UUID> ids = skills.stream()
-                .map(Skill::getOriginConnectionId)
+        List<Skill> appCopies = skills.stream().filter(Skill::isAppCopy).toList();
+        if (appCopies.isEmpty()) {
+            return Map.of();
+        }
+        Set<UUID> connectionSkillIds = appCopies.stream()
+                .map(Skill::getConnectionSkillId)
                 .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        return origins(ids);
-    }
+                .collect(Collectors.toSet());
+        Map<UUID, ConnectionSkill> connectionSkills = connectionSkillIds.isEmpty()
+                ? Map.of()
+                : connectionSkillRepository.findAllById(connectionSkillIds).stream()
+                        .collect(Collectors.toMap(ConnectionSkill::getId, connectionSkill -> connectionSkill));
 
-    private Map<UUID, SkillOriginResponse> origins(Collection<UUID> connectionIds) {
+        Map<UUID, UUID> connectionBySkill = new HashMap<>();
+        Set<UUID> connectionIds = new HashSet<>();
+        for (Skill skill : appCopies) {
+            UUID connectionId = originConnectionId(skill, connectionSkills);
+            if (connectionId != null) {
+                connectionBySkill.put(skill.getId(), connectionId);
+                connectionIds.add(connectionId);
+            }
+        }
         if (connectionIds.isEmpty()) {
             return Map.of();
         }
@@ -466,19 +378,36 @@ public class SkillService {
                 .collect(Collectors.toMap(App::getId, app -> app));
 
         Map<UUID, SkillOriginResponse> origins = new HashMap<>();
-        for (UUID connectionId : connectionIds) {
+        for (Skill skill : appCopies) {
+            UUID connectionId = connectionBySkill.get(skill.getId());
+            if (connectionId == null) {
+                continue;
+            }
             App app = apps.get(connectionId);
             if (app == null && !connections.containsKey(connectionId)) {
                 continue;
             }
-            origins.put(connectionId, new SkillOriginResponse(
+            ConnectionSkill connectionSkill = skill.getConnectionSkillId() != null
+                    ? connectionSkills.get(skill.getConnectionSkillId())
+                    : null;
+            origins.put(skill.getId(), new SkillOriginResponse(
                     connectionId,
+                    connectionSkill != null ? connectionSkill.getId() : null,
+                    connectionSkill != null ? connectionSkill.getName() : null,
                     app != null ? app.getCode() : null,
                     app != null ? app.getTitle() : null,
                     app != null ? app.getVersion() : null,
                     deviceName(app != null ? app.getInfo() : null)));
         }
         return origins;
+    }
+
+    private static UUID originConnectionId(Skill skill, Map<UUID, ConnectionSkill> connectionSkills) {
+        if (skill.getConnectionSkillId() != null) {
+            ConnectionSkill connectionSkill = connectionSkills.get(skill.getConnectionSkillId());
+            return connectionSkill != null ? connectionSkill.getConnectionId() : null;
+        }
+        return skill.getOriginConnectionId();
     }
 
     private static String deviceName(Map<String, Object> info) {
@@ -547,12 +476,7 @@ public class SkillService {
         }
         Page<Skill> skills = skillRepository.findAll(spec, pageRequest);
         Map<UUID, SkillOriginResponse> origins = originsOf(skills.getContent());
-        // The null guard is not cosmetic: `origins` is `Map.of()` when the page has no app skill, and
-        // `Map.of().get(null)` throws — every ordinary listing would answer 500.
-        return skills.map(skill -> SkillResponse.from(skill,
-                skill.getOriginConnectionId() == null
-                        ? null
-                        : origins.get(skill.getOriginConnectionId())));
+        return skills.map(skill -> SkillResponse.from(skill, origins.get(skill.getId())));
     }
 
     private void validateName(String name) {

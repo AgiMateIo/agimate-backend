@@ -5,6 +5,7 @@ import jakarta.persistence.criteria.Subquery;
 import lombok.experimental.UtilityClass;
 import org.springframework.data.jpa.domain.Specification;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionSkill;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.ContentCategory;
 import ru.agimate.controlapi.database.enums.ContentLanguage;
@@ -50,6 +51,10 @@ public class SkillSpecs {
      * admits it: a skill an app brought is shown only on its own instance's page, even though every app
      * connection would satisfy the requirement by code. Not indexed, as with
      * {@link #hasConnector(String)}.
+     *
+     * <p>A copy with {@code connection_skill_id} is matched through its declaration, never through
+     * {@code origin_connection_id = NULL}: every copy except the legacy {@code default} has no origin,
+     * and the old fallback would show it on every app's page.
      */
     public static Specification<Skill> fitsConnection(UUID connectionId) {
         return (root, query, cb) -> {
@@ -59,10 +64,20 @@ public class SkillSpecs {
                     cb.equal(connection.get("id"), connectionId),
                     cb.isTrue(cb.function("skill_fits_connection", Boolean.class,
                             root.get("connectors"), connection.get("connectorCode"), connection.get("params"))));
+
+            Subquery<Integer> declared = query.subquery(Integer.class);
+            Root<ConnectionSkill> connectionSkill = declared.from(ConnectionSkill.class);
+            declared.select(cb.literal(1)).where(
+                    cb.equal(connectionSkill.get("id"), root.get("connectionSkillId")),
+                    cb.equal(connectionSkill.get("connectionId"), connectionId));
+
             return cb.and(
-                    cb.or(cb.isNull(root.get("originConnectionId")),
-                            cb.equal(root.get("originConnectionId"), connectionId)),
-                    cb.exists(fitting));
+                    cb.exists(fitting),
+                    cb.or(
+                            cb.and(cb.isNotNull(root.get("connectionSkillId")), cb.exists(declared)),
+                            cb.and(cb.isNull(root.get("connectionSkillId")),
+                                    cb.or(cb.isNull(root.get("originConnectionId")),
+                                            cb.equal(root.get("originConnectionId"), connectionId)))));
         };
     }
 

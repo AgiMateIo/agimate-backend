@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Declarations of skills brought by a connection, next to connection_tools. A user-owned copy
+         lives in skills and points here through connection_skill_id; see
+         docs/decisions/connection-skills.md. -->
+    <changeSet id="create-connection-skills" author="agimate">
+        <createTable tableName="connection_skills">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="uri" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="TEXT"/>
+            <column name="description" type="TEXT"/>
+            <column name="starters" type="TEXT[]" defaultValueComputed="'{}'::text[]">
+                <constraints nullable="false"/>
+            </column>
+            <column name="language" type="TEXT"/>
+            <column name="frontmatter" type="JSONB"/>
+            <column name="content" type="TEXT"/>
+            <column name="content_digest" type="TEXT"/>
+            <column name="content_size" type="BIGINT"/>
+            <column name="manifest" type="JSONB"/>
+            <column name="discovered_at" type="TIMESTAMP"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <addUniqueConstraint tableName="connection_skills"
+                             columnNames="connection_id, uri"
+                             constraintName="uq_connection_skills_connection_id_uri"/>
+
+        <!-- The catalogue is read by connection; the FK is restricted because a copy references the
+             declaration even after the declaration is soft-deleted. -->
+        <createIndex tableName="connection_skills" indexName="idx_connection_skills_connection_id">
+            <column name="connection_id"/>
+        </createIndex>
+        <addForeignKeyConstraint baseTableName="connection_skills"
+                                 baseColumnNames="connection_id"
+                                 constraintName="fk_connection_skills_connection"
+                                 referencedTableName="connections"
+                                 referencedColumnNames="id"
+                                 onDelete="RESTRICT"/>
+    </changeSet>
+
+    <!-- Replaces origin_connection_id for new copies; the legacy column stays until the contract
+         release. -->
+    <changeSet id="skills-connection-skill-id" author="agimate">
+        <addColumn tableName="skills">
+            <column name="connection_skill_id" type="UUID"/>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="skills"
+                                 baseColumnNames="connection_skill_id"
+                                 constraintName="fk_skills_connection_skill"
+                                 referencedTableName="connection_skills"
+                                 referencedColumnNames="id"
+                                 onDelete="RESTRICT"/>
+    </changeSet>
+
+    <!-- One default declaration per app that already has a skill, plus the copy link. The INSERTs are
+         idempotent by the unique (connection_id, uri): the migration runs once, and the DO block
+         refuses to continue if an origin row would be left without a declaration. -->
+    <changeSet id="backfill-connection-skills-from-apps" author="agimate">
+        <sql>
+            INSERT INTO connection_skills
+                (id, connection_id, uri, name, title, description, starters, language, frontmatter,
+                 content, content_size, discovered_at)
+            SELECT uuidv7(),
+                   a.id,
+                   'app://' || a.id || '/default',
+                   'default',
+                   a.skill ->> 'title',
+                   a.skill ->> 'description',
+                   COALESCE(ARRAY(SELECT jsonb_array_elements_text(a.skill -> 'starters')), '{}'::text[]),
+                   a.skill ->> 'language',
+                   jsonb_build_object(
+                           'name', 'default',
+                           'title', a.skill ->> 'title',
+                           'description', a.skill ->> 'description',
+                           'starters', COALESCE(a.skill -> 'starters', '[]'::jsonb),
+                           'language', a.skill ->> 'language'
+                   ),
+                   a.skill ->> 'body',
+                   octet_length(a.skill ->> 'body'),
+                   a.updated_at
+            FROM apps a
+            WHERE a.skill IS NOT NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="backfill-connection-skills-from-copies" author="agimate">
+        <sql>
+            INSERT INTO connection_skills
+                (id, connection_id, uri, name, title, description, starters, language, frontmatter,
+                 content, content_size, discovered_at)
+            SELECT uuidv7(),
+                   s.origin_connection_id,
+                   'app://' || s.origin_connection_id || '/default',
+                   'default',
+                   s.title,
+                   s.description,
+                   s.starters,
+                   NULL,
+                   jsonb_build_object(
+                           'name', 'default',
+                           'title', s.title,
+                           'description', s.description,
+                           'starters', to_jsonb(s.starters)
+                   ),
+                   s.md_content,
+                   octet_length(s.md_content),
+                   s.updated_at
+            FROM (
+                SELECT DISTINCT ON (origin_connection_id) *
+                FROM skills
+                WHERE origin_connection_id IS NOT NULL
+                ORDER BY origin_connection_id, (deleted_at IS NULL) DESC, updated_at DESC
+            ) s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM connection_skills cs WHERE cs.connection_id = s.origin_connection_id
+            );
+        </sql>
+    </changeSet>
+
+    <changeSet id="link-copies-to-connection-skills" author="agimate">
+        <sql>
+            UPDATE skills s
+            SET connection_skill_id = cs.id
+            FROM connection_skills cs
+            WHERE s.origin_connection_id = cs.connection_id
+              AND cs.uri = 'app://' || cs.connection_id || '/default';
+        </sql>
+    </changeSet>
+
+    <changeSet id="connection-skills-backfill-invariant" author="agimate">
+        <sql splitStatements="false">
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1
+                           FROM skills
+                           WHERE origin_connection_id IS NOT NULL
+                             AND connection_skill_id IS NULL) THEN
+                    RAISE EXCEPTION 'connection-skills backfill left origin rows without connection_skill_id';
+                END IF;
+            END $$;
+        </sql>
+    </changeSet>
+
+    <changeSet id="skills-connection-skill-id-unique" author="agimate">
+        <addUniqueConstraint tableName="skills"
+                             columnNames="connection_skill_id"
+                             constraintName="uq_skills_connection_skill_id"/>
+    </changeSet>
+
+</databaseChangeLog>

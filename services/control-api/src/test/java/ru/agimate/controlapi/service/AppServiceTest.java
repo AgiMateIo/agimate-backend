@@ -75,7 +75,7 @@ class AppServiceTest {
     @Mock
     private ConnectionBindingService connectionBindingService;
     @Mock
-    private SkillService skillService;
+    private ConnectionSkillSync connectionSkillSync;
 
     @InjectMocks
     private AppService service;
@@ -99,6 +99,12 @@ class AppServiceTest {
 
     private LinkDeviceRequest request(String deviceId, AppDeclaration app, SkillDeclaration skill) {
         return new LinkDeviceRequest(deviceId, "MacBook", "macOS", Map.of(), Map.of(), Map.of(), app, skill);
+    }
+
+    private LinkDeviceRequest requestWithSkills(String deviceId, AppDeclaration app,
+                                                Map<String, SkillDeclaration> skills) {
+        return new LinkDeviceRequest(deviceId, "MacBook", "macOS", Map.of(), Map.of(), Map.of(),
+                app, null, skills);
     }
 
     private static SkillDeclaration skillDeclaration() {
@@ -183,7 +189,7 @@ class AppServiceTest {
             assertTrue(app.isLinked());
             assertNull(app.getCode());
             assertNull(app.getSkill());
-            verifyNoInteractions(skillService);
+            verifyNoInteractions(connectionSkillSync);
             assertEquals("app_" + APP_ID, connection.getFullCode());
             verify(connectionRepository, never()).existsByFullCodeAndUserIdAndDeletedAtIsNull(anyString(), any());
         }
@@ -195,9 +201,6 @@ class AppServiceTest {
             Connection connection = connection("app_" + APP_ID, null);
             when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
             when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID)).thenReturn(Optional.of(connection));
-            when(skillService.createFromApp(any(), any(), anyString(), anyString(), any()))
-                    .thenReturn(Optional.of(Skill.builder().id(UUID.randomUUID()).build()));
-
             service.linkDevice(PRINCIPAL, request("dev-1", appDeclaration("desktop"), skillDeclaration()));
 
             assertEquals("desktop", app.getCode());
@@ -207,8 +210,8 @@ class AppServiceTest {
             assertEquals("app_desktop", connection.getFullCode());
             assertEquals("desktop", connection.getSubCode());
             assertEquals("AgiMate Desktop", connection.getName());
-            verify(skillService).createFromApp(eq(USER_ID), eq(APP_ID), eq("desktop"),
-                    eq("AgiMate Desktop"), any(AppSkill.class));
+            verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop",
+                    Map.of(ConnectionSkillSync.LEGACY_KEY, skillDeclaration()), false);
         }
 
         @Test
@@ -219,9 +222,6 @@ class AppServiceTest {
             when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID)).thenReturn(Optional.of(connection));
             when(connectionRepository.existsByFullCodeAndUserIdAndDeletedAtIsNull("app_desktop", USER_ID))
                     .thenReturn(true);
-            when(skillService.createFromApp(any(), any(), anyString(), anyString(), any()))
-                    .thenReturn(Optional.of(Skill.builder().build()));
-
             service.linkDevice(PRINCIPAL, request("dev-1", appDeclaration("desktop"), null));
 
             assertEquals("app_desktop_2", connection.getFullCode());
@@ -234,14 +234,12 @@ class AppServiceTest {
             when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app(null, null, null, null)));
             Connection connection = connection("app_" + APP_ID, null);
             when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID)).thenReturn(Optional.of(connection));
-            when(skillService.createFromApp(any(), any(), anyString(), anyString(), any()))
-                    .thenReturn(Optional.of(Skill.builder().build()));
-
             service.linkDevice(PRINCIPAL, request("dev-1", appDeclaration("my-app"), skillDeclaration()));
 
             assertEquals("app_my_app", connection.getFullCode());
             assertEquals("my_app", connection.getSubCode());
-            verify(skillService).createFromApp(eq(USER_ID), eq(APP_ID), eq("my-app"), anyString(), any());
+            verify(connectionSkillSync).sync(APP_ID, USER_ID, "my-app", "AgiMate Desktop",
+                    Map.of(ConnectionSkillSync.LEGACY_KEY, skillDeclaration()), false);
         }
 
         @Test
@@ -313,25 +311,21 @@ class AppServiceTest {
             service.linkDevice(PRINCIPAL, request("dev-0", appDeclaration("desktop"), null));
 
             assertSame(stored, app.getSkill());
-            verifyNoInteractions(skillService);
+            verifyNoInteractions(connectionSkillSync);
         }
 
         @Test
-        @DisplayName("существующий навык обновляется, только если он ещё не правился")
+        @DisplayName("существующий навык обновляется на стороне синхронизации копий")
         void existingSkillIsRefreshed() {
             App app = app("dev-0", "desktop", "AgiMate Desktop", "1.0");
-            Skill live = Skill.builder().id(UUID.randomUUID()).name("app-desktop").build();
             when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
             when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID))
                     .thenReturn(Optional.of(connection("app_desktop", "desktop")));
-            when(skillService.createFromApp(any(), any(), anyString(), anyString(), any()))
-                    .thenReturn(Optional.empty());
-            when(skillService.findLiveOriginSkill(APP_ID)).thenReturn(Optional.of(live));
 
             service.linkDevice(PRINCIPAL, request("dev-0", appDeclaration("desktop"), skillDeclaration()));
 
-            verify(skillService).applyAppDeclaration(eq(live), eq("desktop"), eq("AgiMate Desktop"),
-                    any(AppSkill.class));
+            verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop",
+                    Map.of(ConnectionSkillSync.LEGACY_KEY, skillDeclaration()), false);
         }
 
         @Test
@@ -385,6 +379,79 @@ class AppServiceTest {
             assertThrows(BadRequestStatusException.class, () -> service.linkDevice(PRINCIPAL, request("dev-1",
                     appDeclaration("desktop"), new SkillDeclaration(null, "d", " ", List.of(), null))));
         }
+
+        @Test
+        @DisplayName("карта skills передаётся синхронизации как полная замена")
+        void skillsMapIsFullReplacement() {
+            App app = app(null, null, null, null);
+            when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
+            when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID))
+                    .thenReturn(Optional.of(connection("app_" + APP_ID, null)));
+            Map<String, SkillDeclaration> skills = Map.of(
+                    "screenshot", skillDeclaration(),
+                    "clipboard", new SkillDeclaration(null, "Clipboard", "Body.", List.of(), null));
+
+            service.linkDevice(PRINCIPAL, requestWithSkills("dev-1", appDeclaration("desktop"), skills));
+
+            verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop", skills, true);
+            assertNull(app.getSkill());
+        }
+
+        @Test
+        @DisplayName("skills.default пишет legacy apps.skill")
+        void skillsDefaultWritesLegacyDeclaration() {
+            App app = app(null, null, null, null);
+            when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
+            when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID))
+                    .thenReturn(Optional.of(connection("app_" + APP_ID, null)));
+            Map<String, SkillDeclaration> skills = Map.of(
+                    ConnectionSkillSync.LEGACY_KEY, skillDeclaration(),
+                    "screenshot", new SkillDeclaration(null, "Screenshots", "Body.", List.of(), null));
+
+            service.linkDevice(PRINCIPAL, requestWithSkills("dev-1", appDeclaration("desktop"), skills));
+
+            assertNotNull(app.getSkill());
+            assertEquals("Takes screenshots", app.getSkill().description());
+            verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop", skills, true);
+        }
+
+        @Test
+        @DisplayName("skill и skills вместе → 400")
+        void skillAndSkillsTogetherRejected() {
+            when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app(null, null, null, null)));
+
+            assertThrows(BadRequestStatusException.class, () -> service.linkDevice(PRINCIPAL,
+                    new LinkDeviceRequest("dev-1", "MacBook", "macOS", Map.of(), Map.of(), Map.of(),
+                            appDeclaration("desktop"), skillDeclaration(),
+                            Map.of("screenshot", skillDeclaration()))));
+            verify(appRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("skills без блока app → 400")
+        void skillsWithoutAppRejected() {
+            when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app(null, null, null, null)));
+
+            assertThrows(BadRequestStatusException.class, () -> service.linkDevice(PRINCIPAL,
+                    requestWithSkills("dev-1", null, Map.of("screenshot", skillDeclaration()))));
+            verify(appRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("пустая карта skills очищает legacy-объявление")
+        void emptySkillsClearsLegacyDeclaration() {
+            AppSkill stored = new AppSkill("T", "d", "b", List.of(), ContentLanguage.EN);
+            App app = app(null, null, null, null);
+            app.setSkill(stored);
+            when(appRepository.findByIdForUpdate(APP_ID)).thenReturn(Optional.of(app));
+            when(connectionRepository.findByAppIdAndDeletedAtIsNull(APP_ID))
+                    .thenReturn(Optional.of(connection("app_" + APP_ID, null)));
+
+            service.linkDevice(PRINCIPAL, requestWithSkills("dev-1", appDeclaration("desktop"), Map.of()));
+
+            assertNull(app.getSkill());
+            verify(connectionSkillSync).sync(APP_ID, USER_ID, "desktop", "AgiMate Desktop", Map.of(), true);
+        }
     }
 
     @Nested
@@ -416,7 +483,7 @@ class AppServiceTest {
             service.deleteApp(APP_ID, USER_ID);
 
             verify(appRepository).softDelete(eq(APP_ID), any());
-            verify(skillService).deleteOriginSkill(APP_ID, USER_ID);
+            verify(connectionSkillSync).deleteForConnection(APP_ID, USER_ID);
         }
     }
 }

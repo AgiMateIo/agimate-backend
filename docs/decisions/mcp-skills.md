@@ -177,18 +177,20 @@ description: "Ведёт задачи на доске: создать, пере�
 
 ### `connection_skills`
 
-Новая таблица рядом с `connection_tools`:
+Таблица общая с навыками приложений; полная схема, ограничения и смысл колонок —
+[connection-skills.md](connection-skills.md). Для MCP в ней значат:
 
-| Колонка | Зачем |
-|:--|:--|
-| `id` | `uuidv7()` |
-| `connection_id` | Владелец капабилити |
-| `uri` | Идентичность навыка у сервера; часть уникального ключа `(connection_id, uri)` |
-| `name`, `description` | Для каталога и листинга, без тела |
-| `frontmatter` | JSONB, как объявил сервер |
-| `manifest` | JSONB: файлы, дайджесты, размеры |
-| `content`, `content_digest`, `content_size` | Кэш `SKILL.md`, `NULL` до первой загрузки |
-| `discovered_at` | Когда запись последний раз подтверждена `skills/list` |
+- `uri` — идентичность навыка у сервера, у каждого навыка своя; часть ключа
+  `(connection_id, uri)`;
+- `name`, `description`, `frontmatter` — из `skills/list`, для каталога и листинга;
+- `manifest` — JSONB: файлы, дайджесты, размеры;
+- `content`, `content_digest`, `content_size` — кэш `SKILL.md`, `NULL` до первой загрузки;
+- `title`, `starters`, `language` — app-only, у MCP пусты;
+- `deleted_at` — у MCP пропажа из листинга не удаление; строку убирает только `-32602` от
+  `skills/get`.
+
+У приложений строки `connection_skills` ещё и копируются в пользовательские `skills`; у MCP копий
+нет — это решение фазы 2.
 
 Тело не тянется при discovery: расширение прямо запрещает загружать файлы заранее. `skills/list`
 даёт метаданные и манифест; `resources/read` вызывается, когда навык понадобился.

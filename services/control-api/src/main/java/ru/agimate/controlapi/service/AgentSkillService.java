@@ -25,6 +25,7 @@ import ru.agimate.controlapi.controller.manage.dto.SkillConnectorStatus.Connecti
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgentSkillConnection;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionSkill;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
@@ -34,6 +35,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -116,6 +118,7 @@ public class AgentSkillService {
     private final AgentRepository agentRepository;
     private final SkillRepository skillRepository;
     private final ConnectionRepository connectionRepository;
+    private final ConnectionSkillRepository connectionSkillRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectionToolRepository connectionToolRepository;
     private final ConnectionTriggerRepository connectionTriggerRepository;
@@ -204,16 +207,18 @@ public class AgentSkillService {
         verifyAgentOwnership(agentId, userId);
         Skill skill = verifySkillAccessible(skillId, userId);
         Map<UUID, Connection> bound = boundConnections(agentId);
+        Map<UUID, ConnectionSkill> connectionSkills = connectionSkills(List.of(skill));
         // The origin instance must be visible even when it is not bound: «chosen but not open» is a
         // different answer than «nothing chosen».
-        Map<UUID, Connection> connections = withOrigin(skill, bound);
+        UUID originId = originConnectionId(skill, connectionSkills);
+        Map<UUID, Connection> connections = withOrigin(skill, bound, connectionSkills);
         Map<String, List<UUID>> instancesByKey = resolveInstances(
-                skill, Map.of(), bound, connections.get(skill.getOriginConnectionId()));
+                skill, Map.of(), bound, connections.containsKey(originId) ? originId : null);
         Requirements requirements = requirements(skill, instancesByKey, bound.keySet(), connections,
                 broughtNothing(bound.values()));
         SkillResolution resolution = new SkillResolution(
                 List.of(new ResolvedSkill(null, skillId, instancesByKey, requirements.states(), requirements.fitByKey())),
-                bound.keySet(), connections, Map.of(skillId, skill));
+                bound.keySet(), connections, Map.of(skillId, skill), connectionSkills);
         return SkillBindingPlanResponse.of(skillId, skill.getName(),
                 statuses(resolution, null, skill, statusContext(userId, agentId)));
     }
@@ -388,7 +393,7 @@ public class AgentSkillService {
     private SkillResolution resolveSkills(UUID agentId) {
         List<AgentSkill> agentSkills = agentSkillRepository.findByAgentId(agentId);
         if (agentSkills.isEmpty()) {
-            return new SkillResolution(List.of(), Set.of(), Map.of(), Map.of());
+            return new SkillResolution(List.of(), Set.of(), Map.of(), Map.of(), Map.of());
         }
         Map<UUID, Skill> skills = skillRepository
                 .findByIdInNotDeleted(agentSkills.stream().map(AgentSkill::getSkillId).collect(Collectors.toSet()))
@@ -397,6 +402,7 @@ public class AgentSkillService {
         Map<UUID, Connection> connections = boundConnections(agentId);
         Map<UUID, Connection> bound = Map.copyOf(connections);
         Set<UUID> boundIds = bound.keySet();
+        Map<UUID, ConnectionSkill> connectionSkills = connectionSkills(skills.values());
 
         Map<UUID, Map<String, UUID>> references = new HashMap<>();
         Set<UUID> referencedIds = new HashSet<>();
@@ -416,7 +422,7 @@ public class AgentSkillService {
         // An origin instance may be unbound — the skill still points at it, and the listing shows which
         // app brought it; resolveInstances never falls back to another instance of the code.
         Set<UUID> originIds = skills.values().stream()
-                .map(Skill::getOriginConnectionId)
+                .map(skill -> originConnectionId(skill, connectionSkills))
                 .filter(Objects::nonNull)
                 .filter(id -> !connections.containsKey(id))
                 .collect(Collectors.toSet());
@@ -432,14 +438,15 @@ public class AgentSkillService {
             if (skill == null) {
                 continue;
             }
+            UUID originId = originConnectionId(skill, connectionSkills);
             Map<String, List<UUID>> instancesByKey = resolveInstances(skill,
                     references.getOrDefault(agentSkill.getId(), Map.of()), bound,
-                    connections.get(skill.getOriginConnectionId()));
+                    connections.containsKey(originId) ? originId : null);
             Requirements requirements = requirements(skill, instancesByKey, boundIds, connections, broughtNothing);
             resolved.add(new ResolvedSkill(agentSkill.getId(), agentSkill.getSkillId(), instancesByKey,
                     requirements.states(), requirements.fitByKey()));
         }
-        return new SkillResolution(resolved, boundIds, connections, skills);
+        return new SkillResolution(resolved, boundIds, connections, skills, connectionSkills);
     }
 
     /**
@@ -450,7 +457,7 @@ public class AgentSkillService {
      * instance of the code, exactly what the tool gate did when it worked by code.
      */
     private Map<String, List<UUID>> resolveInstances(Skill skill, Map<String, UUID> references,
-                                                     Map<UUID, Connection> bound, Connection origin) {
+                                                     Map<UUID, Connection> bound, UUID originConnectionId) {
         Map<String, List<Connection>> boundByCode = new HashMap<>();
         for (Connection connection : bound.values()) {
             boundByCode.computeIfAbsent(connection.getConnectorCode(), k -> new ArrayList<>()).add(connection);
@@ -459,10 +466,10 @@ public class AgentSkillService {
         for (ConnectorRequirement requirement : skill.getConnectors()) {
             UUID referenced = references.get(requirement.key());
             List<UUID> instances;
-            if (skill.getOriginConnectionId() != null) {
+            if (skill.isAppCopy()) {
                 // The origin is the selector, not a hint: a skill from app A must never pick app B's
                 // tools. When the instance is gone the answer is «nothing chosen», not «any app».
-                instances = origin != null ? List.of(origin.getId()) : List.of();
+                instances = originConnectionId != null ? List.of(originConnectionId) : List.of();
             } else if (referenced != null) {
                 instances = List.of(referenced);
             } else {
@@ -477,8 +484,9 @@ public class AgentSkillService {
     }
 
     /** The bound instances plus the skill's origin when it is not among them. */
-    private Map<UUID, Connection> withOrigin(Skill skill, Map<UUID, Connection> bound) {
-        UUID originId = skill.getOriginConnectionId();
+    private Map<UUID, Connection> withOrigin(Skill skill, Map<UUID, Connection> bound,
+                                             Map<UUID, ConnectionSkill> connectionSkills) {
+        UUID originId = originConnectionId(skill, connectionSkills);
         if (originId == null || bound.containsKey(originId)) {
             return bound;
         }
@@ -613,7 +621,8 @@ public class AgentSkillService {
 
     /** @see #resolveSkills */
     private record SkillResolution(List<ResolvedSkill> skills, Set<UUID> boundIds,
-                                   Map<UUID, Connection> connections, Map<UUID, Skill> definitions) {
+                                   Map<UUID, Connection> connections, Map<UUID, Skill> definitions,
+                                   Map<UUID, ConnectionSkill> connectionSkills) {
     }
 
     /**
@@ -718,7 +727,7 @@ public class AgentSkillService {
     /** An app skill owns exactly its origin instance — nothing internal is addressable through it. */
     private Set<String> internalCodes(Skill skill) {
         Set<String> codes = new LinkedHashSet<>();
-        if (skill.getOriginConnectionId() != null) {
+        if (skill.isAppCopy()) {
             return codes;
         }
         for (ConnectorRequirement requirement : skill.getConnectors()) {
@@ -753,8 +762,14 @@ public class AgentSkillService {
                                              UUID userId) {
         // An app skill owns exactly its origin instance: the reference is forced the way an internal
         // connector's mode row is, and a different id is a client error rather than a silent correction.
-        UUID origin = skill.getOriginConnectionId();
-        if (origin != null) {
+        if (skill.isAppCopy()) {
+            UUID origin = skill.getConnectionSkillId() != null
+                    ? connectionSkillRepository.findById(skill.getConnectionSkillId())
+                            .map(ConnectionSkill::getConnectionId).orElse(null)
+                    : skill.getOriginConnectionId();
+            if (origin == null) {
+                return Optional.empty();
+            }
             if (requested != null && !requested.equals(origin)) {
                 throw new BadRequestStatusException(
                         "An app skill belongs to its own instance: " + origin);
@@ -788,6 +803,26 @@ public class AgentSkillService {
                 yield Optional.empty();
             }
         };
+    }
+
+    private Map<UUID, ConnectionSkill> connectionSkills(Collection<Skill> skills) {
+        Set<UUID> ids = skills.stream()
+                .map(Skill::getConnectionSkillId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return connectionSkillRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(ConnectionSkill::getId, connectionSkill -> connectionSkill));
+    }
+
+    private static UUID originConnectionId(Skill skill, Map<UUID, ConnectionSkill> connectionSkills) {
+        if (skill.getConnectionSkillId() != null) {
+            ConnectionSkill connectionSkill = connectionSkills.get(skill.getConnectionSkillId());
+            return connectionSkill != null ? connectionSkill.getConnectionId() : null;
+        }
+        return skill.getOriginConnectionId();
     }
 
     /** What the statuses need beyond the resolution: the user's connections to offer, the catalogue for names. */
@@ -837,7 +872,8 @@ public class AgentSkillService {
                     internal,
                     requirement.params(),
                     handler.map(AgentSkillService::credentialFields).orElse(null),
-                    matches(requirement, context, resolution.boundIds(), skill.getOriginConnectionId()),
+                    matches(requirement, context, resolution.boundIds(),
+                            originConnectionId(skill, resolution.connectionSkills()), skill.isAppCopy()),
                     connectionId,
                     connection != null ? displayName(connection) : null,
                     state,
@@ -856,10 +892,14 @@ public class AgentSkillService {
      */
     private static List<ConnectionMatch> matches(ConnectorRequirement requirement,
                                                  StatusContext context, Set<UUID> boundIds,
-                                                 UUID originConnectionId) {
+                                                 UUID originConnectionId, boolean appCopy) {
+        if (appCopy && originConnectionId == null) {
+            // An app copy with a lost declaration has no instance to offer; falling back to every app
+            // would invite the user to bind a workflow to the wrong application.
+            return List.of();
+        }
         return context.userByCode().getOrDefault(requirement.code(), List.of()).stream()
-                .filter(connection -> originConnectionId == null
-                        || originConnectionId.equals(connection.getId()))
+                .filter(connection -> !appCopy || originConnectionId.equals(connection.getId()))
                 .filter(connection -> requirement.fits(connection.getConnectorCode(), connection.getParams()))
                 .map(connection -> new ConnectionMatch(connection.getId(), displayName(connection),
                         boundIds.contains(connection.getId())))

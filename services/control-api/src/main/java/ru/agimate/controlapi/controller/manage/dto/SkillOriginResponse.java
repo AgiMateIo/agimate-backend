@@ -13,6 +13,12 @@ public record SkillOriginResponse(
         @Schema(description = "The connection (app instance) the skill belongs to")
         UUID connectionId,
 
+        @Schema(description = "The declared skill this copy was made from")
+        UUID connectionSkillId,
+
+        @Schema(description = "The app-declared key of the declaration", example = "screenshot")
+        String key,
+
         @Schema(description = "App kind the client declared", example = "desktop")
         String code,
 

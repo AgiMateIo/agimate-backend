@@ -56,7 +56,7 @@ public class AppService {
     private final ConnectionTriggerRepository connectionTriggerRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectionBindingService connectionBindingService;
-    private final SkillService skillService;
+    private final ConnectionSkillSync connectionSkillSync;
 
     @Transactional
     public AppCreateResult createApp(UUID userId, String description, String connectorCode) {
@@ -152,8 +152,9 @@ public class AppService {
                     connectionBindingService.detachConnection(c.getId());
                     connectionRepository.softDelete(c.getId(), now);
                 });
-        // The skill the app brought goes with it; an already deleted one is skipped, not an error.
-        skillService.deleteOriginSkill(app.getId(), userId);
+        // The declarations and their copies go with the app; an already deleted copy is skipped, not an
+        // error, so a user's earlier deletion cannot roll back the app deletion.
+        connectionSkillSync.deleteForConnection(app.getId(), userId);
         log.info("Soft deleted app: {}", id);
     }
 
@@ -277,15 +278,31 @@ public class AppService {
             return null;
         }
 
-        // The skill name is built from the app code, so the skill block cannot stand alone.
-        if (linkDeviceRequest.skill() != null && linkDeviceRequest.app() == null) {
+        if (linkDeviceRequest.skill() != null && linkDeviceRequest.skills() != null) {
+            throw new BadRequestStatusException("Pass either skill or skills, not both");
+        }
+        boolean fullReplacement = linkDeviceRequest.skills() != null;
+        Map<String, SkillDeclaration> declarations = linkDeviceRequest.skills();
+        if (linkDeviceRequest.skill() != null) {
+            declarations = Map.of(ConnectionSkillSync.LEGACY_KEY, linkDeviceRequest.skill());
+        }
+        boolean hasSkills = declarations != null;
+        // The skill name is built from the app code, so a skill block cannot stand alone.
+        if (hasSkills && linkDeviceRequest.app() == null) {
             throw new BadRequestStatusException(
                     "The skill block requires the app block: the skill name is built from app.code");
         }
         String appCode = linkDeviceRequest.app() != null ? normalizeAppCode(linkDeviceRequest.app().code()) : null;
         String appVersion = linkDeviceRequest.app() != null
                 ? requireText(linkDeviceRequest.app().version(), "app.version") : null;
-        AppSkill declaration = linkDeviceRequest.skill() != null ? toAppSkill(linkDeviceRequest.skill()) : null;
+        AppSkill legacyDeclaration = null;
+        if (fullReplacement) {
+            SkillDeclaration defaultDeclaration =
+                    linkDeviceRequest.skills().get(ConnectionSkillSync.LEGACY_KEY);
+            legacyDeclaration = defaultDeclaration != null ? toAppSkill(defaultDeclaration) : null;
+        } else if (linkDeviceRequest.skill() != null) {
+            legacyDeclaration = toAppSkill(linkDeviceRequest.skill());
+        }
 
         boolean firstLink = !app.isLinked();
         if (firstLink) {
@@ -297,8 +314,11 @@ public class AppService {
         if (linkDeviceRequest.app() != null) {
             applyIdentity(app, appCode, linkDeviceRequest.app().title(), appVersion);
         }
-        if (declaration != null) {
-            app.setSkill(declaration);
+        if (fullReplacement) {
+            // The map is the whole catalogue: no default means no legacy declaration either.
+            app.setSkill(legacyDeclaration);
+        } else if (legacyDeclaration != null) {
+            app.setSkill(legacyDeclaration);
         }
         App saved = appRepository.save(app);
         syncAppCatalog(saved.getId(), linkDeviceRequest);
@@ -306,16 +326,9 @@ public class AppService {
         connectionRepository.findByAppIdAndDeletedAtIsNull(saved.getId())
                 .ifPresent(connection -> syncConnection(connection, saved, firstLink && linkDeviceRequest.app() != null));
 
-        if (declaration != null && saved.getCode() != null) {
-            boolean created = skillService.createFromApp(saved.getUserId(), saved.getId(), saved.getCode(),
-                    saved.getTitle(), declaration).isPresent();
-            if (!created) {
-                // An existing skill is refreshed only while the text is the app's own; the check is
-                // inside SkillService, so a user-edited or deleted skill stays as it is.
-                skillService.findLiveOriginSkill(saved.getId())
-                        .ifPresent(skill -> skillService.applyAppDeclaration(
-                                skill, saved.getCode(), saved.getTitle(), declaration));
-            }
+        if (hasSkills) {
+            connectionSkillSync.sync(saved.getId(), saved.getUserId(), saved.getCode(), saved.getTitle(),
+                    declarations, fullReplacement);
         }
 
         log.info("Linked device {} to app {}", linkDeviceRequest.deviceId(), saved.getId());

@@ -118,25 +118,30 @@ JSON-текстом для фиделити). Статические конне�
   `app_<slug(code)>`, при коллизии — `app_<slug>_2` (`FullCodes.slug` заменяет дефисы на подчёркивания:
   `my-app` → `app_my_app`). До линковки стоит placeholder `app_<appId>`. Уже подключённые приложения
   свой namespace не меняют: имена тулов запечены в ABAC-правила, историю вызовов и навыки.
-- **Клиент объявляет каталог** `tools`/`triggers` и, необязательно, блок `skill`. Каталог заменяется
-  целиком и зеркалится в `connection_tools`/`connection_triggers`; `apps.skill` (JSONB) хранит
-  последнее объявление приложения. Линковка идемпотентна и повторяется при каждом старте, поэтому
-  оборвавшаяся связь не теряет навык.
-- **Навык приложения** — пользовательская копия объявления: имя `app-<code>` (суффиксы `-2`, `-3` при
-  коллизии), принудительный `connectors: [app]`, категория `PLATFORM`, `disclosure = LAZY`,
-  `is_public = false`, `language = NULL`. Пока `skills.updated_by = APP`, линковка обновляет текст и
+- **Клиент объявляет каталог** `tools`/`triggers` и карту `skills`. Каталог заменяется целиком и
+  зеркалится в `connection_tools`/`connection_triggers`; объявления навыков — в `connection_skills`
+  (`docs/decisions/connection-skills.md`). Линковка идемпотентна и повторяется при каждом старте,
+  поэтому оборвавшаяся связь не теряет навык. Legacy-блок `skill` обновляет только ключ `default`.
+- **Навык приложения** — пользовательская копия объявления: имя `app-<code>` для `default`,
+  `app-<code>-<key>` для остальных (суффиксы `-2`, `-3` при коллизии), принудительный
+  `connectors: [app]`, категория `PLATFORM`, `disclosure = LAZY`, `is_public = false`,
+  `language = NULL`. Пока `skills.updated_by = APP`, линковка обновляет текст, стартеры и описание и
   поднимает `Skill.version`; первая же правка пользователя (тело или только правила) ставит `USER`, и
-  приложение пишет только `apps.skill`. Удалённый навык не воскрешается: уникальность
-  `skills.origin_connection_id` включает soft-deleted строки.
-- **Origin — селектор экземпляра.** `skills.origin_connection_id` разрешает требование навыка ровно в
-  это подключение (`AgentSkillService.resolveInstances`), форсирует ссылку при привязке к агенту и
-  сужает `matches` мастера и `SkillSpecs.fitsConnection` — навык от app A не появится на странице app B
-  и не подхватит его тулы.
-- **Удаление.** `AppService.deleteApp` сворачивает подключение и soft-delete'ит origin-навык через
-  `SkillService.deleteOriginSkill` (уже удалённый пропускается). `DELETE /manage/connections/{id}` для
-  APP делегирует в тот же путь — иначе строка `apps` и навык остаются.
+  приложение пишет только `connection_skills`. Удалённая копия не воскрешается: уникальность
+  `skills.connection_skill_id` включает soft-deleted строки.
+- **Origin — селектор экземпляра.** `skills.connection_skill_id` выводит подключение через
+  `connection_skills.connection_id`; `AgentSkillService.resolveInstances` разрешает требование ровно в
+  него, форсирует ссылку при привязке к агенту и сужает `matches` мастера и
+  `SkillSpecs.fitsConnection` — навык от app A не появится на странице app B и не подхватит его тулы.
+  Привязка копии не открывает `agent_connections`: без привязки самого app-подключения она `NOT_BOUND`.
+- **Удаление.** `AppService.deleteApp` сворачивает подключение и удаляет объявления и копии через
+  `ConnectionSkillSync.deleteForConnection`; уже soft-deleted копия пропускается, иначе
+  `SkillService.delete` ответил бы 404 и откатил удаление приложения.
+  `DELETE /manage/connections/{id}` для APP делегирует в тот же путь — иначе строка `apps` и навыки
+  остаются.
 
-Решение и отвергнутые варианты — [../decisions/app-skills.md](../decisions/app-skills.md).
+Решения и отвергнутые варианты — [../decisions/connection-skills.md](../decisions/connection-skills.md)
+и историческая запись [../decisions/app-skills.md](../decisions/app-skills.md).
 
 ## Доступ агента (binding + политики)
 

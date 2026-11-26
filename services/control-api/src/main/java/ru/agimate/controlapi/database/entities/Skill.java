@@ -26,8 +26,10 @@ import java.util.UUID;
  * skill per instance, and a deleted one is not recreated.
  */
 @Entity
-@Table(name = "skills", uniqueConstraints = @UniqueConstraint(
-        name = "uq_skills_origin_connection_id", columnNames = "origin_connection_id"))
+@Table(name = "skills", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_skills_origin_connection_id", columnNames = "origin_connection_id"),
+        @UniqueConstraint(name = "uq_skills_connection_skill_id", columnNames = "connection_skill_id")
+})
 @Getter
 @Setter
 @Builder
@@ -120,13 +122,21 @@ public class Skill extends BaseEntity {
     private Boolean isPublic = false;
 
     /**
-     * The app instance that brought this skill and the instance it always resolves to. Unique across
-     * live and soft-deleted rows: a deleted skill is not recreated by the next app link.
+     * The app instance that brought this skill and the instance it always resolves to. Legacy during
+     * the expand migration: new app copies use {@link #connectionSkillId} instead.
      */
     @Column(name = "origin_connection_id")
     private UUID originConnectionId;
 
-    /** Who last changed the content; {@code null} for a skill no app owns. See {@link #originConnectionId}. */
+    /**
+     * The declared skill this row is a copy of. Replaces {@link #originConnectionId}; the connection is
+     * derived through {@code connection_skills.connection_id}. Unique across live and soft-deleted
+     * rows: a copy deleted by the user is not recreated by the next link.
+     */
+    @Column(name = "connection_skill_id")
+    private UUID connectionSkillId;
+
+    /** Who last changed the content; {@code null} for a skill no app owns. See {@link #connectionSkillId}. */
     @Enumerated(EnumType.STRING)
     @Column(name = "updated_by", columnDefinition = "TEXT")
     private SkillUpdatedBy updatedBy;
@@ -136,6 +146,11 @@ public class Skill extends BaseEntity {
 
     public boolean isDeleted() {
         return deletedAt != null;
+    }
+
+    /** A copy brought by a connection, under either the new link or the legacy origin column. */
+    public boolean isAppCopy() {
+        return connectionSkillId != null || originConnectionId != null;
     }
 
     /** Distinct connector codes in declaration order — the view of the readers that work by code. */
